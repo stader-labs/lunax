@@ -1,0 +1,1 @@
+c30393a2f48d240fb1dd130f2e64f23602599fdd43cb494f728e4b8bcff31611  sic_stake_max.wasm
