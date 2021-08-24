@@ -1,18 +1,16 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{
-    attr, to_binary, Addr, Attribute, Binary, Coin, Decimal, Deps, DepsMut, DistributionMsg, Env,
-    MessageInfo, Response, StdResult, Uint128,
-};
+use cosmwasm_std::{attr, to_binary, Addr, Attribute, Binary, Coin, Decimal, Deps, DepsMut, DistributionMsg, Env, MessageInfo, Response, StdResult, Uint128, StakingMsg};
 
 use crate::error::ContractError;
 use crate::msg::{
     ExecuteMsg, GetConfigResponse, GetCurrentUndelegationBatchIdResponse, GetStateResponse,
     GetTotalTokensResponse, InstantiateMsg, QueryMsg,
 };
-use crate::state::{Config, State, CONFIG, STATE};
+use crate::state::{Config, State, CONFIG, STATE, StakeQuota, VALIDATORS_TO_STAKED_QUOTA};
 use crate::utils::{merge_coin, merge_coin_vector, CoinOp, CoinVecOp, Operation};
 use cw_storage_plus::U64Key;
+use std::collections::HashMap;
 use terra_cosmwasm::{create_swap_msg, SwapResponse, TerraMsgWrapper, TerraQuerier};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -28,12 +26,12 @@ pub fn instantiate(
         contract_genesis_shares_per_token_ratio: Decimal::from_ratio(100_000_000_u128, 1_u128),
         vault_apr: Decimal::zero(),
         unbonding_period: (21 * 24 * 3600 + 3600),
-        total_slashed_deposit: Uint128::zero(),
         current_undelegation_batch_id: 0,
         accumulated_vault_airdrops: vec![],
         validator_pool: msg.initial_validators,
         unswapped_rewards: vec![],
         uninvested_rewards: Coin::new(0_u128, msg.vault_denom.clone()),
+        total_staked_tokens: Uint128::zero(),
     };
     if msg.unbonding_period.is_some() {
         state.unbonding_period = msg.unbonding_period.unwrap();
@@ -213,6 +211,89 @@ pub fn try_reinvest(
     _env: Env,
     info: MessageInfo,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    let state = STATE.load(deps.storage)?;
+    if info.sender != config.manager {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    if state.uninvested_rewards.amount.is_zero() {
+        return Err(ContractError::NoUnstakedRewards {});
+    }
+
+    let vault_denom = config.vault_denom;
+    let mut current_total_staked_tokens = Coin::new(0_u128, vault_denom.clone());
+    let mut validator_to_delegation_map: HashMap<&Addr, Uint128> = HashMap::new();
+    for validator in &state.validator_pool {
+        let result = deps
+            .querier
+            .query_delegation(&_env.contract.address, validator)?;
+        // TODO: bchain99 - should not happen
+        if result.is_none() {
+            continue;
+        }
+
+        let full_delegation = result.unwrap();
+
+        validator_to_delegation_map.insert(validator, full_delegation.amount.amount);
+
+        current_total_staked_tokens = merge_coin(
+            current_total_staked_tokens,
+            CoinOp {
+                fund: full_delegation.amount,
+                operation: Operation::Add,
+            },
+        );
+    }
+
+    let new_current_staked_tokens = current_total_staked_tokens
+        .amount
+        .checked_add(state.uninvested_rewards.amount)
+        .unwrap();
+
+    let validator_pool_length = state.validator_pool.len();
+    let even_split = new_current_staked_tokens.u128() / validator_pool_length as u128;
+    let mut extra_split = new_current_staked_tokens.u128() % validator_pool_length as u128;
+    let mut messages: Vec<StakingMsg> = vec![];
+    state.validator_pool.iter().for_each(|v| {
+        let delegation_amount = Uint128::new(even_split + extra_split);
+        if !delegation_amount.is_zero() {
+            messages.push(StakingMsg::Delegate {
+                validator: v.to_string(),
+                amount: Coin {
+                    denom: vault_denom.clone(),
+                    amount: delegation_amount,
+                },
+            });
+        }
+
+        let current_validator_staked_amount = *(validator_to_delegation_map.get(v).unwrap());
+        let new_validator_staked_amount = current_validator_staked_amount
+            .checked_add(delegation_amount)
+            .unwrap();
+        // validator stake quota will get updated as we are reconciling the validator stake
+        let new_validator_stake_quota: StakeQuota = StakeQuota {
+            amount: Coin {
+                denom: vault_denom.clone(),
+                amount: new_validator_staked_amount,
+            },
+            vault_stake_fraction: Decimal::from_ratio(
+                new_validator_staked_amount,
+                new_current_staked_tokens,
+            ),
+        };
+
+        VALIDATORS_TO_STAKED_QUOTA.save(deps.storage, v, &new_validator_stake_quota);
+        extra_split = 0_u128;
+    });
+
+    STATE.update(deps.storage, |mut state| -> StdResult<_> {
+        state.total_staked_tokens = new_current_staked_tokens;
+        // TODO: bchain99 - get strategy apr
+
+        Ok(state)
+    })?;
+
     Ok(Response::default())
 }
 

@@ -42,7 +42,6 @@ pub struct StakeQuota {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
     pub manager: Addr,
-
     pub scc_contract_address: Addr,
 
     pub vault_denom: String,
@@ -54,9 +53,8 @@ pub struct State {
     pub contract_genesis_timestamp: Timestamp,
     pub contract_genesis_shares_per_token_ratio: Decimal,
 
-    pub vault_apr: Decimal,
+    pub strategy_apr: Decimal,
     pub unbonding_period: u64, // the blockchain's unbonding_period + buffer_time
-    pub total_slashed_deposit: Uint128,
 
     pub current_undelegation_batch_id: u64,
 
@@ -65,6 +63,15 @@ pub struct State {
     pub validator_pool: Vec<Addr>,
     pub unswapped_rewards: Vec<Coin>,
     pub uninvested_rewards: Coin,
+    pub total_staked_tokens: Uint128,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct BatchUndelegationRecord {
+    pub(crate) amount: Coin,
+    pub(crate) unbonding_slashing_ratio: Decimal,
+    pub(crate) create_time: Timestamp,
+    pub(crate) slashing_checked: bool,
 }
 
 pub const CONFIG: Item<Config> = Item::new("config");
@@ -78,5 +85,5 @@ pub const VALIDATORS_TO_STAKED_QUOTA: Map<&Addr, StakeQuota> =
 pub const AIRDROP_REGISTRY: Map<String, Addr> = Map::new("airdrop_registry");
 
 // // Map of undelegation order per undelegation epoch loop
-// pub const UNDELEGATION_INFO_LEDGER: Map<U64Key, BatchUndelegationRecord> =
-//     Map::new("undelegation_info_ledger");
+pub const UNDELEGATION_INFO_LEDGER: Map<U64Key, BatchUndelegationRecord> =
+    Map::new("undelegation_info_ledger");
