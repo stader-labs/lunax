@@ -85,13 +85,7 @@ pub fn execute(
         ExecuteMsg::Reinvest {} => try_reinvest(deps, _env, info),
         ExecuteMsg::RedeemRewards {} => try_redeem_rewards(deps, _env, info),
         ExecuteMsg::Swap {} => try_swap(deps, _env, info),
-        ExecuteMsg::CompensateSlashing {} => try_compensate_slashing(deps, _env, info),
     }
-}
-
-pub fn try_compensate_slashing(deps: DepsMut, _env: Env, info: MessageInfo) -> Result<Response<TerraMsgWrapper>, ContractError> {
-    // TODO: bchain99 - Go to the slashing contract and compensate for state.total_slashed_amount
-    Ok(Response::default())
 }
 
 pub fn try_reconcile_undelegation_batch(
@@ -255,50 +249,62 @@ pub fn try_undelegate_rewards(
 
     // undelegate from each validator according to their staked fraction
     let mut messages: Vec<StakingMsg> = vec![];
-    let mut validator_infos: HashMap<Addr, Uint128> = HashMap::new();
+    // let mut validator_infos: HashMap<Addr, Uint128> = HashMap::new();
     let vault_denom = config.vault_denom;
-    VALIDATORS_TO_STAKED_QUOTA
-        .prefix(())
-        .range(deps.storage, None, None, Order::Ascending)
-        .for_each(|res| {
-            let unwrapped = res.unwrap();
+    for validator in &state.validator_pool {
+        let validator_staked_quota_option = VALIDATORS_TO_STAKED_QUOTA.may_load(deps.storage, validator).unwrap();
+        if validator_staked_quota_option.is_none() {
+            continue;
+        }
 
-            let validator_addr = Addr::unchecked(String::from_utf8(unwrapped.0).unwrap());
+        let validator_staked_quota = validator_staked_quota_option.unwrap();
+        let mut stake_amount = Uint128::zero();
 
-            let delegated_coin = unwrapped.1.amount.amount;
-            let stake_fraction = unwrapped.1.vault_stake_fraction;
 
-            let mut stake_amount = Uint128::zero();
-            if !stake_fraction.is_zero() {
-                stake_amount = Uint128::new(
-                    amount.u128() * stake_fraction.numerator() / stake_fraction.denominator(),
-                );
 
-                messages.push(StakingMsg::Undelegate {
-                    validator: validator_addr.to_string(),
-                    amount: Coin {
-                        denom: vault_denom.clone(),
-                        amount: stake_amount,
-                    },
-                });
-            }
+    }
+    // VALIDATORS_TO_STAKED_QUOTA
+    //     .prefix(())
+    //     .range(deps.storage, None, None, Order::Ascending)
+    //     .for_each(|res| {
+    //         let unwrapped = res.unwrap();
+    //
+    //         let validator_addr = Addr::unchecked(String::from_utf8(unwrapped.0).unwrap());
+    //
+    //         let delegated_coin = unwrapped.1.amount.amount;
+    //         let stake_fraction = unwrapped.1.vault_stake_fraction;
+    //
+    //         let mut stake_amount = Uint128::zero();
+    //         if !stake_fraction.is_zero() {
+    //             stake_amount = Uint128::new(
+    //                 amount.u128() * stake_fraction.numerator() / stake_fraction.denominator(),
+    //             );
+    //
+    //             messages.push(StakingMsg::Undelegate {
+    //                 validator: validator_addr.to_string(),
+    //                 amount: Coin {
+    //                     denom: vault_denom.clone(),
+    //                     amount: stake_amount,
+    //                 },
+    //             });
+    //         }
+    //
+    //         validator_infos.insert(
+    //             validator_addr,
+    //             delegated_coin.checked_sub(stake_amount).unwrap(),
+    //         );
+    //     });
 
-            validator_infos.insert(
-                validator_addr,
-                delegated_coin.checked_sub(stake_amount).unwrap(),
-            );
-        });
-
-    validator_infos.iter().for_each(|x| {
-        VALIDATORS_TO_STAKED_QUOTA.save(
-            deps.storage,
-            x.0,
-            &StakeQuota {
-                amount: Coin::new(x.1.u128(), vault_denom.clone()),
-                vault_stake_fraction: Decimal::from_ratio(x.1.u128(), new_current_vault_deposits),
-            },
-        );
-    });
+    // validator_infos.iter().for_each(|x| {
+    //     VALIDATORS_TO_STAKED_QUOTA.save(
+    //         deps.storage,
+    //         x.0,
+    //         &StakeQuota {
+    //             amount: Coin::new(x.1.u128(), vault_denom.clone()),
+    //             vault_stake_fraction: Decimal::from_ratio(x.1.u128(), new_current_vault_deposits),
+    //         },
+    //     );
+    // });
 
     Ok(Response::new().add_messages(messages))
 }

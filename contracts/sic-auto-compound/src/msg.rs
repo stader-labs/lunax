@@ -30,7 +30,6 @@ pub enum ExecuteMsg {
     ReconcileUndelegationBatch {
         undelegation_batch_id: u64,
     },
-    CompensateSlashing {},
     Swap {},
     Reinvest {},
     RedeemRewards {},
