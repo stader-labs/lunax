@@ -1,3 +1,4 @@
+use crate::state::{Config, State};
 use cosmwasm_std::{Addr, Uint128};
 use cw_storage_plus::U64Key;
 use schemars::JsonSchema;
@@ -36,6 +37,18 @@ pub enum ExecuteMsg {
 pub enum QueryMsg {
     GetTotalTokens {},
     GetCurrentUndelegationBatchId {},
+    GetState {},
+    GetConfig {},
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct GetStateResponse {
+    pub state: Option<State>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct GetConfigResponse {
+    pub config: Option<Config>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

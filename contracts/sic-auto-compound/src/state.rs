@@ -60,7 +60,6 @@ pub struct State {
 
     pub accumulated_vault_airdrops: Vec<Coin>,
     // pub global_airdrop_pointer: Vec<DecCoin>,
-
     pub validator_pool: Vec<Addr>,
     pub unswapped_rewards: Vec<Coin>,
     pub uninvested_rewards: Coin,

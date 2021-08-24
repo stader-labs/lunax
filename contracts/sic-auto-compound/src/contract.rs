@@ -1,13 +1,19 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_binary, Addr, Binary, Coin, Decimal, Deps, DepsMut, Env, MessageInfo, Response, StdResult, Uint128, attr, Attribute, DistributionMsg};
+use cosmwasm_std::{
+    attr, to_binary, Addr, Attribute, Binary, Coin, Decimal, Deps, DepsMut, DistributionMsg, Env,
+    MessageInfo, Response, StdResult, Uint128,
+};
 
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, GetTotalTokensResponse, GetCurrentUndelegationBatchIdResponse};
+use crate::msg::{
+    ExecuteMsg, GetConfigResponse, GetCurrentUndelegationBatchIdResponse, GetStateResponse,
+    GetTotalTokensResponse, InstantiateMsg, QueryMsg,
+};
 use crate::state::{Config, State, CONFIG, STATE};
+use crate::utils::{merge_coin, merge_coin_vector, CoinOp, CoinVecOp, Operation};
 use cw_storage_plus::U64Key;
-use crate::utils::{merge_coin_vector, CoinVecOp, Operation, merge_coin, CoinOp};
-use terra_cosmwasm::{TerraQuerier, create_swap_msg, SwapResponse, TerraMsgWrapper};
+use terra_cosmwasm::{create_swap_msg, SwapResponse, TerraMsgWrapper, TerraQuerier};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -69,7 +75,11 @@ pub fn execute(
     }
 }
 
-pub fn try_swap(deps: DepsMut, _env: Env, info: MessageInfo) -> Result<Response<TerraMsgWrapper>, ContractError> {
+pub fn try_swap(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let state = STATE.load(deps.storage)?;
     let config = CONFIG.load(deps.storage)?;
 
@@ -224,95 +234,190 @@ pub fn try_redeem_rewards(
         Ok(state)
     });
 
-    Ok(Response::new().add_messages(messages))}
+    Ok(Response::new().add_messages(messages))
+}
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetTotalTokens {} => to_binary(&query_total_tokens(deps, _env)?),
-        QueryMsg::GetCurrentUndelegationBatchId {} => to_binary(&query_current_undelegation_batch_id(deps, _env)?),
+        QueryMsg::GetCurrentUndelegationBatchId {} => {
+            to_binary(&query_current_undelegation_batch_id(deps, _env)?)
+        }
+        QueryMsg::GetState {} => to_binary(&query_state(deps)?),
+        QueryMsg::GetConfig {} => to_binary(&query_config(deps)?),
     }
 }
 
+fn query_state(deps: Deps) -> StdResult<GetStateResponse> {
+    let state = STATE.may_load(deps.storage).unwrap();
+
+    Ok(GetStateResponse { state })
+}
+
+fn query_config(deps: Deps) -> StdResult<GetConfigResponse> {
+    let config = CONFIG.may_load(deps.storage).unwrap();
+
+    Ok(GetConfigResponse { config })
+}
+
 fn query_total_tokens(deps: Deps, _env: Env) -> StdResult<GetTotalTokensResponse> {
-    Ok(GetTotalTokensResponse {
-        total_tokens: None
-    })
+    Ok(GetTotalTokensResponse { total_tokens: None })
 }
 
-fn query_current_undelegation_batch_id(deps: Deps, _env: Env) -> StdResult<GetCurrentUndelegationBatchIdResponse> {
+fn query_current_undelegation_batch_id(
+    deps: Deps,
+    _env: Env,
+) -> StdResult<GetCurrentUndelegationBatchIdResponse> {
     Ok(GetCurrentUndelegationBatchIdResponse {
-        current_undelegation_batch_id: 0
+        current_undelegation_batch_id: 0,
     })
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-//     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-//     use cosmwasm_std::{coins, from_binary};
-//
-//     #[test]
-//     fn proper_initialization() {
-//         let mut deps = mock_dependencies(&[]);
-//
-//         let msg = InstantiateMsg { count: 17 };
-//         let info = mock_info("creator", &coins(1000, "earth"));
-//
-//         // we can just call .unwrap() to assert this was a success
-//         let res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
-//         assert_eq!(0, res.messages.len());
-//
-//         // it worked, let's query the state
-//         let res = query(deps.as_ref(), mock_env(), QueryMsg::GetCount {}).unwrap();
-//         let value: CountResponse = from_binary(&res).unwrap();
-//         assert_eq!(17, value.count);
-//     }
-//
-//     #[test]
-//     fn increment() {
-//         let mut deps = mock_dependencies(&coins(2, "token"));
-//
-//         let msg = InstantiateMsg { count: 17 };
-//         let info = mock_info("creator", &coins(2, "token"));
-//         let _res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
-//
-//         // beneficiary can release it
-//         let info = mock_info("anyone", &coins(2, "token"));
-//         let msg = ExecuteMsg::Increment {};
-//         let _res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
-//
-//         // should increase counter by 1
-//         let res = query(deps.as_ref(), mock_env(), QueryMsg::GetCount {}).unwrap();
-//         let value: CountResponse = from_binary(&res).unwrap();
-//         assert_eq!(18, value.count);
-//     }
-//
-//     #[test]
-//     fn reset() {
-//         let mut deps = mock_dependencies(&coins(2, "token"));
-//
-//         let msg = InstantiateMsg { count: 17 };
-//         let info = mock_info("creator", &coins(2, "token"));
-//         let _res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
-//
-//         // beneficiary can release it
-//         let unauth_info = mock_info("anyone", &coins(2, "token"));
-//         let msg = ExecuteMsg::Reset { count: 5 };
-//         let res = execute(deps.as_mut(), mock_env(), unauth_info, msg);
-//         match res {
-//             Err(ContractError::Unauthorized {}) => {}
-//             _ => panic!("Must return unauthorized error"),
-//         }
-//
-//         // only the original creator can reset the counter
-//         let auth_info = mock_info("creator", &coins(2, "token"));
-//         let msg = ExecuteMsg::Reset { count: 5 };
-//         let _res = execute(deps.as_mut(), mock_env(), auth_info, msg).unwrap();
-//
-//         // should now be 5
-//         let res = query(deps.as_ref(), mock_env(), QueryMsg::GetCount {}).unwrap();
-//         let value: CountResponse = from_binary(&res).unwrap();
-//         assert_eq!(5, value.count);
-//     }
-// }
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MOCK_CONTRACT_ADDR};
+    use cosmwasm_std::{coins, from_binary, FullDelegation, SubMsg, Validator};
+
+    fn get_validators() -> Vec<Validator> {
+        vec![
+            Validator {
+                address: "valid0001".to_string(),
+                commission: Decimal::zero(),
+                max_commission: Decimal::zero(),
+                max_change_rate: Decimal::zero(),
+            },
+            Validator {
+                address: "valid0002".to_string(),
+                commission: Decimal::zero(),
+                max_commission: Decimal::zero(),
+                max_change_rate: Decimal::zero(),
+            },
+        ]
+    }
+
+    fn get_delegations() -> Vec<FullDelegation> {
+        vec![
+            FullDelegation {
+                delegator: Addr::unchecked(MOCK_CONTRACT_ADDR),
+                validator: "valid0001".to_string(),
+                amount: Coin::new(2000, "uluna".to_string()),
+                can_redelegate: Coin::new(1000, "uluna".to_string()),
+                accumulated_rewards: vec![
+                    Coin::new(20, "uluna".to_string()),
+                    Coin::new(30, "urew1"),
+                ],
+            },
+            FullDelegation {
+                delegator: Addr::unchecked(MOCK_CONTRACT_ADDR),
+                validator: "valid0002".to_string(),
+                amount: Coin::new(2000, "uluna".to_string()),
+                can_redelegate: Coin::new(0, "uluna".to_string()),
+                accumulated_rewards: vec![
+                    Coin::new(40, "uluna".to_string()),
+                    Coin::new(60, "urew1"),
+                ],
+            },
+        ]
+    }
+
+    #[test]
+    fn proper_initialization() {
+        let mut deps = mock_dependencies(&[]);
+
+        let msg = InstantiateMsg {
+            scc_contract_address: Addr::unchecked("scc-contract-address"),
+            vault_denom: "uluna".to_string(),
+            initial_validators: vec![],
+            unbonding_period: None,
+        };
+        let info = mock_info("creator", &coins(1000, "earth"));
+
+        // we can just call .unwrap() to assert this was a success
+        let res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
+        assert_eq!(0, res.messages.len());
+
+        // it worked, let's query the state
+        let res = query(deps.as_ref(), mock_env(), QueryMsg::GetCount {}).unwrap();
+        let value: CountResponse = from_binary(&res).unwrap();
+        assert_eq!(17, value.count);
+    }
+
+    #[test]
+    fn test__try_redeem_rewards_fail() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &[]);
+        let env = mock_env();
+
+        let res = instantiate_contract(
+            &mut deps,
+            &info,
+            &env,
+            Some(
+                get_validators()
+                    .iter()
+                    .map(|f| Addr::unchecked(&f.address))
+                    .collect(),
+            ),
+            Option::from("uluna".to_string()),
+        );
+
+        let mut err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("not-creator", &[]),
+            ExecuteMsg::RedeemRewards {},
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::Unauthorized {}));
+    }
+
+    #[test]
+    fn test__try_redeem_rewards_success() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &[]);
+        let env = mock_env();
+
+        let res = instantiate_contract(
+            &mut deps,
+            &info,
+            &env,
+            Some(
+                get_validators()
+                    .iter()
+                    .map(|f| Addr::unchecked(&f.address))
+                    .collect(),
+            ),
+            Option::from("uluna".to_string()),
+        );
+
+        deps.querier
+            .update_staking("test", &*get_validators(), &*get_delegations());
+
+        let mut res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::RedeemRewards {},
+        )
+        .unwrap();
+        assert_eq!(res.messages.len(), 2);
+        assert_eq!(
+            res.messages,
+            vec![
+                SubMsg::new(DistributionMsg::WithdrawDelegatorReward {
+                    validator: "valid0001".to_string(),
+                }),
+                SubMsg::new(DistributionMsg::WithdrawDelegatorReward {
+                    validator: "valid0002".to_string(),
+                })
+            ]
+        );
+        let mut state = STATE.load(deps.as_mut().storage).unwrap();
+        assert!(check_equal_vec(
+            state.unswapped_rewards,
+            vec![Coin::new(90, "urew1"), Coin::new(60, "uluna")]
+        ));
+    }
+}
