@@ -85,13 +85,7 @@ pub fn execute(
         ExecuteMsg::Reinvest {} => try_reinvest(deps, _env, info),
         ExecuteMsg::RedeemRewards {} => try_redeem_rewards(deps, _env, info),
         ExecuteMsg::Swap {} => try_swap(deps, _env, info),
-        ExecuteMsg::CompensateSlashing {} => try_compensate_slashing(deps, _env, info),
     }
-}
-
-pub fn try_compensate_slashing(deps: DepsMut, _env: Env, info: MessageInfo) -> Result<Response<TerraMsgWrapper>, ContractError> {
-    // TODO: bchain99 - Go to the slashing contract and compensate for state.total_slashed_amount
-    Ok(Response::default())
 }
 
 pub fn try_reconcile_undelegation_batch(
