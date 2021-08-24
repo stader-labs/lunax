@@ -21,4 +21,13 @@ pub enum ContractError {
 
     #[error("Cannot undelegate 0 coins")]
     ZeroUndelegation {},
+
+    #[error("undelegation batch does not exist")]
+    NonExistentUndelegationBatch {},
+
+    #[error("undelegation batch '{0}' has not been checked for slashing")]
+    SlashingNotChecked(u64),
+
+    #[error("Deposit can only be withdrawn after unbonding period is over")]
+    DepositInUnbondingPeriod {},
 }

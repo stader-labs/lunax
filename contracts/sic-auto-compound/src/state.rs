@@ -63,6 +63,7 @@ pub struct State {
     pub unswapped_rewards: Vec<Coin>,
     pub uninvested_rewards: Coin,
     pub total_staked_tokens: Uint128,
+    pub total_slashed_amount: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -70,12 +71,14 @@ pub struct BatchUndelegationRecord {
     pub(crate) amount: Coin,
     pub(crate) unbonding_slashing_ratio: Decimal,
     pub(crate) create_time: Timestamp,
+    pub(crate) est_release_time: Timestamp,
     pub(crate) slashing_checked: bool,
 }
 
 pub const CONFIG: Item<Config> = Item::new("config");
 pub const STATE: Item<State> = Item::new("state");
 
+// TODO: bchain99 - review if we need this
 // Map of the validators we staked with. this is to give O(1) lookups to check if we staked in a validator
 pub const VALIDATORS_TO_STAKED_QUOTA: Map<&Addr, StakeQuota> =
     Map::new("validator_to_staked_quota");

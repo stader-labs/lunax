@@ -1,19 +1,26 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, to_binary, Addr, Attribute, Binary, Coin, Decimal, Deps, DepsMut, DistributionMsg, Env,
-    MessageInfo, Response, StakingMsg, StdResult, Uint128,
+    attr, to_binary, Addr, Attribute, BankMsg, Binary, Coin, Decimal, Deps, DepsMut,
+    DistributionMsg, Env, Fraction, MessageInfo, Order, Response, StakingMsg, StdResult, Uint128,
 };
 
 use crate::error::ContractError;
 use crate::msg::{
     ExecuteMsg, GetConfigResponse, GetCurrentUndelegationBatchIdResponse, GetStateResponse,
-    GetTotalTokensResponse, InstantiateMsg, QueryMsg,
+    GetTotalTokensResponse, GetUndelegationBatchInfoResponse, InstantiateMsg, QueryMsg,
 };
-use crate::state::{Config, StakeQuota, State, CONFIG, STATE, VALIDATORS_TO_STAKED_QUOTA};
-use crate::utils::{merge_coin, merge_coin_vector, CoinOp, CoinVecOp, Operation};
+use crate::state::{
+    BatchUndelegationRecord, Config, StakeQuota, State, CONFIG, STATE, UNDELEGATION_INFO_LEDGER,
+    VALIDATORS_TO_STAKED_QUOTA,
+};
+use crate::utils::{
+    decimal_multiplication_in_256, merge_coin, merge_coin_vector, multiply_coin_with_decimal,
+    CoinOp, CoinVecOp, Operation,
+};
 use cw_storage_plus::U64Key;
 use std::collections::HashMap;
+use std::ops::Add;
 use terra_cosmwasm::{create_swap_msg, SwapResponse, TerraMsgWrapper, TerraQuerier};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -35,6 +42,7 @@ pub fn instantiate(
         uninvested_rewards: Coin::new(0_u128, msg.vault_denom.clone()),
 
         total_staked_tokens: Uint128::zero(),
+        total_slashed_amount: Uint128::zero()
     };
     if msg.unbonding_period.is_some() {
         state.unbonding_period = msg.unbonding_period.unwrap();
@@ -71,10 +79,28 @@ pub fn execute(
             undelegation_batch_id,
             amount,
         } => try_withdraw_rewards(deps, _env, info, user, undelegation_batch_id, amount),
+        ExecuteMsg::ReconcileUndelegationBatch {
+            undelegation_batch_id,
+        } => try_reconcile_undelegation_batch(deps, _env, info, undelegation_batch_id),
         ExecuteMsg::Reinvest {} => try_reinvest(deps, _env, info),
         ExecuteMsg::RedeemRewards {} => try_redeem_rewards(deps, _env, info),
         ExecuteMsg::Swap {} => try_swap(deps, _env, info),
+        ExecuteMsg::CompensateSlashing {} => try_compensate_slashing(deps, _env, info),
     }
+}
+
+pub fn try_compensate_slashing(deps: DepsMut, _env: Env, info: MessageInfo) -> Result<Response<TerraMsgWrapper>, ContractError> {
+    // TODO: bchain99 - Go to the slashing contract and compensate for state.total_slashed_amount
+    Ok(Response::default())
+}
+
+pub fn try_reconcile_undelegation_batch(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    undelegation_batch_id: u64,
+) -> Result<Response<TerraMsgWrapper>, ContractError> {
+    Ok(Response::default())
 }
 
 pub fn try_swap(
@@ -189,6 +215,7 @@ pub fn try_transfer_rewards(
     Ok(Response::default())
 }
 
+// SCC needs to call this when it processes the undelegations.
 pub fn try_undelegate_rewards(
     deps: DepsMut,
     _env: Env,
@@ -198,7 +225,7 @@ pub fn try_undelegate_rewards(
     let config = CONFIG.load(deps.storage).unwrap();
     let state = STATE.load(deps.storage).unwrap();
 
-    if info.sender != config.manager {
+    if info.sender != config.scc_contract_address {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -207,10 +234,73 @@ pub fn try_undelegate_rewards(
     }
 
     // create an undelegation batch
+    let mut new_undelegation_batch_id = state.current_undelegation_batch_id.add(1_u64);
+    STATE.update(deps.storage, |mut state| -> StdResult<_> {
+        state.current_undelegation_batch_id = new_undelegation_batch_id;
+        Ok(state)
+    })?;
+
+    let u64key = new_undelegation_batch_id.into();
+    UNDELEGATION_INFO_LEDGER.save(
+        deps.storage,
+        u64key,
+        &BatchUndelegationRecord {
+            amount: Coin::new(amount.u128(), config.vault_denom.clone()),
+            unbonding_slashing_ratio: Decimal::one(),
+            create_time: _env.block.time,
+            est_release_time: _env.block.time.plus_seconds(state.unbonding_period),
+            slashing_checked: false,
+        },
+    )?;
 
     // undelegate from each validator according to their staked fraction
+    let mut messages: Vec<StakingMsg> = vec![];
+    let mut validator_infos: HashMap<Addr, Uint128> = HashMap::new();
+    let vault_denom = config.vault_denom;
+    VALIDATORS_TO_STAKED_QUOTA
+        .prefix(())
+        .range(deps.storage, None, None, Order::Ascending)
+        .for_each(|res| {
+            let unwrapped = res.unwrap();
 
-    Ok(Response::default())
+            let validator_addr = Addr::unchecked(String::from_utf8(unwrapped.0).unwrap());
+
+            let delegated_coin = unwrapped.1.amount.amount;
+            let stake_fraction = unwrapped.1.vault_stake_fraction;
+
+            let mut stake_amount = Uint128::zero();
+            if !stake_fraction.is_zero() {
+                stake_amount = Uint128::new(
+                    amount.u128() * stake_fraction.numerator() / stake_fraction.denominator(),
+                );
+
+                messages.push(StakingMsg::Undelegate {
+                    validator: validator_addr.to_string(),
+                    amount: Coin {
+                        denom: vault_denom.clone(),
+                        amount: stake_amount,
+                    },
+                });
+            }
+
+            validator_infos.insert(
+                validator_addr,
+                delegated_coin.checked_sub(stake_amount).unwrap(),
+            );
+        });
+
+    validator_infos.iter().for_each(|x| {
+        VALIDATORS_TO_STAKED_QUOTA.save(
+            deps.storage,
+            x.0,
+            &StakeQuota {
+                amount: Coin::new(x.1.u128(), vault_denom.clone()),
+                vault_stake_fraction: Decimal::from_ratio(x.1.u128(), new_current_vault_deposits),
+            },
+        );
+    });
+
+    Ok(Response::new().add_messages(messages))
 }
 
 pub fn try_withdraw_rewards(
@@ -221,7 +311,39 @@ pub fn try_withdraw_rewards(
     undelegation_batch_id: u64,
     amount: Uint128,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
-    Ok(Response::default())
+    let config = CONFIG.load(deps.storage).unwrap();
+    if info.sender != config.scc_contract_address {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    let mut undelegation_batch: BatchUndelegationRecord;
+    match UNDELEGATION_INFO_LEDGER
+        .may_load(deps.storage, U64Key::new(undelegation_batch_id))
+        .unwrap()
+    {
+        None => return Err(ContractError::NonExistentUndelegationBatch {}),
+        Some(undelegation_batch_unwrapped) => {
+            undelegation_batch = undelegation_batch_unwrapped;
+        }
+    }
+
+    if !undelegation_batch.slashing_checked {
+        return Err(ContractError::SlashingNotChecked(undelegation_batch_id));
+    }
+
+    if _env.block.time.lt(&undelegation_batch.est_release_time) {
+        return Err(ContractError::DepositInUnbondingPeriod {});
+    }
+
+    let effective_withdrawable_rewards = multiply_coin_with_decimal(
+        &Coin::new(amount.u128(), config.vault_denom),
+        undelegation_batch.unbonding_slashing_ratio,
+    );
+
+    Ok(Response::new().add_message(BankMsg::Send {
+        to_address: String::from(user),
+        amount: vec![effective_withdrawable_rewards],
+    }))
 }
 
 pub fn try_reinvest(
@@ -263,6 +385,8 @@ pub fn try_reinvest(
             },
         );
     }
+
+    let total_slashed_amount = state.total_staked_tokens.checked_sub(current_total_staked_tokens.amount).unwrap();
 
     let new_current_staked_tokens = current_total_staked_tokens
         .amount
@@ -307,6 +431,9 @@ pub fn try_reinvest(
 
     STATE.update(deps.storage, |mut state| -> StdResult<_> {
         state.total_staked_tokens = new_current_staked_tokens;
+        if total_slashed_amount > 0 {
+            state.total_slashed_amount = state.total_slashed_amount.checked_add(total_slashed_amount).unwrap();
+        }
         Ok(state)
     })?;
 
@@ -374,6 +501,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         }
         QueryMsg::GetState {} => to_binary(&query_state(deps)?),
         QueryMsg::GetConfig {} => to_binary(&query_config(deps)?),
+        QueryMsg::GetUndelegationBatchInfo {
+            undelegation_batch_id,
+        } => to_binary(&query_undelegation_batch_info(deps, undelegation_batch_id)?),
     }
 }
 
@@ -404,6 +534,19 @@ fn query_current_undelegation_batch_id(
 
     Ok(GetCurrentUndelegationBatchIdResponse {
         current_undelegation_batch_id: state.current_undelegation_batch_id,
+    })
+}
+
+fn query_undelegation_batch_info(
+    deps: Deps,
+    undelegation_batch_id: u64,
+) -> StdResult<GetUndelegationBatchInfoResponse> {
+    let undelegation_batch_info = UNDELEGATION_INFO_LEDGER
+        .may_load(deps.storage, U64Key::new(undelegation_batch_id))
+        .unwrap();
+
+    Ok(GetUndelegationBatchInfoResponse {
+        undelegation_batch_info,
     })
 }
 

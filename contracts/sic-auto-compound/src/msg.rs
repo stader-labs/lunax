@@ -1,4 +1,4 @@
-use crate::state::{Config, State};
+use crate::state::{BatchUndelegationRecord, Config, State};
 use cosmwasm_std::{Addr, Uint128};
 use cw_storage_plus::U64Key;
 use schemars::JsonSchema;
@@ -27,6 +27,10 @@ pub enum ExecuteMsg {
         amount: Uint128,
         undelegation_batch_id: u64,
     },
+    ReconcileUndelegationBatch {
+        undelegation_batch_id: u64,
+    },
+    CompensateSlashing {},
     Swap {},
     Reinvest {},
     RedeemRewards {},
@@ -37,6 +41,7 @@ pub enum ExecuteMsg {
 pub enum QueryMsg {
     GetTotalTokens {},
     GetCurrentUndelegationBatchId {},
+    GetUndelegationBatchInfo { undelegation_batch_id: u64 },
     GetState {},
     GetConfig {},
 }
@@ -59,4 +64,9 @@ pub struct GetTotalTokensResponse {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct GetCurrentUndelegationBatchIdResponse {
     pub current_undelegation_batch_id: u64,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct GetUndelegationBatchInfoResponse {
+    pub undelegation_batch_info: Option<BatchUndelegationRecord>,
 }
