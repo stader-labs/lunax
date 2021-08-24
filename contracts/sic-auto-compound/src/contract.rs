@@ -222,85 +222,7 @@ pub fn try_undelegate_rewards(
     info: MessageInfo,
     amount: Uint128,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
-    let config = CONFIG.load(deps.storage).unwrap();
-    let state = STATE.load(deps.storage).unwrap();
-
-    if info.sender != config.scc_contract_address {
-        return Err(ContractError::Unauthorized {});
-    }
-
-    if amount.is_zero() {
-        return Err(ContractError::ZeroUndelegation {});
-    }
-
-    // create an undelegation batch
-    let mut new_undelegation_batch_id = state.current_undelegation_batch_id.add(1_u64);
-    STATE.update(deps.storage, |mut state| -> StdResult<_> {
-        state.current_undelegation_batch_id = new_undelegation_batch_id;
-        Ok(state)
-    })?;
-
-    let u64key = new_undelegation_batch_id.into();
-    UNDELEGATION_INFO_LEDGER.save(
-        deps.storage,
-        u64key,
-        &BatchUndelegationRecord {
-            amount: Coin::new(amount.u128(), config.vault_denom.clone()),
-            unbonding_slashing_ratio: Decimal::one(),
-            create_time: _env.block.time,
-            est_release_time: _env.block.time.plus_seconds(state.unbonding_period),
-            slashing_checked: false,
-        },
-    )?;
-
-    // undelegate from each validator according to their staked fraction
-    let mut messages: Vec<StakingMsg> = vec![];
-    let mut validator_infos: HashMap<Addr, Uint128> = HashMap::new();
-    let vault_denom = config.vault_denom;
-    VALIDATORS_TO_STAKED_QUOTA
-        .prefix(())
-        .range(deps.storage, None, None, Order::Ascending)
-        .for_each(|res| {
-            let unwrapped = res.unwrap();
-
-            let validator_addr = Addr::unchecked(String::from_utf8(unwrapped.0).unwrap());
-
-            let delegated_coin = unwrapped.1.amount.amount;
-            let stake_fraction = unwrapped.1.vault_stake_fraction;
-
-            let mut stake_amount = Uint128::zero();
-            if !stake_fraction.is_zero() {
-                stake_amount = Uint128::new(
-                    amount.u128() * stake_fraction.numerator() / stake_fraction.denominator(),
-                );
-
-                messages.push(StakingMsg::Undelegate {
-                    validator: validator_addr.to_string(),
-                    amount: Coin {
-                        denom: vault_denom.clone(),
-                        amount: stake_amount,
-                    },
-                });
-            }
-
-            validator_infos.insert(
-                validator_addr,
-                delegated_coin.checked_sub(stake_amount).unwrap(),
-            );
-        });
-
-    validator_infos.iter().for_each(|x| {
-        VALIDATORS_TO_STAKED_QUOTA.save(
-            deps.storage,
-            x.0,
-            &StakeQuota {
-                amount: Coin::new(x.1.u128(), vault_denom.clone()),
-                vault_stake_fraction: Decimal::from_ratio(x.1.u128(), new_current_vault_deposits),
-            },
-        );
-    });
-
-    Ok(Response::new().add_messages(messages))
+    Ok(Response::default())
 }
 
 pub fn try_withdraw_rewards(
@@ -311,39 +233,7 @@ pub fn try_withdraw_rewards(
     undelegation_batch_id: u64,
     amount: Uint128,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
-    let config = CONFIG.load(deps.storage).unwrap();
-    if info.sender != config.scc_contract_address {
-        return Err(ContractError::Unauthorized {});
-    }
-
-    let mut undelegation_batch: BatchUndelegationRecord;
-    match UNDELEGATION_INFO_LEDGER
-        .may_load(deps.storage, U64Key::new(undelegation_batch_id))
-        .unwrap()
-    {
-        None => return Err(ContractError::NonExistentUndelegationBatch {}),
-        Some(undelegation_batch_unwrapped) => {
-            undelegation_batch = undelegation_batch_unwrapped;
-        }
-    }
-
-    if !undelegation_batch.slashing_checked {
-        return Err(ContractError::SlashingNotChecked(undelegation_batch_id));
-    }
-
-    if _env.block.time.lt(&undelegation_batch.est_release_time) {
-        return Err(ContractError::DepositInUnbondingPeriod {});
-    }
-
-    let effective_withdrawable_rewards = multiply_coin_with_decimal(
-        &Coin::new(amount.u128(), config.vault_denom),
-        undelegation_batch.unbonding_slashing_ratio,
-    );
-
-    Ok(Response::new().add_message(BankMsg::Send {
-        to_address: String::from(user),
-        amount: vec![effective_withdrawable_rewards],
-    }))
+    Ok(Response::default())
 }
 
 pub fn try_reinvest(
