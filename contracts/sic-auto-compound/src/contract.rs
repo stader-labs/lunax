@@ -29,6 +29,7 @@ pub fn instantiate(
         vault_apr: Decimal::zero(),
         unbonding_period: (21 * 24 * 3600 + 3600),
         total_slashed_deposit: Uint128::zero(),
+        current_undelegation_batch_id: 0,
         accumulated_vault_airdrops: vec![],
         validator_pool: msg.initial_validators,
         unswapped_rewards: vec![],
@@ -154,6 +155,36 @@ pub fn try_transfer_rewards(
     _env: Env,
     info: MessageInfo,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
+    let state = STATE.load(deps.storage).unwrap();
+
+    let config = CONFIG.load(deps.storage).unwrap();
+    if info.sender != config.scc_contract_address {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    // check if any money is being sent
+    if info.funds.is_empty() {
+        return Err(ContractError::NoFundsSent {});
+    }
+
+    // accept only one coin
+    if info.funds.len() > 1 {
+        return Err(ContractError::MultipleCoins {});
+    }
+
+    let transferred_coin = info.funds[0].clone();
+
+    STATE.update(deps.storage, |mut state| -> StdResult<_> {
+        state.uninvested_rewards = merge_coin(
+            state.uninvested_rewards,
+            CoinOp {
+                fund: transferred_coin,
+                operation: Operation::Add,
+            },
+        );
+        Ok(state)
+    });
+
     Ok(Response::default())
 }
 
@@ -269,8 +300,10 @@ fn query_current_undelegation_batch_id(
     deps: Deps,
     _env: Env,
 ) -> StdResult<GetCurrentUndelegationBatchIdResponse> {
+    let state = STATE.load(deps.storage).unwrap();
+
     Ok(GetCurrentUndelegationBatchIdResponse {
-        current_undelegation_batch_id: 0,
+        current_undelegation_batch_id: state.current_undelegation_batch_id,
     })
 }
 

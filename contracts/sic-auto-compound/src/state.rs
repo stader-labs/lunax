@@ -58,6 +58,8 @@ pub struct State {
     pub unbonding_period: u64, // the blockchain's unbonding_period + buffer_time
     pub total_slashed_deposit: Uint128,
 
+    pub current_undelegation_batch_id: u64,
+
     pub accumulated_vault_airdrops: Vec<Coin>,
     // pub global_airdrop_pointer: Vec<DecCoin>,
     pub validator_pool: Vec<Addr>,

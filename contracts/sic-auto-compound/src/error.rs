@@ -12,4 +12,10 @@ pub enum ContractError {
     // Look at https://docs.rs/thiserror/1.0.21/thiserror/ for details.
     #[error("There are no unstaked rewards currently")]
     NoUnstakedRewards {},
+
+    #[error("No funds have been sent")]
+    NoFundsSent {},
+
+    #[error("Sent more than one coin")]
+    MultipleCoins {},
 }
