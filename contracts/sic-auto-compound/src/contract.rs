@@ -1,13 +1,16 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{attr, to_binary, Addr, Attribute, Binary, Coin, Decimal, Deps, DepsMut, DistributionMsg, Env, MessageInfo, Response, StdResult, Uint128, StakingMsg};
+use cosmwasm_std::{
+    attr, to_binary, Addr, Attribute, Binary, Coin, Decimal, Deps, DepsMut, DistributionMsg, Env,
+    MessageInfo, Response, StakingMsg, StdResult, Uint128,
+};
 
 use crate::error::ContractError;
 use crate::msg::{
     ExecuteMsg, GetConfigResponse, GetCurrentUndelegationBatchIdResponse, GetStateResponse,
     GetTotalTokensResponse, InstantiateMsg, QueryMsg,
 };
-use crate::state::{Config, State, CONFIG, STATE, StakeQuota, VALIDATORS_TO_STAKED_QUOTA};
+use crate::state::{Config, StakeQuota, State, CONFIG, STATE, VALIDATORS_TO_STAKED_QUOTA};
 use crate::utils::{merge_coin, merge_coin_vector, CoinOp, CoinVecOp, Operation};
 use cw_storage_plus::U64Key;
 use std::collections::HashMap;
@@ -24,13 +27,13 @@ pub fn instantiate(
         contract_genesis_block_height: _env.block.height,
         contract_genesis_timestamp: _env.block.time,
         contract_genesis_shares_per_token_ratio: Decimal::from_ratio(100_000_000_u128, 1_u128),
-        vault_apr: Decimal::zero(),
         unbonding_period: (21 * 24 * 3600 + 3600),
         current_undelegation_batch_id: 0,
         accumulated_vault_airdrops: vec![],
         validator_pool: msg.initial_validators,
         unswapped_rewards: vec![],
         uninvested_rewards: Coin::new(0_u128, msg.vault_denom.clone()),
+
         total_staked_tokens: Uint128::zero(),
     };
     if msg.unbonding_period.is_some() {
@@ -192,6 +195,21 @@ pub fn try_undelegate_rewards(
     info: MessageInfo,
     amount: Uint128,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
+    let config = CONFIG.load(deps.storage).unwrap();
+    let state = STATE.load(deps.storage).unwrap();
+
+    if info.sender != config.manager {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    if amount.is_zero() {
+        return Err(ContractError::ZeroUndelegation {});
+    }
+
+    // create an undelegation batch
+
+    // undelegate from each validator according to their staked fraction
+
     Ok(Response::default())
 }
 
@@ -289,8 +307,6 @@ pub fn try_reinvest(
 
     STATE.update(deps.storage, |mut state| -> StdResult<_> {
         state.total_staked_tokens = new_current_staked_tokens;
-        // TODO: bchain99 - get strategy apr
-
         Ok(state)
     })?;
 
@@ -374,7 +390,10 @@ fn query_config(deps: Deps) -> StdResult<GetConfigResponse> {
 }
 
 fn query_total_tokens(deps: Deps, _env: Env) -> StdResult<GetTotalTokensResponse> {
-    Ok(GetTotalTokensResponse { total_tokens: None })
+    let state = STATE.load(deps.storage).unwrap();
+    Ok(GetTotalTokensResponse {
+        total_tokens: Option::from(state.total_staked_tokens),
+    })
 }
 
 fn query_current_undelegation_batch_id(

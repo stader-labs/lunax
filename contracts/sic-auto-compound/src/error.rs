@@ -18,4 +18,7 @@ pub enum ContractError {
 
     #[error("Sent more than one coin")]
     MultipleCoins {},
+
+    #[error("Cannot undelegate 0 coins")]
+    ZeroUndelegation {},
 }

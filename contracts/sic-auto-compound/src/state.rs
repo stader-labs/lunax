@@ -53,7 +53,6 @@ pub struct State {
     pub contract_genesis_timestamp: Timestamp,
     pub contract_genesis_shares_per_token_ratio: Decimal,
 
-    pub strategy_apr: Decimal,
     pub unbonding_period: u64, // the blockchain's unbonding_period + buffer_time
 
     pub current_undelegation_batch_id: u64,
