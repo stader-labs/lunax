@@ -14,15 +14,15 @@ pub fn check_equal_bnk_send_msgs(
 
     match msg1 {
         CosmosMsg::Bank(BankMsg::Send {
-                            to_address: _,
-                            amount,
-                        }) => {
+            to_address: _,
+            amount,
+        }) => {
             let msg1_amount = amount;
             match msg2 {
                 CosmosMsg::Bank(BankMsg::Send {
-                                    to_address: _,
-                                    amount,
-                                }) => {
+                    to_address: _,
+                    amount,
+                }) => {
                     response = check_equal_vec(msg1_amount, amount);
                 }
                 _ => {}
