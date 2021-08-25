@@ -1,5 +1,5 @@
 [package]
-name = "sic-stake-max"
+name = "sic-auto-compound"
 version = "0.1.0"
 authors = ["Bharath Vedartham <vedabharath12345@gmail.com>"]
 edition = "2018"

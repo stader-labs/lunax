@@ -366,7 +366,6 @@ mod tests {
     use super::*;
     use crate::contract::instantiate;
     use crate::msg::InstantiateMsg;
-    use crate::test_helpers::check_equal_user_info;
     use cosmwasm_std::testing::{
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
     };
