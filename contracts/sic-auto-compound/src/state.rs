@@ -51,7 +51,6 @@ pub struct Config {
 pub struct State {
     pub contract_genesis_block_height: u64,
     pub contract_genesis_timestamp: Timestamp,
-    pub contract_genesis_shares_per_token_ratio: Decimal,
 
     pub unbonding_period: u64, // the blockchain's unbonding_period + buffer_time
 

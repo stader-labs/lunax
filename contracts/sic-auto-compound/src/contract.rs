@@ -33,7 +33,6 @@ pub fn instantiate(
     let mut state = State {
         contract_genesis_block_height: _env.block.height,
         contract_genesis_timestamp: _env.block.time,
-        contract_genesis_shares_per_token_ratio: Decimal::from_ratio(100_000_000_u128, 1_u128),
         unbonding_period: (21 * 24 * 3600 + 3600),
         current_undelegation_batch_id: 0,
         current_undelegation_funds: Uint128::zero(),
@@ -625,8 +624,9 @@ fn query_undelegation_batch_info(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MOCK_CONTRACT_ADDR};
-    use cosmwasm_std::{coins, from_binary, FullDelegation, SubMsg, Validator};
+    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MOCK_CONTRACT_ADDR, MockStorage, MockApi, MockQuerier};
+    use cosmwasm_std::{coins, from_binary, FullDelegation, SubMsg, Validator, Empty, OwnedDeps};
+    use crate::test_helpers::check_equal_vec;
 
     fn get_validators() -> Vec<Validator> {
         vec![
@@ -670,26 +670,75 @@ mod tests {
         ]
     }
 
+    pub fn instantiate_contract(
+        deps: &mut OwnedDeps<MockStorage, MockApi, MockQuerier>,
+        info: &MessageInfo,
+        env: &Env,
+        validators: Option<Vec<Addr>>,
+        vault_denom: Option<String>,
+    ) -> Response<Empty> {
+        let default_validator1: Addr = Addr::unchecked("valid0001");
+        let default_validator2: Addr = Addr::unchecked("valid0002");
+        let scc_contract_address: Addr = Addr::unchecked("scc-contract-address");
+
+        let instantiate_msg = InstantiateMsg {
+            scc_contract_address,
+            vault_denom: "uluna".to_string(),
+            initial_validators: validators
+                .unwrap_or_else(|| vec![default_validator1, default_validator2]),
+            unbonding_period: None,
+        };
+
+        return instantiate(deps.as_mut(), env.clone(), info.clone(), instantiate_msg).unwrap();
+    }
+
+    fn get_scc_contract_address() -> String {
+        String::from("scc-contract-address")
+    }
+
     #[test]
     fn proper_initialization() {
         let mut deps = mock_dependencies(&[]);
-
-        let msg = InstantiateMsg {
-            scc_contract_address: Addr::unchecked("scc-contract-address"),
-            vault_denom: "uluna".to_string(),
-            initial_validators: vec![],
-            unbonding_period: None,
-        };
         let info = mock_info("creator", &coins(1000, "earth"));
+        let env = mock_env();
+
+        let default_validator1: Addr = Addr::unchecked("valid0001");
+        let default_validator2: Addr = Addr::unchecked("valid0002");
+        let scc_contract_address: Addr = Addr::unchecked("scc-contract-address");
 
         // we can just call .unwrap() to assert this was a success
-        let res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
+        let res = instantiate_contract(&mut deps, &info, &env, None, None);
         assert_eq!(0, res.messages.len());
 
-        // it worked, let's query the state
-        let res = query(deps.as_ref(), mock_env(), QueryMsg::GetCount {}).unwrap();
-        let value: CountResponse = from_binary(&res).unwrap();
-        assert_eq!(17, value.count);
+        let state = query_state(deps.as_ref()).unwrap().state;
+        assert_ne!(state, None);
+        assert_eq!(
+            state.unwrap(),
+            State {
+                contract_genesis_block_height: env.block.height,
+                contract_genesis_timestamp: env.block.time,
+                unbonding_period: (21 * 24 * 3600 + 3600),
+                current_undelegation_batch_id: 0,
+                current_undelegation_funds: Uint128::zero(),
+                accumulated_vault_airdrops: vec![],
+                validator_pool: vec![default_validator1, default_validator2],
+                unswapped_rewards: vec![],
+                uninvested_rewards: Coin::new(0_u128, "uluna".to_string()),
+                total_staked_tokens: Uint128::zero(),
+                total_slashed_amount: Uint128::zero()
+            }
+        );
+
+        let config = query_config(deps.as_ref()).unwrap().config;
+        assert_ne!(config, None);
+        assert_eq!(
+            config.unwrap(),
+            Config {
+                manager: info.sender,
+                scc_contract_address,
+                vault_denom: "uluna".to_string()
+            }
+        );
     }
 
     #[test]
@@ -717,7 +766,7 @@ mod tests {
             mock_info("not-creator", &[]),
             ExecuteMsg::RedeemRewards {},
         )
-        .unwrap_err();
+            .unwrap_err();
         assert!(matches!(err, ContractError::Unauthorized {}));
     }
 
@@ -749,7 +798,7 @@ mod tests {
             mock_info("creator", &[]),
             ExecuteMsg::RedeemRewards {},
         )
-        .unwrap();
+            .unwrap();
         assert_eq!(res.messages.len(), 2);
         assert_eq!(
             res.messages,
