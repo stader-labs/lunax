@@ -33,7 +33,6 @@ pub fn instantiate(
     let mut state = State {
         contract_genesis_block_height: _env.block.height,
         contract_genesis_timestamp: _env.block.time,
-        contract_genesis_shares_per_token_ratio: Decimal::from_ratio(100_000_000_u128, 1_u128),
         unbonding_period: (21 * 24 * 3600 + 3600),
         current_undelegation_batch_id: 0,
         accumulated_vault_airdrops: vec![],
@@ -542,10 +541,6 @@ mod tests {
             State {
                 contract_genesis_block_height: env.block.height,
                 contract_genesis_timestamp: env.block.time,
-                contract_genesis_shares_per_token_ratio: Decimal::from_ratio(
-                    1_000_000_00_u128,
-                    1_u128
-                ),
                 unbonding_period: (21 * 24 * 3600 + 3600),
                 current_undelegation_batch_id: 0,
                 accumulated_vault_airdrops: vec![],
@@ -694,17 +689,26 @@ mod tests {
                 })
             ]
         ));
-        let valid1_staked_quota_option = VALIDATORS_TO_STAKED_QUOTA.may_load(deps.as_mut().storage, &valid1).unwrap();
+        let valid1_staked_quota_option = VALIDATORS_TO_STAKED_QUOTA
+            .may_load(deps.as_mut().storage, &valid1)
+            .unwrap();
         assert_ne!(valid1_staked_quota_option, None);
-        let valid2_staked_quota_option = VALIDATORS_TO_STAKED_QUOTA.may_load(deps.as_mut().storage, &valid2).unwrap();
+        let valid2_staked_quota_option = VALIDATORS_TO_STAKED_QUOTA
+            .may_load(deps.as_mut().storage, &valid2)
+            .unwrap();
         assert_ne!(valid2_staked_quota_option, None);
         let valid1_staked_quota = valid1_staked_quota_option.unwrap();
         assert_eq!(valid1_staked_quota.amount, Coin::new(500_u128, "uluna"));
-        assert_eq!(valid1_staked_quota.vault_stake_fraction, Decimal::from_ratio(1_u128, 2_u128));
+        assert_eq!(
+            valid1_staked_quota.vault_stake_fraction,
+            Decimal::from_ratio(1_u128, 2_u128)
+        );
         let valid2_staked_quota = valid2_staked_quota_option.unwrap();
         assert_eq!(valid2_staked_quota.amount, Coin::new(500_u128, "uluna"));
-        assert_eq!(valid2_staked_quota.vault_stake_fraction, Decimal::from_ratio(1_u128, 2_u128));
-
+        assert_eq!(
+            valid2_staked_quota.vault_stake_fraction,
+            Decimal::from_ratio(1_u128, 2_u128)
+        );
 
         /*
            Test - 2. Reinvesting after a few reinvests
@@ -714,25 +718,34 @@ mod tests {
 
         STATE.update(deps.as_mut().storage, |mut state| -> StdResult<_> {
             state.uninvested_rewards = Coin::new(1000_u128, "uluna");
-            state.total_staked_tokens  = Uint128::new(4000_u128);
+            state.total_staked_tokens = Uint128::new(4000_u128);
             Ok(state)
         });
 
-        VALIDATORS_TO_STAKED_QUOTA.save(deps.as_mut().storage, &valid1, &StakeQuota {
-            amount: Coin::new(2000_u128, "uluna"),
-            vault_stake_fraction: Decimal::from_ratio(1_u128, 2_u128)
-        });
-        VALIDATORS_TO_STAKED_QUOTA.save(deps.as_mut().storage, &valid1, &StakeQuota {
-            amount: Coin::new(2000_u128, "uluna"),
-            vault_stake_fraction: Decimal::from_ratio(1_u128, 2_u128)
-        });
+        VALIDATORS_TO_STAKED_QUOTA.save(
+            deps.as_mut().storage,
+            &valid1,
+            &StakeQuota {
+                amount: Coin::new(2000_u128, "uluna"),
+                vault_stake_fraction: Decimal::from_ratio(1_u128, 2_u128),
+            },
+        );
+        VALIDATORS_TO_STAKED_QUOTA.save(
+            deps.as_mut().storage,
+            &valid1,
+            &StakeQuota {
+                amount: Coin::new(2000_u128, "uluna"),
+                vault_stake_fraction: Decimal::from_ratio(1_u128, 2_u128),
+            },
+        );
 
         let mut res = execute(
             deps.as_mut(),
             env.clone(),
             mock_info("creator", &[Coin::new(100_u128, "uluna")]),
             ExecuteMsg::Reinvest {},
-        ).unwrap();
+        )
+        .unwrap();
         let state_response = query_state(deps.as_ref()).unwrap();
         assert_ne!(state_response.state, None);
         let state = state_response.state.unwrap();
@@ -752,17 +765,26 @@ mod tests {
                 })
             ]
         ));
-        let valid1_staked_quota_option = VALIDATORS_TO_STAKED_QUOTA.may_load(deps.as_mut().storage, &valid1).unwrap();
+        let valid1_staked_quota_option = VALIDATORS_TO_STAKED_QUOTA
+            .may_load(deps.as_mut().storage, &valid1)
+            .unwrap();
         assert_ne!(valid1_staked_quota_option, None);
-        let valid2_staked_quota_option = VALIDATORS_TO_STAKED_QUOTA.may_load(deps.as_mut().storage, &valid2).unwrap();
+        let valid2_staked_quota_option = VALIDATORS_TO_STAKED_QUOTA
+            .may_load(deps.as_mut().storage, &valid2)
+            .unwrap();
         assert_ne!(valid2_staked_quota_option, None);
         let valid1_staked_quota = valid1_staked_quota_option.unwrap();
         assert_eq!(valid1_staked_quota.amount, Coin::new(2500_u128, "uluna"));
-        assert_eq!(valid1_staked_quota.vault_stake_fraction, Decimal::from_ratio(1_u128, 2_u128));
+        assert_eq!(
+            valid1_staked_quota.vault_stake_fraction,
+            Decimal::from_ratio(1_u128, 2_u128)
+        );
         let valid2_staked_quota = valid2_staked_quota_option.unwrap();
         assert_eq!(valid2_staked_quota.amount, Coin::new(2500_u128, "uluna"));
-        assert_eq!(valid2_staked_quota.vault_stake_fraction, Decimal::from_ratio(1_u128, 2_u128));
-
+        assert_eq!(
+            valid2_staked_quota.vault_stake_fraction,
+            Decimal::from_ratio(1_u128, 2_u128)
+        );
 
         /*
            Test - 3. Slashing
@@ -772,23 +794,32 @@ mod tests {
 
         STATE.update(deps.as_mut().storage, |mut state| -> StdResult<_> {
             state.uninvested_rewards = Coin::new(1000_u128, "uluna");
-            state.total_staked_tokens  = Uint128::new(5000_u128);
+            state.total_staked_tokens = Uint128::new(5000_u128);
             Ok(state)
         });
-        VALIDATORS_TO_STAKED_QUOTA.save(deps.as_mut().storage, &valid1, &StakeQuota {
-            amount: Coin::new(2500_u128, "uluna"),
-            vault_stake_fraction: Decimal::from_ratio(1_u128, 2_u128)
-        });
-        VALIDATORS_TO_STAKED_QUOTA.save(deps.as_mut().storage, &valid1, &StakeQuota {
-            amount: Coin::new(2500_u128, "uluna"),
-            vault_stake_fraction: Decimal::from_ratio(1_u128, 2_u128)
-        });
+        VALIDATORS_TO_STAKED_QUOTA.save(
+            deps.as_mut().storage,
+            &valid1,
+            &StakeQuota {
+                amount: Coin::new(2500_u128, "uluna"),
+                vault_stake_fraction: Decimal::from_ratio(1_u128, 2_u128),
+            },
+        );
+        VALIDATORS_TO_STAKED_QUOTA.save(
+            deps.as_mut().storage,
+            &valid1,
+            &StakeQuota {
+                amount: Coin::new(2500_u128, "uluna"),
+                vault_stake_fraction: Decimal::from_ratio(1_u128, 2_u128),
+            },
+        );
         let mut res = execute(
             deps.as_mut(),
             env.clone(),
             mock_info("creator", &[Coin::new(100_u128, "uluna")]),
             ExecuteMsg::Reinvest {},
-        ).unwrap();
+        )
+        .unwrap();
         let state_response = query_state(deps.as_ref()).unwrap();
         assert_ne!(state_response.state, None);
         let state = state_response.state.unwrap();
@@ -808,17 +839,26 @@ mod tests {
                 })
             ]
         ));
-        let valid1_staked_quota_option = VALIDATORS_TO_STAKED_QUOTA.may_load(deps.as_mut().storage, &valid1).unwrap();
+        let valid1_staked_quota_option = VALIDATORS_TO_STAKED_QUOTA
+            .may_load(deps.as_mut().storage, &valid1)
+            .unwrap();
         assert_ne!(valid1_staked_quota_option, None);
-        let valid2_staked_quota_option = VALIDATORS_TO_STAKED_QUOTA.may_load(deps.as_mut().storage, &valid2).unwrap();
+        let valid2_staked_quota_option = VALIDATORS_TO_STAKED_QUOTA
+            .may_load(deps.as_mut().storage, &valid2)
+            .unwrap();
         assert_ne!(valid2_staked_quota_option, None);
         let valid1_staked_quota = valid1_staked_quota_option.unwrap();
         assert_eq!(valid1_staked_quota.amount, Coin::new(2500_u128, "uluna"));
-        assert_eq!(valid1_staked_quota.vault_stake_fraction, Decimal::from_ratio(1_u128, 2_u128));
+        assert_eq!(
+            valid1_staked_quota.vault_stake_fraction,
+            Decimal::from_ratio(1_u128, 2_u128)
+        );
         let valid2_staked_quota = valid2_staked_quota_option.unwrap();
         assert_eq!(valid2_staked_quota.amount, Coin::new(2500_u128, "uluna"));
-        assert_eq!(valid2_staked_quota.vault_stake_fraction, Decimal::from_ratio(1_u128, 2_u128));
-
+        assert_eq!(
+            valid2_staked_quota.vault_stake_fraction,
+            Decimal::from_ratio(1_u128, 2_u128)
+        );
     }
 
     #[test]
