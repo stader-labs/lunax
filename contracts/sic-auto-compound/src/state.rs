@@ -70,7 +70,7 @@ pub struct State {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct BatchUndelegationRecord {
     pub(crate) amount: Coin,
-    pub(crate) total_slashed_amount: Uint128,
+    pub(crate) unbonding_slashing_ratio: Decimal,
     pub(crate) create_time: Timestamp,
     pub(crate) est_release_time: Timestamp,
     pub(crate) slashing_checked: bool,
