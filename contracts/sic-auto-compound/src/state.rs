@@ -56,6 +56,7 @@ pub struct State {
     pub unbonding_period: u64, // the blockchain's unbonding_period + buffer_time
 
     pub current_undelegation_batch_id: u64,
+    pub current_undelegation_funds: Uint128,
 
     pub accumulated_vault_airdrops: Vec<Coin>,
     // pub global_airdrop_pointer: Vec<DecCoin>,
@@ -69,7 +70,7 @@ pub struct State {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct BatchUndelegationRecord {
     pub(crate) amount: Coin,
-    pub(crate) unbonding_slashing_ratio: Decimal,
+    pub(crate) total_slashed_amount: Uint128,
     pub(crate) create_time: Timestamp,
     pub(crate) est_release_time: Timestamp,
     pub(crate) slashing_checked: bool,

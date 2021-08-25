@@ -30,4 +30,7 @@ pub enum ContractError {
 
     #[error("Deposit can only be withdrawn after unbonding period is over")]
     DepositInUnbondingPeriod {},
+
+    #[error("No undelegation batch for id '{0}'")]
+    NoUndelegationBatch(u64),
 }

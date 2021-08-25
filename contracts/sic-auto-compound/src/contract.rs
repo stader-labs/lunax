@@ -36,13 +36,14 @@ pub fn instantiate(
         contract_genesis_shares_per_token_ratio: Decimal::from_ratio(100_000_000_u128, 1_u128),
         unbonding_period: (21 * 24 * 3600 + 3600),
         current_undelegation_batch_id: 0,
+        current_undelegation_funds: Uint128::zero(),
         accumulated_vault_airdrops: vec![],
         validator_pool: msg.initial_validators,
         unswapped_rewards: vec![],
         uninvested_rewards: Coin::new(0_u128, msg.vault_denom.clone()),
 
         total_staked_tokens: Uint128::zero(),
-        total_slashed_amount: Uint128::zero()
+        total_slashed_amount: Uint128::zero(),
     };
     if msg.unbonding_period.is_some() {
         state.unbonding_period = msg.unbonding_period.unwrap();
@@ -94,6 +95,69 @@ pub fn try_reconcile_undelegation_batch(
     info: MessageInfo,
     undelegation_batch_id: u64,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
+    let state = STATE.load(deps.storage).unwrap();
+    let config = CONFIG.load(deps.storage).unwrap();
+
+    if info.sender != config.manager {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    let undelegation_batch_option = UNDELEGATION_INFO_LEDGER
+        .may_load(deps.storage, undelegation_batch_id.into())
+        .unwrap();
+    if undelegation_batch_option.is_none() {
+        return Err(ContractError::NonExistentUndelegationBatch {});
+    }
+
+    let vault_denom = config.vault_denom;
+    let mut undelegation_batch = undelegation_batch_option.unwrap();
+    let total_base_funds_in_strategy = deps
+        .querier
+        .query_balance(_env.contract.address, vault_denom.clone())
+        .unwrap()
+        .amount;
+    let current_uninvested_rewards = state.uninvested_rewards.amount;
+    let base_funds_from_rewards = state
+        .unswapped_rewards
+        .iter()
+        .find(|&x| x.denom.eq(&vault_denom))
+        .cloned()
+        .unwrap_or_else(|| Coin::new(0, vault_denom.clone()))
+        .amount;
+    let current_undelegation_funds = state.current_undelegation_funds;
+
+    let unaccounted_base_funds = total_base_funds_in_strategy
+        .checked_sub(current_uninvested_rewards)
+        .unwrap()
+        .checked_sub(base_funds_from_rewards)
+        .unwrap()
+        .checked_sub(current_undelegation_funds)
+        .unwrap();
+
+    let total_slashed_amount = undelegation_batch
+        .amount
+        .amount
+        .checked_sub(unaccounted_base_funds)
+        .unwrap();
+
+    UNDELEGATION_INFO_LEDGER.update(
+        deps.storage,
+        undelegation_batch_id.into(),
+        |_x| -> StdResult<_> {
+            undelegation_batch.total_slashed_amount = total_slashed_amount;
+            undelegation_batch.slashing_checked = true;
+            Ok(undelegation_batch)
+        },
+    );
+
+    STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
+        state.current_undelegation_funds = state
+            .current_undelegation_funds
+            .checked_add(unaccounted_base_funds)
+            .unwrap();
+        Ok(state)
+    })?;
+
     Ok(Response::default())
 }
 
@@ -240,71 +304,66 @@ pub fn try_undelegate_rewards(
         u64key,
         &BatchUndelegationRecord {
             amount: Coin::new(amount.u128(), config.vault_denom.clone()),
-            unbonding_slashing_ratio: Decimal::one(),
+            total_slashed_amount: Uint128::zero(),
             create_time: _env.block.time,
             est_release_time: _env.block.time.plus_seconds(state.unbonding_period),
             slashing_checked: false,
         },
     )?;
 
+    let new_total_staked_tokens = state.total_staked_tokens.checked_sub(amount).unwrap();
+    STATE.update(deps.storage, |mut state| -> StdResult<_> {
+        state.total_staked_tokens = new_total_staked_tokens;
+        Ok(state)
+    })?;
+
     // undelegate from each validator according to their staked fraction
     let mut messages: Vec<StakingMsg> = vec![];
-    // let mut validator_infos: HashMap<Addr, Uint128> = HashMap::new();
     let vault_denom = config.vault_denom;
     for validator in &state.validator_pool {
-        let validator_staked_quota_option = VALIDATORS_TO_STAKED_QUOTA.may_load(deps.storage, validator).unwrap();
+        let validator_staked_quota_option = VALIDATORS_TO_STAKED_QUOTA
+            .may_load(deps.storage, validator)
+            .unwrap();
         if validator_staked_quota_option.is_none() {
+            // validator has no stake. so don't undelegate from him.
             continue;
         }
 
         let validator_staked_quota = validator_staked_quota_option.unwrap();
+        let total_delegated_amount = validator_staked_quota.amount.amount;
+        let stake_fraction = validator_staked_quota.vault_stake_fraction;
+
         let mut stake_amount = Uint128::zero();
+        if !stake_fraction.is_zero() {
+            stake_amount = Uint128::new(
+                amount.u128() * stake_fraction.numerator() / stake_fraction.denominator(),
+            );
 
+            messages.push(StakingMsg::Undelegate {
+                validator: String::from(validator),
+                amount: Coin {
+                    denom: vault_denom.clone(),
+                    amount: stake_amount,
+                },
+            });
+        }
 
-
+        let new_validator_staked_amount = total_delegated_amount
+            .checked_sub(stake_amount)
+            .unwrap()
+            .u128();
+        VALIDATORS_TO_STAKED_QUOTA.save(
+            deps.storage,
+            validator,
+            &StakeQuota {
+                amount: Coin::new(new_validator_staked_amount, vault_denom.clone()),
+                vault_stake_fraction: Decimal::from_ratio(
+                    new_validator_staked_amount,
+                    new_total_staked_tokens,
+                ),
+            },
+        );
     }
-    // VALIDATORS_TO_STAKED_QUOTA
-    //     .prefix(())
-    //     .range(deps.storage, None, None, Order::Ascending)
-    //     .for_each(|res| {
-    //         let unwrapped = res.unwrap();
-    //
-    //         let validator_addr = Addr::unchecked(String::from_utf8(unwrapped.0).unwrap());
-    //
-    //         let delegated_coin = unwrapped.1.amount.amount;
-    //         let stake_fraction = unwrapped.1.vault_stake_fraction;
-    //
-    //         let mut stake_amount = Uint128::zero();
-    //         if !stake_fraction.is_zero() {
-    //             stake_amount = Uint128::new(
-    //                 amount.u128() * stake_fraction.numerator() / stake_fraction.denominator(),
-    //             );
-    //
-    //             messages.push(StakingMsg::Undelegate {
-    //                 validator: validator_addr.to_string(),
-    //                 amount: Coin {
-    //                     denom: vault_denom.clone(),
-    //                     amount: stake_amount,
-    //                 },
-    //             });
-    //         }
-    //
-    //         validator_infos.insert(
-    //             validator_addr,
-    //             delegated_coin.checked_sub(stake_amount).unwrap(),
-    //         );
-    //     });
-
-    // validator_infos.iter().for_each(|x| {
-    //     VALIDATORS_TO_STAKED_QUOTA.save(
-    //         deps.storage,
-    //         x.0,
-    //         &StakeQuota {
-    //             amount: Coin::new(x.1.u128(), vault_denom.clone()),
-    //             vault_stake_fraction: Decimal::from_ratio(x.1.u128(), new_current_vault_deposits),
-    //         },
-    //     );
-    // });
 
     Ok(Response::new().add_messages(messages))
 }
@@ -340,15 +399,15 @@ pub fn try_withdraw_rewards(
     if _env.block.time.lt(&undelegation_batch.est_release_time) {
         return Err(ContractError::DepositInUnbondingPeriod {});
     }
-
-    let effective_withdrawable_rewards = multiply_coin_with_decimal(
-        &Coin::new(amount.u128(), config.vault_denom),
-        undelegation_batch.unbonding_slashing_ratio,
-    );
+    //
+    // let effective_withdrawable_rewards = multiply_coin_with_decimal(
+    //     &Coin::new(amount.u128(), config.vault_denom),
+    //     undelegation_batch.unbonding_slashing_ratio,
+    // );
 
     Ok(Response::new().add_message(BankMsg::Send {
         to_address: String::from(user),
-        amount: vec![effective_withdrawable_rewards],
+        amount: vec![Coin::new(amount.u128(), config.vault_denom)],
     }))
 }
 
@@ -392,7 +451,10 @@ pub fn try_reinvest(
         );
     }
 
-    let total_slashed_amount = state.total_staked_tokens.checked_sub(current_total_staked_tokens.amount).unwrap();
+    let total_slashed_amount = state
+        .total_staked_tokens
+        .checked_sub(current_total_staked_tokens.amount)
+        .unwrap();
 
     let new_current_staked_tokens = current_total_staked_tokens
         .amount
@@ -437,8 +499,11 @@ pub fn try_reinvest(
 
     STATE.update(deps.storage, |mut state| -> StdResult<_> {
         state.total_staked_tokens = new_current_staked_tokens;
-        if total_slashed_amount > 0 {
-            state.total_slashed_amount = state.total_slashed_amount.checked_add(total_slashed_amount).unwrap();
+        if total_slashed_amount > Uint128::zero() {
+            state.total_slashed_amount = state
+                .total_slashed_amount
+                .checked_add(total_slashed_amount)
+                .unwrap();
         }
         Ok(state)
     })?;
