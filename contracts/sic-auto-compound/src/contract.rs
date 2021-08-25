@@ -3,6 +3,7 @@ use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     attr, to_binary, Addr, Attribute, BankMsg, Binary, Coin, Decimal, Deps, DepsMut,
     DistributionMsg, Env, Fraction, MessageInfo, Order, Response, StakingMsg, StdResult, Uint128,
+    WasmMsg,
 };
 
 use crate::error::ContractError;
@@ -11,17 +12,18 @@ use crate::msg::{
     GetTotalTokensResponse, GetUndelegationBatchInfoResponse, InstantiateMsg, QueryMsg,
 };
 use crate::state::{
-    BatchUndelegationRecord, Config, StakeQuota, State, CONFIG, STATE, UNDELEGATION_INFO_LEDGER,
-    VALIDATORS_TO_STAKED_QUOTA,
+    BatchUndelegationRecord, Config, DecCoin, StakeQuota, State, CONFIG, STATE,
+    UNDELEGATION_INFO_LEDGER, VALIDATORS_TO_STAKED_QUOTA,
 };
 use crate::utils::{
-    decimal_multiplication_in_256, merge_coin, merge_coin_vector, multiply_coin_with_decimal,
-    CoinOp, CoinVecOp, Operation,
+    decimal_multiplication_in_256, merge_coin, merge_coin_vector, merge_dec_coin_vector,
+    multiply_coin_with_decimal, CoinOp, CoinVecOp, DecCoinVecOp, Operation,
 };
 use cw_storage_plus::U64Key;
 use std::collections::HashMap;
 use std::ops::Add;
 use terra_cosmwasm::{create_swap_msg, SwapResponse, TerraMsgWrapper, TerraQuerier};
+use cw20::Cw20ExecuteMsg;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -86,7 +88,103 @@ pub fn execute(
         ExecuteMsg::Reinvest {} => try_reinvest(deps, _env, info),
         ExecuteMsg::RedeemRewards {} => try_redeem_rewards(deps, _env, info),
         ExecuteMsg::Swap {} => try_swap(deps, _env, info),
+        ExecuteMsg::ClaimAirdrops {
+            airdrop_token_contract,
+            airdrop_token,
+            amount,
+            claim_msg,
+        } => try_claim_airdrops(
+            deps,
+            _env,
+            info,
+            airdrop_token_contract,
+            airdrop_token,
+            amount,
+            claim_msg,
+        ),
+        ExecuteMsg::WithdrawAirdrops {
+            airdrop_token_contract,
+            airdrop_token,
+            amount,
+            user,
+        } => try_withdraw_airdrops(
+            deps,
+            _env,
+            info,
+            airdrop_token_contract,
+            airdrop_token,
+            amount,
+            user,
+        ),
     }
+}
+
+pub fn try_claim_airdrops(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    airdrop_token_contract: Addr,
+    airdrop_token: String,
+    amount: Uint128,
+    claim_msg: Binary,
+) -> Result<Response<TerraMsgWrapper>, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    if info.sender != config.manager {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    let messages: Vec<WasmMsg> = vec![WasmMsg::Execute {
+        contract_addr: airdrop_token_contract.to_string(),
+        msg: claim_msg,
+        funds: vec![],
+    }];
+
+    STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
+        state.accumulated_vault_airdrops = merge_coin_vector(
+            state.accumulated_vault_airdrops,
+            CoinVecOp {
+                fund: vec![Coin::new(amount.u128(), airdrop_token)],
+                operation: Operation::Add,
+            },
+        );
+        Ok(state)
+    })?;
+
+    Ok(Response::new().add_messages(messages))
+}
+
+pub fn try_withdraw_airdrops(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    airdrop_token_contract: Addr,
+    airdrop_token: String,
+    amount: Uint128,
+    user: Addr,
+) -> Result<Response<TerraMsgWrapper>, ContractError> {
+    let state = STATE.load(deps.storage)?;
+
+    let config = CONFIG.load(deps.storage)?;
+    if info.sender != config.scc_contract_address {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    let current_airdrop_amount = state.accumulated_vault_airdrops.iter().find(|&x| x.denom.eq(&airdrop_token))
+        .cloned()
+        .unwrap_or_else(|| Coin::new(0, airdrop_token.clone()))
+        .amount;
+    if current_airdrop_amount.lt(&amount) {
+        return Err(ContractError::NotEnoughAirdrops(airdrop_token))
+    }
+
+    Ok(Response::new().add_message(WasmMsg::Execute {
+        contract_addr: String::from(airdrop_token_contract),
+        msg: to_binary(&Cw20ExecuteMsg::Transfer {
+            recipient: String::from(user),
+            amount,
+        }).unwrap(),
+        funds: vec![],
+    }))
 }
 
 pub fn try_reconcile_undelegation_batch(

@@ -33,4 +33,7 @@ pub enum ContractError {
 
     #[error("No undelegation batch for id '{0}'")]
     NoUndelegationBatch(u64),
+
+    #[error("Not enough airdrops to withdraw '{0}'")]
+    NotEnoughAirdrops(String)
 }
