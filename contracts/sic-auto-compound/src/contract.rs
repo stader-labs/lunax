@@ -140,6 +140,8 @@ pub fn try_reconcile_undelegation_batch(
         .checked_sub(unaccounted_base_funds)
         .unwrap();
 
+    // TODO: bchain99: If there is a slashed amount, compensate it from manager funds
+
     UNDELEGATION_INFO_LEDGER.update(
         deps.storage,
         undelegation_batch_id.into(),
@@ -154,6 +156,10 @@ pub fn try_reconcile_undelegation_batch(
         state.current_undelegation_funds = state
             .current_undelegation_funds
             .checked_add(unaccounted_base_funds)
+            .unwrap();
+        state.total_slashed_amount = state
+            .total_slashed_amount
+            .checked_add(total_slashed_amount)
             .unwrap();
         Ok(state)
     })?;
@@ -240,8 +246,6 @@ pub fn try_transfer_rewards(
     _env: Env,
     info: MessageInfo,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
-    let state = STATE.load(deps.storage).unwrap();
-
     let config = CONFIG.load(deps.storage).unwrap();
     if info.sender != config.scc_contract_address {
         return Err(ContractError::Unauthorized {});
@@ -399,11 +403,6 @@ pub fn try_withdraw_rewards(
     if _env.block.time.lt(&undelegation_batch.est_release_time) {
         return Err(ContractError::DepositInUnbondingPeriod {});
     }
-    //
-    // let effective_withdrawable_rewards = multiply_coin_with_decimal(
-    //     &Coin::new(amount.u128(), config.vault_denom),
-    //     undelegation_batch.unbonding_slashing_ratio,
-    // );
 
     Ok(Response::new().add_message(BankMsg::Send {
         to_address: String::from(user),
@@ -455,6 +454,8 @@ pub fn try_reinvest(
         .total_staked_tokens
         .checked_sub(current_total_staked_tokens.amount)
         .unwrap();
+
+    // TODO: bchain99: If there is a slashed amount, compensate it from manager funds
 
     let new_current_staked_tokens = current_total_staked_tokens
         .amount

@@ -64,6 +64,7 @@ pub struct State {
     pub unswapped_rewards: Vec<Coin>,
     pub uninvested_rewards: Coin,
     pub total_staked_tokens: Uint128,
+    // total_slashed_amount = total_stake_slashed + total_undelegations_slashed. This field is mainly for metric tracking
     pub total_slashed_amount: Uint128,
 }
 
