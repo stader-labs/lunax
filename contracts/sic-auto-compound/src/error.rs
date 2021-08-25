@@ -10,14 +10,20 @@ pub enum ContractError {
     Unauthorized {},
     // Add any other custom errors you like here.
     // Look at https://docs.rs/thiserror/1.0.21/thiserror/ for details.
-    #[error("There are no unstaked rewards currently")]
-    NoUnstakedRewards {},
+    #[error("There are no uninvested rewards currently")]
+    NoUninvestedRewards {},
+
+    #[error("There are no unswapped rewards")]
+    NoUnswappedRewards {},
 
     #[error("No funds have been sent")]
     NoFundsSent {},
 
     #[error("Sent more than one coin")]
     MultipleCoins {},
+
+    #[error("Wrong denom has been sent `{0}`")]
+    WrongDenom(String),
 
     #[error("Cannot undelegate 0 coins")]
     ZeroUndelegation {},

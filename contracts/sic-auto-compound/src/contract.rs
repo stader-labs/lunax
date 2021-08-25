@@ -185,7 +185,7 @@ pub fn try_swap(
     }
 
     if state.unswapped_rewards.is_empty() {
-        return Err(ContractError::NoUnstakedRewards {});
+        return Err(ContractError::NoUnswappedRewards {});
     }
 
     // fetch the swapped money
@@ -267,6 +267,9 @@ pub fn try_transfer_rewards(
     }
 
     let transferred_coin = info.funds[0].clone();
+    if transferred_coin.denom.ne(&config.vault_denom) {
+        return Err(ContractError::WrongDenom(transferred_coin.denom));
+    }
 
     STATE.update(deps.storage, |mut state| -> StdResult<_> {
         state.uninvested_rewards = merge_coin(
@@ -445,7 +448,7 @@ pub fn try_reinvest(
     }
 
     if state.uninvested_rewards.amount.is_zero() {
-        return Err(ContractError::NoUnstakedRewards {});
+        return Err(ContractError::NoUninvestedRewards {});
     }
 
     let vault_denom = config.vault_denom;
@@ -478,16 +481,16 @@ pub fn try_reinvest(
         .checked_sub(current_total_staked_tokens.amount)
         .unwrap();
 
-    // TODO: bchain99: If there is a slashed amount, compensate it from manager funds
+    let rewards_to_invest = state.uninvested_rewards.amount;
 
     let new_current_staked_tokens = current_total_staked_tokens
         .amount
-        .checked_add(state.uninvested_rewards.amount)
+        .checked_add(rewards_to_invest)
         .unwrap();
 
     let validator_pool_length = state.validator_pool.len();
-    let even_split = new_current_staked_tokens.u128() / validator_pool_length as u128;
-    let mut extra_split = new_current_staked_tokens.u128() % validator_pool_length as u128;
+    let even_split = rewards_to_invest.u128() / validator_pool_length as u128;
+    let mut extra_split = rewards_to_invest.u128() % validator_pool_length as u128;
     let mut messages: Vec<StakingMsg> = vec![];
     state.validator_pool.iter().for_each(|v| {
         let delegation_amount = Uint128::new(even_split + extra_split);
@@ -532,7 +535,7 @@ pub fn try_reinvest(
         Ok(state)
     })?;
 
-    Ok(Response::default())
+    Ok(Response::new().add_messages(messages))
 }
 
 pub fn try_redeem_rewards(
@@ -768,6 +771,7 @@ mod tests {
         );
     }
 
+
     #[test]
     fn test__try_undelegate_rewards_fail() {
         let mut deps = mock_dependencies(&[]);
@@ -795,7 +799,7 @@ mod tests {
                 amount: Uint128::new(1000_u128),
             },
         )
-        .unwrap_err();
+            .unwrap_err();
         assert!(matches!(err, ContractError::Unauthorized {}));
 
         let mut err = execute(
@@ -806,7 +810,7 @@ mod tests {
                 amount: Uint128::zero(),
             },
         )
-        .unwrap_err();
+            .unwrap_err();
         assert!(matches!(err, ContractError::ZeroUndelegation {}));
     }
 
@@ -857,7 +861,7 @@ mod tests {
                 amount: Uint128::new(500_u128),
             },
         )
-        .unwrap();
+            .unwrap();
         let state_response = query_state(deps.as_ref()).unwrap();
         assert_ne!(state_response.state, None);
         let state = state_response.state.unwrap();
@@ -921,7 +925,7 @@ mod tests {
                 undelegation_batch_id: 1,
             },
         )
-        .unwrap_err();
+            .unwrap_err();
         assert!(matches!(err, ContractError::Unauthorized {}));
 
         let mut err = execute(
@@ -932,7 +936,7 @@ mod tests {
                 undelegation_batch_id: 1,
             },
         )
-        .unwrap_err();
+            .unwrap_err();
         assert!(matches!(
             err,
             ContractError::NonExistentUndelegationBatch {}
@@ -957,7 +961,7 @@ mod tests {
                 undelegation_batch_id: 1,
             },
         )
-        .unwrap_err();
+            .unwrap_err();
         assert!(matches!(
             err,
             ContractError::UndelegationBatchInUnbondingPeriod(1)
@@ -1015,7 +1019,7 @@ mod tests {
                 undelegation_batch_id: 1,
             },
         )
-        .unwrap();
+            .unwrap();
         let state_response = query_state(deps.as_ref()).unwrap();
         assert_ne!(state_response.state, None);
         let state = state_response.state.unwrap();
@@ -1060,7 +1064,7 @@ mod tests {
                 undelegation_batch_id: 1,
             },
         )
-        .unwrap();
+            .unwrap();
         let state_response = query_state(deps.as_ref()).unwrap();
         assert_ne!(state_response.state, None);
         let state = state_response.state.unwrap();
@@ -1108,7 +1112,7 @@ mod tests {
                 amount: Uint128::new(1000_u128),
             },
         )
-        .unwrap_err();
+            .unwrap_err();
         assert!(matches!(err, ContractError::Unauthorized {}));
 
         let mut err = execute(
@@ -1121,7 +1125,7 @@ mod tests {
                 amount: Uint128::new(0_u128),
             },
         )
-        .unwrap_err();
+            .unwrap_err();
         assert!(matches!(err, ContractError::ZeroWithdrawal {}));
 
         let mut err = execute(
@@ -1134,7 +1138,7 @@ mod tests {
                 amount: Uint128::new(100_u128),
             },
         )
-        .unwrap_err();
+            .unwrap_err();
         assert!(matches!(
             err,
             ContractError::NonExistentUndelegationBatch {}
@@ -1161,7 +1165,7 @@ mod tests {
                 amount: Uint128::new(100_u128),
             },
         )
-        .unwrap_err();
+            .unwrap_err();
         assert!(matches!(err, ContractError::SlashingNotChecked { .. }));
 
         UNDELEGATION_INFO_LEDGER.save(
@@ -1185,7 +1189,7 @@ mod tests {
                 amount: Uint128::new(100_u128),
             },
         )
-        .unwrap_err();
+            .unwrap_err();
         assert!(matches!(err, ContractError::DepositInUnbondingPeriod {}));
 
         UNDELEGATION_INFO_LEDGER.save(
@@ -1209,7 +1213,7 @@ mod tests {
                 amount: Uint128::new(100_u128),
             },
         )
-        .unwrap_err();
+            .unwrap_err();
         assert!(matches!(
             err,
             ContractError::InsufficientUndelegationBatch(1)
@@ -1265,7 +1269,7 @@ mod tests {
                 amount: Uint128::new(100_u128),
             },
         )
-        .unwrap();
+            .unwrap();
         assert_eq!(res.messages.len(), 1);
         assert_eq!(
             res.messages[0],
@@ -1278,6 +1282,434 @@ mod tests {
         assert_ne!(state_response.state, None);
         let state = state_response.state.unwrap();
         assert_eq!(state.current_undelegation_funds, Uint128::new(900_u128))
+    }
+
+    #[test]
+    fn test__try_reinvest__fail() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &[]);
+        let env = mock_env();
+
+        let res = instantiate_contract(
+            &mut deps,
+            &info,
+            &env,
+            Some(
+                get_validators()
+                    .iter()
+                    .map(|f| Addr::unchecked(&f.address))
+                    .collect(),
+            ),
+            Option::from("uluna".to_string()),
+        );
+
+        let mut err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("not-creator", &[]),
+            ExecuteMsg::Reinvest {},
+        )
+            .unwrap_err();
+        assert!(matches!(err, ContractError::Unauthorized {}));
+
+        let mut err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::Reinvest {},
+        )
+            .unwrap_err();
+        assert!(matches!(err, ContractError::NoUninvestedRewards {}));
+    }
+
+    #[test]
+    fn test__try_reinvest__success() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &[]);
+        let env = mock_env();
+
+        let res = instantiate_contract(
+            &mut deps,
+            &info,
+            &env,
+            Some(
+                get_validators()
+                    .iter()
+                    .map(|f| Addr::unchecked(&f.address))
+                    .collect(),
+            ),
+            Option::from("uluna".to_string()),
+        );
+
+        fn get_zero_delegations() -> Vec<FullDelegation> {
+            vec![
+                FullDelegation {
+                    delegator: Addr::unchecked(MOCK_CONTRACT_ADDR),
+                    validator: "valid0001".to_string(),
+                    amount: Coin::new(0, "uluna".to_string()),
+                    can_redelegate: Coin::new(1000, "uluna".to_string()),
+                    accumulated_rewards: vec![
+                        Coin::new(00, "uluna".to_string()),
+                        Coin::new(00, "urew1"),
+                    ],
+                },
+                FullDelegation {
+                    delegator: Addr::unchecked(MOCK_CONTRACT_ADDR),
+                    validator: "valid0002".to_string(),
+                    amount: Coin::new(0, "uluna".to_string()),
+                    can_redelegate: Coin::new(0, "uluna".to_string()),
+                    accumulated_rewards: vec![
+                        Coin::new(00, "uluna".to_string()),
+                        Coin::new(00, "urew1"),
+                    ],
+                },
+            ]
+        }
+
+        let deleg1 = Addr::unchecked("deleg0001".to_string());
+        let deleg2 = Addr::unchecked("deleg0002".to_string());
+        let deleg3 = Addr::unchecked("deleg0003".to_string());
+        let valid1 = Addr::unchecked("valid0001".to_string());
+        let valid2 = Addr::unchecked("valid0002".to_string());
+        let valid3 = Addr::unchecked("valid0003".to_string());
+
+        /*
+           Test - 1. First reinvest
+        */
+        deps.querier
+            .update_staking("test", &*get_validators(), &*get_zero_delegations());
+
+        STATE.update(deps.as_mut().storage, |mut state| -> StdResult<_> {
+            state.uninvested_rewards = Coin::new(1000_u128, "uluna");
+            Ok(state)
+        });
+        let mut res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[Coin::new(100_u128, "uluna")]),
+            ExecuteMsg::Reinvest {},
+        )
+            .unwrap();
+        let state_response = query_state(deps.as_ref()).unwrap();
+        assert_ne!(state_response.state, None);
+        let state = state_response.state.unwrap();
+        assert_eq!(state.total_staked_tokens, Uint128::new(1000_u128));
+        assert_eq!(state.total_slashed_amount, Uint128::zero());
+        assert_eq!(res.messages.len(), 2);
+        assert!(check_equal_vec(
+            res.messages,
+            vec![
+                SubMsg::new(StakingMsg::Delegate {
+                    validator: valid1.to_string(),
+                    amount: Coin::new(500_u128, "uluna")
+                }),
+                SubMsg::new(StakingMsg::Delegate {
+                    validator: valid2.to_string(),
+                    amount: Coin::new(500_u128, "uluna")
+                })
+            ]
+        ));
+        let valid1_staked_quota_option = VALIDATORS_TO_STAKED_QUOTA
+            .may_load(deps.as_mut().storage, &valid1)
+            .unwrap();
+        assert_ne!(valid1_staked_quota_option, None);
+        let valid2_staked_quota_option = VALIDATORS_TO_STAKED_QUOTA
+            .may_load(deps.as_mut().storage, &valid2)
+            .unwrap();
+        assert_ne!(valid2_staked_quota_option, None);
+        let valid1_staked_quota = valid1_staked_quota_option.unwrap();
+        assert_eq!(valid1_staked_quota.amount, Coin::new(500_u128, "uluna"));
+        assert_eq!(
+            valid1_staked_quota.vault_stake_fraction,
+            Decimal::from_ratio(1_u128, 2_u128)
+        );
+        let valid2_staked_quota = valid2_staked_quota_option.unwrap();
+        assert_eq!(valid2_staked_quota.amount, Coin::new(500_u128, "uluna"));
+        assert_eq!(
+            valid2_staked_quota.vault_stake_fraction,
+            Decimal::from_ratio(1_u128, 2_u128)
+        );
+
+        /*
+           Test - 2. Reinvesting after a few reinvests
+        */
+        deps.querier
+            .update_staking("test", &*get_validators(), &*get_delegations());
+
+        STATE.update(deps.as_mut().storage, |mut state| -> StdResult<_> {
+            state.uninvested_rewards = Coin::new(1000_u128, "uluna");
+            state.total_staked_tokens = Uint128::new(4000_u128);
+            Ok(state)
+        });
+
+        VALIDATORS_TO_STAKED_QUOTA.save(
+            deps.as_mut().storage,
+            &valid1,
+            &StakeQuota {
+                amount: Coin::new(2000_u128, "uluna"),
+                vault_stake_fraction: Decimal::from_ratio(1_u128, 2_u128),
+            },
+        );
+        VALIDATORS_TO_STAKED_QUOTA.save(
+            deps.as_mut().storage,
+            &valid1,
+            &StakeQuota {
+                amount: Coin::new(2000_u128, "uluna"),
+                vault_stake_fraction: Decimal::from_ratio(1_u128, 2_u128),
+            },
+        );
+
+        let mut res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[Coin::new(100_u128, "uluna")]),
+            ExecuteMsg::Reinvest {},
+        )
+            .unwrap();
+        let state_response = query_state(deps.as_ref()).unwrap();
+        assert_ne!(state_response.state, None);
+        let state = state_response.state.unwrap();
+        assert_eq!(state.total_staked_tokens, Uint128::new(5000_u128));
+        assert_eq!(state.total_slashed_amount, Uint128::zero());
+        assert_eq!(res.messages.len(), 2);
+        assert!(check_equal_vec(
+            res.messages,
+            vec![
+                SubMsg::new(StakingMsg::Delegate {
+                    validator: valid1.to_string(),
+                    amount: Coin::new(500_u128, "uluna")
+                }),
+                SubMsg::new(StakingMsg::Delegate {
+                    validator: valid2.to_string(),
+                    amount: Coin::new(500_u128, "uluna")
+                })
+            ]
+        ));
+        let valid1_staked_quota_option = VALIDATORS_TO_STAKED_QUOTA
+            .may_load(deps.as_mut().storage, &valid1)
+            .unwrap();
+        assert_ne!(valid1_staked_quota_option, None);
+        let valid2_staked_quota_option = VALIDATORS_TO_STAKED_QUOTA
+            .may_load(deps.as_mut().storage, &valid2)
+            .unwrap();
+        assert_ne!(valid2_staked_quota_option, None);
+        let valid1_staked_quota = valid1_staked_quota_option.unwrap();
+        assert_eq!(valid1_staked_quota.amount, Coin::new(2500_u128, "uluna"));
+        assert_eq!(
+            valid1_staked_quota.vault_stake_fraction,
+            Decimal::from_ratio(1_u128, 2_u128)
+        );
+        let valid2_staked_quota = valid2_staked_quota_option.unwrap();
+        assert_eq!(valid2_staked_quota.amount, Coin::new(2500_u128, "uluna"));
+        assert_eq!(
+            valid2_staked_quota.vault_stake_fraction,
+            Decimal::from_ratio(1_u128, 2_u128)
+        );
+
+        /*
+           Test - 3. Slashing
+        */
+        deps.querier
+            .update_staking("test", &*get_validators(), &*get_delegations());
+
+        STATE.update(deps.as_mut().storage, |mut state| -> StdResult<_> {
+            state.uninvested_rewards = Coin::new(1000_u128, "uluna");
+            state.total_staked_tokens = Uint128::new(5000_u128);
+            Ok(state)
+        });
+        VALIDATORS_TO_STAKED_QUOTA.save(
+            deps.as_mut().storage,
+            &valid1,
+            &StakeQuota {
+                amount: Coin::new(2500_u128, "uluna"),
+                vault_stake_fraction: Decimal::from_ratio(1_u128, 2_u128),
+            },
+        );
+        VALIDATORS_TO_STAKED_QUOTA.save(
+            deps.as_mut().storage,
+            &valid1,
+            &StakeQuota {
+                amount: Coin::new(2500_u128, "uluna"),
+                vault_stake_fraction: Decimal::from_ratio(1_u128, 2_u128),
+            },
+        );
+        let mut res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[Coin::new(100_u128, "uluna")]),
+            ExecuteMsg::Reinvest {},
+        )
+            .unwrap();
+        let state_response = query_state(deps.as_ref()).unwrap();
+        assert_ne!(state_response.state, None);
+        let state = state_response.state.unwrap();
+        assert_eq!(state.total_staked_tokens, Uint128::new(5000_u128));
+        assert_eq!(state.total_slashed_amount, Uint128::new(1000_u128));
+        assert_eq!(res.messages.len(), 2);
+        assert!(check_equal_vec(
+            res.messages,
+            vec![
+                SubMsg::new(StakingMsg::Delegate {
+                    validator: valid1.to_string(),
+                    amount: Coin::new(500_u128, "uluna")
+                }),
+                SubMsg::new(StakingMsg::Delegate {
+                    validator: valid2.to_string(),
+                    amount: Coin::new(500_u128, "uluna")
+                })
+            ]
+        ));
+        let valid1_staked_quota_option = VALIDATORS_TO_STAKED_QUOTA
+            .may_load(deps.as_mut().storage, &valid1)
+            .unwrap();
+        assert_ne!(valid1_staked_quota_option, None);
+        let valid2_staked_quota_option = VALIDATORS_TO_STAKED_QUOTA
+            .may_load(deps.as_mut().storage, &valid2)
+            .unwrap();
+        assert_ne!(valid2_staked_quota_option, None);
+        let valid1_staked_quota = valid1_staked_quota_option.unwrap();
+        assert_eq!(valid1_staked_quota.amount, Coin::new(2500_u128, "uluna"));
+        assert_eq!(
+            valid1_staked_quota.vault_stake_fraction,
+            Decimal::from_ratio(1_u128, 2_u128)
+        );
+        let valid2_staked_quota = valid2_staked_quota_option.unwrap();
+        assert_eq!(valid2_staked_quota.amount, Coin::new(2500_u128, "uluna"));
+        assert_eq!(
+            valid2_staked_quota.vault_stake_fraction,
+            Decimal::from_ratio(1_u128, 2_u128)
+        );
+    }
+
+    #[test]
+    fn test__try_transfer_rewards__fail() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &[]);
+        let env = mock_env();
+
+        let res = instantiate_contract(
+            &mut deps,
+            &info,
+            &env,
+            Some(
+                get_validators()
+                    .iter()
+                    .map(|f| Addr::unchecked(&f.address))
+                    .collect(),
+            ),
+            Option::from("uluna".to_string()),
+        );
+
+        let mut err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("not-scc-contract", &[]),
+            ExecuteMsg::TransferRewards {},
+        )
+            .unwrap_err();
+        assert!(matches!(err, ContractError::Unauthorized {}));
+
+        let mut err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info(&*get_scc_contract_address(), &[]),
+            ExecuteMsg::TransferRewards {},
+        )
+            .unwrap_err();
+        assert!(matches!(err, ContractError::NoFundsSent {}));
+
+        let mut err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info(&*get_scc_contract_address(), &[]),
+            ExecuteMsg::TransferRewards {},
+        )
+            .unwrap_err();
+        assert!(matches!(err, ContractError::NoFundsSent {}));
+
+        let mut err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info(
+                &*get_scc_contract_address(),
+                &[Coin::new(10_u128, "abc"), Coin::new(100_u128, "def")],
+            ),
+            ExecuteMsg::TransferRewards {},
+        )
+            .unwrap_err();
+        assert!(matches!(err, ContractError::MultipleCoins {}));
+
+        let mut err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info(&*get_scc_contract_address(), &[Coin::new(10_u128, "abc")]),
+            ExecuteMsg::TransferRewards {},
+        )
+            .unwrap_err();
+        assert!(matches!(err, ContractError::WrongDenom { .. }));
+    }
+
+    #[test]
+    fn test__try_transfer_rewards_success() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &[]);
+        let env = mock_env();
+
+        let res = instantiate_contract(
+            &mut deps,
+            &info,
+            &env,
+            Some(
+                get_validators()
+                    .iter()
+                    .map(|f| Addr::unchecked(&f.address))
+                    .collect(),
+            ),
+            Option::from("uluna".to_string()),
+        );
+
+        /*
+           Test - 1. First reinvest
+        */
+        let mut res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info(
+                &*get_scc_contract_address(),
+                &[Coin::new(100_u128, "uluna")],
+            ),
+            ExecuteMsg::TransferRewards {},
+        )
+            .unwrap();
+
+        let state_response = query_state(deps.as_ref()).unwrap();
+        assert_ne!(state_response.state, None);
+        let state = state_response.state.unwrap();
+        assert_eq!(state.uninvested_rewards, Coin::new(100_u128, "uluna"));
+
+        /*
+           Test - 2. Reinvest with existing uninvested_rewards
+        */
+        STATE.update(deps.as_mut().storage, |mut state| -> StdResult<_> {
+            state.uninvested_rewards = Coin::new(1000_u128, "uluna");
+            Ok(state)
+        });
+
+        let mut res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info(
+                &*get_scc_contract_address(),
+                &[Coin::new(100_u128, "uluna")],
+            ),
+            ExecuteMsg::TransferRewards {},
+        )
+            .unwrap();
+
+        let state_response = query_state(deps.as_ref()).unwrap();
+        assert_ne!(state_response.state, None);
+        let state = state_response.state.unwrap();
+        assert_eq!(state.uninvested_rewards, Coin::new(1100_u128, "uluna"));
     }
 
     #[test]
@@ -1305,7 +1737,7 @@ mod tests {
             mock_info("not-creator", &[]),
             ExecuteMsg::RedeemRewards {},
         )
-        .unwrap_err();
+            .unwrap_err();
         assert!(matches!(err, ContractError::Unauthorized {}));
     }
 
@@ -1337,7 +1769,7 @@ mod tests {
             mock_info("creator", &[]),
             ExecuteMsg::RedeemRewards {},
         )
-        .unwrap();
+            .unwrap();
         assert_eq!(res.messages.len(), 2);
         assert_eq!(
             res.messages,
