@@ -287,6 +287,8 @@ pub fn try_transfer_rewards(
 }
 
 // SCC needs to call this when it processes the undelegations.
+// SCC is responsible for batching up the user undelegation requests. It sends the batched up
+// undelegated amount to the SIC
 pub fn try_undelegate_rewards(
     deps: DepsMut,
     _env: Env,
@@ -303,7 +305,8 @@ pub fn try_undelegate_rewards(
         return Err(ContractError::ZeroUndelegation {});
     }
 
-    // create an undelegation batch
+    // For each undelegation request to SIC, we create an undelegation batch. The main intent of the batch
+    // is to account for undelegation slashing.
     let mut new_undelegation_batch_id = state.current_undelegation_batch_id.add(1_u64);
     STATE.update(deps.storage, |mut state| -> StdResult<_> {
         state.current_undelegation_batch_id = new_undelegation_batch_id;
