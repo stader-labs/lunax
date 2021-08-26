@@ -1,5 +1,7 @@
+use crate::state::{StrategyInfo, StrategyMetadata, STRATEGY_INFO_MAP, STRATEGY_METADATA_MAP};
 use crate::utils::{decimal_multiplication_in_256, decimal_subtraction_in_256};
-use cosmwasm_std::{Decimal, Fraction, Timestamp, Uint128};
+use cosmwasm_std::{Decimal, Fraction, Response, Storage, Timestamp, Uint128};
+use std::fmt::Error;
 
 pub fn get_vault_apr(
     current_shares_per_token_ratio: Decimal,

@@ -44,11 +44,11 @@ pub enum ExecuteMsg {
     // called by validator contract to transfer rewards from validator contract to SCC
     // this message also moves rewards from SCC to the corresponding SIC
     UpdateUserRewards {
-        update_user_rewards_request: Vec<UpdateUserRewardsRequest>,
+        update_user_rewards_requests: Vec<UpdateUserRewardsRequest>,
     },
     // called by validator contract to transfer airdrops from validator contract to SCC
     UpdateUserAirdrops {
-        update_user_airdrops_request: Vec<UpdateUserAirdropsRequest>,
+        update_user_airdrops_requests: Vec<UpdateUserAirdropsRequest>,
     },
     // called by user to undelegate his rewards from a strategy
     UndelegateRewards {

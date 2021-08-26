@@ -1,19 +1,15 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{
-    to_binary, Addr, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo, Response,
-    StdResult, Timestamp, Uint128, WasmMsg,
-};
+use cosmwasm_std::{to_binary, Addr, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo, Response, StdResult, Timestamp, Uint128, WasmMsg, Coin};
 
 use crate::error::ContractError;
 use crate::msg::{
     ExecuteMsg, InstantiateMsg, QueryMsg, StateResponse, UpdateUserAirdropsRequest,
     UpdateUserRewardsRequest,
 };
-use crate::state::{
-    State, StrategyInfo, StrategyMetadata, STATE, STRATEGY_INFO_MAP, STRATEGY_METADATA_MAP,
-};
+use crate::state::{State, StrategyInfo, StrategyMetadata, STATE, STRATEGY_INFO_MAP, STRATEGY_METADATA_MAP, USER_REWARD_INFO_MAP, UserRewardInfo};
 use std::borrow::Borrow;
+use crate::utils::{merge_coin_vector, CoinVecOp, Operation};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -29,6 +25,7 @@ pub fn instantiate(
         contract_genesis_timestamp: _env.block.time,
         total_accumulated_rewards: Uint128::zero(),
         current_rewards_in_scc: Uint128::zero(),
+        total_accumulated_airdrops: vec![]
     };
     STATE.save(deps.storage, &state)?;
 
@@ -69,11 +66,11 @@ pub fn execute(
             try_remove_strategy(deps, _env, info, strategy_id)
         }
         ExecuteMsg::UpdateUserRewards {
-            update_user_rewards_request,
-        } => try_update_user_rewards(deps, _env, info, update_user_rewards_request),
+            update_user_rewards_requests,
+        } => try_update_user_rewards(deps, _env, info, update_user_rewards_requests),
         ExecuteMsg::UpdateUserAirdrops {
-            update_user_airdrops_request,
-        } => try_update_user_airdrops(deps, _env, info, update_user_airdrops_request),
+            update_user_airdrops_requests,
+        } => try_update_user_airdrops(deps, _env, info, update_user_airdrops_requests),
         ExecuteMsg::UndelegateRewards {
             amount,
             strategy_id,
@@ -258,7 +255,7 @@ pub fn try_update_user_rewards(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    update_user_rewards_request: Vec<UpdateUserRewardsRequest>,
+    update_user_rewards_requests: Vec<UpdateUserRewardsRequest>,
 ) -> Result<Response, ContractError> {
     // check for manager?
     let state = STATE.load(deps.storage).unwrap();
@@ -268,27 +265,33 @@ pub fn try_update_user_rewards(
 
     let messages: Vec<CosmosMsg<WasmMsg>> = vec![];
     // iterate thru all requests
-    for user_request in update_user_rewards_request {
+    for user_request in update_user_rewards_requests {
         let user_strategy = user_request.strategy_id;
         let user_amount = user_request.rewards;
+        // shares gained by the user for this request
+        let request_shares: Decimal = Decimal::zero();
 
-        let strategy_info_option = STRATEGY_INFO_MAP
+        let mut strategy_info: StrategyInfo = StrategyInfo::default();
+        if let Some(strategy_info_mapping) = STRATEGY_INFO_MAP
             .may_load(deps.storage, user_strategy.clone())
-            .unwrap();
-        if strategy_info_option.is_none() {
-            // TODO: bchain99 - log something out here.
+            .unwrap()
+        {
+            strategy_info = strategy_info_mapping;
+        } else {
+            // TODO: bchain99 - log something out here
             continue;
         }
-        let strategy_info = strategy_info_option.unwrap();
 
-        let strategy_metadata_option = STRATEGY_METADATA_MAP
-            .may_load(deps.storage, user_strategy)
-            .unwrap();
-        if strategy_metadata_option.is_none() {
-            // TODO: bchain99 - log something out here.
+        let mut strategy_metadata: StrategyMetadata = StrategyMetadata::default();
+        if let Some(strategy_metadata_mapping) = STRATEGY_METADATA_MAP
+            .may_load(deps.storage, user_strategy.clone())
+            .unwrap()
+        {
+            strategy_metadata = strategy_metadata_mapping;
+        } else {
+            // TODO: bchain99 - log something out here
             continue;
         }
-        let strategy_metadata = strategy_metadata_option.unwrap();
 
         // fetch the total tokens from the SIC contract and update the S/T ratio for the strategy
 
@@ -308,8 +311,49 @@ pub fn try_update_user_airdrops(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    update_user_airdrops_request: Vec<UpdateUserAirdropsRequest>,
+    update_user_airdrops_requests: Vec<UpdateUserAirdropsRequest>,
 ) -> Result<Response, ContractError> {
+    // check for manager?
+    let state = STATE.load(deps.storage).unwrap();
+    if info.sender != state.manager {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    // iterate thru update_user_airdrops_request
+    let mut total_scc_airdrops: Vec<Coin> = state.total_accumulated_airdrops;
+    // accumulate the airdrops in the SCC state.
+    for user_request in update_user_airdrops_requests {
+        let user = user_request.user;
+        let user_airdrops = user_request.airdrops;
+
+        // fetch the user rewards info
+        let mut user_reward_info = UserRewardInfo::default();
+        if let Some(user_reward_info_mapping) = USER_REWARD_INFO_MAP.may_load(deps.storage, user).unwrap() {
+            user_reward_info = user_reward_info_mapping;
+        } else {
+            // TODO: bchain99 - log something out here.
+            continue;
+        }
+
+        total_scc_airdrops = merge_coin_vector(
+          total_scc_airdrops,
+            CoinVecOp {
+                fund: user_airdrops.clone(),
+                operation: Operation::Add
+            }
+        );
+
+        user_reward_info.pending_airdrops = merge_coin_vector(
+            user_reward_info.pending_airdrops,
+            CoinVecOp {
+                fund: user_airdrops,
+                operation: Operation::Add
+            }
+        );
+
+        // TODO: bchain99 - can we do something with airdrops? They are just sitting idle for now.
+    }
+
     Ok(Response::default())
 }
 
@@ -357,7 +401,8 @@ mod tests {
                 contract_genesis_block_height: env.block.height,
                 contract_genesis_timestamp: env.block.time,
                 total_accumulated_rewards: Uint128::zero(),
-                current_rewards_in_scc: Uint128::zero()
+                current_rewards_in_scc: Uint128::zero(),
+                total_accumulated_airdrops: vec![]
             }
         );
     }

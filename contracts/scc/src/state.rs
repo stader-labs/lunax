@@ -43,6 +43,7 @@ pub struct State {
     pub total_accumulated_rewards: Uint128,
     // current rewards sitting in the SCC
     pub current_rewards_in_scc: Uint128,
+    pub total_accumulated_airdrops: Vec<Coin>
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -54,6 +55,18 @@ pub struct StrategyInfo {
     pub is_active: bool,
 }
 
+impl StrategyInfo {
+    pub(crate) fn default() -> Self {
+        StrategyInfo {
+            name: "".to_string(),
+            sic_contract_address: Addr::unchecked("default"),
+            unbonding_period: None,
+            supported_airdrops: vec![],
+            is_active: false,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct StrategyMetadata {
     pub name: String,
@@ -62,6 +75,18 @@ pub struct StrategyMetadata {
     // TODO: bchain99 - i want this for strategy APR calc but cross check if we actually need this.
     pub shares_per_token_ratio: Decimal,
     pub current_unprocessed_undelegations: Uint128,
+}
+
+impl StrategyMetadata {
+    pub(crate) fn default() -> Self {
+        StrategyMetadata {
+            name: "".to_string(),
+            total_shares: Default::default(),
+            global_airdrop_pointer: vec![],
+            shares_per_token_ratio: Default::default(),
+            current_unprocessed_undelegations: Default::default(),
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -76,6 +101,15 @@ pub struct UserRewardInfo {
     pub strategy_map: HashMap<String, UserStrategyInfo>,
     // user airdrops which are currently owned by the SCC
     pub pending_airdrops: Vec<Coin>,
+}
+
+impl UserRewardInfo {
+    pub fn default() -> Self {
+        UserRewardInfo {
+            strategy_map: Default::default(),
+            pending_airdrops: vec![]
+        }
+    }
 }
 
 pub const STATE: Item<State> = Item::new("state");
