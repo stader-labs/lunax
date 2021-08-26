@@ -92,6 +92,8 @@ impl StrategyMetadata {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct UserStrategyInfo {
     pub shares: Decimal,
+    // airdrop here is an unswappable reward. For v1, we are keeping airdrops idle and distributing
+    // them back to the user. The airdrop_pointer here is only for the particular strategy.
     pub airdrop_pointer: Vec<DecCoin>,
     pub pending_airdrops: Vec<Coin>,
 }
@@ -99,15 +101,16 @@ pub struct UserStrategyInfo {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct UserRewardInfo {
     pub strategy_map: HashMap<String, UserStrategyInfo>,
-    // user airdrops which are currently owned by the SCC
-    pub pending_airdrops: Vec<Coin>,
+    // user airdrops which are currently owned by the SCC. pending_pool_airdrops are airdrops sent to the
+    // SCC contract from the validator contract.
+    pub pending_pool_airdrops: Vec<Coin>,
 }
 
 impl UserRewardInfo {
     pub fn default() -> Self {
         UserRewardInfo {
             strategy_map: Default::default(),
-            pending_airdrops: vec![]
+            pending_pool_airdrops: vec![]
         }
     }
 }

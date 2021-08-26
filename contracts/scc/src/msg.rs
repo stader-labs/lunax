@@ -20,7 +20,7 @@ pub struct UpdateUserRewardsRequest {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct UpdateUserAirdropsRequest {
     pub user: Addr,
-    pub airdrops: Vec<Coin>,
+    pub pool_airdrops: Vec<Coin>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

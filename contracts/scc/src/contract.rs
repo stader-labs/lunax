@@ -324,7 +324,7 @@ pub fn try_update_user_airdrops(
     // accumulate the airdrops in the SCC state.
     for user_request in update_user_airdrops_requests {
         let user = user_request.user;
-        let user_airdrops = user_request.airdrops;
+        let user_airdrops = user_request.pool_airdrops;
 
         // fetch the user rewards info
         let mut user_reward_info = UserRewardInfo::default();
@@ -343,14 +343,13 @@ pub fn try_update_user_airdrops(
             }
         );
 
-        user_reward_info.pending_airdrops = merge_coin_vector(
-            user_reward_info.pending_airdrops,
+        user_reward_info.pending_pool_airdrops = merge_coin_vector(
+            user_reward_info.pending_pool_airdrops,
             CoinVecOp {
                 fund: user_airdrops,
                 operation: Operation::Add
             }
         );
-
         // TODO: bchain99 - can we do something with airdrops? They are just sitting idle for now.
     }
 
