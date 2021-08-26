@@ -7,11 +7,11 @@ use cosmwasm_std::{
 
 use crate::error::ContractError;
 use crate::msg::{
-    ExecuteMsg, GetConfigResponse, GetCurrentUndelegationBatchIdResponse, GetStateResponse,
+    ExecuteMsg, GetCurrentUndelegationBatchIdResponse, GetStateResponse,
     GetTotalTokensResponse, GetUndelegationBatchInfoResponse, InstantiateMsg, QueryMsg,
 };
 use crate::state::{
-    BatchUndelegationRecord, Config, StakeQuota, State, CONFIG, STATE, UNDELEGATION_INFO_LEDGER,
+    BatchUndelegationRecord, StakeQuota, State, STATE, UNDELEGATION_INFO_LEDGER,
     VALIDATORS_TO_STAKED_QUOTA,
 };
 use crate::utils::{
@@ -31,9 +31,12 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     let mut state = State {
+        manager: info.sender.clone(),
+        scc_address: msg.scc_address,
+        vault_denom: msg.vault_denom.clone(),
         contract_genesis_block_height: _env.block.height,
         contract_genesis_timestamp: _env.block.time,
-        unbonding_period: (21 * 24 * 3600 + 3600),
+        unbonding_period: msg.unbonding_period.unwrap_or_else(|| (21 * 24 * 3600 + 3600)),
         current_undelegation_batch_id: 0,
         accumulated_vault_airdrops: vec![],
         validator_pool: msg.initial_validators,
@@ -43,18 +46,8 @@ pub fn instantiate(
         total_staked_tokens: Uint128::zero(),
         total_slashed_amount: Uint128::zero(),
     };
-    if msg.unbonding_period.is_some() {
-        state.unbonding_period = msg.unbonding_period.unwrap();
-    }
-
-    let config = Config {
-        manager: info.sender.clone(),
-        scc_contract_address: msg.scc_contract_address,
-        vault_denom: msg.vault_denom,
-    };
 
     STATE.save(deps.storage, &state)?;
-    CONFIG.save(deps.storage, &config)?;
 
     Ok(Response::new()
         .add_attribute("method", "instantiate")
@@ -102,9 +95,8 @@ pub fn try_swap(
     info: MessageInfo,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let state = STATE.load(deps.storage)?;
-    let config = CONFIG.load(deps.storage)?;
 
-    if info.sender != config.manager {
+    if info.sender != state.manager {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -113,7 +105,7 @@ pub fn try_swap(
     }
 
     // fetch the swapped money
-    let vault_denom = config.vault_denom;
+    let vault_denom = state.vault_denom;
     let mut logs: Vec<Attribute> = vec![];
     let mut swapped_coin: Coin = Coin::new(0_u128, vault_denom.clone());
     let terra_querier = TerraQuerier::new(&deps.querier);
@@ -122,22 +114,25 @@ pub fn try_swap(
     for reward_coin in state.unswapped_rewards {
         let mut swapped_out_coin = reward_coin.clone();
 
-        if swapped_out_coin.denom.ne(&vault_denom) {
-            let coin_swap_wrapped =
-                terra_querier.query_swap(reward_coin.clone(), vault_denom.clone());
-            // TODO: bchain99 - I think this could mean that there is no swap possible for the pair.
-            if coin_swap_wrapped.is_err() {
-                // TODO: bchain99 - Check if this is needed. Check the cases when the query_swap can fail.
-                logs.push(attr("failed_to_swap", reward_coin.to_string()));
-                failed_coins.push(reward_coin);
-                continue;
-            }
-
-            messages.push(create_swap_msg(reward_coin, vault_denom.clone()));
-
-            let coin_swap: SwapResponse = coin_swap_wrapped.unwrap();
-            swapped_out_coin = coin_swap.receive;
+        if swapped_out_coin.denom.eq(&vault_denom) {
+            continue;
         }
+
+        let coin_swap_wrapped =
+            terra_querier.query_swap(reward_coin.clone(), vault_denom.clone());
+        // TODO: bchain99 - I think this could mean that there is no swap possible for the pair.
+        if coin_swap_wrapped.is_err() {
+            // TODO: bchain99 - Check if this is needed. Check the cases when the query_swap can fail.
+            logs.push(attr("failed_to_swap", reward_coin.to_string()));
+            failed_coins.push(reward_coin);
+            continue;
+        }
+
+        messages.push(create_swap_msg(reward_coin, vault_denom.clone()));
+
+        let coin_swap: SwapResponse = coin_swap_wrapped.unwrap();
+        swapped_out_coin = coin_swap.receive;
+
 
         swapped_coin = merge_coin(
             swapped_coin,
@@ -175,8 +170,9 @@ pub fn try_transfer_rewards(
     _env: Env,
     info: MessageInfo,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
-    let config = CONFIG.load(deps.storage).unwrap();
-    if info.sender != config.scc_contract_address {
+    let state = STATE.load(deps.storage).unwrap();
+
+    if info.sender != state.scc_address {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -191,7 +187,7 @@ pub fn try_transfer_rewards(
     }
 
     let transferred_coin = info.funds[0].clone();
-    if transferred_coin.denom.ne(&config.vault_denom) {
+    if transferred_coin.denom.ne(&state.vault_denom) {
         return Err(ContractError::WrongDenom(transferred_coin.denom));
     }
 
@@ -235,9 +231,8 @@ pub fn try_reinvest(
     _env: Env,
     info: MessageInfo,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
     let state = STATE.load(deps.storage)?;
-    if info.sender != config.manager {
+    if info.sender != state.manager {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -245,7 +240,7 @@ pub fn try_reinvest(
         return Err(ContractError::NoUninvestedRewards {});
     }
 
-    let vault_denom = config.vault_denom;
+    let vault_denom = state.vault_denom;
     let mut current_total_staked_tokens = Coin::new(0_u128, vault_denom.clone());
     let mut validator_to_delegation_map: HashMap<&Addr, Uint128> = HashMap::new();
     for validator in &state.validator_pool {
@@ -338,9 +333,8 @@ pub fn try_redeem_rewards(
     info: MessageInfo,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let state = STATE.load(deps.storage)?;
-    let config = CONFIG.load(deps.storage)?;
 
-    if info.sender != config.manager {
+    if info.sender != state.manager {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -392,7 +386,6 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_binary(&query_current_undelegation_batch_id(deps, _env)?)
         }
         QueryMsg::GetState {} => to_binary(&query_state(deps)?),
-        QueryMsg::GetConfig {} => to_binary(&query_config(deps)?),
         QueryMsg::GetUndelegationBatchInfo {
             undelegation_batch_id,
         } => to_binary(&query_undelegation_batch_info(deps, undelegation_batch_id)?),
@@ -403,12 +396,6 @@ fn query_state(deps: Deps) -> StdResult<GetStateResponse> {
     let state = STATE.may_load(deps.storage).unwrap();
 
     Ok(GetStateResponse { state })
-}
-
-fn query_config(deps: Deps) -> StdResult<GetConfigResponse> {
-    let config = CONFIG.may_load(deps.storage).unwrap();
-
-    Ok(GetConfigResponse { config })
 }
 
 fn query_total_tokens(deps: Deps, _env: Env) -> StdResult<GetTotalTokensResponse> {
@@ -503,10 +490,10 @@ mod tests {
     ) -> Response<Empty> {
         let default_validator1: Addr = Addr::unchecked("valid0001");
         let default_validator2: Addr = Addr::unchecked("valid0002");
-        let scc_contract_address: Addr = Addr::unchecked("scc-contract-address");
+        let scc_address: Addr = Addr::unchecked("scc-address");
 
         let instantiate_msg = InstantiateMsg {
-            scc_contract_address,
+            scc_address,
             vault_denom: "uluna".to_string(),
             initial_validators: validators
                 .unwrap_or_else(|| vec![default_validator1, default_validator2]),
@@ -517,7 +504,7 @@ mod tests {
     }
 
     fn get_scc_contract_address() -> String {
-        String::from("scc-contract-address")
+        String::from("scc-address")
     }
 
     #[test]
@@ -528,7 +515,7 @@ mod tests {
 
         let default_validator1: Addr = Addr::unchecked("valid0001");
         let default_validator2: Addr = Addr::unchecked("valid0002");
-        let scc_contract_address: Addr = Addr::unchecked("scc-contract-address");
+        let scc_address: Addr = Addr::unchecked("scc-address");
 
         // we can just call .unwrap() to assert this was a success
         let res = instantiate_contract(&mut deps, &info, &env, None, None);
@@ -539,6 +526,9 @@ mod tests {
         assert_eq!(
             state.unwrap(),
             State {
+                manager: info.sender,
+                scc_address,
+                vault_denom: "uluna".to_string(),
                 contract_genesis_block_height: env.block.height,
                 contract_genesis_timestamp: env.block.time,
                 unbonding_period: (21 * 24 * 3600 + 3600),
@@ -549,17 +539,6 @@ mod tests {
                 uninvested_rewards: Coin::new(0_u128, "uluna".to_string()),
                 total_staked_tokens: Uint128::zero(),
                 total_slashed_amount: Uint128::zero()
-            }
-        );
-
-        let config = query_config(deps.as_ref()).unwrap().config;
-        assert_ne!(config, None);
-        assert_eq!(
-            config.unwrap(),
-            Config {
-                manager: info.sender,
-                scc_contract_address,
-                vault_denom: "uluna".to_string()
             }
         );
     }
