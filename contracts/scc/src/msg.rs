@@ -1,5 +1,5 @@
 use crate::state::State;
-use cosmwasm_std::{Addr, Coin, Uint128};
+use cosmwasm_std::{Addr, Coin, Timestamp, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -41,6 +41,8 @@ pub enum ExecuteMsg {
     RemoveStrategy {
         strategy_id: String,
     },
+    // called by validator contract to transfer rewards from validator contract to SCC
+    // this message also moves rewards from SCC to the corresponding SIC
     UpdateUserRewards {
         update_user_rewards_request: Vec<UpdateUserRewardsRequest>,
     },
@@ -48,6 +50,20 @@ pub enum ExecuteMsg {
     UpdateUserAirdrops {
         update_user_airdrops_request: Vec<UpdateUserAirdropsRequest>,
     },
+    // called by user to undelegate his rewards from a strategy
+    UndelegateRewards {
+        amount: Uint128,
+        strategy_id: String,
+    },
+    // called by scc manager to periodically claim airdrops for a particular strategy if it supported
+    ClaimAirdrops {
+        strategy_id: String,
+    },
+    WithdrawRewards {
+        undelegation_timestamp: Timestamp,
+        strategy_id: String,
+    },
+    WithdrawAirdrops {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

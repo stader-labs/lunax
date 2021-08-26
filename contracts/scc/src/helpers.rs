@@ -1,5 +1,5 @@
+use crate::utils::{decimal_multiplication_in_256, decimal_subtraction_in_256};
 use cosmwasm_std::{Decimal, Fraction, Timestamp, Uint128};
-use crate::utils::{decimal_subtraction_in_256, decimal_multiplication_in_256};
 
 pub fn get_vault_apr(
     current_shares_per_token_ratio: Decimal,
@@ -31,6 +31,7 @@ pub fn get_vault_apr(
 #[cfg(test)]
 mod tests {
     use crate::contract::instantiate;
+    use crate::helpers::get_vault_apr;
     use crate::msg::InstantiateMsg;
     use crate::state::STATE;
     use cosmwasm_std::testing::{
@@ -38,10 +39,9 @@ mod tests {
         MOCK_CONTRACT_ADDR,
     };
     use cosmwasm_std::{
-        Addr, Coin, Decimal, Empty, Env, Fraction, MessageInfo, OwnedDeps,
-        Response, StdResult, Uint128,
+        Addr, Coin, Decimal, Empty, Env, Fraction, MessageInfo, OwnedDeps, Response, StdResult,
+        Uint128,
     };
-    use crate::helpers::get_vault_apr;
 
     pub fn instantiate_contract(
         deps: &mut OwnedDeps<MockStorage, MockApi, MockQuerier>,
@@ -50,7 +50,7 @@ mod tests {
         vault_denom: Option<String>,
     ) -> Response<Empty> {
         let instantiate_msg = InstantiateMsg {
-            strategy_denom: vault_denom.unwrap_or_else(|| "uluna".to_string())
+            strategy_denom: vault_denom.unwrap_or_else(|| "uluna".to_string()),
         };
 
         return instantiate(deps.as_mut(), env.clone(), info.clone(), instantiate_msg).unwrap();
@@ -62,12 +62,7 @@ mod tests {
         let info = mock_info("creator", &[]);
         let env = mock_env();
 
-        let res = instantiate_contract(
-            &mut deps,
-            &info,
-            &env,
-            None
-        );
+        let res = instantiate_contract(&mut deps, &info, &env, None);
 
         let deleg1 = Addr::unchecked("deleg0001".to_string());
         let initial_shares_per_token_ratio = Decimal::from_ratio(1_000_000_00_u128, 1_u128);

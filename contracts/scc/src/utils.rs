@@ -1,3 +1,4 @@
+use crate::state::DecCoin;
 use cosmwasm_bignumber::Decimal256;
 use cosmwasm_std::{
     Addr, Coin, Decimal, Env, Fraction, MessageInfo, StdResult, Storage, Timestamp, Uint128,
@@ -6,7 +7,6 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::ops::Add;
-use crate::state::DecCoin;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub enum Operation {
