@@ -413,8 +413,8 @@ fn query_state(deps: Deps) -> StdResult<StateResponse> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
     use cosmwasm_std::{coins, from_binary};
+    use crate::mock::{mock_dependencies, mock_info, mock_env};
 
     #[test]
     fn proper_initialization() {
@@ -444,5 +444,11 @@ mod tests {
                 total_accumulated_airdrops: vec![]
             }
         );
+    }
+
+    #[test]
+    fn test__sic_mock_querier() {
+        let mut deps = mock_dependencies(&[]);
+
     }
 }
