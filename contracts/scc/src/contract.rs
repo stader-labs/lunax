@@ -1,15 +1,26 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_binary, Addr, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo, Response, StdResult, Timestamp, Uint128, WasmMsg, Coin};
+use cosmwasm_std::{
+    to_binary, Addr, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo, Response,
+    StdResult, Timestamp, Uint128, WasmMsg,
+};
 
 use crate::error::ContractError;
+use crate::helpers::get_sic_total_tokens;
 use crate::msg::{
     ExecuteMsg, InstantiateMsg, QueryMsg, StateResponse, UpdateUserAirdropsRequest,
     UpdateUserRewardsRequest,
 };
-use crate::state::{State, StrategyInfo, StrategyMetadata, STATE, STRATEGY_INFO_MAP, STRATEGY_METADATA_MAP, USER_REWARD_INFO_MAP, UserRewardInfo};
+use crate::state::{
+    State, StrategyInfo, StrategyMetadata, UserRewardInfo, STATE, STRATEGY_INFO_MAP,
+    STRATEGY_METADATA_MAP, USER_REWARD_INFO_MAP,
+};
+use crate::utils::{
+    decimal_division_in_256, decimal_multiplication_in_256, decimal_summation_in_256,
+    merge_coin_vector, CoinVecOp, Operation,
+};
+use sic_base::msg::{ExecuteMsg as sic_execute_msg, QueryMsg as sic_query_msg};
 use std::borrow::Borrow;
-use crate::utils::{merge_coin_vector, CoinVecOp, Operation};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -25,7 +36,7 @@ pub fn instantiate(
         contract_genesis_timestamp: _env.block.time,
         total_accumulated_rewards: Uint128::zero(),
         current_rewards_in_scc: Uint128::zero(),
-        total_accumulated_airdrops: vec![]
+        total_accumulated_airdrops: vec![],
     };
     STATE.save(deps.storage, &state)?;
 
@@ -263,13 +274,11 @@ pub fn try_update_user_rewards(
         return Err(ContractError::Unauthorized {});
     }
 
-    let messages: Vec<CosmosMsg<WasmMsg>> = vec![];
+    let mut messages: Vec<WasmMsg> = vec![];
     // iterate thru all requests
     for user_request in update_user_rewards_requests {
         let user_strategy = user_request.strategy_id;
         let user_amount = user_request.rewards;
-        // shares gained by the user for this request
-        let request_shares: Decimal = Decimal::zero();
 
         let mut strategy_info: StrategyInfo = StrategyInfo::default();
         if let Some(strategy_info_mapping) = STRATEGY_INFO_MAP
@@ -294,17 +303,46 @@ pub fn try_update_user_rewards(
         }
 
         // fetch the total tokens from the SIC contract and update the S/T ratio for the strategy
+        let total_tokens = get_sic_total_tokens(deps.querier, &strategy_info.sic_contract_address)
+            .total_tokens
+            .unwrap_or_else(|| Uint128::zero());
+        let mut shares_per_token_ratio = Decimal::one();
+        if !total_tokens.is_zero() {
+            shares_per_token_ratio = decimal_division_in_256(
+                strategy_metadata.total_shares,
+                Decimal::from_ratio(total_tokens, 1_u128),
+            );
+        }
+        strategy_metadata.shares_per_token_ratio = shares_per_token_ratio;
 
         // update user shares based on the S/T ratio
+        let user_shares = decimal_multiplication_in_256(
+            shares_per_token_ratio,
+            Decimal::from_ratio(user_amount, 1_u128),
+        );
 
         // update total strategy shares by adding up the user_shares
+        strategy_metadata.total_shares =
+            decimal_summation_in_256(strategy_metadata.total_shares, user_shares);
 
         // do statewise book-keeping like adding up accumulated_rewards
+        STATE.update(deps.storage, |mut state| -> StdResult<_> {
+            state.total_accumulated_rewards = state
+                .total_accumulated_rewards
+                .checked_add(user_amount)
+                .unwrap();
+            Ok(state)
+        });
 
         // send the rewards to sic
+        messages.push(WasmMsg::Execute {
+            contract_addr: String::from(strategy_info.sic_contract_address),
+            msg: to_binary(&sic_execute_msg::TransferRewards {}).unwrap(),
+            funds: vec![Coin::new(user_amount.u128(), state.scc_denom.clone())],
+        });
     }
 
-    Ok(Response::default())
+    Ok(Response::new().add_messages(messages))
 }
 
 pub fn try_update_user_airdrops(
@@ -328,7 +366,9 @@ pub fn try_update_user_airdrops(
 
         // fetch the user rewards info
         let mut user_reward_info = UserRewardInfo::default();
-        if let Some(user_reward_info_mapping) = USER_REWARD_INFO_MAP.may_load(deps.storage, user).unwrap() {
+        if let Some(user_reward_info_mapping) =
+            USER_REWARD_INFO_MAP.may_load(deps.storage, user).unwrap()
+        {
             user_reward_info = user_reward_info_mapping;
         } else {
             // TODO: bchain99 - log something out here.
@@ -336,19 +376,19 @@ pub fn try_update_user_airdrops(
         }
 
         total_scc_airdrops = merge_coin_vector(
-          total_scc_airdrops,
+            total_scc_airdrops,
             CoinVecOp {
                 fund: user_airdrops.clone(),
-                operation: Operation::Add
-            }
+                operation: Operation::Add,
+            },
         );
 
         user_reward_info.pending_pool_airdrops = merge_coin_vector(
             user_reward_info.pending_pool_airdrops,
             CoinVecOp {
                 fund: user_airdrops,
-                operation: Operation::Add
-            }
+                operation: Operation::Add,
+            },
         );
         // TODO: bchain99 - can we do something with airdrops? They are just sitting idle for now.
     }

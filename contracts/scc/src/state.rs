@@ -43,7 +43,7 @@ pub struct State {
     pub total_accumulated_rewards: Uint128,
     // current rewards sitting in the SCC
     pub current_rewards_in_scc: Uint128,
-    pub total_accumulated_airdrops: Vec<Coin>
+    pub total_accumulated_airdrops: Vec<Coin>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -110,7 +110,7 @@ impl UserRewardInfo {
     pub fn default() -> Self {
         UserRewardInfo {
             strategy_map: Default::default(),
-            pending_pool_airdrops: vec![]
+            pending_pool_airdrops: vec![],
         }
     }
 }

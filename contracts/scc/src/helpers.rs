@@ -1,6 +1,9 @@
 use crate::state::{StrategyInfo, StrategyMetadata, STRATEGY_INFO_MAP, STRATEGY_METADATA_MAP};
 use crate::utils::{decimal_multiplication_in_256, decimal_subtraction_in_256};
-use cosmwasm_std::{Decimal, Fraction, Response, Storage, Timestamp, Uint128};
+use cosmwasm_std::{
+    Addr, Decimal, Fraction, QuerierWrapper, Response, Storage, Timestamp, Uint128,
+};
+use sic_base::msg::{GetTotalTokensResponse, QueryMsg as sic_msg};
 use std::fmt::Error;
 
 pub fn get_vault_apr(
@@ -28,6 +31,12 @@ pub fn get_vault_apr(
     let decimal_apr =
         decimal_multiplication_in_256(shares_token_ratio_reduction_ratio, year_extrapolation);
     decimal_multiplication_in_256(decimal_apr, Decimal::from_ratio(100_u128, 1_u128))
+}
+
+pub fn get_sic_total_tokens(querier: QuerierWrapper, sic_address: &Addr) -> GetTotalTokensResponse {
+    querier
+        .query_wasm_smart(sic_address, &sic_msg::GetTotalTokens {})
+        .unwrap()
 }
 
 #[cfg(test)]
