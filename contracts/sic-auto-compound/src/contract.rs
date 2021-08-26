@@ -88,9 +88,8 @@ pub fn try_reconcile_undelegation_batch(
     undelegation_batch_id: u64,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let state = STATE.load(deps.storage).unwrap();
-    let config = CONFIG.load(deps.storage).unwrap();
 
-    if info.sender != config.manager {
+    if info.sender != state.manager {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -101,7 +100,7 @@ pub fn try_reconcile_undelegation_batch(
         return Err(ContractError::NonExistentUndelegationBatch {});
     }
 
-    let vault_denom = config.vault_denom;
+    let vault_denom = state.vault_denom;
     let mut undelegation_batch = undelegation_batch_option.unwrap();
 
     if _env.block.time.lt(&undelegation_batch.est_release_time) {
@@ -294,10 +293,9 @@ pub fn try_undelegate_rewards(
     info: MessageInfo,
     amount: Uint128,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
-    let config = CONFIG.load(deps.storage).unwrap();
     let state = STATE.load(deps.storage).unwrap();
 
-    if info.sender != config.scc_contract_address {
+    if info.sender != state.scc_address {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -317,7 +315,7 @@ pub fn try_undelegate_rewards(
         deps.storage,
         u64key,
         &BatchUndelegationRecord {
-            amount: Coin::new(amount.u128(), config.vault_denom.clone()),
+            amount: Coin::new(amount.u128(), state.vault_denom.clone()),
             unbonding_slashing_ratio: Decimal::one(),
             create_time: _env.block.time,
             est_release_time: _env.block.time.plus_seconds(state.unbonding_period),
@@ -333,7 +331,7 @@ pub fn try_undelegate_rewards(
 
     // undelegate from each validator according to their staked fraction
     let mut messages: Vec<StakingMsg> = vec![];
-    let vault_denom = config.vault_denom;
+    let vault_denom = state.vault_denom;
     for validator in &state.validator_pool {
         let validator_staked_quota_option = VALIDATORS_TO_STAKED_QUOTA
             .may_load(deps.storage, validator)
@@ -390,8 +388,8 @@ pub fn try_withdraw_rewards(
     undelegation_batch_id: u64,
     amount: Uint128,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
-    let config = CONFIG.load(deps.storage).unwrap();
-    if info.sender != config.scc_contract_address {
+    let state = STATE.load(deps.storage).unwrap();
+    if info.sender != state.scc_address {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -425,7 +423,7 @@ pub fn try_withdraw_rewards(
     }
 
     let effective_withdrawable_amount = multiply_coin_with_decimal(
-        &Coin::new(amount.u128(), config.vault_denom),
+        &Coin::new(amount.u128(), state.vault_denom),
         undelegation_batch.unbonding_slashing_ratio,
     );
 
