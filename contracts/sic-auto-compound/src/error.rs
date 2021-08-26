@@ -35,7 +35,7 @@ pub enum ContractError {
     NonExistentUndelegationBatch {},
 
     #[error("Undelegation batch does not have enough funds '{0}'")]
-    InsufficientUndelegationBatch(u64),
+    InsufficientFundsInUndelegationBatch(u64),
 
     #[error("Undelegation batch is still in unbonding period '{0}'")]
     UndelegationBatchInUnbondingPeriod(u64),

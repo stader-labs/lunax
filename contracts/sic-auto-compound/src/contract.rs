@@ -6,6 +6,7 @@ use cosmwasm_std::{
 };
 
 use crate::error::ContractError;
+use crate::helpers::get_bank_msg;
 use crate::msg::{
     ExecuteMsg, GetCurrentUndelegationBatchIdResponse, GetStateResponse, GetTotalTokensResponse,
     GetUndelegationBatchInfoResponse, InstantiateMsg, QueryMsg,
@@ -348,9 +349,9 @@ pub fn try_undelegate_rewards(
         let total_delegated_amount = validator_staked_quota.amount.amount;
         let stake_fraction = validator_staked_quota.vault_stake_fraction;
 
-        let mut stake_amount = Uint128::zero();
+        let mut unstake_amount = Uint128::zero();
         if !stake_fraction.is_zero() {
-            stake_amount = Uint128::new(
+            unstake_amount = Uint128::new(
                 amount.u128() * stake_fraction.numerator() / stake_fraction.denominator(),
             );
 
@@ -358,13 +359,13 @@ pub fn try_undelegate_rewards(
                 validator: String::from(validator),
                 amount: Coin {
                     denom: vault_denom.clone(),
-                    amount: stake_amount,
+                    amount: unstake_amount,
                 },
             });
         }
 
         let new_validator_staked_amount = total_delegated_amount
-            .checked_sub(stake_amount)
+            .checked_sub(unstake_amount)
             .unwrap()
             .u128();
         VALIDATORS_TO_STAKED_QUOTA.save(
@@ -377,7 +378,7 @@ pub fn try_undelegate_rewards(
                     new_total_staked_tokens,
                 ),
             },
-        );
+        )?;
     }
 
     Ok(Response::new().add_messages(messages))
@@ -420,7 +421,7 @@ pub fn try_withdraw_rewards(
     }
 
     if amount.gt(&undelegation_batch.amount.amount) {
-        return Err(ContractError::InsufficientUndelegationBatch(
+        return Err(ContractError::InsufficientFundsInUndelegationBatch(
             undelegation_batch_id,
         ));
     }
@@ -438,10 +439,7 @@ pub fn try_withdraw_rewards(
         Ok(state)
     })?;
 
-    Ok(Response::new().add_message(BankMsg::Send {
-        to_address: String::from(user),
-        amount: vec![effective_withdrawable_amount],
-    }))
+    Ok(Response::new().add_messages(get_bank_msg(user, vec![effective_withdrawable_amount])))
 }
 
 pub fn try_reinvest(
