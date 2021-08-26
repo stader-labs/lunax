@@ -1,4 +1,4 @@
-use crate::state::{BatchUndelegationRecord, Config, State};
+use crate::state::{BatchUndelegationRecord, State};
 use cosmwasm_std::{Addr, Uint128};
 use cw_storage_plus::U64Key;
 use schemars::JsonSchema;
@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
-    pub scc_contract_address: Addr,
+    pub scc_address: Addr,
     // denomination of the staking coin
     pub vault_denom: String,
     // initial set of validators who make up the validator pool
@@ -42,17 +42,11 @@ pub enum QueryMsg {
     GetCurrentUndelegationBatchId {},
     GetUndelegationBatchInfo { undelegation_batch_id: u64 },
     GetState {},
-    GetConfig {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct GetStateResponse {
     pub state: Option<State>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct GetConfigResponse {
-    pub config: Option<Config>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
