@@ -40,15 +40,12 @@ pub struct StakeQuota {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct Config {
+pub struct State {
     pub manager: Addr,
-    pub scc_contract_address: Addr,
+    pub scc_address: Addr,
 
     pub vault_denom: String,
-}
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct State {
     pub contract_genesis_block_height: u64,
     pub contract_genesis_timestamp: Timestamp,
 
@@ -69,13 +66,12 @@ pub struct State {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct BatchUndelegationRecord {
     pub(crate) amount: Coin,
-    pub(crate) total_slashed_amount: Uint128,
+    pub(crate) unbonding_slashing_ratio: Decimal,
     pub(crate) create_time: Timestamp,
     pub(crate) est_release_time: Timestamp,
     pub(crate) slashing_checked: bool,
 }
 
-pub const CONFIG: Item<Config> = Item::new("config");
 pub const STATE: Item<State> = Item::new("state");
 
 // TODO: bchain99 - review if we need this
