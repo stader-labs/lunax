@@ -10,4 +10,16 @@ pub enum ContractError {
     Unauthorized {},
     // Add any other custom errors you like here.
     // Look at https://docs.rs/thiserror/1.0.21/thiserror/ for details.
+
+    #[error("Strategy info already exists")]
+    StrategyInfoAlreadyExists {},
+
+    #[error("Strategy metadata already exists")]
+    StrategyMetadataAlreadyExists {},
+
+    #[error("Strategy info does not exist")]
+    StrategyInfoDoesNotExist {},
+
+    #[error("Strategy metadata does not exist")]
+    StrategyMetadataDoesNotExist {}
 }
