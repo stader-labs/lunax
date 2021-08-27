@@ -55,9 +55,16 @@ pub fn get_user_strategy_data(
     None
 }
 
-pub fn strategy_supports_airdrops(strategy_info: &StrategyInfo) -> bool {
-    if strategy_info.supported_airdrops.is_empty() {
+pub fn strategy_supports_airdrops(strategy_info: &StrategyInfo, airdrop_opt: Option<String>) -> bool {
+    if strategy_info.supported_airdrops.is_empty()
+    {
         return false;
+    }
+
+    if let Some(airdrop) = airdrop_opt {
+        if !strategy_info.supported_airdrops.contains(&airdrop) {
+            return false;
+        }
     }
 
     true

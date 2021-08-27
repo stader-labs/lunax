@@ -4,6 +4,7 @@ mod helpers;
 pub mod msg;
 pub mod state;
 mod test_helpers;
+mod tests;
 mod user;
 mod utils;
 

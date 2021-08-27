@@ -29,5 +29,5 @@ pub enum ContractError {
     StrategyDoesNotSupportAirdrop {},
 
     #[error("The user reward info does not exist")]
-    UserRewardInfoDoesNotExist {}
+    UserRewardInfoDoesNotExist {},
 }

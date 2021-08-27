@@ -1,16 +1,19 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_binary, Addr, Attribute, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env, Fraction, MessageInfo, Response, StdError, StdResult, Timestamp, Uint128, WasmMsg, attr};
+use cosmwasm_std::{
+    attr, to_binary, Addr, Attribute, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env,
+    Fraction, MessageInfo, Response, StdError, StdResult, Timestamp, Uint128, WasmMsg,
+};
 
 use crate::error::ContractError;
-use crate::helpers::{get_sic_total_tokens, strategy_supports_airdrops, get_user_strategy_data};
+use crate::helpers::{get_sic_total_tokens, get_user_strategy_data, strategy_supports_airdrops};
 use crate::msg::{
-    ExecuteMsg, InstantiateMsg, QueryMsg, StateResponse, UpdateUserAirdropsRequest,
+    ExecuteMsg, GetStateResponse, InstantiateMsg, QueryMsg, UpdateUserAirdropsRequest,
     UpdateUserRewardsRequest,
 };
 use crate::state::{
-    DecCoin, State, StrategyInfo, StrategyMetadata, UserRewardInfo, UserStrategyInfo,
-    AIRDROP_CONTRACTS_REGISTRY, CW20_TOKEN_CONTRACTS_REGISTRY, STATE, STRATEGY_INFO_MAP,
+    Cw20TokenContractsInfo, DecCoin, State, StrategyInfo, StrategyMetadata, UserRewardInfo,
+    UserStrategyInfo, CW20_TOKEN_CONTRACTS_REGISTRY, STATE, STRATEGY_INFO_MAP,
     STRATEGY_METADATA_MAP, USER_REWARD_INFO_MAP,
 };
 use crate::user::get_user_airdrops;
@@ -96,32 +99,19 @@ pub fn execute(
             strategy_id,
         } => try_withdraw_rewards(deps, _env, info, undelegation_timestamp, strategy_id),
         ExecuteMsg::WithdrawAirdrops {} => try_withdraw_airdrops(deps, _env, info),
-        ExecuteMsg::RegisterAirdropContract {
-            denom,
-            airdrop_contract,
-        } => try_update_airdrop_contracts_registry(deps, _env, info, denom, airdrop_contract),
         ExecuteMsg::RegsiterCW20Contract {
             denom,
             cw20_contract,
-        } => try_update_cw20_contracts_registry(deps, _env, info, denom, cw20_contract),
+            airdrop_contract,
+        } => try_update_cw20_contracts_registry(
+            deps,
+            _env,
+            info,
+            denom,
+            cw20_contract,
+            airdrop_contract,
+        ),
     }
-}
-
-pub fn try_update_airdrop_contracts_registry(
-    deps: DepsMut,
-    _env: Env,
-    info: MessageInfo,
-    denom: String,
-    airdrop_contract: Addr,
-) -> Result<Response, ContractError> {
-    let state = STATE.load(deps.storage).unwrap();
-    if state.manager != info.sender {
-        return Err(ContractError::Unauthorized {});
-    }
-
-    AIRDROP_CONTRACTS_REGISTRY.save(deps.storage, denom, &airdrop_contract);
-
-    Ok(Response::default())
 }
 
 pub fn try_update_cw20_contracts_registry(
@@ -129,14 +119,22 @@ pub fn try_update_cw20_contracts_registry(
     _env: Env,
     info: MessageInfo,
     denom: String,
-    cw20_contract: Addr,
+    cw20_token_contract: Addr,
+    airdrop_contract: Addr,
 ) -> Result<Response, ContractError> {
     let state = STATE.load(deps.storage).unwrap();
     if state.manager != info.sender {
         return Err(ContractError::Unauthorized {});
     }
 
-    CW20_TOKEN_CONTRACTS_REGISTRY.save(deps.storage, denom, &cw20_contract);
+    CW20_TOKEN_CONTRACTS_REGISTRY.save(
+        deps.storage,
+        denom,
+        &Cw20TokenContractsInfo {
+            airdrop_contract,
+            cw20_token_contract,
+        },
+    );
 
     Ok(Response::default())
 }
@@ -165,12 +163,12 @@ pub fn try_claim_airdrops(
         return Err(ContractError::Unauthorized {});
     }
 
-    let mut airdrop_contract: Addr;
-    if let Some(airdrop_contract_mapping) = AIRDROP_CONTRACTS_REGISTRY
+    let mut cw20_token_contracts: Cw20TokenContractsInfo;
+    if let Some(cw20_token_contracts_mapping) = CW20_TOKEN_CONTRACTS_REGISTRY
         .may_load(deps.storage, denom.clone())
         .unwrap()
     {
-        airdrop_contract = airdrop_contract_mapping;
+        cw20_token_contracts = cw20_token_contracts_mapping;
     } else {
         return Err(ContractError::AirdropNotRegistered {});
     }
@@ -180,7 +178,8 @@ pub fn try_claim_airdrops(
         .may_load(deps.storage, denom.clone())
         .unwrap()
     {
-        if !strategy_supports_airdrops(&strategy_info) {
+        // while registering the strategy, we need to update the airdrops the strategy supports.
+        if !strategy_supports_airdrops(&strategy_info, Some(denom.clone())) {
             return Err(ContractError::StrategyDoesNotSupportAirdrop {});
         }
         sic_address = strategy_info.sic_contract_address;
@@ -227,11 +226,12 @@ pub fn try_claim_airdrops(
     Ok(Response::new().add_message(WasmMsg::Execute {
         contract_addr: String::from(sic_address),
         msg: to_binary(&sic_execute_msg::ClaimAirdrops {
-            airdrop_token_contract: airdrop_contract,
+            airdrop_token_contract: cw20_token_contracts.airdrop_contract,
             airdrop_token: denom,
             amount,
             claim_msg,
-        }).unwrap(),
+        })
+        .unwrap(),
         funds: vec![],
     }))
 }
@@ -245,10 +245,11 @@ pub fn try_withdraw_airdrops(
     let user_addr = info.sender;
 
     let user_reward_info: UserRewardInfo;
-    match USER_REWARD_INFO_MAP.may_load(deps.storage, &user_addr).unwrap() {
-        None => {
-            return Err(ContractError::UserRewardInfoDoesNotExist {})
-        }
+    match USER_REWARD_INFO_MAP
+        .may_load(deps.storage, &user_addr)
+        .unwrap()
+    {
+        None => return Err(ContractError::UserRewardInfoDoesNotExist {}),
         Some(user_reward_info_mapping) => {
             user_reward_info = user_reward_info_mapping;
         }
@@ -261,19 +262,22 @@ pub fn try_withdraw_airdrops(
         let airdrop_denom = user_airdrop.denom;
         let airdrop_amount = user_airdrop.amount;
 
-        let airdrop_token_contract = CW20_TOKEN_CONTRACTS_REGISTRY.may_load(deps.storage, airdrop_denom.clone()).unwrap();
-        if airdrop_token_contract.is_none() {
+        let cw20_token_contracts = CW20_TOKEN_CONTRACTS_REGISTRY
+            .may_load(deps.storage, airdrop_denom.clone())
+            .unwrap();
+        if cw20_token_contracts.is_none() {
             logs.push(attr("failed_to_get_contract", airdrop_denom));
-            continue
+            continue;
         }
 
         messages.push(WasmMsg::Execute {
-            contract_addr: String::from(airdrop_token_contract.unwrap()),
+            contract_addr: String::from(cw20_token_contracts.unwrap().cw20_token_contract),
             msg: to_binary(&cw20::Cw20ExecuteMsg::Transfer {
                 recipient: String::from(user_addr.clone()),
-                amount: airdrop_amount
-            }).unwrap(),
-            funds: vec![]
+                amount: airdrop_amount,
+            })
+            .unwrap(),
+            funds: vec![],
         });
     }
 
@@ -500,7 +504,7 @@ pub fn try_update_user_rewards(
 
         // update the user_airdrops
         let mut user_airdrops: Vec<Coin> = vec![];
-        if strategy_supports_airdrops(&strategy_info) {
+        if strategy_supports_airdrops(&strategy_info, None) {
             if let Some(new_user_airdrops) = get_user_airdrops(
                 strategy_metadata.global_airdrop_pointer.clone(),
                 user_strategy_data.airdrop_pointer,
@@ -622,296 +626,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-fn query_state(deps: Deps) -> StdResult<StateResponse> {
+fn query_state(deps: Deps) -> StdResult<GetStateResponse> {
     let state = STATE.load(deps.storage)?;
-    Ok(StateResponse {
+    Ok(GetStateResponse {
         state: Option::from(state),
     })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::test_helpers::check_equal_vec;
-    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use cosmwasm_std::{coins, from_binary};
-
-    #[test]
-    fn proper_initialization() {
-        let mut deps = mock_dependencies(&[]);
-
-        let msg = InstantiateMsg {
-            strategy_denom: "uluna".to_string(),
-        };
-        let info = mock_info("creator", &coins(1000, "earth"));
-        let env = mock_env();
-
-        // we can just call .unwrap() to assert this was a success
-        let res = instantiate(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
-        assert_eq!(0, res.messages.len());
-
-        // it worked, let's query the state
-        let res = query_state(deps.as_ref()).unwrap();
-        assert_eq!(
-            res.state.unwrap(),
-            State {
-                manager: info.sender,
-                scc_denom: "uluna".to_string(),
-                contract_genesis_block_height: env.block.height,
-                contract_genesis_timestamp: env.block.time,
-                total_accumulated_rewards: Uint128::zero(),
-                current_rewards_in_scc: Uint128::zero(),
-                total_accumulated_airdrops: vec![]
-            }
-        );
-    }
-
-    #[test]
-    fn test__try_update_user_airdrops_fail() {
-        let mut deps = mock_dependencies(&[]);
-
-        let msg = InstantiateMsg {
-            strategy_denom: "uluna".to_string(),
-        };
-        let info = mock_info("creator", &[]);
-        let env = mock_env();
-
-        // we can just call .unwrap() to assert this was a success
-        let res = instantiate(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
-
-        /*
-           Test - 1. Unauthorized
-        */
-        let mut err = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info("not-creator", &[]),
-            ExecuteMsg::UpdateUserAirdrops {
-                update_user_airdrops_requests: vec![],
-            },
-        )
-        .unwrap_err();
-        assert!(matches!(err, ContractError::Unauthorized {}));
-
-        /*
-           Test - 2. Empty request object
-        */
-        let res = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info("creator", &[]),
-            ExecuteMsg::UpdateUserAirdrops {
-                update_user_airdrops_requests: vec![],
-            },
-        )
-        .unwrap();
-        assert_eq!(res, Response::default());
-    }
-
-    #[test]
-    fn test__try_update_user_airdrops_success() {
-        let mut deps = mock_dependencies(&[]);
-
-        let msg = InstantiateMsg {
-            strategy_denom: "uluna".to_string(),
-        };
-        let info = mock_info("creator", &[]);
-        let env = mock_env();
-
-        // we can just call .unwrap() to assert this was a success
-        let res = instantiate(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
-
-        let user1 = Addr::unchecked("user-1");
-        let user2 = Addr::unchecked("user-2");
-        let user3 = Addr::unchecked("user-3");
-        let user4 = Addr::unchecked("user-4");
-
-        /*
-           Test - 1. First airdrops
-        */
-        let res = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info("creator", &[]),
-            ExecuteMsg::UpdateUserAirdrops {
-                update_user_airdrops_requests: vec![
-                    UpdateUserAirdropsRequest {
-                        user: user1.clone(),
-                        pool_airdrops: vec![Coin::new(100_u128, "abc"), Coin::new(50_u128, "def")],
-                    },
-                    UpdateUserAirdropsRequest {
-                        user: user2.clone(),
-                        pool_airdrops: vec![Coin::new(50_u128, "abc"), Coin::new(50_u128, "def")],
-                    },
-                    UpdateUserAirdropsRequest {
-                        user: user3.clone(),
-                        pool_airdrops: vec![Coin::new(200_u128, "abc"), Coin::new(100_u128, "def")],
-                    },
-                    UpdateUserAirdropsRequest {
-                        user: user4.clone(),
-                        pool_airdrops: vec![],
-                    },
-                ],
-            },
-        )
-        .unwrap();
-        let state_response = query_state(deps.as_ref()).unwrap();
-        assert_ne!(state_response.state, None);
-        let state = state_response.state.unwrap();
-        assert!(check_equal_vec(
-            state.total_accumulated_airdrops,
-            vec![Coin::new(350_u128, "abc"), Coin::new(200_u128, "def")]
-        ));
-        let user_reward_info_1_opt = USER_REWARD_INFO_MAP
-            .may_load(deps.as_mut().storage, &user1)
-            .unwrap();
-        assert_ne!(user_reward_info_1_opt, None);
-        let user_reward_info_1 = user_reward_info_1_opt.unwrap();
-        assert!(check_equal_vec(
-            user_reward_info_1.pending_pool_airdrops,
-            vec![Coin::new(100_u128, "abc"), Coin::new(50_u128, "def")]
-        ));
-        let user_reward_info_2_opt = USER_REWARD_INFO_MAP
-            .may_load(deps.as_mut().storage, &user2)
-            .unwrap();
-        assert_ne!(user_reward_info_2_opt, None);
-        let user_reward_info_2 = user_reward_info_2_opt.unwrap();
-        assert!(check_equal_vec(
-            user_reward_info_2.pending_pool_airdrops,
-            vec![Coin::new(50_u128, "abc"), Coin::new(50_u128, "def")]
-        ));
-        let user_reward_info_3_opt = USER_REWARD_INFO_MAP
-            .may_load(deps.as_mut().storage, &user3)
-            .unwrap();
-        assert_ne!(user_reward_info_3_opt, None);
-        let user_reward_info_3 = user_reward_info_3_opt.unwrap();
-        assert!(check_equal_vec(
-            user_reward_info_3.pending_pool_airdrops,
-            vec![Coin::new(200_u128, "abc"), Coin::new(100_u128, "def")]
-        ));
-        let user_reward_info_4_opt = USER_REWARD_INFO_MAP
-            .may_load(deps.as_mut().storage, &user4)
-            .unwrap();
-        assert_ne!(user_reward_info_4_opt, None);
-        let user_reward_info_4 = user_reward_info_4_opt.unwrap();
-        assert!(check_equal_vec(
-            user_reward_info_4.pending_pool_airdrops,
-            vec![]
-        ));
-
-        /*
-           Test - 2. updating the user airdrops with existing user_airdrops
-        */
-        STATE.update(
-            deps.as_mut().storage,
-            |mut state| -> Result<_, ContractError> {
-                state.total_accumulated_airdrops =
-                    vec![Coin::new(100_u128, "abc"), Coin::new(200_u128, "def")];
-                Ok(state)
-            },
-        );
-
-        USER_REWARD_INFO_MAP.save(
-            deps.as_mut().storage,
-            &user1,
-            &UserRewardInfo {
-                strategies: vec![],
-                pending_airdrops: vec![Coin::new(10_u128, "abc"), Coin::new(200_u128, "def")],
-            },
-        );
-        USER_REWARD_INFO_MAP.save(
-            deps.as_mut().storage,
-            &user2,
-            &UserRewardInfo {
-                strategies: vec![],
-                pending_airdrops: vec![Coin::new(20_u128, "abc"), Coin::new(100_u128, "def")],
-            },
-        );
-        USER_REWARD_INFO_MAP.save(
-            deps.as_mut().storage,
-            &user3,
-            &UserRewardInfo {
-                strategies: vec![],
-                pending_airdrops: vec![Coin::new(30_u128, "abc"), Coin::new(50_u128, "def")],
-            },
-        );
-        USER_REWARD_INFO_MAP.save(
-            deps.as_mut().storage,
-            &user4,
-            &UserRewardInfo {
-                strategies: vec![],
-                pending_airdrops: vec![Coin::new(40_u128, "abc"), Coin::new(80_u128, "def")],
-            },
-        );
-
-        let res = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info("creator", &[]),
-            ExecuteMsg::UpdateUserAirdrops {
-                update_user_airdrops_requests: vec![
-                    UpdateUserAirdropsRequest {
-                        user: user1.clone(),
-                        pool_airdrops: vec![Coin::new(100_u128, "abc"), Coin::new(50_u128, "def")],
-                    },
-                    UpdateUserAirdropsRequest {
-                        user: user2.clone(),
-                        pool_airdrops: vec![Coin::new(50_u128, "abc"), Coin::new(50_u128, "def")],
-                    },
-                    UpdateUserAirdropsRequest {
-                        user: user3.clone(),
-                        pool_airdrops: vec![Coin::new(200_u128, "abc"), Coin::new(100_u128, "def")],
-                    },
-                    UpdateUserAirdropsRequest {
-                        user: user4.clone(),
-                        pool_airdrops: vec![],
-                    },
-                ],
-            },
-        )
-        .unwrap();
-        let state_response = query_state(deps.as_ref()).unwrap();
-        assert_ne!(state_response.state, None);
-        let state = state_response.state.unwrap();
-        assert!(check_equal_vec(
-            state.total_accumulated_airdrops,
-            vec![Coin::new(450_u128, "abc"), Coin::new(400_u128, "def")]
-        ));
-        let user_reward_info_1_opt = USER_REWARD_INFO_MAP
-            .may_load(deps.as_mut().storage, &user1)
-            .unwrap();
-        assert_ne!(user_reward_info_1_opt, None);
-        let user_reward_info_1 = user_reward_info_1_opt.unwrap();
-        assert!(check_equal_vec(
-            user_reward_info_1.pending_pool_airdrops,
-            vec![Coin::new(110_u128, "abc"), Coin::new(250_u128, "def")]
-        ));
-        let user_reward_info_2_opt = USER_REWARD_INFO_MAP
-            .may_load(deps.as_mut().storage, &user2)
-            .unwrap();
-        assert_ne!(user_reward_info_2_opt, None);
-        let user_reward_info_2 = user_reward_info_2_opt.unwrap();
-        assert!(check_equal_vec(
-            user_reward_info_2.pending_pool_airdrops,
-            vec![Coin::new(70_u128, "abc"), Coin::new(150_u128, "def")]
-        ));
-        let user_reward_info_3_opt = USER_REWARD_INFO_MAP
-            .may_load(deps.as_mut().storage, &user3)
-            .unwrap();
-        assert_ne!(user_reward_info_3_opt, None);
-        let user_reward_info_3 = user_reward_info_3_opt.unwrap();
-        assert!(check_equal_vec(
-            user_reward_info_3.pending_pool_airdrops,
-            vec![Coin::new(230_u128, "abc"), Coin::new(150_u128, "def")]
-        ));
-        let user_reward_info_4_opt = USER_REWARD_INFO_MAP
-            .may_load(deps.as_mut().storage, &user4)
-            .unwrap();
-        assert_ne!(user_reward_info_4_opt, None);
-        let user_reward_info_4 = user_reward_info_4_opt.unwrap();
-        assert!(check_equal_vec(
-            user_reward_info_4.pending_pool_airdrops,
-            vec![Coin::new(40_u128, "abc"), Coin::new(80_u128, "def")]
-        ));
-    }
 }

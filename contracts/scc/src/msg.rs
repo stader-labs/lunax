@@ -1,5 +1,5 @@
 use crate::state::State;
-use cosmwasm_std::{Addr, Coin, Timestamp, Uint128, Binary};
+use cosmwasm_std::{Addr, Binary, Coin, Timestamp, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -41,13 +41,10 @@ pub enum ExecuteMsg {
     RemoveStrategy {
         strategy_id: String,
     },
-    RegisterAirdropContract {
-        denom: String,
-        airdrop_contract: Addr,
-    },
     RegsiterCW20Contract {
         denom: String,
         cw20_contract: Addr,
+        airdrop_contract: Addr,
     },
     // called by validator contract to transfer rewards from validator contract to SCC
     // this message also moves rewards from SCC to the corresponding SIC
@@ -84,6 +81,6 @@ pub enum QueryMsg {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct StateResponse {
+pub struct GetStateResponse {
     pub state: Option<State>,
 }

@@ -133,11 +133,16 @@ impl UserRewardInfo {
     }
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct Cw20TokenContractsInfo {
+    pub airdrop_contract: Addr,
+    pub cw20_token_contract: Addr,
+}
+
 pub const STATE: Item<State> = Item::new("state");
 
 pub const STRATEGY_INFO_MAP: Map<String, StrategyInfo> = Map::new("strategy_info_map");
 pub const STRATEGY_METADATA_MAP: Map<String, StrategyMetadata> = Map::new("strategy_metadata_map");
 pub const USER_REWARD_INFO_MAP: Map<&Addr, UserRewardInfo> = Map::new("user_reward_info_map");
-pub const AIRDROP_CONTRACTS_REGISTRY: Map<String, Addr> = Map::new("airdrop_registry");
-pub const CW20_TOKEN_CONTRACTS_REGISTRY: Map<String, Addr> =
+pub const CW20_TOKEN_CONTRACTS_REGISTRY: Map<String, Cw20TokenContractsInfo> =
     Map::new("cw20_token_contracts_registry");
