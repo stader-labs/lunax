@@ -100,7 +100,7 @@ pub struct UserStrategyInfo {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct UserRewardInfo {
-    pub strategy_map: HashMap<String, UserStrategyInfo>,
+    pub strategy_map: Vec<UserStrategyInfo>,
     // user airdrops which are currently owned by the SCC. pending_pool_airdrops are airdrops sent to the
     // SCC contract from the validator contract.
     pub pending_pool_airdrops: Vec<Coin>,
@@ -109,7 +109,7 @@ pub struct UserRewardInfo {
 impl UserRewardInfo {
     pub fn default() -> Self {
         UserRewardInfo {
-            strategy_map: Default::default(),
+            strategy_map: vec![],
             pending_pool_airdrops: vec![],
         }
     }
@@ -119,5 +119,5 @@ pub const STATE: Item<State> = Item::new("state");
 
 pub const STRATEGY_INFO_MAP: Map<String, StrategyInfo> = Map::new("strategy_info_map");
 pub const STRATEGY_METADATA_MAP: Map<String, StrategyMetadata> = Map::new("strategy_metadata_map");
-pub const USER_REWARD_INFO_MAP: Map<Addr, UserRewardInfo> = Map::new("user_reward_info_map");
+pub const USER_REWARD_INFO_MAP: Map<&Addr, UserRewardInfo> = Map::new("user_reward_info_map");
 pub const AIRDROP_REGISTRY: Map<String, Addr> = Map::new("airdrop_registry");

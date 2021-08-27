@@ -2,7 +2,7 @@
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     to_binary, Addr, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo, Response,
-    StdResult, Timestamp, Uint128, WasmMsg,
+    StdError, StdResult, Timestamp, Uint128, WasmMsg,
 };
 
 use crate::error::ContractError;
@@ -274,6 +274,10 @@ pub fn try_update_user_rewards(
         return Err(ContractError::Unauthorized {});
     }
 
+    if update_user_rewards_requests.is_empty() {
+        return Ok(Response::default());
+    }
+
     let mut messages: Vec<WasmMsg> = vec![];
     // iterate thru all requests
     for user_request in update_user_rewards_requests {
@@ -345,6 +349,8 @@ pub fn try_update_user_rewards(
     Ok(Response::new().add_messages(messages))
 }
 
+// This assumes that the validator contract will transfer ownership of the airdrops
+// from the validator contract to the SCC contract.
 pub fn try_update_user_airdrops(
     deps: DepsMut,
     _env: Env,
@@ -357,6 +363,10 @@ pub fn try_update_user_airdrops(
         return Err(ContractError::Unauthorized {});
     }
 
+    if update_user_airdrops_requests.is_empty() {
+        return Ok(Response::default());
+    }
+
     // iterate thru update_user_airdrops_request
     let mut total_scc_airdrops: Vec<Coin> = state.total_accumulated_airdrops;
     // accumulate the airdrops in the SCC state.
@@ -364,24 +374,21 @@ pub fn try_update_user_airdrops(
         let user = user_request.user;
         let user_airdrops = user_request.pool_airdrops;
 
-        // fetch the user rewards info
-        let mut user_reward_info = UserRewardInfo::default();
-        if let Some(user_reward_info_mapping) =
-            USER_REWARD_INFO_MAP.may_load(deps.storage, user).unwrap()
-        {
-            user_reward_info = user_reward_info_mapping;
-        } else {
-            // TODO: bchain99 - log something out here.
-            continue;
-        }
-
         total_scc_airdrops = merge_coin_vector(
-            total_scc_airdrops,
+            total_scc_airdrops.clone(),
             CoinVecOp {
                 fund: user_airdrops.clone(),
                 operation: Operation::Add,
             },
         );
+
+        // fetch the user rewards info
+        let mut user_reward_info = UserRewardInfo::default();
+        if let Some(user_reward_info_mapping) =
+            USER_REWARD_INFO_MAP.may_load(deps.storage, &user).unwrap()
+        {
+            user_reward_info = user_reward_info_mapping;
+        }
 
         user_reward_info.pending_pool_airdrops = merge_coin_vector(
             user_reward_info.pending_pool_airdrops,
@@ -390,8 +397,14 @@ pub fn try_update_user_airdrops(
                 operation: Operation::Add,
             },
         );
-        // TODO: bchain99 - can we do something with airdrops? They are just sitting idle for now.
+
+        USER_REWARD_INFO_MAP.save(deps.storage, &user, &user_reward_info);
     }
+
+    STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
+        state.total_accumulated_airdrops = total_scc_airdrops;
+        Ok(state)
+    });
 
     Ok(Response::default())
 }
@@ -413,7 +426,8 @@ fn query_state(deps: Deps) -> StdResult<StateResponse> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mock::{mock_dependencies, mock_env, mock_info};
+    use crate::test_helpers::check_equal_vec;
+    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
     use cosmwasm_std::{coins, from_binary};
 
     #[test]
@@ -447,7 +461,231 @@ mod tests {
     }
 
     #[test]
-    fn test__sic_mock_querier() {
+    fn test__try_update_user_airdrops_fail() {
         let mut deps = mock_dependencies(&[]);
+
+        let msg = InstantiateMsg {
+            strategy_denom: "uluna".to_string(),
+        };
+        let info = mock_info("creator", &[]);
+        let env = mock_env();
+
+        // we can just call .unwrap() to assert this was a success
+        let res = instantiate(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
+
+        /*
+           Test - 1. Unauthorized
+        */
+        let mut err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("not-creator", &[]),
+            ExecuteMsg::UpdateUserAirdrops {
+                update_user_airdrops_requests: vec![],
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::Unauthorized {}));
+
+        /*
+           Test - 2. Empty request object
+        */
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::UpdateUserAirdrops {
+                update_user_airdrops_requests: vec![],
+            },
+        )
+        .unwrap();
+        assert_eq!(res, Response::default());
+    }
+
+    #[test]
+    fn test__try_update_user_airdrops_success() {
+        let mut deps = mock_dependencies(&[]);
+
+        let msg = InstantiateMsg {
+            strategy_denom: "uluna".to_string(),
+        };
+        let info = mock_info("creator", &[]);
+        let env = mock_env();
+
+        // we can just call .unwrap() to assert this was a success
+        let res = instantiate(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
+
+        let user1 = Addr::unchecked("user-1");
+        let user2 = Addr::unchecked("user-2");
+        let user3 = Addr::unchecked("user-3");
+        let user4 = Addr::unchecked("user-4");
+
+        /*
+           Test - 1. First airdrops
+        */
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::UpdateUserAirdrops {
+                update_user_airdrops_requests: vec![
+                    UpdateUserAirdropsRequest {
+                        user: user1.clone(),
+                        pool_airdrops: vec![Coin::new(100_u128, "abc"), Coin::new(50_u128, "def")],
+                    },
+                    UpdateUserAirdropsRequest {
+                        user: user2.clone(),
+                        pool_airdrops: vec![Coin::new(50_u128, "abc"), Coin::new(50_u128, "def")],
+                    },
+                    UpdateUserAirdropsRequest {
+                        user: user3.clone(),
+                        pool_airdrops: vec![Coin::new(200_u128, "abc"), Coin::new(100_u128, "def")],
+                    },
+                    UpdateUserAirdropsRequest {
+                        user: user4.clone(),
+                        pool_airdrops: vec![],
+                    },
+                ],
+            },
+        )
+        .unwrap();
+        let state_response = query_state(deps.as_ref()).unwrap();
+        assert_ne!(state_response.state, None);
+        let state = state_response.state.unwrap();
+        assert!(check_equal_vec(
+            state.total_accumulated_airdrops,
+            vec![Coin::new(350_u128, "abc"), Coin::new(200_u128, "def")]
+        ));
+        let user_reward_info_1_opt = USER_REWARD_INFO_MAP
+            .may_load(deps.as_mut().storage, &user1)
+            .unwrap();
+        assert_ne!(user_reward_info_1_opt, None);
+        let user_reward_info_1 = user_reward_info_1_opt.unwrap();
+        assert!(check_equal_vec(
+            user_reward_info_1.pending_pool_airdrops,
+            vec![Coin::new(100_u128, "abc"), Coin::new(50_u128, "def")]
+        ));
+        let user_reward_info_2_opt = USER_REWARD_INFO_MAP
+            .may_load(deps.as_mut().storage, &user2)
+            .unwrap();
+        assert_ne!(user_reward_info_2_opt, None);
+        let user_reward_info_2 = user_reward_info_2_opt.unwrap();
+        assert!(check_equal_vec(
+            user_reward_info_2.pending_pool_airdrops,
+            vec![Coin::new(50_u128, "abc"), Coin::new(50_u128, "def")]
+        ));
+        let user_reward_info_3_opt = USER_REWARD_INFO_MAP
+            .may_load(deps.as_mut().storage, &user3)
+            .unwrap();
+        assert_ne!(user_reward_info_3_opt, None);
+        let user_reward_info_3 = user_reward_info_3_opt.unwrap();
+        assert!(check_equal_vec(
+            user_reward_info_3.pending_pool_airdrops,
+            vec![Coin::new(200_u128, "abc"), Coin::new(100_u128, "def")]
+        ));
+        let user_reward_info_4_opt = USER_REWARD_INFO_MAP
+            .may_load(deps.as_mut().storage, &user4)
+            .unwrap();
+        assert_ne!(user_reward_info_4_opt, None);
+        let user_reward_info_4 = user_reward_info_4_opt.unwrap();
+        assert!(check_equal_vec(
+            user_reward_info_4.pending_pool_airdrops,
+            vec![]
+        ));
+
+        /*
+           Test - 2. updating the user airdrops with existing user_airdrops
+        */
+        STATE.update(deps.as_mut().storage, |mut state| -> Result<_, ContractError> {
+            state.total_accumulated_airdrops = vec![Coin::new(100_u128, "abc"), Coin::new(200_u128, "def")];
+            Ok(state)
+        });
+
+        USER_REWARD_INFO_MAP.save(deps.as_mut().storage, &user1, &UserRewardInfo {
+            strategy_map: vec![],
+            pending_pool_airdrops: vec![Coin::new(10_u128, "abc"), Coin::new(200_u128, "def")]
+        });
+        USER_REWARD_INFO_MAP.save(deps.as_mut().storage, &user2, &UserRewardInfo {
+            strategy_map: vec![],
+            pending_pool_airdrops: vec![Coin::new(20_u128, "abc"), Coin::new(100_u128, "def")]
+        });
+        USER_REWARD_INFO_MAP.save(deps.as_mut().storage, &user3, &UserRewardInfo {
+            strategy_map: vec![],
+            pending_pool_airdrops: vec![Coin::new(30_u128, "abc"), Coin::new(50_u128, "def")]
+        });
+        USER_REWARD_INFO_MAP.save(deps.as_mut().storage, &user4, &UserRewardInfo {
+            strategy_map: vec![],
+            pending_pool_airdrops: vec![Coin::new(40_u128, "abc"), Coin::new(80_u128, "def")]
+        });
+
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::UpdateUserAirdrops {
+                update_user_airdrops_requests: vec![
+                    UpdateUserAirdropsRequest {
+                        user: user1.clone(),
+                        pool_airdrops: vec![Coin::new(100_u128, "abc"), Coin::new(50_u128, "def")],
+                    },
+                    UpdateUserAirdropsRequest {
+                        user: user2.clone(),
+                        pool_airdrops: vec![Coin::new(50_u128, "abc"), Coin::new(50_u128, "def")],
+                    },
+                    UpdateUserAirdropsRequest {
+                        user: user3.clone(),
+                        pool_airdrops: vec![Coin::new(200_u128, "abc"), Coin::new(100_u128, "def")],
+                    },
+                    UpdateUserAirdropsRequest {
+                        user: user4.clone(),
+                        pool_airdrops: vec![],
+                    },
+                ],
+            },
+        )
+        .unwrap();
+        let state_response = query_state(deps.as_ref()).unwrap();
+        assert_ne!(state_response.state, None);
+        let state = state_response.state.unwrap();
+        assert!(check_equal_vec(
+            state.total_accumulated_airdrops,
+            vec![Coin::new(450_u128, "abc"), Coin::new(400_u128, "def")]
+        ));
+        let user_reward_info_1_opt = USER_REWARD_INFO_MAP
+            .may_load(deps.as_mut().storage, &user1)
+            .unwrap();
+        assert_ne!(user_reward_info_1_opt, None);
+        let user_reward_info_1 = user_reward_info_1_opt.unwrap();
+        assert!(check_equal_vec(
+            user_reward_info_1.pending_pool_airdrops,
+            vec![Coin::new(110_u128, "abc"), Coin::new(250_u128, "def")]
+        ));
+        let user_reward_info_2_opt = USER_REWARD_INFO_MAP
+            .may_load(deps.as_mut().storage, &user2)
+            .unwrap();
+        assert_ne!(user_reward_info_2_opt, None);
+        let user_reward_info_2 = user_reward_info_2_opt.unwrap();
+        assert!(check_equal_vec(
+            user_reward_info_2.pending_pool_airdrops,
+            vec![Coin::new(70_u128, "abc"), Coin::new(150_u128, "def")]
+        ));
+        let user_reward_info_3_opt = USER_REWARD_INFO_MAP
+            .may_load(deps.as_mut().storage, &user3)
+            .unwrap();
+        assert_ne!(user_reward_info_3_opt, None);
+        let user_reward_info_3 = user_reward_info_3_opt.unwrap();
+        assert!(check_equal_vec(
+            user_reward_info_3.pending_pool_airdrops,
+            vec![Coin::new(230_u128, "abc"), Coin::new(150_u128, "def")]
+        ));
+        let user_reward_info_4_opt = USER_REWARD_INFO_MAP
+            .may_load(deps.as_mut().storage, &user4)
+            .unwrap();
+        assert_ne!(user_reward_info_4_opt, None);
+        let user_reward_info_4 = user_reward_info_4_opt.unwrap();
+        assert!(check_equal_vec(
+            user_reward_info_4.pending_pool_airdrops,
+            vec![Coin::new(40_u128, "abc"), Coin::new(80_u128, "def")]
+        ));
     }
 }
