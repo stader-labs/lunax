@@ -72,6 +72,7 @@ pub struct StrategyMetadata {
     pub name: String,
     pub total_shares: Decimal,
     pub global_airdrop_pointer: Vec<DecCoin>,
+    pub total_airdrops_accumulated: Vec<Coin>,
     // TODO: bchain99 - i want this for strategy APR calc but cross check if we actually need this.
     pub shares_per_token_ratio: Decimal,
     pub current_unprocessed_undelegations: Uint128,
@@ -83,6 +84,7 @@ impl StrategyMetadata {
             name: "".to_string(),
             total_shares: Default::default(),
             global_airdrop_pointer: vec![],
+            total_airdrops_accumulated: vec![],
             shares_per_token_ratio: Default::default(),
             current_unprocessed_undelegations: Default::default(),
         }
@@ -91,26 +93,42 @@ impl StrategyMetadata {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct UserStrategyInfo {
+    pub strategy_name: String,
     pub shares: Decimal,
     // airdrop here is an unswappable reward. For v1, we are keeping airdrops idle and distributing
     // them back to the user. The airdrop_pointer here is only for the particular strategy.
     pub airdrop_pointer: Vec<DecCoin>,
-    pub pending_airdrops: Vec<Coin>,
+}
+
+impl UserStrategyInfo {
+    pub fn default() -> Self {
+        UserStrategyInfo {
+            strategy_name: "".to_string(),
+            shares: Default::default(),
+            airdrop_pointer: vec![],
+        }
+    }
+    pub fn new(strategy_name: String) -> Self {
+        UserStrategyInfo {
+            strategy_name,
+            shares: Decimal::zero(),
+            airdrop_pointer: vec![],
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct UserRewardInfo {
-    pub strategy_map: Vec<UserStrategyInfo>,
-    // user airdrops which are currently owned by the SCC. pending_pool_airdrops are airdrops sent to the
-    // SCC contract from the validator contract.
-    pub pending_pool_airdrops: Vec<Coin>,
+    pub strategies: Vec<UserStrategyInfo>,
+    // pending_airdrops is the airdrops accumulated from the validator_contract and all the strategy contracts
+    pub pending_airdrops: Vec<Coin>,
 }
 
 impl UserRewardInfo {
-    pub fn default() -> Self {
+    pub fn new() -> Self {
         UserRewardInfo {
-            strategy_map: vec![],
-            pending_pool_airdrops: vec![],
+            strategies: vec![],
+            pending_airdrops: vec![],
         }
     }
 }

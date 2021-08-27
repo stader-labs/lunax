@@ -1,20 +1,21 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, Addr, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo, Response,
-    StdError, StdResult, Timestamp, Uint128, WasmMsg,
+    to_binary, Addr, Attribute, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo,
+    Response, StdError, StdResult, Timestamp, Uint128, WasmMsg,
 };
 
 use crate::error::ContractError;
-use crate::helpers::get_sic_total_tokens;
+use crate::helpers::{get_sic_total_tokens, get_user_strategy_data, strategy_supports_airdrops};
 use crate::msg::{
     ExecuteMsg, InstantiateMsg, QueryMsg, StateResponse, UpdateUserAirdropsRequest,
     UpdateUserRewardsRequest,
 };
 use crate::state::{
-    State, StrategyInfo, StrategyMetadata, UserRewardInfo, STATE, STRATEGY_INFO_MAP,
-    STRATEGY_METADATA_MAP, USER_REWARD_INFO_MAP,
+    State, StrategyInfo, StrategyMetadata, UserRewardInfo, UserStrategyInfo, STATE,
+    STRATEGY_INFO_MAP, STRATEGY_METADATA_MAP, USER_REWARD_INFO_MAP,
 };
+use crate::user::get_user_airdrops;
 use crate::utils::{
     decimal_division_in_256, decimal_multiplication_in_256, decimal_summation_in_256,
     merge_coin_vector, CoinVecOp, Operation,
@@ -148,20 +149,18 @@ pub fn try_register_strategy(
         return Err(ContractError::Unauthorized {});
     }
 
-    match STRATEGY_INFO_MAP
+    if let Some(_) = STRATEGY_INFO_MAP
         .may_load(deps.storage, strategy_id.clone())
         .unwrap()
     {
-        None => {}
-        Some(_) => return Err(ContractError::StrategyInfoAlreadyExists {}),
+        return Err(ContractError::StrategyInfoAlreadyExists {});
     }
 
-    match STRATEGY_METADATA_MAP
+    if let Some(_) = STRATEGY_METADATA_MAP
         .may_load(deps.storage, strategy_id.clone())
         .unwrap()
     {
-        None => {}
-        Some(_) => return Err(ContractError::StrategyMetadataAlreadyExists {}),
+        return Err(ContractError::StrategyMetadataAlreadyExists {});
     }
 
     STRATEGY_INFO_MAP.save(
@@ -182,6 +181,7 @@ pub fn try_register_strategy(
             name: strategy_id.to_string(),
             total_shares: Decimal::zero(),
             global_airdrop_pointer: vec![],
+            total_airdrops_accumulated: vec![],
             shares_per_token_ratio: Decimal::zero(),
             current_unprocessed_undelegations: Uint128::zero(),
         },
@@ -279,10 +279,12 @@ pub fn try_update_user_rewards(
     }
 
     let mut messages: Vec<WasmMsg> = vec![];
+    let mut logs: Vec<Attribute> = vec![];
     // iterate thru all requests
     for user_request in update_user_rewards_requests {
         let user_strategy = user_request.strategy_id;
         let user_amount = user_request.rewards;
+        let user_addr = user_request.user;
 
         let mut strategy_info: StrategyInfo = StrategyInfo::default();
         if let Some(strategy_info_mapping) = STRATEGY_INFO_MAP
@@ -319,11 +321,36 @@ pub fn try_update_user_rewards(
         }
         strategy_metadata.shares_per_token_ratio = shares_per_token_ratio;
 
+        let mut user_reward_info = UserRewardInfo::new();
+        if let Some(user_reward_info_mapping) = USER_REWARD_INFO_MAP
+            .may_load(deps.storage, &user_addr)
+            .unwrap()
+        {
+            user_reward_info = user_reward_info_mapping;
+        }
+
+        // update the user airdrop pointer and allocate the user pending airdrops for each strategy
+        let mut user_strategy_data: UserStrategyInfo;
+        if let Some(user_strategy_data_mapping) =
+            get_user_strategy_data(&user_reward_info, user_strategy.clone())
+        {
+            user_strategy_data = user_strategy_data_mapping;
+        } else {
+            user_strategy_data = UserStrategyInfo::new(user_strategy.clone());
+            if strategy_supports_airdrops(&strategy_info) {
+                user_strategy_data.airdrop_pointer =
+                    strategy_metadata.global_airdrop_pointer.clone();
+            }
+        }
+
         // update user shares based on the S/T ratio
         let user_shares = decimal_multiplication_in_256(
             shares_per_token_ratio,
             Decimal::from_ratio(user_amount, 1_u128),
         );
+
+        user_strategy_data.shares =
+            decimal_summation_in_256(user_strategy_data.shares, user_shares);
 
         // update total strategy shares by adding up the user_shares
         strategy_metadata.total_shares =
@@ -344,6 +371,12 @@ pub fn try_update_user_rewards(
             msg: to_binary(&sic_execute_msg::TransferRewards {}).unwrap(),
             funds: vec![Coin::new(user_amount.u128(), state.scc_denom.clone())],
         });
+
+        // save up the states
+        STRATEGY_METADATA_MAP.save(deps.storage, user_strategy.clone(), &strategy_metadata);
+
+        user_reward_info.strategies.push(user_strategy_data);
+        USER_REWARD_INFO_MAP.save(deps.storage, &user_addr, &user_reward_info);
     }
 
     Ok(Response::new().add_messages(messages))
@@ -383,15 +416,15 @@ pub fn try_update_user_airdrops(
         );
 
         // fetch the user rewards info
-        let mut user_reward_info = UserRewardInfo::default();
+        let mut user_reward_info = UserRewardInfo::new();
         if let Some(user_reward_info_mapping) =
             USER_REWARD_INFO_MAP.may_load(deps.storage, &user).unwrap()
         {
             user_reward_info = user_reward_info_mapping;
         }
 
-        user_reward_info.pending_pool_airdrops = merge_coin_vector(
-            user_reward_info.pending_pool_airdrops,
+        user_reward_info.pending_airdrops = merge_coin_vector(
+            user_reward_info.pending_airdrops,
             CoinVecOp {
                 fund: user_airdrops,
                 operation: Operation::Add,
@@ -596,27 +629,47 @@ mod tests {
         /*
            Test - 2. updating the user airdrops with existing user_airdrops
         */
-        STATE.update(deps.as_mut().storage, |mut state| -> Result<_, ContractError> {
-            state.total_accumulated_airdrops = vec![Coin::new(100_u128, "abc"), Coin::new(200_u128, "def")];
-            Ok(state)
-        });
+        STATE.update(
+            deps.as_mut().storage,
+            |mut state| -> Result<_, ContractError> {
+                state.total_accumulated_airdrops =
+                    vec![Coin::new(100_u128, "abc"), Coin::new(200_u128, "def")];
+                Ok(state)
+            },
+        );
 
-        USER_REWARD_INFO_MAP.save(deps.as_mut().storage, &user1, &UserRewardInfo {
-            strategy_map: vec![],
-            pending_pool_airdrops: vec![Coin::new(10_u128, "abc"), Coin::new(200_u128, "def")]
-        });
-        USER_REWARD_INFO_MAP.save(deps.as_mut().storage, &user2, &UserRewardInfo {
-            strategy_map: vec![],
-            pending_pool_airdrops: vec![Coin::new(20_u128, "abc"), Coin::new(100_u128, "def")]
-        });
-        USER_REWARD_INFO_MAP.save(deps.as_mut().storage, &user3, &UserRewardInfo {
-            strategy_map: vec![],
-            pending_pool_airdrops: vec![Coin::new(30_u128, "abc"), Coin::new(50_u128, "def")]
-        });
-        USER_REWARD_INFO_MAP.save(deps.as_mut().storage, &user4, &UserRewardInfo {
-            strategy_map: vec![],
-            pending_pool_airdrops: vec![Coin::new(40_u128, "abc"), Coin::new(80_u128, "def")]
-        });
+        USER_REWARD_INFO_MAP.save(
+            deps.as_mut().storage,
+            &user1,
+            &UserRewardInfo {
+                strategies: vec![],
+                pending_airdrops: vec![Coin::new(10_u128, "abc"), Coin::new(200_u128, "def")],
+            },
+        );
+        USER_REWARD_INFO_MAP.save(
+            deps.as_mut().storage,
+            &user2,
+            &UserRewardInfo {
+                strategies: vec![],
+                pending_airdrops: vec![Coin::new(20_u128, "abc"), Coin::new(100_u128, "def")],
+            },
+        );
+        USER_REWARD_INFO_MAP.save(
+            deps.as_mut().storage,
+            &user3,
+            &UserRewardInfo {
+                strategies: vec![],
+                pending_airdrops: vec![Coin::new(30_u128, "abc"), Coin::new(50_u128, "def")],
+            },
+        );
+        USER_REWARD_INFO_MAP.save(
+            deps.as_mut().storage,
+            &user4,
+            &UserRewardInfo {
+                strategies: vec![],
+                pending_airdrops: vec![Coin::new(40_u128, "abc"), Coin::new(80_u128, "def")],
+            },
+        );
 
         let res = execute(
             deps.as_mut(),

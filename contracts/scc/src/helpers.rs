@@ -1,4 +1,7 @@
-use crate::state::{StrategyInfo, StrategyMetadata, STRATEGY_INFO_MAP, STRATEGY_METADATA_MAP};
+use crate::state::{
+    StrategyInfo, StrategyMetadata, UserRewardInfo, UserStrategyInfo, STRATEGY_INFO_MAP,
+    STRATEGY_METADATA_MAP, USER_REWARD_INFO_MAP,
+};
 use crate::utils::{decimal_multiplication_in_256, decimal_subtraction_in_256};
 use cosmwasm_std::{
     Addr, Decimal, Fraction, QuerierWrapper, Response, Storage, Timestamp, Uint128,
@@ -37,6 +40,27 @@ pub fn get_sic_total_tokens(querier: QuerierWrapper, sic_address: &Addr) -> GetT
     querier
         .query_wasm_smart(sic_address, &sic_msg::GetTotalTokens {})
         .unwrap()
+}
+
+pub fn get_user_strategy_data(
+    user_reward_info: &UserRewardInfo,
+    strategy_name: String,
+) -> Option<UserStrategyInfo> {
+    for strategy in user_reward_info.strategies {
+        if strategy.strategy_name.eq(&strategy_name) {
+            return Some(strategy);
+        }
+    }
+
+    None
+}
+
+pub fn strategy_supports_airdrops(strategy_info: &StrategyInfo) -> bool {
+    if strategy_info.supported_airdrops.is_empty() {
+        return false;
+    }
+
+    true
 }
 
 #[cfg(test)]
