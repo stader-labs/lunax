@@ -1,18 +1,25 @@
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::contract::{execute, instantiate, query};
+    use crate::error::ContractError;
+    use crate::msg::{ExecuteMsg, GetStateResponse, InstantiateMsg, QueryMsg};
+    use crate::state::{
+        BatchUndelegationRecord, StakeQuota, State, STATE, UNDELEGATION_INFO_LEDGER,
+        VALIDATORS_TO_STAKED_QUOTA,
+    };
     use crate::test_helpers::check_equal_vec;
     use cosmwasm_std::testing::{
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
         MOCK_CONTRACT_ADDR,
     };
-    use cosmwasm_std::{coins, from_binary, Empty, FullDelegation, OwnedDeps, SubMsg, Validator, Coin, DistributionMsg, Addr, Uint128, Decimal, BankMsg, StdResult, StakingMsg, MessageInfo, Env, Response, Binary, WasmMsg, to_binary};
-    use crate::state::{STATE, UNDELEGATION_INFO_LEDGER, BatchUndelegationRecord, VALIDATORS_TO_STAKED_QUOTA, StakeQuota, State};
-    use crate::msg::{ExecuteMsg, InstantiateMsg, GetStateResponse, QueryMsg};
-    use crate::contract::{execute, instantiate, query};
-    use cw_storage_plus::U64Key;
-    use crate::error::ContractError;
+    use cosmwasm_std::{
+        coins, from_binary, to_binary, Addr, BankMsg, Binary, Coin, Decimal, DistributionMsg,
+        Empty, Env, FullDelegation, MessageInfo, OwnedDeps, Response, StakingMsg, StdResult,
+        SubMsg, Uint128, Validator, WasmMsg,
+    };
     use cw20::Cw20ExecuteMsg;
+    use cw_storage_plus::U64Key;
 
     fn get_validators() -> Vec<Validator> {
         vec![
@@ -156,7 +163,7 @@ mod tests {
                 claim_msg: get_airdrop_claim_msg(),
             },
         )
-            .unwrap_err();
+        .unwrap_err();
         assert!(matches!(err, ContractError::Unauthorized {}));
     }
 
@@ -195,7 +202,7 @@ mod tests {
                 claim_msg: get_airdrop_claim_msg(),
             },
         )
-            .unwrap();
+        .unwrap();
         assert_eq!(res.messages.len(), 1);
         assert_eq!(
             res.messages[0],
@@ -236,7 +243,7 @@ mod tests {
                 claim_msg: get_airdrop_claim_msg(),
             },
         )
-            .unwrap();
+        .unwrap();
         assert_eq!(res.messages.len(), 1);
         assert_eq!(
             res.messages[0],
@@ -290,7 +297,7 @@ mod tests {
                 user: user.clone(),
             },
         )
-            .unwrap_err();
+        .unwrap_err();
         assert!(matches!(err, ContractError::Unauthorized {}));
 
         STATE.update(
@@ -313,7 +320,7 @@ mod tests {
                 user: user.clone(),
             },
         )
-            .unwrap_err();
+        .unwrap_err();
         assert!(matches!(err, ContractError::NotEnoughAirdrops(..)))
     }
 
@@ -359,7 +366,7 @@ mod tests {
                 user: user.clone(),
             },
         )
-            .unwrap();
+        .unwrap();
         assert_eq!(res.messages.len(), 1);
         assert_eq!(
             res.messages,
@@ -369,7 +376,7 @@ mod tests {
                     recipient: String::from(user),
                     amount: Uint128::new(500_u128),
                 })
-                    .unwrap(),
+                .unwrap(),
                 funds: vec![],
             })]
         );
@@ -411,7 +418,7 @@ mod tests {
                 amount: Uint128::new(1000_u128),
             },
         )
-            .unwrap_err();
+        .unwrap_err();
         assert!(matches!(err, ContractError::Unauthorized {}));
 
         let mut err = execute(
@@ -422,7 +429,7 @@ mod tests {
                 amount: Uint128::zero(),
             },
         )
-            .unwrap_err();
+        .unwrap_err();
         assert!(matches!(err, ContractError::ZeroUndelegation {}));
     }
 
@@ -481,7 +488,7 @@ mod tests {
                 amount: Uint128::new(500_u128),
             },
         )
-            .unwrap();
+        .unwrap();
         let state_response: GetStateResponse =
             from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::GetState {}).unwrap())
                 .unwrap();
@@ -563,7 +570,7 @@ mod tests {
                 undelegation_batch_id: 1,
             },
         )
-            .unwrap_err();
+        .unwrap_err();
         assert!(matches!(err, ContractError::Unauthorized {}));
 
         let mut err = execute(
@@ -574,7 +581,7 @@ mod tests {
                 undelegation_batch_id: 1,
             },
         )
-            .unwrap_err();
+        .unwrap_err();
         assert!(matches!(
             err,
             ContractError::NonExistentUndelegationBatch {}
@@ -599,7 +606,7 @@ mod tests {
                 undelegation_batch_id: 1,
             },
         )
-            .unwrap_err();
+        .unwrap_err();
         assert!(matches!(
             err,
             ContractError::UndelegationBatchInUnbondingPeriod(1)
@@ -657,7 +664,7 @@ mod tests {
                 undelegation_batch_id: 1,
             },
         )
-            .unwrap();
+        .unwrap();
         let state_response: GetStateResponse =
             from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::GetState {}).unwrap())
                 .unwrap();
@@ -704,7 +711,7 @@ mod tests {
                 undelegation_batch_id: 1,
             },
         )
-            .unwrap();
+        .unwrap();
         let state_response: GetStateResponse =
             from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::GetState {}).unwrap())
                 .unwrap();
@@ -754,7 +761,7 @@ mod tests {
                 amount: Uint128::new(1000_u128),
             },
         )
-            .unwrap_err();
+        .unwrap_err();
         assert!(matches!(err, ContractError::Unauthorized {}));
 
         let mut err = execute(
@@ -767,7 +774,7 @@ mod tests {
                 amount: Uint128::new(0_u128),
             },
         )
-            .unwrap_err();
+        .unwrap_err();
         assert!(matches!(err, ContractError::ZeroWithdrawal {}));
 
         let mut err = execute(
@@ -780,7 +787,7 @@ mod tests {
                 amount: Uint128::new(100_u128),
             },
         )
-            .unwrap_err();
+        .unwrap_err();
         assert!(matches!(
             err,
             ContractError::NonExistentUndelegationBatch {}
@@ -807,7 +814,7 @@ mod tests {
                 amount: Uint128::new(100_u128),
             },
         )
-            .unwrap_err();
+        .unwrap_err();
         assert!(matches!(err, ContractError::SlashingNotChecked { .. }));
 
         UNDELEGATION_INFO_LEDGER.save(
@@ -831,7 +838,7 @@ mod tests {
                 amount: Uint128::new(100_u128),
             },
         )
-            .unwrap_err();
+        .unwrap_err();
         assert!(matches!(err, ContractError::DepositInUnbondingPeriod {}));
 
         UNDELEGATION_INFO_LEDGER.save(
@@ -855,7 +862,7 @@ mod tests {
                 amount: Uint128::new(100_u128),
             },
         )
-            .unwrap_err();
+        .unwrap_err();
         assert!(matches!(
             err,
             ContractError::InsufficientFundsInUndelegationBatch(1)
@@ -884,8 +891,8 @@ mod tests {
         let user: Addr = Addr::unchecked("user");
 
         /*
-            Test - 1. There is no slashing.
-         */
+           Test - 1. There is no slashing.
+        */
 
         STATE.update(
             deps.as_mut().storage,
@@ -915,7 +922,7 @@ mod tests {
                 amount: Uint128::new(100_u128),
             },
         )
-            .unwrap();
+        .unwrap();
         assert_eq!(res.messages.len(), 1);
         assert_eq!(
             res.messages[0],
@@ -932,8 +939,8 @@ mod tests {
         assert_eq!(state.current_undelegation_funds, Uint128::new(900_u128));
 
         /*
-            Test - 2. There is slashing
-         */
+           Test - 2. There is slashing
+        */
         STATE.update(
             deps.as_mut().storage,
             |mut state| -> Result<_, ContractError> {
@@ -961,7 +968,8 @@ mod tests {
                 undelegation_batch_id: 1,
                 amount: Uint128::new(100_u128),
             },
-        ).unwrap();
+        )
+        .unwrap();
         assert_eq!(res.messages.len(), 1);
         assert_eq!(
             res.messages[0],
@@ -1003,7 +1011,7 @@ mod tests {
             mock_info("not-creator", &[]),
             ExecuteMsg::Reinvest {},
         )
-            .unwrap_err();
+        .unwrap_err();
         assert!(matches!(err, ContractError::Unauthorized {}));
 
         let mut err = execute(
@@ -1012,7 +1020,7 @@ mod tests {
             mock_info("creator", &[]),
             ExecuteMsg::Reinvest {},
         )
-            .unwrap_err();
+        .unwrap_err();
         assert!(matches!(err, ContractError::NoUninvestedRewards {}));
     }
 
@@ -1082,7 +1090,8 @@ mod tests {
             env.clone(),
             mock_info("creator", &[Coin::new(100_u128, "uluna")]),
             ExecuteMsg::Reinvest {},
-        ).unwrap();
+        )
+        .unwrap();
         let state_response: GetStateResponse =
             from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::GetState {}).unwrap())
                 .unwrap();
@@ -1160,7 +1169,7 @@ mod tests {
             mock_info("creator", &[Coin::new(100_u128, "uluna")]),
             ExecuteMsg::Reinvest {},
         )
-            .unwrap();
+        .unwrap();
         let state_response: GetStateResponse =
             from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::GetState {}).unwrap())
                 .unwrap();
@@ -1236,7 +1245,7 @@ mod tests {
             mock_info("creator", &[Coin::new(100_u128, "uluna")]),
             ExecuteMsg::Reinvest {},
         )
-            .unwrap();
+        .unwrap();
         let state_response: GetStateResponse =
             from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::GetState {}).unwrap())
                 .unwrap();
@@ -1305,7 +1314,7 @@ mod tests {
             mock_info("not-scc-contract", &[]),
             ExecuteMsg::TransferRewards {},
         )
-            .unwrap_err();
+        .unwrap_err();
         assert!(matches!(err, ContractError::Unauthorized {}));
 
         let mut err = execute(
@@ -1314,7 +1323,7 @@ mod tests {
             mock_info(&*get_scc_contract_address(), &[]),
             ExecuteMsg::TransferRewards {},
         )
-            .unwrap_err();
+        .unwrap_err();
         assert!(matches!(err, ContractError::NoFundsSent {}));
 
         let mut err = execute(
@@ -1323,7 +1332,7 @@ mod tests {
             mock_info(&*get_scc_contract_address(), &[]),
             ExecuteMsg::TransferRewards {},
         )
-            .unwrap_err();
+        .unwrap_err();
         assert!(matches!(err, ContractError::NoFundsSent {}));
 
         let mut err = execute(
@@ -1335,7 +1344,7 @@ mod tests {
             ),
             ExecuteMsg::TransferRewards {},
         )
-            .unwrap_err();
+        .unwrap_err();
         assert!(matches!(err, ContractError::MultipleCoins {}));
 
         let mut err = execute(
@@ -1344,7 +1353,7 @@ mod tests {
             mock_info(&*get_scc_contract_address(), &[Coin::new(10_u128, "abc")]),
             ExecuteMsg::TransferRewards {},
         )
-            .unwrap_err();
+        .unwrap_err();
         assert!(matches!(err, ContractError::WrongDenom { .. }));
     }
 
@@ -1379,7 +1388,7 @@ mod tests {
             ),
             ExecuteMsg::TransferRewards {},
         )
-            .unwrap();
+        .unwrap();
 
         let state_response: GetStateResponse =
             from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::GetState {}).unwrap())
@@ -1405,7 +1414,7 @@ mod tests {
             ),
             ExecuteMsg::TransferRewards {},
         )
-            .unwrap();
+        .unwrap();
 
         let state_response: GetStateResponse =
             from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::GetState {}).unwrap())
@@ -1440,7 +1449,7 @@ mod tests {
             mock_info("not-creator", &[]),
             ExecuteMsg::RedeemRewards {},
         )
-            .unwrap_err();
+        .unwrap_err();
         assert!(matches!(err, ContractError::Unauthorized {}));
     }
 
@@ -1472,7 +1481,7 @@ mod tests {
             mock_info("creator", &[]),
             ExecuteMsg::RedeemRewards {},
         )
-            .unwrap();
+        .unwrap();
         assert_eq!(res.messages.len(), 2);
         assert_eq!(
             res.messages,

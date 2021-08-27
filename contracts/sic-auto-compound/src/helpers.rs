@@ -50,19 +50,14 @@ mod tests {
         let banks_msgs: Vec<BankMsg> = get_bank_msg(recipient.clone(), coins_to_send);
         assert!(check_equal_vec(
             banks_msgs,
-            vec![
-                BankMsg::Send {
-                    to_address: String::from(recipient.clone()),
-                    amount: vec![Coin::new(100_u128, "uluna")]
-                },
-            ]
+            vec![BankMsg::Send {
+                to_address: String::from(recipient.clone()),
+                amount: vec![Coin::new(100_u128, "uluna")]
+            },]
         ));
 
         let coins_to_send = vec![Coin::new(0_u128, "uluna"), Coin::new(0_u128, "uluna")];
         let banks_msgs: Vec<BankMsg> = get_bank_msg(recipient.clone(), coins_to_send);
-        assert!(check_equal_vec(
-            banks_msgs,
-            vec![]
-        ));
+        assert!(check_equal_vec(banks_msgs, vec![]));
     }
 }
