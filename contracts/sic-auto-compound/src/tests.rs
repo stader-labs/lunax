@@ -8,7 +8,6 @@ mod tests {
         BatchUndelegationRecord, StakeQuota, State, STATE, UNDELEGATION_INFO_LEDGER,
         VALIDATORS_TO_STAKED_QUOTA,
     };
-    use crate::test_helpers::check_equal_vec;
     use cosmwasm_std::testing::{
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
         MOCK_CONTRACT_ADDR,
@@ -19,6 +18,7 @@ mod tests {
         Validator,
     };
     use cw_storage_plus::U64Key;
+    use stader_utils::test_helpers::check_equal_vec;
 
     fn get_validators() -> Vec<Validator> {
         vec![
