@@ -108,11 +108,11 @@ impl UserStrategyInfo {
             airdrop_pointer: vec![],
         }
     }
-    pub fn new(strategy_name: String) -> Self {
+    pub fn new(strategy_name: String, airdrop_pointer: Vec<DecCoin>) -> Self {
         UserStrategyInfo {
             strategy_name,
             shares: Decimal::zero(),
-            airdrop_pointer: vec![],
+            airdrop_pointer,
         }
     }
 }

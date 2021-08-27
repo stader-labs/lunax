@@ -149,16 +149,18 @@ pub fn try_register_strategy(
         return Err(ContractError::Unauthorized {});
     }
 
-    if let Some(_) = STRATEGY_INFO_MAP
+    if STRATEGY_INFO_MAP
         .may_load(deps.storage, strategy_id.clone())
         .unwrap()
+        .is_some()
     {
         return Err(ContractError::StrategyInfoAlreadyExists {});
     }
 
-    if let Some(_) = STRATEGY_METADATA_MAP
+    if STRATEGY_METADATA_MAP
         .may_load(deps.storage, strategy_id.clone())
         .unwrap()
+        .is_some()
     {
         return Err(ContractError::StrategyMetadataAlreadyExists {});
     }
@@ -167,7 +169,7 @@ pub fn try_register_strategy(
         deps.storage,
         strategy_id.clone(),
         &StrategyInfo {
-            name: strategy_id.clone().to_string(),
+            name: strategy_id.clone(),
             sic_contract_address,
             unbonding_period,
             supported_airdrops,
@@ -176,7 +178,7 @@ pub fn try_register_strategy(
     )?;
     STRATEGY_METADATA_MAP.save(
         deps.storage,
-        strategy_id.clone(),
+        strategy_id,
         &StrategyMetadata {
             name: strategy_id.to_string(),
             total_shares: Decimal::zero(),
@@ -279,7 +281,6 @@ pub fn try_update_user_rewards(
     }
 
     let mut messages: Vec<WasmMsg> = vec![];
-    let mut logs: Vec<Attribute> = vec![];
     // iterate thru all requests
     for user_request in update_user_rewards_requests {
         let user_strategy = user_request.strategy_id;
@@ -311,8 +312,8 @@ pub fn try_update_user_rewards(
         // fetch the total tokens from the SIC contract and update the S/T ratio for the strategy
         let total_tokens = get_sic_total_tokens(deps.querier, &strategy_info.sic_contract_address)
             .total_tokens
-            .unwrap_or_else(|| Uint128::zero());
-        let mut shares_per_token_ratio = Decimal::one();
+            .unwrap_or_else(Uint128::zero());
+        let mut shares_per_token_ratio = Decimal::from_ratio(100_000_000_u128, 1_u128);
         if !total_tokens.is_zero() {
             shares_per_token_ratio = decimal_division_in_256(
                 strategy_metadata.total_shares,
@@ -332,26 +333,43 @@ pub fn try_update_user_rewards(
         // update the user airdrop pointer and allocate the user pending airdrops for each strategy
         let mut user_strategy_data: UserStrategyInfo;
         if let Some(user_strategy_data_mapping) =
-            get_user_strategy_data(&user_reward_info, user_strategy.clone())
+            get_user_strategy_data(user_reward_info.strategies.clone(), user_strategy.clone())
         {
             user_strategy_data = user_strategy_data_mapping;
         } else {
-            user_strategy_data = UserStrategyInfo::new(user_strategy.clone());
-            if strategy_supports_airdrops(&strategy_info) {
-                user_strategy_data.airdrop_pointer =
-                    strategy_metadata.global_airdrop_pointer.clone();
+            user_strategy_data = UserStrategyInfo::new(
+                user_strategy.clone(),
+                strategy_metadata.global_airdrop_pointer.clone(),
+            );
+        }
+
+        // update the user_airdrops
+        let mut user_airdrops: Vec<Coin> = vec![];
+        if strategy_supports_airdrops(&strategy_info) {
+            if let Some(new_user_airdrops) = get_user_airdrops(
+                strategy_metadata.global_airdrop_pointer.clone(),
+                user_strategy_data.airdrop_pointer,
+                user_strategy_data.shares,
+            ) {
+                user_airdrops = new_user_airdrops;
             }
         }
+        user_strategy_data.airdrop_pointer = strategy_metadata.global_airdrop_pointer.clone();
+        user_reward_info.pending_airdrops = merge_coin_vector(
+            user_reward_info.pending_airdrops,
+            CoinVecOp {
+                fund: user_airdrops,
+                operation: Operation::Add,
+            },
+        );
 
         // update user shares based on the S/T ratio
         let user_shares = decimal_multiplication_in_256(
             shares_per_token_ratio,
             Decimal::from_ratio(user_amount, 1_u128),
         );
-
         user_strategy_data.shares =
             decimal_summation_in_256(user_strategy_data.shares, user_shares);
-
         // update total strategy shares by adding up the user_shares
         strategy_metadata.total_shares =
             decimal_summation_in_256(strategy_metadata.total_shares, user_shares);

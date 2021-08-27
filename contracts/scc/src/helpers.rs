@@ -43,10 +43,10 @@ pub fn get_sic_total_tokens(querier: QuerierWrapper, sic_address: &Addr) -> GetT
 }
 
 pub fn get_user_strategy_data(
-    user_reward_info: &UserRewardInfo,
+    strategies: Vec<UserStrategyInfo>,
     strategy_name: String,
 ) -> Option<UserStrategyInfo> {
-    for strategy in user_reward_info.strategies {
+    for strategy in strategies {
         if strategy.strategy_name.eq(&strategy_name) {
             return Some(strategy);
         }
