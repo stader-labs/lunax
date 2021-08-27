@@ -97,20 +97,6 @@ pub fn execute(
             amount,
             claim_msg,
         ),
-        ExecuteMsg::WithdrawAirdrops {
-            airdrop_token_contract,
-            airdrop_token,
-            amount,
-            user,
-        } => try_withdraw_airdrops(
-            deps,
-            _env,
-            info,
-            airdrop_token_contract,
-            airdrop_token,
-            amount,
-            user,
-        ),
     }
 }
 
@@ -146,53 +132,6 @@ pub fn try_claim_airdrops(
     })?;
 
     Ok(Response::new().add_messages(messages))
-}
-
-pub fn try_withdraw_airdrops(
-    deps: DepsMut,
-    _env: Env,
-    info: MessageInfo,
-    airdrop_token_contract: Addr,
-    airdrop_token: String,
-    amount: Uint128,
-    user: Addr,
-) -> Result<Response<TerraMsgWrapper>, ContractError> {
-    let state = STATE.load(deps.storage)?;
-    if info.sender != state.scc_address {
-        return Err(ContractError::Unauthorized {});
-    }
-
-    let current_airdrop_amount = state
-        .accumulated_vault_airdrops
-        .iter()
-        .find(|&x| x.denom.eq(&airdrop_token))
-        .cloned()
-        .unwrap_or_else(|| Coin::new(0, airdrop_token.clone()))
-        .amount;
-    if current_airdrop_amount.lt(&amount) {
-        return Err(ContractError::NotEnoughAirdrops(airdrop_token));
-    }
-
-    STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
-        state.accumulated_vault_airdrops = merge_coin_vector(
-            state.accumulated_vault_airdrops,
-            CoinVecOp {
-                fund: vec![Coin::new(amount.u128(), airdrop_token)],
-                operation: Operation::Sub,
-            },
-        );
-        Ok(state)
-    })?;
-
-    Ok(Response::new().add_message(WasmMsg::Execute {
-        contract_addr: String::from(airdrop_token_contract),
-        msg: to_binary(&Cw20ExecuteMsg::Transfer {
-            recipient: String::from(user),
-            amount,
-        })
-        .unwrap(),
-        funds: vec![],
-    }))
 }
 
 pub fn try_reconcile_undelegation_batch(
