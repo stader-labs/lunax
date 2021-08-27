@@ -220,8 +220,7 @@ mod tests {
                 }),
                 SubMsg::new(WasmMsg::Execute {
                     contract_addr: cw20_token_contract.to_string(),
-                    msg: to_binary(&cw20::Cw20ExecuteMsg::TransferFrom {
-                        owner: env.contract.address.to_string(),
+                    msg: to_binary(&cw20::Cw20ExecuteMsg::Transfer {
                         recipient: scc_address.to_string(),
                         amount: Uint128::new(1000_u128)
                     })
@@ -274,8 +273,7 @@ mod tests {
                 }),
                 SubMsg::new(WasmMsg::Execute {
                     contract_addr: cw20_token_contract.to_string(),
-                    msg: to_binary(&cw20::Cw20ExecuteMsg::TransferFrom {
-                        owner: env.contract.address.to_string(),
+                    msg: to_binary(&cw20::Cw20ExecuteMsg::Transfer {
                         recipient: scc_address.to_string(),
                         amount: Uint128::new(1000_u128)
                     })

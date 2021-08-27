@@ -137,8 +137,7 @@ pub fn try_claim_airdrops(
     // transfer the ownership from SIC to SCC
     messages.push(WasmMsg::Execute {
         contract_addr: cw20_token_contract.to_string(),
-        msg: to_binary(&cw20::Cw20ExecuteMsg::TransferFrom {
-            owner: _env.contract.address.to_string(),
+        msg: to_binary(&cw20::Cw20ExecuteMsg::Transfer {
             recipient: state.scc_address.to_string(),
             amount,
         })
