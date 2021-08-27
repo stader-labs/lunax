@@ -85,6 +85,7 @@ pub fn execute(
         ExecuteMsg::Swap {} => try_swap(deps, _env, info),
         ExecuteMsg::ClaimAirdrops {
             airdrop_token_contract,
+            cw20_token_contract,
             airdrop_token,
             amount,
             claim_msg,
@@ -93,6 +94,7 @@ pub fn execute(
             _env,
             info,
             airdrop_token_contract,
+            cw20_token_contract,
             airdrop_token,
             amount,
             claim_msg,
@@ -105,6 +107,7 @@ pub fn try_claim_airdrops(
     _env: Env,
     info: MessageInfo,
     airdrop_token_contract: Addr,
+    cw20_token_contract: Addr,
     airdrop_token: String,
     amount: Uint128,
     claim_msg: Binary,
@@ -114,7 +117,7 @@ pub fn try_claim_airdrops(
         return Err(ContractError::Unauthorized {});
     }
 
-    let messages: Vec<WasmMsg> = vec![WasmMsg::Execute {
+    let mut messages: Vec<WasmMsg> = vec![WasmMsg::Execute {
         contract_addr: airdrop_token_contract.to_string(),
         msg: claim_msg,
         funds: vec![],
@@ -130,6 +133,18 @@ pub fn try_claim_airdrops(
         );
         Ok(state)
     })?;
+
+    // transfer the ownership from SIC to SCC
+    messages.push(WasmMsg::Execute {
+        contract_addr: cw20_token_contract.to_string(),
+        msg: to_binary(&cw20::Cw20ExecuteMsg::TransferFrom {
+            owner: _env.contract.address.to_string(),
+            recipient: state.scc_address.to_string(),
+            amount,
+        })
+        .unwrap(),
+        funds: vec![],
+    });
 
     Ok(Response::new().add_messages(messages))
 }

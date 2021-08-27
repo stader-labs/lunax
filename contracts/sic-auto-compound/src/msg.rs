@@ -37,6 +37,8 @@ pub enum ExecuteMsg {
     // The ownership of the airdrops is transferred back to the SCC.
     ClaimAirdrops {
         airdrop_token_contract: Addr,
+        // used to transfer ownership from SIC to SCC
+        cw20_token_contract: Addr,
         airdrop_token: String,
         amount: Uint128,
         claim_msg: Binary,
