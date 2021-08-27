@@ -1,24 +1,22 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{
-    to_binary, Addr, Attribute, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo,
-    Response, StdError, StdResult, Timestamp, Uint128, WasmMsg,
-};
+use cosmwasm_std::{to_binary, Addr, Attribute, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env, Fraction, MessageInfo, Response, StdError, StdResult, Timestamp, Uint128, WasmMsg, attr};
 
 use crate::error::ContractError;
-use crate::helpers::{get_sic_total_tokens, get_user_strategy_data, strategy_supports_airdrops};
+use crate::helpers::{get_sic_total_tokens, strategy_supports_airdrops, get_user_strategy_data};
 use crate::msg::{
     ExecuteMsg, InstantiateMsg, QueryMsg, StateResponse, UpdateUserAirdropsRequest,
     UpdateUserRewardsRequest,
 };
 use crate::state::{
-    State, StrategyInfo, StrategyMetadata, UserRewardInfo, UserStrategyInfo, STATE,
-    STRATEGY_INFO_MAP, STRATEGY_METADATA_MAP, USER_REWARD_INFO_MAP,
+    DecCoin, State, StrategyInfo, StrategyMetadata, UserRewardInfo, UserStrategyInfo,
+    AIRDROP_CONTRACTS_REGISTRY, CW20_TOKEN_CONTRACTS_REGISTRY, STATE, STRATEGY_INFO_MAP,
+    STRATEGY_METADATA_MAP, USER_REWARD_INFO_MAP,
 };
 use crate::user::get_user_airdrops;
 use crate::utils::{
     decimal_division_in_256, decimal_multiplication_in_256, decimal_summation_in_256,
-    merge_coin_vector, CoinVecOp, Operation,
+    merge_coin_vector, merge_dec_coin_vector, CoinVecOp, DecCoinVecOp, Operation,
 };
 use sic_base::msg::{ExecuteMsg as sic_execute_msg, QueryMsg as sic_query_msg};
 use std::borrow::Borrow;
@@ -87,15 +85,60 @@ pub fn execute(
             amount,
             strategy_id,
         } => try_undelegate_rewards(deps, _env, info, amount, strategy_id),
-        ExecuteMsg::ClaimAirdrops { strategy_id } => {
-            try_claim_airdrops(deps, _env, info, strategy_id)
-        }
+        ExecuteMsg::ClaimAirdrops {
+            strategy_id,
+            amount,
+            denom,
+            claim_msg,
+        } => try_claim_airdrops(deps, _env, info, strategy_id, amount, denom, claim_msg),
         ExecuteMsg::WithdrawRewards {
             undelegation_timestamp,
             strategy_id,
         } => try_withdraw_rewards(deps, _env, info, undelegation_timestamp, strategy_id),
         ExecuteMsg::WithdrawAirdrops {} => try_withdraw_airdrops(deps, _env, info),
+        ExecuteMsg::RegisterAirdropContract {
+            denom,
+            airdrop_contract,
+        } => try_update_airdrop_contracts_registry(deps, _env, info, denom, airdrop_contract),
+        ExecuteMsg::RegsiterCW20Contract {
+            denom,
+            cw20_contract,
+        } => try_update_cw20_contracts_registry(deps, _env, info, denom, cw20_contract),
     }
+}
+
+pub fn try_update_airdrop_contracts_registry(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    denom: String,
+    airdrop_contract: Addr,
+) -> Result<Response, ContractError> {
+    let state = STATE.load(deps.storage).unwrap();
+    if state.manager != info.sender {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    AIRDROP_CONTRACTS_REGISTRY.save(deps.storage, denom, &airdrop_contract);
+
+    Ok(Response::default())
+}
+
+pub fn try_update_cw20_contracts_registry(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    denom: String,
+    cw20_contract: Addr,
+) -> Result<Response, ContractError> {
+    let state = STATE.load(deps.storage).unwrap();
+    if state.manager != info.sender {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    CW20_TOKEN_CONTRACTS_REGISTRY.save(deps.storage, denom, &cw20_contract);
+
+    Ok(Response::default())
 }
 
 pub fn try_undelegate_rewards(
@@ -113,8 +156,128 @@ pub fn try_claim_airdrops(
     _env: Env,
     info: MessageInfo,
     strategy_id: String,
+    amount: Uint128,
+    denom: String,
+    claim_msg: Binary,
 ) -> Result<Response, ContractError> {
-    Ok(Response::default())
+    let state = STATE.load(deps.storage).unwrap();
+    if info.sender != state.manager {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    let mut airdrop_contract: Addr;
+    if let Some(airdrop_contract_mapping) = AIRDROP_CONTRACTS_REGISTRY
+        .may_load(deps.storage, denom.clone())
+        .unwrap()
+    {
+        airdrop_contract = airdrop_contract_mapping;
+    } else {
+        return Err(ContractError::AirdropNotRegistered {});
+    }
+
+    let sic_address: Addr;
+    if let Some(strategy_info) = STRATEGY_INFO_MAP
+        .may_load(deps.storage, denom.clone())
+        .unwrap()
+    {
+        if !strategy_supports_airdrops(&strategy_info) {
+            return Err(ContractError::StrategyDoesNotSupportAirdrop {});
+        }
+        sic_address = strategy_info.sic_contract_address;
+    } else {
+        return Err(ContractError::StrategyInfoDoesNotExist {});
+    }
+
+    let mut strategy_metadata: StrategyMetadata;
+    if let Some(strategy_metadata_mapping) = STRATEGY_METADATA_MAP
+        .may_load(deps.storage, denom.clone())
+        .unwrap()
+    {
+        strategy_metadata = strategy_metadata_mapping;
+    } else {
+        return Err(ContractError::StrategyMetadataDoesNotExist {});
+    }
+
+    let total_shares = strategy_metadata.total_shares;
+
+    strategy_metadata.total_airdrops_accumulated = merge_coin_vector(
+        strategy_metadata.total_airdrops_accumulated,
+        CoinVecOp {
+            fund: vec![Coin::new(amount.u128(), denom.clone())],
+            operation: Operation::Add,
+        },
+    );
+
+    strategy_metadata.global_airdrop_pointer = merge_dec_coin_vector(
+        &strategy_metadata.global_airdrop_pointer,
+        DecCoinVecOp {
+            fund: vec![DecCoin {
+                amount: decimal_multiplication_in_256(
+                    Decimal::from_ratio(amount, 1_u128),
+                    total_shares.inv().unwrap(),
+                ),
+                denom: denom.clone(),
+            }],
+            operation: Operation::Add,
+        },
+    );
+
+    STRATEGY_METADATA_MAP.save(deps.storage, strategy_id, &strategy_metadata);
+
+    Ok(Response::new().add_message(WasmMsg::Execute {
+        contract_addr: String::from(sic_address),
+        msg: to_binary(&sic_execute_msg::ClaimAirdrops {
+            airdrop_token_contract: airdrop_contract,
+            airdrop_token: denom,
+            amount,
+            claim_msg,
+        }).unwrap(),
+        funds: vec![],
+    }))
+}
+
+pub fn try_withdraw_airdrops(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+) -> Result<Response, ContractError> {
+    // transfer the airdrops in pending_airdrops vector in user_reward_info to the user
+    let user_addr = info.sender;
+
+    let user_reward_info: UserRewardInfo;
+    match USER_REWARD_INFO_MAP.may_load(deps.storage, &user_addr).unwrap() {
+        None => {
+            return Err(ContractError::UserRewardInfoDoesNotExist {})
+        }
+        Some(user_reward_info_mapping) => {
+            user_reward_info = user_reward_info_mapping;
+        }
+    }
+
+    let mut messages: Vec<WasmMsg> = vec![];
+    let mut logs: Vec<Attribute> = vec![];
+    let user_airdrops = user_reward_info.pending_airdrops;
+    for user_airdrop in user_airdrops {
+        let airdrop_denom = user_airdrop.denom;
+        let airdrop_amount = user_airdrop.amount;
+
+        let airdrop_token_contract = CW20_TOKEN_CONTRACTS_REGISTRY.may_load(deps.storage, airdrop_denom.clone()).unwrap();
+        if airdrop_token_contract.is_none() {
+            logs.push(attr("failed_to_get_contract", airdrop_denom));
+            continue
+        }
+
+        messages.push(WasmMsg::Execute {
+            contract_addr: String::from(airdrop_token_contract.unwrap()),
+            msg: to_binary(&cw20::Cw20ExecuteMsg::Transfer {
+                recipient: String::from(user_addr.clone()),
+                amount: airdrop_amount
+            }).unwrap(),
+            funds: vec![]
+        });
+    }
+
+    Ok(Response::new().add_attributes(logs).add_messages(messages))
 }
 
 pub fn try_withdraw_rewards(
@@ -123,14 +286,6 @@ pub fn try_withdraw_rewards(
     info: MessageInfo,
     undelegation_timestamp: Timestamp,
     strategy_id: String,
-) -> Result<Response, ContractError> {
-    Ok(Response::default())
-}
-
-pub fn try_withdraw_airdrops(
-    deps: DepsMut,
-    _env: Env,
-    info: MessageInfo,
 ) -> Result<Response, ContractError> {
     Ok(Response::default())
 }
@@ -178,9 +333,9 @@ pub fn try_register_strategy(
     )?;
     STRATEGY_METADATA_MAP.save(
         deps.storage,
-        strategy_id,
+        strategy_id.clone(),
         &StrategyMetadata {
-            name: strategy_id.to_string(),
+            name: strategy_id,
             total_shares: Decimal::zero(),
             global_airdrop_pointer: vec![],
             total_airdrops_accumulated: vec![],
@@ -312,7 +467,7 @@ pub fn try_update_user_rewards(
         // fetch the total tokens from the SIC contract and update the S/T ratio for the strategy
         let total_tokens = get_sic_total_tokens(deps.querier, &strategy_info.sic_contract_address)
             .total_tokens
-            .unwrap_or_else(Uint128::zero());
+            .unwrap_or_else(|| Uint128::zero());
         let mut shares_per_token_ratio = Decimal::from_ratio(100_000_000_u128, 1_u128);
         if !total_tokens.is_zero() {
             shares_per_token_ratio = decimal_division_in_256(

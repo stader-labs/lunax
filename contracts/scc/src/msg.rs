@@ -1,5 +1,5 @@
 use crate::state::State;
-use cosmwasm_std::{Addr, Coin, Timestamp, Uint128};
+use cosmwasm_std::{Addr, Coin, Timestamp, Uint128, Binary};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -41,6 +41,14 @@ pub enum ExecuteMsg {
     RemoveStrategy {
         strategy_id: String,
     },
+    RegisterAirdropContract {
+        denom: String,
+        airdrop_contract: Addr,
+    },
+    RegsiterCW20Contract {
+        denom: String,
+        cw20_contract: Addr,
+    },
     // called by validator contract to transfer rewards from validator contract to SCC
     // this message also moves rewards from SCC to the corresponding SIC
     UpdateUserRewards {
@@ -58,6 +66,9 @@ pub enum ExecuteMsg {
     // called by scc manager to periodically claim airdrops for a particular strategy if it supported
     ClaimAirdrops {
         strategy_id: String,
+        amount: Uint128,
+        denom: String,
+        claim_msg: Binary,
     },
     WithdrawRewards {
         undelegation_timestamp: Timestamp,

@@ -21,4 +21,13 @@ pub enum ContractError {
 
     #[error("Strategy metadata does not exist")]
     StrategyMetadataDoesNotExist {},
+
+    #[error("Airdrop not registered")]
+    AirdropNotRegistered {},
+
+    #[error("The strategy does not support the airdrop")]
+    StrategyDoesNotSupportAirdrop {},
+
+    #[error("The user reward info does not exist")]
+    UserRewardInfoDoesNotExist {}
 }
