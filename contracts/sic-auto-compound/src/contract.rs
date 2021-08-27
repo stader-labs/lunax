@@ -6,6 +6,7 @@ use cosmwasm_std::{
 };
 
 use crate::error::ContractError;
+use crate::helpers::get_bank_msg;
 use crate::msg::{
     ExecuteMsg, GetCurrentUndelegationBatchIdResponse, GetStateResponse, GetTotalTokensResponse,
     GetUndelegationBatchInfoResponse, InstantiateMsg, QueryMsg,
@@ -40,6 +41,7 @@ pub fn instantiate(
             .unbonding_period
             .unwrap_or_else(|| (21 * 24 * 3600 + 3600)),
         current_undelegation_batch_id: 0,
+        current_undelegation_funds: Uint128::zero(),
         accumulated_vault_airdrops: vec![],
         validator_pool: msg.initial_validators,
         unswapped_rewards: vec![],
@@ -88,6 +90,86 @@ pub fn try_reconcile_undelegation_batch(
     info: MessageInfo,
     undelegation_batch_id: u64,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
+    let state = STATE.load(deps.storage).unwrap();
+
+    if info.sender != state.manager {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    let undelegation_batch_option = UNDELEGATION_INFO_LEDGER
+        .may_load(deps.storage, undelegation_batch_id.into())
+        .unwrap();
+    if undelegation_batch_option.is_none() {
+        return Err(ContractError::NonExistentUndelegationBatch {});
+    }
+
+    let vault_denom = state.vault_denom;
+    let mut undelegation_batch = undelegation_batch_option.unwrap();
+
+    if _env.block.time.lt(&undelegation_batch.est_release_time) {
+        return Err(ContractError::UndelegationBatchInUnbondingPeriod(
+            undelegation_batch_id,
+        ));
+    }
+
+    let total_base_funds_in_strategy = deps
+        .querier
+        .query_balance(_env.contract.address, vault_denom.clone())
+        .unwrap()
+        .amount;
+    let current_uninvested_rewards = state.uninvested_rewards.amount;
+    let base_funds_from_rewards = state
+        .unswapped_rewards
+        .iter()
+        .find(|&x| x.denom.eq(&vault_denom))
+        .cloned()
+        .unwrap_or_else(|| Coin::new(0, vault_denom.clone()))
+        .amount;
+    let current_undelegation_funds = state.current_undelegation_funds;
+
+    let unaccounted_base_funds = total_base_funds_in_strategy
+        .checked_sub(current_uninvested_rewards)
+        .unwrap()
+        .checked_sub(base_funds_from_rewards)
+        .unwrap()
+        .checked_sub(current_undelegation_funds)
+        .unwrap();
+
+    let mut total_slashed_amount = Uint128::zero();
+    let unbonding_slashing_ratio = if unaccounted_base_funds.lt(&undelegation_batch.amount.amount) {
+        // Slashing has occured for unbonding funds from one of the validators.
+        total_slashed_amount = undelegation_batch
+            .amount
+            .amount
+            .checked_sub(unaccounted_base_funds)
+            .unwrap();
+        Decimal::from_ratio(unaccounted_base_funds, undelegation_batch.amount.amount)
+    } else {
+        Decimal::one()
+    };
+
+    UNDELEGATION_INFO_LEDGER.update(
+        deps.storage,
+        undelegation_batch_id.into(),
+        |_x| -> StdResult<_> {
+            undelegation_batch.unbonding_slashing_ratio = unbonding_slashing_ratio;
+            undelegation_batch.slashing_checked = true;
+            Ok(undelegation_batch)
+        },
+    );
+
+    STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
+        state.current_undelegation_funds = state
+            .current_undelegation_funds
+            .checked_add(unaccounted_base_funds)
+            .unwrap();
+        state.total_slashed_amount = state
+            .total_slashed_amount
+            .checked_add(total_slashed_amount)
+            .unwrap();
+        Ok(state)
+    })?;
+
     Ok(Response::default())
 }
 
@@ -206,13 +288,100 @@ pub fn try_transfer_rewards(
 }
 
 // SCC needs to call this when it processes the undelegations.
+// SCC is responsible for batching up the user undelegation requests. It sends the batched up
+// undelegated amount to the SIC
 pub fn try_undelegate_rewards(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
     amount: Uint128,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
-    Ok(Response::default())
+    let state = STATE.load(deps.storage).unwrap();
+
+    if info.sender != state.scc_address {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    if amount.is_zero() {
+        return Err(ContractError::ZeroUndelegation {});
+    }
+
+    // For each undelegation request to SIC, we create an undelegation batch. The main intent of the batch
+    // is to account for undelegation slashing.
+    let mut new_undelegation_batch_id = state.current_undelegation_batch_id.add(1_u64);
+    STATE.update(deps.storage, |mut state| -> StdResult<_> {
+        state.current_undelegation_batch_id = new_undelegation_batch_id;
+        Ok(state)
+    })?;
+
+    let u64key = new_undelegation_batch_id.into();
+    UNDELEGATION_INFO_LEDGER.save(
+        deps.storage,
+        u64key,
+        &BatchUndelegationRecord {
+            amount: Coin::new(amount.u128(), state.vault_denom.clone()),
+            unbonding_slashing_ratio: Decimal::one(),
+            create_time: _env.block.time,
+            est_release_time: _env.block.time.plus_seconds(state.unbonding_period),
+            slashing_checked: false,
+        },
+    )?;
+
+    let new_total_staked_tokens = state.total_staked_tokens.checked_sub(amount).unwrap();
+    STATE.update(deps.storage, |mut state| -> StdResult<_> {
+        state.total_staked_tokens = new_total_staked_tokens;
+        Ok(state)
+    })?;
+
+    // undelegate from each validator according to their staked fraction
+    let mut messages: Vec<StakingMsg> = vec![];
+    let vault_denom = state.vault_denom;
+    for validator in &state.validator_pool {
+        let validator_staked_quota_option = VALIDATORS_TO_STAKED_QUOTA
+            .may_load(deps.storage, validator)
+            .unwrap();
+        if validator_staked_quota_option.is_none() {
+            // validator has no stake. so don't undelegate from him.
+            continue;
+        }
+
+        let validator_staked_quota = validator_staked_quota_option.unwrap();
+        let total_delegated_amount = validator_staked_quota.amount.amount;
+        let stake_fraction = validator_staked_quota.vault_stake_fraction;
+
+        let mut unstake_amount = Uint128::zero();
+        if !stake_fraction.is_zero() {
+            unstake_amount = Uint128::new(
+                amount.u128() * stake_fraction.numerator() / stake_fraction.denominator(),
+            );
+
+            messages.push(StakingMsg::Undelegate {
+                validator: String::from(validator),
+                amount: Coin {
+                    denom: vault_denom.clone(),
+                    amount: unstake_amount,
+                },
+            });
+        }
+
+        let new_validator_staked_amount = total_delegated_amount
+            .checked_sub(unstake_amount)
+            .unwrap()
+            .u128();
+        VALIDATORS_TO_STAKED_QUOTA.save(
+            deps.storage,
+            validator,
+            &StakeQuota {
+                amount: Coin::new(new_validator_staked_amount, vault_denom.clone()),
+                vault_stake_fraction: Decimal::from_ratio(
+                    new_validator_staked_amount,
+                    new_total_staked_tokens,
+                ),
+            },
+        )?;
+    }
+
+    Ok(Response::new().add_messages(messages))
 }
 
 pub fn try_withdraw_rewards(
@@ -223,7 +392,54 @@ pub fn try_withdraw_rewards(
     undelegation_batch_id: u64,
     amount: Uint128,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
-    Ok(Response::default())
+    let state = STATE.load(deps.storage).unwrap();
+    if info.sender != state.scc_address {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    if amount.is_zero() {
+        return Err(ContractError::ZeroWithdrawal {});
+    }
+
+    let mut undelegation_batch: BatchUndelegationRecord;
+    match UNDELEGATION_INFO_LEDGER
+        .may_load(deps.storage, U64Key::new(undelegation_batch_id))
+        .unwrap()
+    {
+        None => return Err(ContractError::NonExistentUndelegationBatch {}),
+        Some(undelegation_batch_unwrapped) => {
+            undelegation_batch = undelegation_batch_unwrapped;
+        }
+    }
+
+    if !undelegation_batch.slashing_checked {
+        return Err(ContractError::SlashingNotChecked(undelegation_batch_id));
+    }
+
+    if _env.block.time.lt(&undelegation_batch.est_release_time) {
+        return Err(ContractError::DepositInUnbondingPeriod {});
+    }
+
+    if amount.gt(&undelegation_batch.amount.amount) {
+        return Err(ContractError::InsufficientFundsInUndelegationBatch(
+            undelegation_batch_id,
+        ));
+    }
+
+    let effective_withdrawable_amount = multiply_coin_with_decimal(
+        &Coin::new(amount.u128(), state.vault_denom),
+        undelegation_batch.unbonding_slashing_ratio,
+    );
+
+    STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
+        state.current_undelegation_funds = state
+            .current_undelegation_funds
+            .checked_sub(effective_withdrawable_amount.amount)
+            .unwrap();
+        Ok(state)
+    })?;
+
+    Ok(Response::new().add_messages(get_bank_msg(user, vec![effective_withdrawable_amount])))
 }
 
 pub fn try_reinvest(
