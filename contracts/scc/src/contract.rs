@@ -413,8 +413,8 @@ fn query_state(deps: Deps) -> StdResult<StateResponse> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::mock::{mock_dependencies, mock_env, mock_info};
     use cosmwasm_std::{coins, from_binary};
-    use crate::mock::{mock_dependencies, mock_info, mock_env};
 
     #[test]
     fn proper_initialization() {
@@ -449,6 +449,5 @@ mod tests {
     #[test]
     fn test__sic_mock_querier() {
         let mut deps = mock_dependencies(&[]);
-
     }
 }
