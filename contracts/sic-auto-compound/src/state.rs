@@ -52,6 +52,7 @@ pub struct State {
     pub unbonding_period: u64, // the blockchain's unbonding_period + buffer_time
 
     pub current_undelegation_batch_id: u64,
+    pub current_undelegation_funds: Uint128,
 
     pub accumulated_vault_airdrops: Vec<Coin>,
     // pub global_airdrop_pointer: Vec<DecCoin>,
@@ -59,6 +60,7 @@ pub struct State {
     pub unswapped_rewards: Vec<Coin>,
     pub uninvested_rewards: Coin,
     pub total_staked_tokens: Uint128,
+    // total_slashed_amount = total_stake_slashed + total_undelegations_slashed. This field is mainly for metric tracking
     pub total_slashed_amount: Uint128,
 }
 
