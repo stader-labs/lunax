@@ -1,3 +1,5 @@
+// airdrops
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -858,7 +860,7 @@ mod tests {
             .unwrap_err();
         assert!(matches!(
             err,
-            ContractError::InsufficientUndelegationBatch(1)
+            ContractError::InsufficientFundsInUndelegationBatch(1)
         ))
     }
 
