@@ -1,5 +1,3 @@
-// airdrops
-
 #[cfg(test)]
 mod tests {
     use super::*;
