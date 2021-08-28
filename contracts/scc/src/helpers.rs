@@ -1,7 +1,4 @@
-use crate::state::{
-    StrategyInfo, StrategyMetadata, UserRewardInfo, UserStrategyInfo, STRATEGY_INFO_MAP,
-    STRATEGY_METADATA_MAP, USER_REWARD_INFO_MAP,
-};
+use crate::state::{StrategyInfo, UserRewardInfo, UserStrategyInfo, USER_REWARD_INFO_MAP};
 use crate::utils::{decimal_multiplication_in_256, decimal_subtraction_in_256};
 use cosmwasm_std::{
     Addr, Decimal, Fraction, QuerierWrapper, Response, Storage, Timestamp, Uint128,
