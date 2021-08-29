@@ -1,5 +1,5 @@
 use crate::state::{State, StrategyInfo};
-use cosmwasm_std::{Addr, Coin, Timestamp, Uint128};
+use cosmwasm_std::{Addr, Coin, Timestamp, Uint128, Binary};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -78,9 +78,7 @@ pub enum ExecuteMsg {
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     GetState {},
-    GetStrategyInfo {
-        strategy_name: String
-    }
+    GetStrategyInfo { strategy_name: String },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

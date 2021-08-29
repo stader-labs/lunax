@@ -7,6 +7,5 @@ mod test_helpers;
 mod tests;
 mod user;
 mod utils;
-mod tests;
 
 pub use crate::error::ContractError;

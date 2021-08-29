@@ -93,7 +93,7 @@ impl StrategyInfo {
             global_airdrop_pointer: vec![],
             total_airdrops_accumulated: vec![],
             shares_per_token_ratio: Default::default(),
-            current_unprocessed_undelegations: Default::default()
+            current_unprocessed_undelegations: Default::default(),
         }
     }
 }

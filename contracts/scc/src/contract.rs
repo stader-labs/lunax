@@ -7,8 +7,14 @@ use cosmwasm_std::{
 
 use crate::error::ContractError;
 use crate::helpers::{get_sic_total_tokens, get_user_strategy_data, strategy_supports_airdrops};
-use crate::msg::{ExecuteMsg, GetStateResponse, InstantiateMsg, QueryMsg, UpdateUserAirdropsRequest, UpdateUserRewardsRequest, GetStrategyInfoResponse};
-use crate::state::{Cw20TokenContractsInfo, DecCoin, State, StrategyInfo, StrategyMetadata, UserRewardInfo, UserStrategyInfo, CW20_TOKEN_CONTRACTS_REGISTRY, STATE, STRATEGY_INFO_MAP, STRATEGY_METADATA_MAP, USER_REWARD_INFO_MAP, STRATEGY_MAP};
+use crate::msg::{
+    ExecuteMsg, GetStateResponse, GetStrategyInfoResponse, InstantiateMsg, QueryMsg,
+    UpdateUserAirdropsRequest, UpdateUserRewardsRequest,
+};
+use crate::state::{
+    Cw20TokenContractsInfo, DecCoin, State, StrategyInfo, UserRewardInfo, UserStrategyInfo,
+    CW20_TOKEN_CONTRACTS_REGISTRY, STATE, STRATEGY_MAP, USER_REWARD_INFO_MAP,
+};
 use crate::user::get_user_airdrops;
 use crate::utils::{
     decimal_division_in_256, decimal_multiplication_in_256, decimal_summation_in_256,
@@ -157,6 +163,7 @@ pub fn try_claim_airdrops(
     }
 
     let mut cw20_token_contracts: Cw20TokenContractsInfo;
+    // TODO: bchain99 - abstract these into functions
     if let Some(cw20_token_contracts_mapping) = CW20_TOKEN_CONTRACTS_REGISTRY
         .may_load(deps.storage, denom.clone())
         .unwrap()
@@ -166,42 +173,30 @@ pub fn try_claim_airdrops(
         return Err(ContractError::AirdropNotRegistered {});
     }
 
-    let sic_address: Addr;
-    if let Some(strategy_info) = STRATEGY_INFO_MAP
-        .may_load(deps.storage, denom.clone())
+    let mut strategy_info: StrategyInfo;
+    if let Some(strategy_info_mapping) = STRATEGY_MAP
+        .may_load(deps.storage, &*denom.clone())
         .unwrap()
     {
         // while registering the strategy, we need to update the airdrops the strategy supports.
-        if !strategy_supports_airdrops(&strategy_info, Some(denom.clone())) {
-            return Err(ContractError::StrategyDoesNotSupportAirdrop {});
-        }
-        sic_address = strategy_info.sic_contract_address;
+        strategy_info = strategy_info_mapping;
     } else {
         return Err(ContractError::StrategyInfoDoesNotExist {});
     }
 
-    let mut strategy_metadata: StrategyMetadata;
-    if let Some(strategy_metadata_mapping) = STRATEGY_METADATA_MAP
-        .may_load(deps.storage, denom.clone())
-        .unwrap()
-    {
-        strategy_metadata = strategy_metadata_mapping;
-    } else {
-        return Err(ContractError::StrategyMetadataDoesNotExist {});
-    }
+    let total_shares = strategy_info.total_shares;
+    let sic_address = strategy_info.sic_contract_address.clone();
 
-    let total_shares = strategy_metadata.total_shares;
-
-    strategy_metadata.total_airdrops_accumulated = merge_coin_vector(
-        strategy_metadata.total_airdrops_accumulated,
+    strategy_info.total_airdrops_accumulated = merge_coin_vector(
+        strategy_info.total_airdrops_accumulated,
         CoinVecOp {
             fund: vec![Coin::new(amount.u128(), denom.clone())],
             operation: Operation::Add,
         },
     );
 
-    strategy_metadata.global_airdrop_pointer = merge_dec_coin_vector(
-        &strategy_metadata.global_airdrop_pointer,
+    strategy_info.global_airdrop_pointer = merge_dec_coin_vector(
+        &strategy_info.global_airdrop_pointer,
         DecCoinVecOp {
             fund: vec![DecCoin {
                 amount: decimal_multiplication_in_256(
@@ -214,7 +209,7 @@ pub fn try_claim_airdrops(
         },
     );
 
-    STRATEGY_METADATA_MAP.save(deps.storage, strategy_id, &strategy_metadata);
+    STRATEGY_MAP.save(deps.storage, &*strategy_id, &strategy_info);
 
     Ok(Response::new().add_message(WasmMsg::Execute {
         contract_addr: String::from(sic_address),
@@ -584,17 +579,17 @@ pub fn try_update_user_airdrops(
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetState {} => to_binary(&query_state(deps)?),
-        QueryMsg::GetStrategyInfo {
-            strategy_name
-        } => to_binary(&query_strategy_info(deps, strategy_name)?)
+        QueryMsg::GetStrategyInfo { strategy_name } => {
+            to_binary(&query_strategy_info(deps, strategy_name)?)
+        }
     }
 }
 
 fn query_strategy_info(deps: Deps, strategy_name: String) -> StdResult<GetStrategyInfoResponse> {
-    let strategy_info = STRATEGY_MAP.may_load(deps.storage, &*strategy_name).unwrap();
-    Ok(GetStrategyInfoResponse {
-        strategy_info
-    })
+    let strategy_info = STRATEGY_MAP
+        .may_load(deps.storage, &*strategy_name)
+        .unwrap();
+    Ok(GetStrategyInfoResponse { strategy_info })
 }
 
 fn query_state(deps: Deps) -> StdResult<GetStateResponse> {

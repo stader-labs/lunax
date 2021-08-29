@@ -1,13 +1,18 @@
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_helpers::check_equal_vec;
-    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use cosmwasm_std::{coins, from_binary, Coin, Addr, Response, Uint128, Decimal, Binary};
-    use crate::state::{USER_REWARD_INFO_MAP, UserRewardInfo, STATE, State, STRATEGY_MAP, StrategyInfo, CW20_TOKEN_CONTRACTS_REGISTRY, Cw20TokenContractsInfo};
-    use crate::msg::{UpdateUserAirdropsRequest, ExecuteMsg, InstantiateMsg, QueryMsg, GetStateResponse};
     use crate::contract::{execute, instantiate, query};
+    use crate::msg::{
+        ExecuteMsg, GetStateResponse, InstantiateMsg, QueryMsg, UpdateUserAirdropsRequest,
+    };
+    use crate::state::{
+        Cw20TokenContractsInfo, State, StrategyInfo, UserRewardInfo, CW20_TOKEN_CONTRACTS_REGISTRY,
+        STATE, STRATEGY_MAP, USER_REWARD_INFO_MAP,
+    };
+    use crate::test_helpers::check_equal_vec;
     use crate::ContractError;
+    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
+    use cosmwasm_std::{coins, from_binary, Addr, Binary, Coin, Decimal, Response, Uint128};
 
     #[test]
     fn proper_initialization() {
@@ -73,7 +78,7 @@ mod tests {
                 claim_msg: get_airdrop_claim_msg(),
             },
         )
-            .unwrap_err();
+        .unwrap_err();
         assert!(matches!(err, ContractError::Unauthorized {}));
 
         /*
@@ -90,7 +95,7 @@ mod tests {
                 claim_msg: get_airdrop_claim_msg(),
             },
         )
-            .unwrap_err();
+        .unwrap_err();
         assert!(matches!(err, ContractError::AirdropNotRegistered {}));
 
         /*
@@ -116,7 +121,7 @@ mod tests {
                 claim_msg: get_airdrop_claim_msg(),
             },
         )
-            .unwrap_err();
+        .unwrap_err();
         assert!(matches!(err, ContractError::StrategyInfoDoesNotExist {}));
 
         /*
@@ -140,12 +145,16 @@ mod tests {
                 denom: "anc".to_string(),
                 claim_msg: get_airdrop_claim_msg(),
             },
-        ).unwrap_err();
-        assert!(matches!(err, ContractError::StrategyDoesNotSupportAirdrop {}));
+        )
+        .unwrap_err();
+        assert!(matches!(
+            err,
+            ContractError::StrategyDoesNotSupportAirdrop {}
+        ));
 
         /*
-            Test - 5. strategy metadata does not exist
-         */
+           Test - 5. strategy metadata does not exist
+        */
         CW20_TOKEN_CONTRACTS_REGISTRY.save(
             deps.as_mut().storage,
             "anc".to_string(),
@@ -164,8 +173,12 @@ mod tests {
                 denom: "anc".to_string(),
                 claim_msg: get_airdrop_claim_msg(),
             },
-        ).unwrap_err();
-        assert!(matches!(err, ContractError::StrategyMetadataDoesNotExist {}));
+        )
+        .unwrap_err();
+        assert!(matches!(
+            err,
+            ContractError::StrategyMetadataDoesNotExist {}
+        ));
     }
 
     #[test]
@@ -191,7 +204,8 @@ mod tests {
             ExecuteMsg::RemoveStrategy {
                 strategy_id: "sid".to_string(),
             },
-        ).unwrap_err();
+        )
+        .unwrap_err();
         assert!(matches!(err, ContractError::Unauthorized {}));
     }
 
@@ -208,7 +222,11 @@ mod tests {
         // we can just call .unwrap() to assert this was a success
         let res = instantiate(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
 
-        STRATEGY_MAP.save(deps.as_mut().storage, "sid", &StrategyInfo::default("sid".to_string()));
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            "sid",
+            &StrategyInfo::default("sid".to_string()),
+        );
         let strategy_info_op = STRATEGY_MAP.may_load(deps.as_mut().storage, "sid").unwrap();
         assert_ne!(strategy_info_op, None);
 
@@ -252,8 +270,8 @@ mod tests {
         let res = instantiate(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
 
         /*
-            Test - 1. Unauthorized
-         */
+           Test - 1. Unauthorized
+        */
         let mut err = execute(
             deps.as_mut(),
             env.clone(),
@@ -261,12 +279,13 @@ mod tests {
             ExecuteMsg::DeactivateStrategy {
                 strategy_id: "sid".to_string(),
             },
-        ).unwrap_err();
+        )
+        .unwrap_err();
         assert!(matches!(err, ContractError::Unauthorized {}));
 
         /*
-            Test - 2. Strategy info does not exist
-         */
+           Test - 2. Strategy info does not exist
+        */
         let mut err = execute(
             deps.as_mut(),
             env.clone(),
@@ -274,7 +293,8 @@ mod tests {
             ExecuteMsg::DeactivateStrategy {
                 strategy_id: "sid".to_string(),
             },
-        ).unwrap_err();
+        )
+        .unwrap_err();
         assert!(matches!(err, ContractError::StrategyInfoDoesNotExist {}));
     }
 
@@ -293,7 +313,11 @@ mod tests {
 
         let mut sid_strategy_info = StrategyInfo::default("sid".to_string());
         sid_strategy_info.is_active = true;
-        STRATEGY_MAP.save(deps.as_mut().storage, "sid", &StrategyInfo::default("sid".to_string()));
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            "sid",
+            &StrategyInfo::default("sid".to_string()),
+        );
 
         let res = execute(
             deps.as_mut(),
@@ -302,7 +326,8 @@ mod tests {
             ExecuteMsg::DeactivateStrategy {
                 strategy_id: "sid".to_string(),
             },
-        ).unwrap();
+        )
+        .unwrap();
 
         let strategy_info_opt = STRATEGY_MAP.may_load(deps.as_mut().storage, "sid").unwrap();
         assert_ne!(strategy_info_opt, None);
@@ -324,8 +349,8 @@ mod tests {
         let res = instantiate(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
 
         /*
-            Test - 1. Unauthorized
-         */
+           Test - 1. Unauthorized
+        */
         let mut err = execute(
             deps.as_mut(),
             env.clone(),
@@ -333,12 +358,13 @@ mod tests {
             ExecuteMsg::ActivateStrategy {
                 strategy_id: "sid".to_string(),
             },
-        ).unwrap_err();
+        )
+        .unwrap_err();
         assert!(matches!(err, ContractError::Unauthorized {}));
 
         /*
-            Test - 2. Strategy info does not exist
-         */
+           Test - 2. Strategy info does not exist
+        */
         let mut err = execute(
             deps.as_mut(),
             env.clone(),
@@ -346,7 +372,8 @@ mod tests {
             ExecuteMsg::ActivateStrategy {
                 strategy_id: "sid".to_string(),
             },
-        ).unwrap_err();
+        )
+        .unwrap_err();
         assert!(matches!(err, ContractError::StrategyInfoDoesNotExist {}));
     }
 
@@ -365,7 +392,11 @@ mod tests {
 
         let mut sid_strategy_info = StrategyInfo::default("sid".to_string());
         sid_strategy_info.is_active = false;
-        STRATEGY_MAP.save(deps.as_mut().storage, "sid", &StrategyInfo::default("sid".to_string()));
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            "sid",
+            &StrategyInfo::default("sid".to_string()),
+        );
 
         let res = execute(
             deps.as_mut(),
@@ -374,7 +405,8 @@ mod tests {
             ExecuteMsg::ActivateStrategy {
                 strategy_id: "sid".to_string(),
             },
-        ).unwrap();
+        )
+        .unwrap();
 
         let strategy_info_opt = STRATEGY_MAP.may_load(deps.as_mut().storage, "sid").unwrap();
         assert_ne!(strategy_info_opt, None);
@@ -396,8 +428,8 @@ mod tests {
         let res = instantiate(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
 
         /*
-            Test - 1. Unauthorized
-         */
+           Test - 1. Unauthorized
+        */
         let mut err = execute(
             deps.as_mut(),
             env.clone(),
@@ -406,15 +438,20 @@ mod tests {
                 strategy_id: "sid".to_string(),
                 sic_contract_address: Addr::unchecked("abc"),
                 unbonding_period: None,
-                supported_airdrops: vec!["anc".to_string(), "mir".to_string()]
+                supported_airdrops: vec!["anc".to_string(), "mir".to_string()],
             },
-        ).unwrap_err();
+        )
+        .unwrap_err();
         assert!(matches!(err, ContractError::Unauthorized {}));
 
         /*
             Test - 2. Strategy already exists
         */
-        STRATEGY_MAP.save(deps.as_mut().storage, "sid", &StrategyInfo::default("sid".to_string()));
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            "sid",
+            &StrategyInfo::default("sid".to_string()),
+        );
 
         let mut err = execute(
             deps.as_mut(),
@@ -424,9 +461,10 @@ mod tests {
                 strategy_id: "sid".to_string(),
                 sic_contract_address: Addr::unchecked("abc"),
                 unbonding_period: None,
-                supported_airdrops: vec!["anc".to_string(), "mir".to_string()]
+                supported_airdrops: vec!["anc".to_string(), "mir".to_string()],
             },
-        ).unwrap_err();
+        )
+        .unwrap_err();
         assert!(matches!(err, ContractError::StrategyInfoAlreadyExists {}));
     }
 
@@ -451,25 +489,29 @@ mod tests {
                 strategy_id: "sid".to_string(),
                 sic_contract_address: Addr::unchecked("abc"),
                 unbonding_period: Some(100u64),
-                supported_airdrops: vec!["anc".to_string(), "mir".to_string()]
+                supported_airdrops: vec!["anc".to_string(), "mir".to_string()],
             },
-        ).unwrap();
+        )
+        .unwrap();
 
-        let strategy_info_opt =  STRATEGY_MAP.may_load(deps.as_mut().storage, "sid").unwrap();
+        let strategy_info_opt = STRATEGY_MAP.may_load(deps.as_mut().storage, "sid").unwrap();
         assert_ne!(strategy_info_opt, None);
         let strategy_info = strategy_info_opt.unwrap();
-        assert_eq!(strategy_info, StrategyInfo {
-            name: "sid".to_string(),
-            sic_contract_address: Addr::unchecked("abc"),
-            unbonding_period: Some(100u64),
-            supported_airdrops: vec!["anc".to_string(), "mir".to_string()],
-            is_active: false,
-            total_shares: Default::default(),
-            global_airdrop_pointer: vec![],
-            total_airdrops_accumulated: vec![],
-            shares_per_token_ratio: Decimal::from_ratio(100_000_000_u128, 1_u128),
-            current_unprocessed_undelegations: Default::default()
-        });
+        assert_eq!(
+            strategy_info,
+            StrategyInfo {
+                name: "sid".to_string(),
+                sic_contract_address: Addr::unchecked("abc"),
+                unbonding_period: Some(100u64),
+                supported_airdrops: vec!["anc".to_string(), "mir".to_string()],
+                is_active: false,
+                total_shares: Default::default(),
+                global_airdrop_pointer: vec![],
+                total_airdrops_accumulated: vec![],
+                shares_per_token_ratio: Decimal::from_ratio(100_000_000_u128, 1_u128),
+                current_unprocessed_undelegations: Default::default()
+            }
+        );
     }
 
     #[test]
@@ -495,7 +537,8 @@ mod tests {
             ExecuteMsg::UpdateUserAirdrops {
                 update_user_airdrops_requests: vec![],
             },
-        ).unwrap_err();
+        )
+        .unwrap_err();
         assert!(matches!(err, ContractError::Unauthorized {}));
 
         /*
@@ -508,7 +551,8 @@ mod tests {
             ExecuteMsg::UpdateUserAirdrops {
                 update_user_airdrops_requests: vec![],
             },
-        ).unwrap();
+        )
+        .unwrap();
         assert_eq!(res, Response::default());
     }
 
@@ -557,7 +601,8 @@ mod tests {
                     },
                 ],
             },
-        ).unwrap();
+        )
+        .unwrap();
         let state_response: GetStateResponse =
             from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::GetState {}).unwrap())
                 .unwrap();
@@ -599,10 +644,7 @@ mod tests {
             .unwrap();
         assert_ne!(user_reward_info_4_opt, None);
         let user_reward_info_4 = user_reward_info_4_opt.unwrap();
-        assert!(check_equal_vec(
-            user_reward_info_4.pending_airdrops,
-            vec![]
-        ));
+        assert!(check_equal_vec(user_reward_info_4.pending_airdrops, vec![]));
 
         /*
            Test - 2. updating the user airdrops with existing user_airdrops
@@ -673,7 +715,8 @@ mod tests {
                     },
                 ],
             },
-        ).unwrap();
+        )
+        .unwrap();
         let state_response: GetStateResponse =
             from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::GetState {}).unwrap())
                 .unwrap();
