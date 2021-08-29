@@ -1,5 +1,5 @@
 use crate::state::{State, StrategyInfo};
-use cosmwasm_std::{Addr, Coin, Timestamp, Uint128, Binary};
+use cosmwasm_std::{Addr, Binary, Coin, Timestamp, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 

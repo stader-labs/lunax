@@ -13,14 +13,8 @@ pub enum ContractError {
     #[error("Strategy info already exists")]
     StrategyInfoAlreadyExists {},
 
-    #[error("Strategy metadata already exists")]
-    StrategyMetadataAlreadyExists {},
-
     #[error("Strategy info does not exist")]
     StrategyInfoDoesNotExist {},
-
-    #[error("Strategy metadata does not exist")]
-    StrategyMetadataDoesNotExist {},
 
     #[error("Airdrop not registered")]
     AirdropNotRegistered {},

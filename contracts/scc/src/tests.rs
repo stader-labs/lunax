@@ -6,13 +6,17 @@ mod tests {
         ExecuteMsg, GetStateResponse, InstantiateMsg, QueryMsg, UpdateUserAirdropsRequest,
     };
     use crate::state::{
-        Cw20TokenContractsInfo, State, StrategyInfo, UserRewardInfo, CW20_TOKEN_CONTRACTS_REGISTRY,
-        STATE, STRATEGY_MAP, USER_REWARD_INFO_MAP,
+        Cw20TokenContractsInfo, DecCoin, State, StrategyInfo, UserRewardInfo,
+        CW20_TOKEN_CONTRACTS_REGISTRY, STATE, STRATEGY_MAP, USER_REWARD_INFO_MAP,
     };
     use crate::test_helpers::check_equal_vec;
     use crate::ContractError;
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use cosmwasm_std::{coins, from_binary, Addr, Binary, Coin, Decimal, Response, Uint128};
+    use cosmwasm_std::{
+        coins, from_binary, to_binary, Addr, Binary, Coin, Decimal, Response, SubMsg, Uint128,
+        WasmMsg,
+    };
+    use sic_base::msg::{ExecuteMsg as sic_execute_msg, QueryMsg as sic_query_msg};
 
     #[test]
     fn proper_initialization() {
@@ -127,6 +131,22 @@ mod tests {
         /*
            Test - 4. Strategy does not support airdrops
         */
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            "anc",
+            &StrategyInfo {
+                name: "sid".to_string(),
+                sic_contract_address: Addr::unchecked("abc"),
+                unbonding_period: None,
+                supported_airdrops: vec!["mir".to_string()],
+                is_active: false,
+                total_shares: Decimal::zero(),
+                global_airdrop_pointer: vec![],
+                total_airdrops_accumulated: vec![],
+                shares_per_token_ratio: Default::default(),
+                current_unprocessed_undelegations: Default::default(),
+            },
+        );
         CW20_TOKEN_CONTRACTS_REGISTRY.save(
             deps.as_mut().storage,
             "anc".to_string(),
@@ -151,19 +171,62 @@ mod tests {
             err,
             ContractError::StrategyDoesNotSupportAirdrop {}
         ));
+    }
 
-        /*
-           Test - 5. strategy metadata does not exist
-        */
+    #[test]
+    fn test__try_claim_airdrops_success() {
+        let mut deps = mock_dependencies(&[]);
+
+        let msg = InstantiateMsg {
+            strategy_denom: "uluna".to_string(),
+        };
+        let info = mock_info("creator", &[]);
+        let env = mock_env();
+
+        // we can just call .unwrap() to assert this was a success
+        let res = instantiate(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
+
+        let anc_cw20_contract: Addr = Addr::unchecked("anc-cw20-contract");
+        let mir_cw20_contract: Addr = Addr::unchecked("mir-cw20-contract");
+        let anc_airdrop_contract: Addr = Addr::unchecked("anc-airdrop-contract");
+        let mir_airdrop_contract: Addr = Addr::unchecked("mir-airdrop-contract");
+
+        let sic_contract: Addr = Addr::unchecked("sic-contract");
+
+        fn get_airdrop_claim_msg() -> Binary {
+            Binary::from(vec![1, 2, 3, 4, 5, 6, 7, 8, 9])
+        }
+
         CW20_TOKEN_CONTRACTS_REGISTRY.save(
             deps.as_mut().storage,
             "anc".to_string(),
             &Cw20TokenContractsInfo {
-                airdrop_contract: Addr::unchecked("abc"),
-                cw20_token_contract: Addr::unchecked("def"),
+                airdrop_contract: anc_airdrop_contract.clone(),
+                cw20_token_contract: anc_cw20_contract.clone(),
             },
         );
-        let mut err = execute(
+        CW20_TOKEN_CONTRACTS_REGISTRY.save(
+            deps.as_mut().storage,
+            "mir".to_string(),
+            &Cw20TokenContractsInfo {
+                airdrop_contract: mir_airdrop_contract.clone(),
+                cw20_token_contract: mir_cw20_contract.clone(),
+            },
+        );
+
+        /*
+           Test - 1. Claiming airdrops from the sic for the first time
+        */
+        let mut strategy_info = StrategyInfo::new(
+            "sid".to_string(),
+            sic_contract.clone(),
+            None,
+            vec!["anc".to_string(), "mir".to_string()],
+        );
+        strategy_info.total_shares = Decimal::from_ratio(100_000_000_u128, 1_u128);
+        STRATEGY_MAP.save(deps.as_mut().storage, "sid", &strategy_info);
+
+        let res = execute(
             deps.as_mut(),
             env.clone(),
             mock_info("creator", &[]),
@@ -174,10 +237,142 @@ mod tests {
                 claim_msg: get_airdrop_claim_msg(),
             },
         )
-        .unwrap_err();
-        assert!(matches!(
-            err,
-            ContractError::StrategyMetadataDoesNotExist {}
+        .unwrap();
+
+        assert_eq!(res.messages.len(), 1);
+        assert_eq!(
+            res.messages,
+            vec![SubMsg::new(WasmMsg::Execute {
+                contract_addr: String::from(sic_contract.clone()),
+                msg: to_binary(&sic_execute_msg::ClaimAirdrops {
+                    airdrop_token_contract: anc_airdrop_contract.clone(),
+                    airdrop_token: "anc".to_string(),
+                    amount: Uint128::new(100_u128),
+                    claim_msg: get_airdrop_claim_msg(),
+                })
+                .unwrap(),
+                funds: vec![]
+            })]
+        );
+
+        let state_response: GetStateResponse =
+            from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::GetState {}).unwrap())
+                .unwrap();
+        assert_ne!(state_response.state, None);
+        let state = state_response.state.unwrap();
+        assert_eq!(
+            state.total_accumulated_airdrops,
+            vec![Coin::new(100_u128, "anc".to_string())]
+        );
+
+        let strategy_info_opt = STRATEGY_MAP.may_load(deps.as_mut().storage, "sid").unwrap();
+        assert_ne!(strategy_info_opt, None);
+        let strategy_info = strategy_info_opt.unwrap();
+        assert_eq!(
+            strategy_info.total_airdrops_accumulated,
+            vec![Coin::new(100_u128, "anc".to_string())]
+        );
+        assert_eq!(
+            strategy_info.global_airdrop_pointer,
+            vec![DecCoin::new(
+                Decimal::from_ratio(100_u128, 100_000_000_u128),
+                "anc".to_string()
+            )]
+        );
+
+        /*
+            Test - 2. Claiming airdrops a mir airdrop with anc airdrop
+        */
+        let mut strategy_info = StrategyInfo::new(
+            "sid".to_string(),
+            sic_contract.clone(),
+            None,
+            vec!["anc".to_string(), "mir".to_string()],
+        );
+        strategy_info.total_shares = Decimal::from_ratio(100_000_000_u128, 1_u128);
+        strategy_info.global_airdrop_pointer = vec![DecCoin::new(
+            Decimal::from_ratio(100_u128, 100_000_000_u128),
+            "anc".to_string(),
+        )];
+        strategy_info.total_airdrops_accumulated = vec![Coin::new(100_u128, "anc".to_string())];
+
+        STRATEGY_MAP.save(deps.as_mut().storage, "sid", &strategy_info);
+
+        STATE.update(
+            deps.as_mut().storage,
+            |mut state| -> Result<_, ContractError> {
+                state.total_accumulated_airdrops = vec![
+                    Coin::new(200_u128, "anc".to_string()),
+                    Coin::new(500_u128, "mir".to_string()),
+                ];
+                Ok(state)
+            },
+        );
+
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::ClaimAirdrops {
+                strategy_id: "sid".to_string(),
+                amount: Uint128::new(100_u128),
+                denom: "mir".to_string(),
+                claim_msg: get_airdrop_claim_msg(),
+            },
+        )
+        .unwrap();
+
+        assert_eq!(res.messages.len(), 1);
+        assert_eq!(
+            res.messages,
+            vec![SubMsg::new(WasmMsg::Execute {
+                contract_addr: String::from(sic_contract.clone()),
+                msg: to_binary(&sic_execute_msg::ClaimAirdrops {
+                    airdrop_token_contract: mir_airdrop_contract.clone(),
+                    airdrop_token: "mir".to_string(),
+                    amount: Uint128::new(100_u128),
+                    claim_msg: get_airdrop_claim_msg(),
+                })
+                .unwrap(),
+                funds: vec![]
+            })]
+        );
+
+        let state_response: GetStateResponse =
+            from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::GetState {}).unwrap())
+                .unwrap();
+        assert_ne!(state_response.state, None);
+        let state = state_response.state.unwrap();
+        assert_eq!(
+            state.total_accumulated_airdrops,
+            vec![
+                Coin::new(200_u128, "anc".to_string()),
+                Coin::new(600_u128, "mir".to_string())
+            ]
+        );
+
+        let strategy_info_opt = STRATEGY_MAP.may_load(deps.as_mut().storage, "sid").unwrap();
+        assert_ne!(strategy_info_opt, None);
+        let strategy_info = strategy_info_opt.unwrap();
+        assert!(check_equal_vec(
+            strategy_info.total_airdrops_accumulated,
+            vec![
+                Coin::new(100_u128, "anc".to_string()),
+                Coin::new(100_u128, "mir".to_string())
+            ]
+        ));
+        assert!(check_equal_vec(
+            strategy_info.global_airdrop_pointer,
+            vec![
+                DecCoin::new(
+                    Decimal::from_ratio(100_u128, 100_000_000_u128),
+                    "anc".to_string()
+                ),
+                DecCoin::new(
+                    Decimal::from_ratio(100_u128, 100_000_000_u128),
+                    "mir".to_string()
+                )
+            ]
         ));
     }
 

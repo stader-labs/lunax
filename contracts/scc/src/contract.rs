@@ -174,9 +174,7 @@ pub fn try_claim_airdrops(
     }
 
     let mut strategy_info: StrategyInfo;
-    if let Some(strategy_info_mapping) = STRATEGY_MAP
-        .may_load(deps.storage, &*denom.clone())
-        .unwrap()
+    if let Some(strategy_info_mapping) = STRATEGY_MAP.may_load(deps.storage, &*strategy_id).unwrap()
     {
         // while registering the strategy, we need to update the airdrops the strategy supports.
         strategy_info = strategy_info_mapping;
@@ -184,13 +182,18 @@ pub fn try_claim_airdrops(
         return Err(ContractError::StrategyInfoDoesNotExist {});
     }
 
+    if !strategy_supports_airdrops(&strategy_info, Some(denom.clone())) {
+        return Err(ContractError::StrategyDoesNotSupportAirdrop {});
+    }
+
     let total_shares = strategy_info.total_shares;
     let sic_address = strategy_info.sic_contract_address.clone();
+    let airdrop_coin = Coin::new(amount.u128(), denom.clone());
 
     strategy_info.total_airdrops_accumulated = merge_coin_vector(
         strategy_info.total_airdrops_accumulated,
         CoinVecOp {
-            fund: vec![Coin::new(amount.u128(), denom.clone())],
+            fund: vec![airdrop_coin.clone()],
             operation: Operation::Add,
         },
     );
@@ -210,6 +213,17 @@ pub fn try_claim_airdrops(
     );
 
     STRATEGY_MAP.save(deps.storage, &*strategy_id, &strategy_info);
+
+    STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
+        state.total_accumulated_airdrops = merge_coin_vector(
+            state.total_accumulated_airdrops,
+            CoinVecOp {
+                fund: vec![airdrop_coin],
+                operation: Operation::Add,
+            },
+        );
+        Ok(state)
+    });
 
     Ok(Response::new().add_message(WasmMsg::Execute {
         contract_addr: String::from(sic_address),
@@ -246,7 +260,7 @@ pub fn try_withdraw_airdrops(
     let mut messages: Vec<WasmMsg> = vec![];
     let mut logs: Vec<Attribute> = vec![];
     let user_airdrops = user_reward_info.pending_airdrops;
-    for user_airdrop in user_airdrops {
+    for user_airdrop in user_airdrops.clone() {
         let airdrop_denom = user_airdrop.denom;
         let airdrop_amount = user_airdrop.amount;
 
@@ -268,6 +282,17 @@ pub fn try_withdraw_airdrops(
             funds: vec![],
         });
     }
+
+    STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
+        state.total_accumulated_airdrops = merge_coin_vector(
+            state.total_accumulated_airdrops,
+            CoinVecOp {
+                fund: user_airdrops,
+                operation: Operation::Sub,
+            },
+        );
+        Ok(state)
+    });
 
     Ok(Response::new().add_attributes(logs).add_messages(messages))
 }
