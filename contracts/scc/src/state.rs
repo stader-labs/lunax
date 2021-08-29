@@ -53,23 +53,6 @@ pub struct StrategyInfo {
     pub unbonding_period: Option<u64>,
     pub supported_airdrops: Vec<String>,
     pub is_active: bool,
-}
-
-impl StrategyInfo {
-    pub(crate) fn default() -> Self {
-        StrategyInfo {
-            name: "".to_string(),
-            sic_contract_address: Addr::unchecked("default"),
-            unbonding_period: None,
-            supported_airdrops: vec![],
-            is_active: false,
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct StrategyMetadata {
-    pub name: String,
     pub total_shares: Decimal,
     pub global_airdrop_pointer: Vec<DecCoin>,
     pub total_airdrops_accumulated: Vec<Coin>,
@@ -78,15 +61,39 @@ pub struct StrategyMetadata {
     pub current_unprocessed_undelegations: Uint128,
 }
 
-impl StrategyMetadata {
-    pub(crate) fn default() -> Self {
-        StrategyMetadata {
-            name: "".to_string(),
+impl StrategyInfo {
+    pub(crate) fn new(
+        strategy_name: String,
+        sic_contract_address: Addr,
+        unbonding_period: Option<u64>,
+        supported_airdrops: Vec<String>,
+    ) -> Self {
+        StrategyInfo {
+            name: strategy_name,
+            sic_contract_address,
+            unbonding_period,
+            supported_airdrops,
+            is_active: false,
+            total_shares: Decimal::zero(),
+            global_airdrop_pointer: vec![],
+            total_airdrops_accumulated: vec![],
+            shares_per_token_ratio: Decimal::from_ratio(100_000_000_u128, 1_u128),
+            current_unprocessed_undelegations: Uint128::zero(),
+        }
+    }
+
+    pub(crate) fn default(strategy_name: String) -> Self {
+        StrategyInfo {
+            name: strategy_name,
+            sic_contract_address: Addr::unchecked("default-sic"),
+            unbonding_period: None,
+            supported_airdrops: vec![],
+            is_active: false,
             total_shares: Default::default(),
             global_airdrop_pointer: vec![],
             total_airdrops_accumulated: vec![],
             shares_per_token_ratio: Default::default(),
-            current_unprocessed_undelegations: Default::default(),
+            current_unprocessed_undelegations: Default::default()
         }
     }
 }
@@ -141,8 +148,7 @@ pub struct Cw20TokenContractsInfo {
 
 pub const STATE: Item<State> = Item::new("state");
 
-pub const STRATEGY_INFO_MAP: Map<String, StrategyInfo> = Map::new("strategy_info_map");
-pub const STRATEGY_METADATA_MAP: Map<String, StrategyMetadata> = Map::new("strategy_metadata_map");
+pub const STRATEGY_MAP: Map<&str, StrategyInfo> = Map::new("strategy_map");
 pub const USER_REWARD_INFO_MAP: Map<&Addr, UserRewardInfo> = Map::new("user_reward_info_map");
 pub const CW20_TOKEN_CONTRACTS_REGISTRY: Map<String, Cw20TokenContractsInfo> =
     Map::new("cw20_token_contracts_registry");

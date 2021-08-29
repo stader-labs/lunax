@@ -7,15 +7,8 @@ use cosmwasm_std::{
 
 use crate::error::ContractError;
 use crate::helpers::{get_sic_total_tokens, get_user_strategy_data, strategy_supports_airdrops};
-use crate::msg::{
-    ExecuteMsg, GetStateResponse, InstantiateMsg, QueryMsg, UpdateUserAirdropsRequest,
-    UpdateUserRewardsRequest,
-};
-use crate::state::{
-    Cw20TokenContractsInfo, DecCoin, State, StrategyInfo, StrategyMetadata, UserRewardInfo,
-    UserStrategyInfo, CW20_TOKEN_CONTRACTS_REGISTRY, STATE, STRATEGY_INFO_MAP,
-    STRATEGY_METADATA_MAP, USER_REWARD_INFO_MAP,
-};
+use crate::msg::{ExecuteMsg, GetStateResponse, InstantiateMsg, QueryMsg, UpdateUserAirdropsRequest, UpdateUserRewardsRequest, GetStrategyInfoResponse};
+use crate::state::{Cw20TokenContractsInfo, DecCoin, State, StrategyInfo, StrategyMetadata, UserRewardInfo, UserStrategyInfo, CW20_TOKEN_CONTRACTS_REGISTRY, STATE, STRATEGY_INFO_MAP, STRATEGY_METADATA_MAP, USER_REWARD_INFO_MAP, STRATEGY_MAP};
 use crate::user::get_user_airdrops;
 use crate::utils::{
     decimal_division_in_256, decimal_multiplication_in_256, decimal_summation_in_256,
@@ -308,44 +301,23 @@ pub fn try_register_strategy(
         return Err(ContractError::Unauthorized {});
     }
 
-    if STRATEGY_INFO_MAP
-        .may_load(deps.storage, strategy_id.clone())
+    if STRATEGY_MAP
+        .may_load(deps.storage, &*strategy_id)
         .unwrap()
         .is_some()
     {
         return Err(ContractError::StrategyInfoAlreadyExists {});
     }
 
-    if STRATEGY_METADATA_MAP
-        .may_load(deps.storage, strategy_id.clone())
-        .unwrap()
-        .is_some()
-    {
-        return Err(ContractError::StrategyMetadataAlreadyExists {});
-    }
-
-    STRATEGY_INFO_MAP.save(
+    STRATEGY_MAP.save(
         deps.storage,
-        strategy_id.clone(),
-        &StrategyInfo {
-            name: strategy_id.clone(),
+        &*strategy_id.clone(),
+        &StrategyInfo::new(
+            strategy_id,
             sic_contract_address,
             unbonding_period,
             supported_airdrops,
-            is_active: false,
-        },
-    )?;
-    STRATEGY_METADATA_MAP.save(
-        deps.storage,
-        strategy_id.clone(),
-        &StrategyMetadata {
-            name: strategy_id,
-            total_shares: Decimal::zero(),
-            global_airdrop_pointer: vec![],
-            total_airdrops_accumulated: vec![],
-            shares_per_token_ratio: Decimal::zero(),
-            current_unprocessed_undelegations: Uint128::zero(),
-        },
+        ),
     )?;
 
     Ok(Response::default())
@@ -362,15 +334,15 @@ pub fn try_deactivate_strategy(
         return Err(ContractError::Unauthorized {});
     }
 
-    STRATEGY_INFO_MAP.update(
+    STRATEGY_MAP.update(
         deps.storage,
-        strategy_id,
-        |strategy_info_option| -> Result<_, ContractError> {
-            if strategy_info_option.is_none() {
+        &*strategy_id,
+        |strategy_info_opt| -> Result<_, ContractError> {
+            if strategy_info_opt.is_none() {
                 return Err(ContractError::StrategyInfoDoesNotExist {});
             }
 
-            let mut strategy_info = strategy_info_option.unwrap();
+            let mut strategy_info = strategy_info_opt.unwrap();
             strategy_info.is_active = false;
             Ok(strategy_info)
         },
@@ -390,16 +362,16 @@ pub fn try_activate_strategy(
         return Err(ContractError::Unauthorized {});
     }
 
-    STRATEGY_INFO_MAP.update(
+    STRATEGY_MAP.update(
         deps.storage,
-        strategy_id,
+        &*strategy_id,
         |strategy_info_option| -> Result<_, ContractError> {
             if strategy_info_option.is_none() {
                 return Err(ContractError::StrategyInfoDoesNotExist {});
             }
 
             let mut strategy_info = strategy_info_option.unwrap();
-            strategy_info.is_active = false;
+            strategy_info.is_active = true;
             Ok(strategy_info)
         },
     )?;
@@ -418,7 +390,7 @@ pub fn try_remove_strategy(
         return Err(ContractError::Unauthorized {});
     }
 
-    STRATEGY_INFO_MAP.remove(deps.storage, strategy_id);
+    STRATEGY_MAP.remove(deps.storage, &*strategy_id);
 
     Ok(Response::default())
 }
@@ -446,23 +418,12 @@ pub fn try_update_user_rewards(
         let user_amount = user_request.rewards;
         let user_addr = user_request.user;
 
-        let mut strategy_info: StrategyInfo = StrategyInfo::default();
-        if let Some(strategy_info_mapping) = STRATEGY_INFO_MAP
-            .may_load(deps.storage, user_strategy.clone())
+        let mut strategy_info: StrategyInfo;
+        if let Some(strategy_info_mapping) = STRATEGY_MAP
+            .may_load(deps.storage, &*user_strategy)
             .unwrap()
         {
             strategy_info = strategy_info_mapping;
-        } else {
-            // TODO: bchain99 - log something out here
-            continue;
-        }
-
-        let mut strategy_metadata: StrategyMetadata = StrategyMetadata::default();
-        if let Some(strategy_metadata_mapping) = STRATEGY_METADATA_MAP
-            .may_load(deps.storage, user_strategy.clone())
-            .unwrap()
-        {
-            strategy_metadata = strategy_metadata_mapping;
         } else {
             // TODO: bchain99 - log something out here
             continue;
@@ -475,11 +436,11 @@ pub fn try_update_user_rewards(
         let mut shares_per_token_ratio = Decimal::from_ratio(100_000_000_u128, 1_u128);
         if !total_tokens.is_zero() {
             shares_per_token_ratio = decimal_division_in_256(
-                strategy_metadata.total_shares,
+                strategy_info.total_shares,
                 Decimal::from_ratio(total_tokens, 1_u128),
             );
         }
-        strategy_metadata.shares_per_token_ratio = shares_per_token_ratio;
+        strategy_info.shares_per_token_ratio = shares_per_token_ratio;
 
         let mut user_reward_info = UserRewardInfo::new();
         if let Some(user_reward_info_mapping) = USER_REWARD_INFO_MAP
@@ -498,7 +459,7 @@ pub fn try_update_user_rewards(
         } else {
             user_strategy_data = UserStrategyInfo::new(
                 user_strategy.clone(),
-                strategy_metadata.global_airdrop_pointer.clone(),
+                strategy_info.global_airdrop_pointer.clone(),
             );
         }
 
@@ -506,14 +467,14 @@ pub fn try_update_user_rewards(
         let mut user_airdrops: Vec<Coin> = vec![];
         if strategy_supports_airdrops(&strategy_info, None) {
             if let Some(new_user_airdrops) = get_user_airdrops(
-                strategy_metadata.global_airdrop_pointer.clone(),
+                strategy_info.global_airdrop_pointer.clone(),
                 user_strategy_data.airdrop_pointer,
                 user_strategy_data.shares,
             ) {
                 user_airdrops = new_user_airdrops;
             }
         }
-        user_strategy_data.airdrop_pointer = strategy_metadata.global_airdrop_pointer.clone();
+        user_strategy_data.airdrop_pointer = strategy_info.global_airdrop_pointer.clone();
         user_reward_info.pending_airdrops = merge_coin_vector(
             user_reward_info.pending_airdrops,
             CoinVecOp {
@@ -530,8 +491,8 @@ pub fn try_update_user_rewards(
         user_strategy_data.shares =
             decimal_summation_in_256(user_strategy_data.shares, user_shares);
         // update total strategy shares by adding up the user_shares
-        strategy_metadata.total_shares =
-            decimal_summation_in_256(strategy_metadata.total_shares, user_shares);
+        strategy_info.total_shares =
+            decimal_summation_in_256(strategy_info.total_shares, user_shares);
 
         // do statewise book-keeping like adding up accumulated_rewards
         STATE.update(deps.storage, |mut state| -> StdResult<_> {
@@ -544,13 +505,13 @@ pub fn try_update_user_rewards(
 
         // send the rewards to sic
         messages.push(WasmMsg::Execute {
-            contract_addr: String::from(strategy_info.sic_contract_address),
+            contract_addr: strategy_info.sic_contract_address.to_string(),
             msg: to_binary(&sic_execute_msg::TransferRewards {}).unwrap(),
             funds: vec![Coin::new(user_amount.u128(), state.scc_denom.clone())],
         });
 
         // save up the states
-        STRATEGY_METADATA_MAP.save(deps.storage, user_strategy.clone(), &strategy_metadata);
+        STRATEGY_MAP.save(deps.storage, &*user_strategy, &strategy_info);
 
         user_reward_info.strategies.push(user_strategy_data);
         USER_REWARD_INFO_MAP.save(deps.storage, &user_addr, &user_reward_info);
@@ -623,7 +584,17 @@ pub fn try_update_user_airdrops(
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetState {} => to_binary(&query_state(deps)?),
+        QueryMsg::GetStrategyInfo {
+            strategy_name
+        } => to_binary(&query_strategy_info(deps, strategy_name)?)
     }
+}
+
+fn query_strategy_info(deps: Deps, strategy_name: String) -> StdResult<GetStrategyInfoResponse> {
+    let strategy_info = STRATEGY_MAP.may_load(deps.storage, &*strategy_name).unwrap();
+    Ok(GetStrategyInfoResponse {
+        strategy_info
+    })
 }
 
 fn query_state(deps: Deps) -> StdResult<GetStateResponse> {
