@@ -7,7 +7,6 @@ use cosmwasm_std::{
 };
 
 use crate::error::ContractError;
-use crate::helpers::get_bank_msg;
 use crate::msg::{
     ExecuteMsg, GetCurrentUndelegationBatchIdResponse, GetStateResponse, GetTotalTokensResponse,
     GetUndelegationBatchInfoResponse, InstantiateMsg, QueryMsg,
@@ -22,6 +21,10 @@ use crate::utils::{
 };
 use cw20::Cw20ExecuteMsg;
 use cw_storage_plus::U64Key;
+use stader_utils::coin_utils::{
+    merge_coin, merge_coin_vector, multiply_coin_with_decimal, CoinOp, CoinVecOp, Operation,
+};
+use stader_utils::helpers::send_funds_msg;
 use std::collections::HashMap;
 use std::ops::Add;
 use terra_cosmwasm::{create_swap_msg, SwapResponse, TerraMsgWrapper, TerraQuerier};
@@ -503,7 +506,7 @@ pub fn try_withdraw_rewards(
         Ok(state)
     })?;
 
-    Ok(Response::new().add_messages(get_bank_msg(user, vec![effective_withdrawable_amount])))
+    Ok(Response::new().add_message(send_funds_msg(&user, &vec![effective_withdrawable_amount])))
 }
 
 pub fn try_reinvest(

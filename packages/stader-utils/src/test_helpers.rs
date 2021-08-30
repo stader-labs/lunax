@@ -1,5 +1,4 @@
-use cosmwasm_std::{BankMsg, CosmosMsg};
-use terra_cosmwasm::TerraMsgWrapper;
+use cosmwasm_std::{CosmosMsg, BankMsg};
 
 pub fn check_equal_vec<S: PartialEq>(v1: Vec<S>, v2: Vec<S>) -> bool {
     v1.len() == v2.len() && v1.iter().all(|x| v2.contains(x)) && v2.iter().all(|x| v1.contains(x))
@@ -7,22 +6,22 @@ pub fn check_equal_vec<S: PartialEq>(v1: Vec<S>, v2: Vec<S>) -> bool {
 
 // Currently only works for bank messages. We can probably extend it for all other messages.
 pub fn check_equal_bnk_send_msgs(
-    msg1: CosmosMsg<TerraMsgWrapper>,
-    msg2: CosmosMsg<TerraMsgWrapper>,
+    msg1: CosmosMsg,
+    msg2: CosmosMsg,
 ) -> bool {
     let mut response: bool = false;
 
     match msg1 {
         CosmosMsg::Bank(BankMsg::Send {
-            to_address: _,
-            amount,
-        }) => {
+                            to_address: _,
+                            amount,
+                        }) => {
             let msg1_amount = amount;
             match msg2 {
                 CosmosMsg::Bank(BankMsg::Send {
-                    to_address: _,
-                    amount,
-                }) => {
+                                    to_address: _,
+                                    amount,
+                                }) => {
                     response = check_equal_vec(msg1_amount, amount);
                 }
                 _ => {}
@@ -39,6 +38,7 @@ mod tests {
     use crate::state::DecCoin;
     use crate::test_helpers::check_equal_vec;
     use cosmwasm_std::Decimal;
+    use crate::coin_utils::DecCoin;
 
     #[test]
     fn test__check_equal_vec() {

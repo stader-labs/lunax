@@ -21,6 +21,7 @@ pub fn get_bank_msg(recipient: Addr, coins_to_send: Vec<Coin>) -> Vec<BankMsg> {
 mod tests {
     use super::*;
     use crate::test_helpers::check_equal_vec;
+    use stader_utils::test_helpers::check_equal_vec;
 
     #[test]
     fn test__get_bank_msg() {
