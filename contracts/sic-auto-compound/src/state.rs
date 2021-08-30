@@ -6,31 +6,6 @@ use cw_storage_plus::{Item, Map, U64Key};
 use std::fmt;
 use std::fmt::Display;
 
-#[derive(Serialize, Deserialize, Clone, Default, Debug, PartialEq, JsonSchema)]
-pub struct DecCoin {
-    pub(crate) amount: Decimal,
-    pub(crate) denom: String,
-}
-
-impl DecCoin {
-    pub fn new<S: Into<String>>(amount: Decimal, denom: S) -> Self {
-        DecCoin {
-            amount,
-            denom: denom.into(),
-        }
-    }
-}
-
-impl Display for DecCoin {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        // We use the formatting without a space between amount and denom,
-        // which is common in the Cosmos SDK ecosystem:
-        // https://github.com/cosmos/cosmos-sdk/blob/v0.42.4/types/coin.go#L643-L645
-        // For communication to end users, Coin needs to transformed anways (e.g. convert integer uatom to decimal ATOM).
-        write!(f, "{}{}", self.amount, self.denom)
-    }
-}
-
 // Store the delegation related info specific to a validator
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct StakeQuota {

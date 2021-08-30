@@ -15,10 +15,6 @@ use crate::state::{
     BatchUndelegationRecord, StakeQuota, State, STATE, UNDELEGATION_INFO_LEDGER,
     VALIDATORS_TO_STAKED_QUOTA,
 };
-use crate::utils::{
-    decimal_multiplication_in_256, merge_coin, merge_coin_vector, merge_dec_coin_vector,
-    multiply_coin_with_decimal, CoinOp, CoinVecOp, DecCoinVecOp, Operation,
-};
 use cw20::Cw20ExecuteMsg;
 use cw_storage_plus::U64Key;
 use stader_utils::coin_utils::{
