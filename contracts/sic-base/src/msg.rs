@@ -37,14 +37,6 @@ pub enum ExecuteMsg {
         amount: Uint128,
         claim_msg: Binary,
     },
-    // Called by the SCC to withdraw airdrops for the user (assuming ownership is with the SIC)
-    // TODO: bchain99 - we may transfer airdrop ownership back to SCC. so this message may not be needed.
-    WithdrawAirdrops {
-        user: Addr,
-        amount: Uint128,
-        airdrop_token_contract: Addr,
-        airdrop_token: String,
-    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
