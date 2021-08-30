@@ -452,44 +452,6 @@ mod tests {
     };
     use cosmwasm_std::{Empty, OwnedDeps, Response, Timestamp};
 
-    fn instantiate_contract(
-        deps: &mut OwnedDeps<MockStorage, MockApi, MockQuerier>,
-        info: &MessageInfo,
-        env: &Env,
-    ) -> Response<Empty> {
-        let validator1: Addr = Addr::unchecked("valid0001");
-        let validator2: Addr = Addr::unchecked("valid0002");
-
-        let instantiate_msg = InstantiateMsg {
-            min_deposit_per_user: Uint128::new(1000_u128),
-            max_deposit_per_user: Uint128::new(1000_000_000_u128),
-            max_number_of_users: Uint128::new(2000_u128),
-            vault_denom: "uluna".to_string(),
-            initial_validators: vec![validator1, validator2],
-            unbonding_period: None,
-        };
-
-        return instantiate(deps.as_mut(), env.clone(), info.clone(), instantiate_msg).unwrap();
-    }
-
-    #[test]
-    fn test__get_airdrop_list() {
-        let mut deps = mock_dependencies(&[]);
-        let info = mock_info("creator", &[]);
-        let env = mock_env();
-        instantiate_contract(&mut deps, &info, &env);
-
-        let anc_contract = Addr::unchecked("anc_contract");
-        let mir_contract = Addr::unchecked("mir_contract");
-
-        AIRDROP_REGISTRY.save(deps.as_mut().storage, "anc".to_string(), &anc_contract);
-        AIRDROP_REGISTRY.save(deps.as_mut().storage, "mir".to_string(), &mir_contract);
-
-        let airdrops = get_airdrop_list(deps.as_ref().storage);
-
-        assert_eq!(airdrops, vec!["anc", "mir"]);
-    }
-
     #[test]
     fn test__add_coin_vector_to_map() {
         let coin1 = Coin {
