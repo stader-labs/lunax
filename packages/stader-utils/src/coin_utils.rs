@@ -58,14 +58,14 @@ pub struct CoinVecOp {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct DecCoinVecOp {
-    pub(crate) fund: Vec<DecCoin>,
-    pub(crate) operation: Operation,
+    pub fund: Vec<DecCoin>,
+    pub operation: Operation,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct DecimalOp {
-    pub(crate) fund: Decimal,
-    pub(crate) operation: Operation,
+    pub fund: Decimal,
+    pub operation: Operation,
 }
 
 // TODO - GM. What happens to all these methods where amount is not available but sub amount is 0, Especiolly for vec case.
