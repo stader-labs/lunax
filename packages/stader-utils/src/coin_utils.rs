@@ -7,6 +7,34 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::ops::Add;
+use std::fmt;
+use std::fmt::Display;
+
+#[derive(Serialize, Deserialize, Clone, Default, Debug, PartialEq, JsonSchema)]
+pub struct DecCoin {
+    pub amount: Decimal,
+    pub denom: String,
+}
+
+impl DecCoin {
+    pub fn new<S: Into<String>>(amount: Decimal, denom: S) -> Self {
+        DecCoin {
+            amount,
+            denom: denom.into(),
+        }
+    }
+}
+
+impl Display for DecCoin {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        // We use the formatting without a space between amount and denom,
+        // which is common in the Cosmos SDK ecosystem:
+        // https://github.com/cosmos/cosmos-sdk/blob/v0.42.4/types/coin.go#L643-L645
+        // For communication to end users, Coin needs to transformed anways (e.g. convert integer uatom to decimal ATOM).
+        write!(f, "{}{}", self.amount, self.denom)
+    }
+}
+
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub enum Operation {
@@ -17,15 +45,15 @@ pub enum Operation {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct CoinOp {
-    pub(crate) fund: Coin,
-    pub(crate) operation: Operation,
+    pub fund: Coin,
+    pub operation: Operation,
 }
 
 // Supports vector of coins only
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct CoinVecOp {
-    pub(crate) fund: Vec<Coin>,
-    pub(crate) operation: Operation,
+    pub fund: Vec<Coin>,
+    pub operation: Operation,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -37,12 +65,6 @@ pub struct DecCoinVecOp {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct DecimalOp {
     pub(crate) fund: Decimal,
-    pub(crate) operation: Operation,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct UndelegationRecordOp {
-    pub(crate) fund: UserUndelegationRecord,
     pub(crate) operation: Operation,
 }
 
@@ -429,7 +451,6 @@ mod tests {
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
     };
     use cosmwasm_std::{Empty, OwnedDeps, Response, Timestamp};
-    use core::num::dec2flt::parse::Decimal;
 
     fn instantiate_contract(
         deps: &mut OwnedDeps<MockStorage, MockApi, MockQuerier>,

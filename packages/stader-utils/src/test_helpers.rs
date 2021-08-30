@@ -6,8 +6,8 @@ pub fn check_equal_vec<S: PartialEq>(v1: Vec<S>, v2: Vec<S>) -> bool {
 
 // Currently only works for bank messages. We can probably extend it for all other messages.
 pub fn check_equal_bnk_send_msgs(
-    msg1: CosmosMsg<TerraMsgWrapper>,
-    msg2: CosmosMsg<TerraMsgWrapper>,
+    msg1: CosmosMsg,
+    msg2: CosmosMsg,
 ) -> bool {
     let mut response: bool = false;
 
