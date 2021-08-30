@@ -38,6 +38,7 @@ mod tests {
     use crate::state::DecCoin;
     use crate::test_helpers::check_equal_vec;
     use cosmwasm_std::Decimal;
+    use crate::coin_utils::DecCoin;
 
     #[test]
     fn test__check_equal_vec() {
