@@ -43,7 +43,7 @@ pub fn instantiate(
             .unwrap_or_else(|| (21 * 24 * 3600 + 3600)),
         current_undelegation_batch_id: 0,
         current_undelegation_funds: Uint128::zero(),
-        accumulated_vault_airdrops: vec![],
+        accumulated_airdrops: vec![],
         validator_pool: msg.initial_validators,
         unswapped_rewards: vec![],
         uninvested_rewards: Coin::new(0_u128, msg.vault_denom.clone()),
@@ -116,6 +116,8 @@ pub fn try_claim_airdrops(
         return Err(ContractError::Unauthorized {});
     }
 
+    // this wasm-msg will transfer the airdrops from the airdrop cw20 token contract to the
+    // SIC contract
     let mut messages: Vec<WasmMsg> = vec![WasmMsg::Execute {
         contract_addr: airdrop_token_contract.to_string(),
         msg: claim_msg,
@@ -123,8 +125,8 @@ pub fn try_claim_airdrops(
     }];
 
     STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
-        state.accumulated_vault_airdrops = merge_coin_vector(
-            state.accumulated_vault_airdrops,
+        state.accumulated_airdrops = merge_coin_vector(
+            state.accumulated_airdrops,
             CoinVecOp {
                 fund: vec![Coin::new(amount.u128(), airdrop_token)],
                 operation: Operation::Add,
@@ -133,7 +135,7 @@ pub fn try_claim_airdrops(
         Ok(state)
     })?;
 
-    // transfer the ownership from SIC to SCC
+    // this wasm message will transfer the ownership from SIC to SCC
     messages.push(WasmMsg::Execute {
         contract_addr: cw20_token_contract.to_string(),
         msg: to_binary(&cw20::Cw20ExecuteMsg::Transfer {

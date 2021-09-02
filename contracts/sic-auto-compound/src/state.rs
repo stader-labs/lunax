@@ -29,7 +29,7 @@ pub struct State {
     pub current_undelegation_batch_id: u64,
     pub current_undelegation_funds: Uint128,
 
-    pub accumulated_vault_airdrops: Vec<Coin>,
+    pub accumulated_airdrops: Vec<Coin>,
     pub validator_pool: Vec<Addr>,
     pub unswapped_rewards: Vec<Coin>,
     pub uninvested_rewards: Coin,

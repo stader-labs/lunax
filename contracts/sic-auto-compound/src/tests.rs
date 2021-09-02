@@ -118,7 +118,7 @@ mod tests {
                 unbonding_period: (21 * 24 * 3600 + 3600),
                 current_undelegation_batch_id: 0,
                 current_undelegation_funds: Uint128::zero(),
-                accumulated_vault_airdrops: vec![],
+                accumulated_airdrops: vec![],
                 validator_pool: vec![default_validator1, default_validator2],
                 unswapped_rewards: vec![],
                 uninvested_rewards: Coin::new(0_u128, "uluna".to_string()),
@@ -235,14 +235,14 @@ mod tests {
         assert_ne!(state_response.state, None);
         let state = state_response.state.unwrap();
         assert_eq!(
-            state.accumulated_vault_airdrops,
+            state.accumulated_airdrops,
             vec![Coin::new(1000_u128, "abc".to_string())]
         );
 
         STATE.update(
             deps.as_mut().storage,
             |mut state| -> Result<_, ContractError> {
-                state.accumulated_vault_airdrops = vec![
+                state.accumulated_airdrops = vec![
                     Coin::new(1000_u128, "def".to_string()),
                     Coin::new(1500_u128, "abc".to_string()),
                 ];
@@ -288,7 +288,7 @@ mod tests {
         assert_ne!(state_response.state, None);
         let state = state_response.state.unwrap();
         assert!(check_equal_vec(
-            state.accumulated_vault_airdrops,
+            state.accumulated_airdrops,
             vec![Coin::new(1000_u128, "def"), Coin::new(2500_u128, "abc")]
         ));
     }
