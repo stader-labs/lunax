@@ -1001,6 +1001,10 @@ mod tests {
         let state = state_response.state.unwrap();
         assert_eq!(state.total_staked_tokens, Uint128::new(1000_u128));
         assert_eq!(state.total_slashed_amount, Uint128::zero());
+        assert_eq!(
+            state.uninvested_rewards,
+            Coin::new(0_u128, "uluna".to_string())
+        );
         assert_eq!(res.messages.len(), 2);
         assert!(check_equal_vec(
             res.messages,
@@ -1079,6 +1083,10 @@ mod tests {
         let state = state_response.state.unwrap();
         assert_eq!(state.total_staked_tokens, Uint128::new(5000_u128));
         assert_eq!(state.total_slashed_amount, Uint128::zero());
+        assert_eq!(
+            state.uninvested_rewards,
+            Coin::new(0_u128, "uluna".to_string())
+        );
         assert_eq!(res.messages.len(), 2);
         assert!(check_equal_vec(
             res.messages,
@@ -1155,6 +1163,10 @@ mod tests {
         let state = state_response.state.unwrap();
         assert_eq!(state.total_staked_tokens, Uint128::new(5000_u128));
         assert_eq!(state.total_slashed_amount, Uint128::new(1000_u128));
+        assert_eq!(
+            state.uninvested_rewards,
+            Coin::new(0_u128, "uluna".to_string())
+        );
         assert_eq!(res.messages.len(), 2);
         assert!(check_equal_vec(
             res.messages,
@@ -1218,24 +1230,6 @@ mod tests {
         )
         .unwrap_err();
         assert!(matches!(err, ContractError::Unauthorized {}));
-
-        let mut err = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info(&*get_scc_contract_address(), &[]),
-            ExecuteMsg::TransferRewards {},
-        )
-        .unwrap_err();
-        assert!(matches!(err, ContractError::NoFundsSent {}));
-
-        let mut err = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info(&*get_scc_contract_address(), &[]),
-            ExecuteMsg::TransferRewards {},
-        )
-        .unwrap_err();
-        assert!(matches!(err, ContractError::NoFundsSent {}));
 
         let mut err = execute(
             deps.as_mut(),

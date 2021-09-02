@@ -602,6 +602,7 @@ pub fn try_reinvest(
                 .checked_add(total_slashed_amount)
                 .unwrap();
         }
+        state.uninvested_rewards = Coin::new(0_u128, vault_denom);
         Ok(state)
     })?;
 
