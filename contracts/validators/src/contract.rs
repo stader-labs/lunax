@@ -1,46 +1,49 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{
-    to_binary, Addr, Binary, Coin, Decimal, Deps, DepsMut, DistributionMsg, Env, MessageInfo,
-    Response, StakingMsg, StdResult, Uint128,
-};
+use cosmwasm_std::{to_binary, Addr, Binary, Coin, Decimal, Deps, DepsMut, DistributionMsg, Env, MessageInfo, Response, StakingMsg, StdResult, Uint128, Event};
 
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, GetStateResponse, InstantiateMsg, QueryMsg};
+use crate::msg::{ExecuteMsg, GetConfigResponse, InstantiateMsg, QueryMsg};
 use crate::request_validation::{validate, Verify};
-use crate::state::{State, VMeta, STATE, VALIDATOR_META};
-use crate::util::{merge_coin_vector, CoinVecOp, Operation};
+use crate::state::{Config, VMeta, CONFIG, VALIDATOR_META};
+use stader_utils::coin_utils::{merge_coin, Operation, CoinOp, multiply_coin_with_decimal, merge_coin_vector, CoinVecOp};
+use stader_utils::helpers::send_funds_msg;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut, _env: Env, info: MessageInfo, msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
-    let state = State {
+    let state = Config {
         manager: info.sender,
         vault_denom: msg.vault_denom,
         pools_contract_addr: msg.pools_contract_addr,
     };
-    STATE.save(deps.storage, &state)?;
+    CONFIG.save(deps.storage, &state)?;
 
     Ok(Response::default())
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
-    deps: DepsMut, _env: Env, info: MessageInfo, msg: ExecuteMsg,
+    deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::AddValidator { val_addr } => add_validator(deps, info, _env, val_addr),
-        ExecuteMsg::RemoveValidator { val_addr } => remove_validator(deps, info, _env, val_addr),
-        ExecuteMsg::Stake { val_addr } => stake_to_validator(deps, info, _env, val_addr),
+        ExecuteMsg::AddValidator { val_addr } => add_validator(deps, info, env, val_addr),
+        ExecuteMsg::RemoveValidator { val_addr } => remove_validator(deps, info, env, val_addr),
+        ExecuteMsg::Stake { val_addr } => stake_to_validator(deps, info, env, val_addr),
+        ExecuteMsg::RedeemRewards { validators } => redeem_rewards(deps, info, env, validators),
     }
 }
 
 pub fn add_validator(
     deps: DepsMut, info: MessageInfo, _env: Env, val_addr: Addr,
 ) -> Result<Response, ContractError> {
-    let state = STATE.load(deps.storage)?;
-    validate(&state, &info, vec![Verify::SenderManager])?;
+    let config = CONFIG.load(deps.storage)?;
+    validate(&config, &info, vec![Verify::SenderManager])?;
+
+    if VALIDATOR_META.may_load(deps.storage, &val_addr).unwrap().is_some() {
+        return Err(ContractError::ValidatorAlreadyExists {})
+    }
 
     // check if the validator exists in the blockchain
     if deps.querier.query_validator(&val_addr).unwrap().is_none() {
@@ -52,7 +55,6 @@ pub fn add_validator(
         &val_addr,
         &VMeta {
             staked: Uint128::zero(),
-            reward_pointer: Decimal::zero(),
             accrued_rewards: vec![],
         },
     )?;
@@ -66,13 +68,14 @@ pub fn remove_validator(
     Ok(Response::default())
 }
 
-// stake_to_validator can be called for each users message rather than a batch.
+// stake_to_validator can be called for each users message rather than a batch. But this is inaccurate because swap has to be performed
+// Batching is the way to go.
 pub fn stake_to_validator(
     deps: DepsMut, info: MessageInfo, env: Env, val_addr: Addr,
 ) -> Result<Response, ContractError> {
-    let state = STATE.load(deps.storage)?;
+    let config = CONFIG.load(deps.storage)?;
     validate(
-        &state,
+        &config,
         &info,
         vec![Verify::SenderPoolsContract, Verify::NonZeroSingleInfoFund],
     )?;
@@ -85,13 +88,14 @@ pub fn stake_to_validator(
     let val_meta = val_meta_opt.unwrap();
     let stake_amount = info.funds[0].clone();
 
-    let mut accrued_rewards: Vec<Coin> = vec![];
-    let full_delegation = deps
-        .querier
-        .query_delegation(&env.contract.address, &val_addr)?;
-    if full_delegation.is_some() {
-        accrued_rewards = full_delegation.unwrap().accumulated_rewards
-    }
+    // TODO: GM - Don't need considering rewards as redeem_rewards will be called before stake.
+    // let mut accrued_rewards: Vec<Coin> = vec![];
+    // let full_delegation = deps
+    //     .querier
+    //     .query_delegation(&env.contract.address, &val_addr)?;
+    // if full_delegation.is_some() {
+    //     accrued_rewards = full_delegation.unwrap().accumulated_rewards
+    // }
 
     VALIDATOR_META.save(
         deps.storage,
@@ -101,8 +105,7 @@ pub fn stake_to_validator(
                 .staked
                 .checked_add(stake_amount.amount.clone())
                 .unwrap(),
-            reward_pointer: val_meta.reward_pointer,
-            accrued_rewards,
+            accrued_rewards: val_meta.accrued_rewards,
         },
     )?;
 
@@ -111,14 +114,16 @@ pub fn stake_to_validator(
             validator: val_addr.to_string(),
             amount: stake_amount.clone(),
         })
-        .add_attribute("Stake", stake_amount.to_string()))
+        .add_attribute("Stake", stake_amount.to_string())
+        // .add_event(Event::new("rewards", accrued_rewards))
+    )
 }
 
 pub fn redeem_rewards(
     deps: DepsMut, info: MessageInfo, env: Env, validators: Vec<Addr>,
 ) -> Result<Response, ContractError> {
-    let state = STATE.load(deps.storage)?;
-    validate(&state, &info, vec![Verify::SenderManager])?;
+    let config = CONFIG.load(deps.storage)?;
+    validate(&config, &info, vec![Verify::SenderPoolsContract])?;
 
     let mut messages = vec![];
     let mut failed_vals: Vec<String> = vec![];
@@ -126,6 +131,7 @@ pub fn redeem_rewards(
         let val_meta_opt = VALIDATOR_META.may_load(deps.storage, &val_addr)?;
         if val_meta_opt.is_none() {
             failed_vals.push(val_addr.to_string());
+            continue;
         }
 
         let full_delegation_opt = deps
@@ -138,7 +144,7 @@ pub fn redeem_rewards(
         VALIDATOR_META.update(deps.storage, &val_addr, |v_meta| -> StdResult<_> {
             let mut val_meta = v_meta.unwrap();
             val_meta.accrued_rewards = merge_coin_vector(
-                &val_meta.accrued_rewards,
+                val_meta.accrued_rewards,
                 CoinVecOp {
                     fund: full_delegation_opt.unwrap().accumulated_rewards,
                     operation: Operation::Add,
@@ -160,11 +166,11 @@ pub fn redeem_rewards(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::GetState {} => to_binary(&query_state(deps)?),
+        QueryMsg::GetConfig {} => to_binary(&query_config(deps)?),
     }
 }
 
-pub fn query_state(deps: Deps) -> StdResult<GetStateResponse> {
-    let state: State = STATE.load(deps.storage)?;
-    Ok(GetStateResponse { state })
+pub fn query_config(deps: Deps) -> StdResult<GetConfigResponse> {
+    let config: Config = CONFIG.load(deps.storage)?;
+    Ok(GetConfigResponse { config: config })
 }

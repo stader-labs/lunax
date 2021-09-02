@@ -5,6 +5,13 @@
     <content url="file://$MODULE_DIR$">
       <sourceFolder url="file://$MODULE_DIR$/contracts/sic-stake-max/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/contracts/sic-stake-max/examples" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/contracts/sic-auto-compound/examples" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/contracts/sic-auto-compound/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/contracts/sic-base/examples" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/contracts/sic-base/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/contracts/validators/examples" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/contracts/validators/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/packages/stader-utils/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
     </content>
     <orderEntry type="inheritedJdk" />

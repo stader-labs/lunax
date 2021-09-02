@@ -1,12 +1,16 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "InstantiateMsg",
+  "title": "Config",
   "type": "object",
   "required": [
+    "manager",
     "pools_contract_addr",
     "vault_denom"
   ],
   "properties": {
+    "manager": {
+      "$ref": "#/definitions/Addr"
+    },
     "pools_contract_addr": {
       "$ref": "#/definitions/Addr"
     },
