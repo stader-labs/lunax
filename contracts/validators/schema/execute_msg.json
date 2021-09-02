@@ -61,6 +61,29 @@
         }
       },
       "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "redeem_rewards"
+      ],
+      "properties": {
+        "redeem_rewards": {
+          "type": "object",
+          "required": [
+            "validators"
+          ],
+          "properties": {
+            "validators": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/Addr"
+              }
+            }
+          }
+        }
+      },
+      "additionalProperties": false
     }
   ],
   "definitions": {
