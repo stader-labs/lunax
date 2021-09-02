@@ -30,20 +30,13 @@ pub enum ExecuteMsg {
         undelegation_batch_id: u64,
     },
     // Called by the SCC to claim airdrops from different protocols for the strategy (if airdrop applies)
-    // Airdrop token contract is fed from SCC
+    // Airdrop token contract is fed from SCC.
+    // The airdrops are claimed by the SIC contract and then the ownership of the airdrops are transferred back to the SCC.
     ClaimAirdrops {
         airdrop_token_contract: Addr,
         airdrop_token: String,
         amount: Uint128,
         claim_msg: Binary,
-    },
-    // Called by the SCC to withdraw airdrops for the user (assuming ownership is with the SIC)
-    // TODO: bchain99 - we may transfer airdrop ownership back to SCC. so this message may not be needed.
-    WithdrawAirdrops {
-        user: Addr,
-        amount: Uint128,
-        airdrop_token_contract: Addr,
-        airdrop_token: String,
     },
 }
 

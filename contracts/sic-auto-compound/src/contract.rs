@@ -3,6 +3,7 @@ use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     attr, to_binary, Addr, Attribute, BankMsg, Binary, Coin, Decimal, Deps, DepsMut,
     DistributionMsg, Env, Fraction, MessageInfo, Order, Response, StakingMsg, StdResult, Uint128,
+    WasmMsg,
 };
 
 use crate::error::ContractError;
@@ -14,12 +15,15 @@ use crate::state::{
     BatchUndelegationRecord, StakeQuota, State, STATE, UNDELEGATION_INFO_LEDGER,
     VALIDATORS_TO_STAKED_QUOTA,
 };
+use cw20::Cw20ExecuteMsg;
 use cw_storage_plus::U64Key;
+use stader_utils::coin_utils::{
+    merge_coin, merge_coin_vector, multiply_coin_with_decimal, CoinOp, CoinVecOp, Operation,
+};
+use stader_utils::helpers::send_funds_msg;
 use std::collections::HashMap;
 use std::ops::Add;
 use terra_cosmwasm::{create_swap_msg, SwapResponse, TerraMsgWrapper, TerraQuerier};
-use stader_utils::coin_utils::{merge_coin, Operation, CoinOp, multiply_coin_with_decimal, merge_coin_vector, CoinVecOp};
-use stader_utils::helpers::send_funds_msg;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -39,7 +43,7 @@ pub fn instantiate(
             .unwrap_or_else(|| (21 * 24 * 3600 + 3600)),
         current_undelegation_batch_id: 0,
         current_undelegation_funds: Uint128::zero(),
-        accumulated_vault_airdrops: vec![],
+        accumulated_airdrops: vec![],
         validator_pool: msg.initial_validators,
         unswapped_rewards: vec![],
         uninvested_rewards: Coin::new(0_u128, msg.vault_denom.clone()),
@@ -78,7 +82,71 @@ pub fn execute(
         ExecuteMsg::Reinvest {} => try_reinvest(deps, _env, info),
         ExecuteMsg::RedeemRewards {} => try_redeem_rewards(deps, _env, info),
         ExecuteMsg::Swap {} => try_swap(deps, _env, info),
+        ExecuteMsg::ClaimAirdrops {
+            airdrop_token_contract,
+            cw20_token_contract,
+            airdrop_token,
+            amount,
+            claim_msg,
+        } => try_claim_airdrops(
+            deps,
+            _env,
+            info,
+            airdrop_token_contract,
+            cw20_token_contract,
+            airdrop_token,
+            amount,
+            claim_msg,
+        ),
     }
+}
+
+pub fn try_claim_airdrops(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    airdrop_token_contract: Addr,
+    cw20_token_contract: Addr,
+    airdrop_token: String,
+    amount: Uint128,
+    claim_msg: Binary,
+) -> Result<Response<TerraMsgWrapper>, ContractError> {
+    let state = STATE.load(deps.storage).unwrap();
+    if info.sender != state.scc_address {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    // this wasm-msg will transfer the airdrops from the airdrop cw20 token contract to the
+    // SIC contract
+    let mut messages: Vec<WasmMsg> = vec![WasmMsg::Execute {
+        contract_addr: airdrop_token_contract.to_string(),
+        msg: claim_msg,
+        funds: vec![],
+    }];
+
+    STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
+        state.accumulated_airdrops = merge_coin_vector(
+            state.accumulated_airdrops,
+            CoinVecOp {
+                fund: vec![Coin::new(amount.u128(), airdrop_token)],
+                operation: Operation::Add,
+            },
+        );
+        Ok(state)
+    })?;
+
+    // this wasm message will transfer the ownership from SIC to SCC
+    messages.push(WasmMsg::Execute {
+        contract_addr: cw20_token_contract.to_string(),
+        msg: to_binary(&cw20::Cw20ExecuteMsg::Transfer {
+            recipient: state.scc_address.to_string(),
+            amount,
+        })
+        .unwrap(),
+        funds: vec![],
+    });
+
+    Ok(Response::new().add_messages(messages))
 }
 
 pub fn try_reconcile_undelegation_batch(
