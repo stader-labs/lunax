@@ -12,6 +12,9 @@ pub enum ContractError {
     #[error("Funds not found")]
     NoFunds {},
 
+    #[error("Multiple funds found instead of one")]
+    MultipleFunds {},
+
     #[error("Funds denom not matching vault denom")]
     InvalidDenom {},
 
@@ -20,6 +23,9 @@ pub enum ContractError {
 
     #[error("Please add validator to contract and retry")]
     ValidatorNotAdded {},
+
+    #[error("Validator already exists in contract")]
+    ValidatorAlreadyExists {},
     // Add any other custom errors you like here.
     // Look at https://docs.rs/thiserror/1.0.21/thiserror/ for details.
 }

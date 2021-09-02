@@ -1,4 +1,4 @@
-use crate::state::State;
+use crate::state::Config;
 use cosmwasm_std::Addr;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -15,15 +15,16 @@ pub enum ExecuteMsg {
     AddValidator { val_addr: Addr },
     RemoveValidator { val_addr: Addr },
     Stake { val_addr: Addr },
+    RedeemRewards { validators: Vec<Addr> },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
-    GetState {},
+    GetConfig {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct GetStateResponse {
-    pub state: State,
+pub struct GetConfigResponse {
+    pub config: Config,
 }
