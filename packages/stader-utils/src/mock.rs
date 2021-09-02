@@ -314,7 +314,7 @@ pub fn mock_ibc_packet_recv(
             revision: 1,
             height: 12345678,
         }
-            .into(),
+        .into(),
     }))
 }
 
@@ -338,7 +338,7 @@ fn mock_ibc_packet(my_channel_id: &str, data: &impl Serialize) -> StdResult<IbcP
             revision: 1,
             height: 432332552,
         }
-            .into(),
+        .into(),
     })
 }
 
@@ -423,8 +423,8 @@ impl<C: DeserializeOwned> MockQuerier<C> {
     }
 
     pub fn with_custom_handler<CH: 'static>(mut self, handler: CH) -> Self
-        where
-            CH: Fn(&C) -> MockQuerierCustomHandlerResult,
+    where
+        CH: Fn(&C) -> MockQuerierCustomHandlerResult,
     {
         self.custom_handler = Box::from(handler);
         self
@@ -506,7 +506,7 @@ impl NoWasmQuerier {
             WasmQuery::Raw { contract_addr, .. } => default_output,
             _ => default_output,
         }
-            .clone();
+        .clone();
         QuerierResult::Ok(ContractResult::Ok(output))
         // SystemResult::Err(SystemError::NoSuchContract { addr: "testing".to_string() })
     }
