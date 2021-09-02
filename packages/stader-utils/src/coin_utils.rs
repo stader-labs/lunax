@@ -1,12 +1,39 @@
-use crate::state::DecCoin;
 use cosmwasm_bignumber::Decimal256;
 use cosmwasm_std::{
-    Addr, Coin, Decimal, Env, Fraction, MessageInfo, StdResult, Storage, Timestamp, Uint128,
+    Addr, BankMsg, Coin, Decimal, Env, Fraction, MessageInfo, Order, StdResult, Storage, Timestamp,
+    Uint128,
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
+use std::fmt;
+use std::fmt::Display;
 use std::ops::Add;
+
+#[derive(Serialize, Deserialize, Clone, Default, Debug, PartialEq, JsonSchema)]
+pub struct DecCoin {
+    pub amount: Decimal,
+    pub denom: String,
+}
+
+impl DecCoin {
+    pub fn new<S: Into<String>>(amount: Decimal, denom: S) -> Self {
+        DecCoin {
+            amount,
+            denom: denom.into(),
+        }
+    }
+}
+
+impl Display for DecCoin {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        // We use the formatting without a space between amount and denom,
+        // which is common in the Cosmos SDK ecosystem:
+        // https://github.com/cosmos/cosmos-sdk/blob/v0.42.4/types/coin.go#L643-L645
+        // For communication to end users, Coin needs to transformed anways (e.g. convert integer uatom to decimal ATOM).
+        write!(f, "{}{}", self.amount, self.denom)
+    }
+}
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub enum Operation {
@@ -24,21 +51,30 @@ pub struct CoinOp {
 // Supports vector of coins only
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct CoinVecOp {
-    pub(crate) fund: Vec<Coin>,
-    pub(crate) operation: Operation,
+    pub fund: Vec<Coin>,
+    pub operation: Operation,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct DecCoinVecOp {
-    pub(crate) fund: Vec<DecCoin>,
-    pub(crate) operation: Operation,
+    pub fund: Vec<DecCoin>,
+    pub operation: Operation,
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct DecimalOp {
+    pub fund: Decimal,
+    pub operation: Operation,
+}
+
+// TODO - GM. What happens to all these methods where amount is not available but sub amount is 0, Especiolly for vec case.
 // (coin1 + coin2) or (coin1 - coin2)
 pub fn merge_coin(coin1: Coin, coin_op: CoinOp) -> Coin {
     let fund = coin_op.fund;
     let operation = coin_op.operation;
 
+    // TODO - GM. Is denom equality check required?
+    // TODO - GM. Should worry about denom casing?
     match operation {
         Operation::Add => Coin {
             amount: coin1.amount.checked_add(fund.amount).unwrap(),
@@ -60,6 +96,20 @@ pub fn merge_coin(coin1: Coin, coin_op: CoinOp) -> Coin {
     }
 }
 
+// TODO - GM. This has to be a trait with DecCoin.
+pub fn check_equal_deccoin_vector(deccoins1: &Vec<DecCoin>, deccoins2: &Vec<DecCoin>) -> bool {
+    deccoins1.len() == deccoins2.len()
+        && deccoins1.iter().all(|x| deccoins2.contains(x))
+        && deccoins2.iter().all(|x| deccoins1.contains(x))
+}
+
+pub fn check_equal_coin_vector(coins1: &Vec<Coin>, coins2: &Vec<Coin>) -> bool {
+    coins1.len() == coins2.len()
+        && coins1.iter().all(|x| coins2.contains(x))
+        && coins2.iter().all(|x| coins1.contains(x))
+}
+
+// TODO - GM. Generalize map_to_vec for Coin and DecCoin
 pub fn map_to_coin_vec(coin_map: HashMap<String, Uint128>) -> Vec<Coin> {
     let mut coins: Vec<Coin> = vec![];
     for denom in coin_map.keys() {
@@ -69,6 +119,30 @@ pub fn map_to_coin_vec(coin_map: HashMap<String, Uint128>) -> Vec<Coin> {
         })
     }
     coins
+}
+
+pub fn map_to_deccoin_vec(coin_map: HashMap<String, Decimal>) -> Vec<DecCoin> {
+    let mut coins: Vec<DecCoin> = vec![];
+    for denom in coin_map.keys() {
+        coins.push(DecCoin {
+            denom: denom.clone(),
+            amount: *coin_map.get(denom).unwrap(),
+        })
+    }
+    coins
+}
+
+// Jumbles the order of the vector
+// (Coins + CoinVecOp.fund) and (Coins - CoinVecOp.fund) [Element wise operation but Sub is stricter than set operation]
+pub fn merge_dec_coin_vector(coins: &Vec<DecCoin>, deccoin_vec_op: DecCoinVecOp) -> Vec<DecCoin> {
+    let fund = deccoin_vec_op.fund;
+    let operation = deccoin_vec_op.operation;
+
+    match operation {
+        Operation::Add => add_deccoin_vectors(coins, &fund),
+        Operation::Sub => subtract_deccoin_vectors(coins, &fund),
+        Operation::Replace => fund,
+    }
 }
 
 // Jumbles the order of the vector
@@ -84,16 +158,60 @@ pub fn merge_coin_vector(coins: Vec<Coin>, coin_vec_op: CoinVecOp) -> Vec<Coin> 
     }
 }
 
-fn add_coin_vectors(coins1: &Vec<Coin>, coins2: &Vec<Coin>) -> Vec<Coin> {
-    let mut coin_map = add_coin_vector_to_map(&mut HashMap::new(), coins1);
-    coin_map = add_coin_vector_to_map(&mut coin_map, coins2);
-    return map_to_coin_vec(coin_map);
+/// return a * b
+pub fn decimal_division_in_256(a: Decimal, b: Decimal) -> Decimal {
+    let a_u256: Decimal256 = a.into();
+    let b_u256: Decimal256 = b.into();
+    let c_u256: Decimal = (a_u256 / b_u256).into();
+    c_u256
 }
 
-fn subtract_coin_vectors(coins1: &Vec<Coin>, coins2: &Vec<Coin>) -> Vec<Coin> {
-    let mut coin_map = add_coin_vector_to_map(&mut HashMap::new(), coins1);
-    coin_map = subtract_coin_vector_from_map(&mut coin_map, coins2);
-    map_to_coin_vec(coin_map)
+/// return a * b
+pub fn decimal_multiplication_in_256(a: Decimal, b: Decimal) -> Decimal {
+    let a_u256: Decimal256 = a.into();
+    let b_u256: Decimal256 = b.into();
+    let c_u256: Decimal = (b_u256 * a_u256).into();
+    c_u256
+}
+
+/// return a + b
+pub fn decimal_summation_in_256(a: Decimal, b: Decimal) -> Decimal {
+    let a_u256: Decimal256 = a.into();
+    let b_u256: Decimal256 = b.into();
+    let c_u256: Decimal = (b_u256 + a_u256).into();
+    c_u256
+}
+
+/// return a - b
+pub fn decimal_subtraction_in_256(a: Decimal, b: Decimal) -> Decimal {
+    let a_u256: Decimal256 = a.into();
+    let b_u256: Decimal256 = b.into();
+    let c_u256: Decimal = (a_u256 - b_u256).into();
+    c_u256
+}
+
+pub fn get_decimal_from_uint128(a: Uint128) -> Decimal {
+    Decimal::from_ratio(a, 1_u128)
+}
+
+pub fn merge_decimal(decimal1: Decimal, decimal_op: DecimalOp) -> Decimal {
+    let fund = decimal_op.fund;
+    let operation = decimal_op.operation;
+
+    match operation {
+        Operation::Add => decimal_summation_in_256(decimal1, fund),
+        Operation::Sub => {
+            if decimal1 < fund {
+                panic!(
+                    "Cannot make decimal with negative value {}-{}",
+                    decimal1.to_string(),
+                    fund.to_string()
+                )
+            }
+            decimal_subtraction_in_256(decimal1, fund)
+        }
+        Operation::Replace => fund, // _ => panic!("Unknown operation type {:?}", operation)
+    }
 }
 
 // Not to be used with Vec<{(120, "token1"), (30, "token1") ..}. No denom should be present more than once.
@@ -161,75 +279,7 @@ pub fn subtract_coin_vector_from_map(
     dissipated_coins
 }
 
-/// return a * b
-pub fn decimal_multiplication_in_256(a: Decimal, b: Decimal) -> Decimal {
-    let a_u256: Decimal256 = a.into();
-    let b_u256: Decimal256 = b.into();
-    let c_u256: Decimal = (b_u256 * a_u256).into();
-    c_u256
-}
-
-/// return a + b
-pub fn decimal_summation_in_256(a: Decimal, b: Decimal) -> Decimal {
-    let a_u256: Decimal256 = a.into();
-    let b_u256: Decimal256 = b.into();
-    let c_u256: Decimal = (b_u256 + a_u256).into();
-    c_u256
-}
-
-/// return a - b
-pub fn decimal_subtraction_in_256(a: Decimal, b: Decimal) -> Decimal {
-    let a_u256: Decimal256 = a.into();
-    let b_u256: Decimal256 = b.into();
-    let c_u256: Decimal = (a_u256 - b_u256).into();
-    c_u256
-}
-
-pub fn decimal_division_in_256(a: Decimal, b: Decimal) -> Decimal {
-    let a_u256: Decimal256 = a.into();
-    let b_u256: Decimal256 = b.into();
-    let c_u256: Decimal = (a_u256 / b_u256).into();
-    c_u256
-}
-
-pub fn multiply_coin_with_decimal(coin: &Coin, ratio: Decimal) -> Coin {
-    Coin::new(
-        coin.amount.u128() * ratio.numerator() / ratio.denominator(),
-        coin.denom.clone(),
-    )
-}
-
-pub fn u128_from_decimal(a: Decimal) -> u128 {
-    a.numerator() / a.denominator()
-}
-
-pub fn uint128_from_decimal(a: Decimal) -> Uint128 {
-    Uint128::new(u128_from_decimal(a))
-}
-
-pub fn merge_dec_coin_vector(coins: &Vec<DecCoin>, deccoin_vec_op: DecCoinVecOp) -> Vec<DecCoin> {
-    let fund = deccoin_vec_op.fund;
-    let operation = deccoin_vec_op.operation;
-
-    match operation {
-        Operation::Add => add_deccoin_vectors(coins, &fund),
-        Operation::Sub => subtract_deccoin_vectors(coins, &fund),
-        Operation::Replace => fund,
-    }
-}
-
-fn add_deccoin_vectors(deccoin1: &Vec<DecCoin>, deccoin2: &Vec<DecCoin>) -> Vec<DecCoin> {
-    let mut deccoin_map = add_deccoin_vector_to_map(&mut HashMap::new(), deccoin1);
-    deccoin_map = add_deccoin_vector_to_map(&mut deccoin_map, deccoin2);
-    map_to_deccoin_vec(deccoin_map)
-}
-
-fn subtract_deccoin_vectors(deccoin1: &Vec<DecCoin>, deccoin2: &Vec<DecCoin>) -> Vec<DecCoin> {
-    let mut deccoin_map = add_deccoin_vector_to_map(&mut HashMap::new(), deccoin1);
-    deccoin_map = subtract_deccoin_vector_from_map(&mut deccoin_map, deccoin2);
-    map_to_deccoin_vec(deccoin_map)
-}
-
+// Not to be used with Vec<{(120/200, "token1"), (30/23, "token1") ..}. No denom should be present more than once.
 pub fn add_deccoin_vector_to_map(
     existing_deccoins: &mut HashMap<String, Decimal>,
     new_deccoins: &Vec<DecCoin>,
@@ -256,6 +306,8 @@ pub fn add_deccoin_vector_to_map(
     accumulated_coins
 }
 
+// Not to be used with Vec<{(120/200, "token1"), (30/23, "token1") ..}. No denom should be present more than once.
+// (existing_deccoins - new_deccoins) vector subtraction.
 pub fn subtract_deccoin_vector_from_map(
     existing_deccoins: &mut HashMap<String, Decimal>,
     new_deccoins: &Vec<DecCoin>,
@@ -293,21 +345,57 @@ pub fn subtract_deccoin_vector_from_map(
     dissipated_coins
 }
 
-pub fn map_to_deccoin_vec(coin_map: HashMap<String, Decimal>) -> Vec<DecCoin> {
-    let mut coins: Vec<DecCoin> = vec![];
-    for denom in coin_map.keys() {
-        coins.push(DecCoin {
-            denom: denom.clone(),
-            amount: *coin_map.get(denom).unwrap(),
-        })
-    }
-    coins
+pub fn filter_by_denom(coin_vector: &Vec<Coin>, denoms: Vec<String>) -> Vec<Coin> {
+    coin_vector
+        .iter()
+        .filter(|&x| denoms.contains(&x.denom))
+        .cloned()
+        .collect()
 }
 
-pub fn check_equal_deccoin_vector(deccoins1: &Vec<DecCoin>, deccoins2: &Vec<DecCoin>) -> bool {
-    deccoins1.len() == deccoins2.len()
-        && deccoins1.iter().all(|x| deccoins2.contains(x))
-        && deccoins2.iter().all(|x| deccoins1.contains(x))
+pub fn filter_by_other_denom(coin_vector: &Vec<Coin>, denoms: Vec<String>) -> Vec<Coin> {
+    coin_vector
+        .iter()
+        .filter(|&x| !denoms.contains(&x.denom))
+        .cloned()
+        .collect()
+}
+
+// TODO - GM. Make these add & subtract coinvecs and deccoinvecs more efficient
+fn add_coin_vectors(coins1: &Vec<Coin>, coins2: &Vec<Coin>) -> Vec<Coin> {
+    let mut coin_map = add_coin_vector_to_map(&mut HashMap::new(), coins1);
+    coin_map = add_coin_vector_to_map(&mut coin_map, coins2);
+    return map_to_coin_vec(coin_map);
+}
+
+fn subtract_coin_vectors(coins1: &Vec<Coin>, coins2: &Vec<Coin>) -> Vec<Coin> {
+    let mut coin_map = add_coin_vector_to_map(&mut HashMap::new(), coins1);
+    coin_map = subtract_coin_vector_from_map(&mut coin_map, coins2);
+    return map_to_coin_vec(coin_map);
+}
+
+fn add_deccoin_vectors(deccoin1: &Vec<DecCoin>, deccoin2: &Vec<DecCoin>) -> Vec<DecCoin> {
+    let mut deccoin_map = add_deccoin_vector_to_map(&mut HashMap::new(), deccoin1);
+    deccoin_map = add_deccoin_vector_to_map(&mut deccoin_map, deccoin2);
+    return map_to_deccoin_vec(deccoin_map);
+}
+
+fn subtract_deccoin_vectors(deccoin1: &Vec<DecCoin>, deccoin2: &Vec<DecCoin>) -> Vec<DecCoin> {
+    let mut deccoin_map = add_deccoin_vector_to_map(&mut HashMap::new(), deccoin1);
+    deccoin_map = subtract_deccoin_vector_from_map(&mut deccoin_map, deccoin2);
+    return map_to_deccoin_vec(deccoin_map);
+}
+
+pub fn multiply_deccoin_vector_with_decimal(coins: &Vec<DecCoin>, ratio: Decimal) -> Vec<DecCoin> {
+    let mut result: Vec<DecCoin> = vec![];
+    for deccoin in coins {
+        let decimal = decimal_multiplication_in_256(deccoin.amount, ratio);
+        result.push(DecCoin {
+            denom: deccoin.denom.clone(),
+            amount: decimal,
+        });
+    }
+    result
 }
 
 pub fn multiply_deccoin_vector_with_uint128(
@@ -328,11 +416,32 @@ pub fn multiply_deccoin_vector_with_uint128(
     result
 }
 
+pub fn multiply_coin_with_decimal(coin: &Coin, ratio: Decimal) -> Coin {
+    Coin::new(
+        coin.amount.u128() * ratio.numerator() / ratio.denominator(),
+        coin.denom.clone(),
+    )
+}
+
+pub fn coin_to_deccoin(coin: Coin) -> DecCoin {
+    DecCoin {
+        amount: Decimal::from_ratio(coin.amount, Uint128::new(1_u128)),
+        denom: coin.denom,
+    }
+}
+
 pub fn deccoin_to_coin(deccoin: DecCoin) -> Coin {
     Coin::new(
         deccoin.amount.numerator() / deccoin.amount.denominator(),
         deccoin.denom,
     )
+}
+
+pub fn coin_vec_to_deccoin_vec(coins: &Vec<Coin>) -> Vec<DecCoin> {
+    coins
+        .iter()
+        .map(|coin| coin_to_deccoin(coin.clone()))
+        .collect()
 }
 
 pub fn deccoin_vec_to_coin_vec(deccoins: &Vec<DecCoin>) -> Vec<Coin> {
@@ -342,24 +451,13 @@ pub fn deccoin_vec_to_coin_vec(deccoins: &Vec<DecCoin>) -> Vec<Coin> {
         .collect()
 }
 
-pub fn multiply_deccoin_vector_with_decimal(coins: &Vec<DecCoin>, ratio: Decimal) -> Vec<DecCoin> {
-    let mut result: Vec<DecCoin> = vec![];
-    for deccoin in coins {
-        let decimal = decimal_multiplication_in_256(deccoin.amount, ratio);
-        result.push(DecCoin {
-            denom: deccoin.denom.clone(),
-            amount: decimal,
-        });
-    }
-    result
-}
-
 #[cfg(test)]
 mod tests {
 
     use super::*;
     use crate::contract::instantiate;
     use crate::msg::InstantiateMsg;
+    use crate::test_helpers::check_equal_user_info;
     use cosmwasm_std::testing::{
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
     };

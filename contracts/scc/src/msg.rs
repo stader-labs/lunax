@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
     pub strategy_denom: String,
+    pub pools_contract: Addr,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -47,11 +48,14 @@ pub enum ExecuteMsg {
         airdrop_contract: Addr,
     },
     // called by validator contract to transfer rewards from validator contract to SCC
-    // this message also moves rewards from SCC to the corresponding SIC
+    // this message also moves rewards from SCC to the corresponding SIC. This message will
+    // transfer the rewards to the SIC per user. this is because the batching is already being done
+    // by the pools contract. Calls to this message will be paginated.
     UpdateUserRewards {
         update_user_rewards_requests: Vec<UpdateUserRewardsRequest>,
     },
-    // called by validator contract to transfer airdrops from validator contract to SCC
+    // called by validator contract to transfer airdrops from validator contract to SCC. This will be a separate
+    // epoch in the pools contract.
     UpdateUserAirdrops {
         update_user_airdrops_requests: Vec<UpdateUserAirdropsRequest>,
     },

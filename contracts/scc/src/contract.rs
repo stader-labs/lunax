@@ -2,25 +2,29 @@
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     attr, to_binary, Addr, Attribute, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env,
-    Fraction, MessageInfo, Response, StdError, StdResult, Timestamp, Uint128, WasmMsg,
+    Fraction, MessageInfo, QuerierResult, Response, StdError, StdResult, Timestamp, Uint128,
+    WasmMsg,
 };
 
 use crate::error::ContractError;
-use crate::helpers::{get_sic_total_tokens, get_user_strategy_data, strategy_supports_airdrops};
+use crate::helpers::{
+    get_sic_total_tokens, get_strategy_shares_per_token_ratio,
+};
 use crate::msg::{
     ExecuteMsg, GetStateResponse, GetStrategyInfoResponse, InstantiateMsg, QueryMsg,
     UpdateUserAirdropsRequest, UpdateUserRewardsRequest,
 };
 use crate::state::{
-    Cw20TokenContractsInfo, DecCoin, State, StrategyInfo, UserRewardInfo, UserStrategyInfo,
+    Cw20TokenContractsInfo, State, StrategyInfo, UserRewardInfo, UserStrategyInfo,
     CW20_TOKEN_CONTRACTS_REGISTRY, STATE, STRATEGY_MAP, USER_REWARD_INFO_MAP,
 };
 use crate::user::get_user_airdrops;
-use crate::utils::{
-    decimal_division_in_256, decimal_multiplication_in_256, decimal_summation_in_256,
-    merge_coin_vector, merge_dec_coin_vector, CoinVecOp, DecCoinVecOp, Operation,
-};
 use sic_base::msg::{ExecuteMsg as sic_execute_msg, QueryMsg as sic_query_msg};
+use stader_utils::coin_utils::{
+    decimal_division_in_256, decimal_multiplication_in_256, decimal_summation_in_256,
+    get_decimal_from_uint128, merge_coin_vector, merge_dec_coin_vector, CoinVecOp, DecCoin,
+    DecCoinVecOp, Operation,
+};
 use std::borrow::Borrow;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -32,6 +36,7 @@ pub fn instantiate(
 ) -> Result<Response, ContractError> {
     let state = State {
         manager: info.sender.clone(),
+        pool_contract: msg.pools_contract,
         scc_denom: msg.strategy_denom,
         contract_genesis_block_height: _env.block.height,
         contract_genesis_timestamp: _env.block.time,
@@ -182,9 +187,6 @@ pub fn try_claim_airdrops(
         return Err(ContractError::StrategyInfoDoesNotExist {});
     }
 
-    if !strategy_supports_airdrops(&strategy_info, Some(denom.clone())) {
-        return Err(ContractError::StrategyDoesNotSupportAirdrop {});
-    }
 
     let total_shares = strategy_info.total_shares;
     let sic_address = strategy_info.sic_contract_address.clone();
@@ -202,10 +204,7 @@ pub fn try_claim_airdrops(
         &strategy_info.global_airdrop_pointer,
         DecCoinVecOp {
             fund: vec![DecCoin {
-                amount: decimal_multiplication_in_256(
-                    Decimal::from_ratio(amount, 1_u128),
-                    total_shares.inv().unwrap(),
-                ),
+                amount: decimal_division_in_256(Decimal::from_ratio(amount, 1_u128), total_shares),
                 denom: denom.clone(),
             }],
             operation: Operation::Add,
@@ -258,7 +257,7 @@ pub fn try_withdraw_airdrops(
     }
 
     let mut messages: Vec<WasmMsg> = vec![];
-    let mut logs: Vec<Attribute> = vec![];
+    let mut failed_airdrops: Vec<String> = vec![];
     let user_airdrops = user_reward_info.pending_airdrops;
     for user_airdrop in user_airdrops.clone() {
         let airdrop_denom = user_airdrop.denom;
@@ -268,7 +267,7 @@ pub fn try_withdraw_airdrops(
             .may_load(deps.storage, airdrop_denom.clone())
             .unwrap();
         if cw20_token_contracts.is_none() {
-            logs.push(attr("failed_to_get_contract", airdrop_denom));
+            failed_airdrops.push(airdrop_denom);
             continue;
         }
 
@@ -294,7 +293,7 @@ pub fn try_withdraw_airdrops(
         Ok(state)
     });
 
-    Ok(Response::new().add_attributes(logs).add_messages(messages))
+    Ok(Response::new().add_attribute("failed_airdrops", failed_airdrops.join(",")).add_messages(messages))
 }
 
 pub fn try_withdraw_rewards(
@@ -423,7 +422,8 @@ pub fn try_update_user_rewards(
 ) -> Result<Response, ContractError> {
     // check for manager?
     let state = STATE.load(deps.storage).unwrap();
-    if info.sender != state.manager {
+    // TODO: bchain99 - can we make access control better?
+    if info.sender != state.pool_contract {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -432,7 +432,7 @@ pub fn try_update_user_rewards(
     }
 
     let mut messages: Vec<WasmMsg> = vec![];
-    // iterate thru all requests
+    // iterate thru all requests. This is technically a paginated batch job running
     for user_request in update_user_rewards_requests {
         let user_strategy = user_request.strategy_id;
         let user_amount = user_request.rewards;
@@ -450,18 +450,11 @@ pub fn try_update_user_rewards(
         }
 
         // fetch the total tokens from the SIC contract and update the S/T ratio for the strategy
-        let total_tokens = get_sic_total_tokens(deps.querier, &strategy_info.sic_contract_address)
-            .total_tokens
-            .unwrap_or_else(|| Uint128::zero());
-        let mut shares_per_token_ratio = Decimal::from_ratio(100_000_000_u128, 1_u128);
-        if !total_tokens.is_zero() {
-            shares_per_token_ratio = decimal_division_in_256(
-                strategy_info.total_shares,
-                Decimal::from_ratio(total_tokens, 1_u128),
-            );
-        }
-        strategy_info.shares_per_token_ratio = shares_per_token_ratio;
+        let current_strategy_shares_per_token =
+            get_strategy_shares_per_token_ratio(deps.querier, &strategy_info);
+        strategy_info.shares_per_token_ratio = current_strategy_shares_per_token;
 
+        // fetch user reward info. If it is not there, create a new UserRewardInfo
         let mut user_reward_info = UserRewardInfo::new();
         if let Some(user_reward_info_mapping) = USER_REWARD_INFO_MAP
             .may_load(deps.storage, &user_addr)
@@ -470,31 +463,28 @@ pub fn try_update_user_rewards(
             user_reward_info = user_reward_info_mapping;
         }
 
-        // update the user airdrop pointer and allocate the user pending airdrops for each strategy
-        let mut user_strategy_data: UserStrategyInfo;
-        if let Some(user_strategy_data_mapping) =
-            get_user_strategy_data(user_reward_info.strategies.clone(), user_strategy.clone())
+        let mut user_strategy_info: &mut UserStrategyInfo;
+        if let Some(i) = (0..user_reward_info.strategies.len())
+            .find(|&i| user_reward_info.strategies[i].strategy_name == strategy_info.name.clone())
         {
-            user_strategy_data = user_strategy_data_mapping;
+            user_strategy_info = &mut user_reward_info.strategies[i];
         } else {
-            user_strategy_data = UserStrategyInfo::new(
-                user_strategy.clone(),
-                strategy_info.global_airdrop_pointer.clone(),
-            );
+            let mut new_user_strategy_info: UserStrategyInfo =
+                UserStrategyInfo::new(strategy_info.name.clone(), vec![]);
+            user_reward_info.strategies.push(new_user_strategy_info);
+            user_strategy_info = user_reward_info.strategies.last_mut().unwrap();
         }
 
-        // update the user_airdrops
+        // update the user airdrop pointer and allocate the user pending airdrops for the strategy
         let mut user_airdrops: Vec<Coin> = vec![];
-        if strategy_supports_airdrops(&strategy_info, None) {
-            if let Some(new_user_airdrops) = get_user_airdrops(
-                strategy_info.global_airdrop_pointer.clone(),
-                user_strategy_data.airdrop_pointer,
-                user_strategy_data.shares,
-            ) {
-                user_airdrops = new_user_airdrops;
-            }
+        if let Some(new_user_airdrops) = get_user_airdrops(
+            &strategy_info.global_airdrop_pointer,
+            &user_strategy_info.airdrop_pointer,
+            user_strategy_info.shares,
+        ) {
+            user_airdrops = new_user_airdrops;
         }
-        user_strategy_data.airdrop_pointer = strategy_info.global_airdrop_pointer.clone();
+        user_strategy_info.airdrop_pointer = strategy_info.global_airdrop_pointer.clone();
         user_reward_info.pending_airdrops = merge_coin_vector(
             user_reward_info.pending_airdrops,
             CoinVecOp {
@@ -505,11 +495,11 @@ pub fn try_update_user_rewards(
 
         // update user shares based on the S/T ratio
         let user_shares = decimal_multiplication_in_256(
-            shares_per_token_ratio,
-            Decimal::from_ratio(user_amount, 1_u128),
+            current_strategy_shares_per_token,
+            get_decimal_from_uint128(user_amount),
         );
-        user_strategy_data.shares =
-            decimal_summation_in_256(user_strategy_data.shares, user_shares);
+        user_strategy_info.shares =
+            decimal_summation_in_256(user_strategy_info.shares, user_shares);
         // update total strategy shares by adding up the user_shares
         strategy_info.total_shares =
             decimal_summation_in_256(strategy_info.total_shares, user_shares);
@@ -532,8 +522,6 @@ pub fn try_update_user_rewards(
 
         // save up the states
         STRATEGY_MAP.save(deps.storage, &*user_strategy, &strategy_info);
-
-        user_reward_info.strategies.push(user_strategy_data);
         USER_REWARD_INFO_MAP.save(deps.storage, &user_addr, &user_reward_info);
     }
 

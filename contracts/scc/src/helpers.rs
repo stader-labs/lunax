@@ -1,10 +1,12 @@
 use crate::state::{StrategyInfo, UserRewardInfo, UserStrategyInfo, USER_REWARD_INFO_MAP};
-use crate::utils::{decimal_multiplication_in_256, decimal_subtraction_in_256};
 use cosmwasm_std::{
     Addr, Decimal, Fraction, QuerierWrapper, Response, Storage, Timestamp, Uint128,
 };
 use sic_base::msg::{GetTotalTokensResponse, QueryMsg as sic_msg};
-use std::fmt::Error;
+use stader_utils::coin_utils::{
+    decimal_division_in_256, decimal_multiplication_in_256, decimal_subtraction_in_256,
+    get_decimal_from_uint128,
+};
 
 pub fn get_vault_apr(
     current_shares_per_token_ratio: Decimal,
@@ -39,34 +41,26 @@ pub fn get_sic_total_tokens(querier: QuerierWrapper, sic_address: &Addr) -> GetT
         .unwrap()
 }
 
-pub fn get_user_strategy_data(
-    strategies: Vec<UserStrategyInfo>,
-    strategy_name: String,
-) -> Option<UserStrategyInfo> {
-    for strategy in strategies {
-        if strategy.strategy_name.eq(&strategy_name) {
-            return Some(strategy);
-        }
-    }
-
-    None
-}
-
-pub fn strategy_supports_airdrops(
+pub fn get_strategy_shares_per_token_ratio(
+    querier: QuerierWrapper,
     strategy_info: &StrategyInfo,
-    airdrop_opt: Option<String>,
-) -> bool {
-    if strategy_info.supported_airdrops.is_empty() {
-        return false;
+) -> Decimal {
+    let sic_address = &strategy_info.sic_contract_address;
+    let default_s_t_ratio = Decimal::from_ratio(10_u128, 1_u128);
+
+    let total_sic_tokens = get_sic_total_tokens(querier, sic_address)
+        .total_tokens
+        .unwrap_or(Uint128::zero());
+    if total_sic_tokens.is_zero() {
+        return default_s_t_ratio;
     }
 
-    if let Some(airdrop) = airdrop_opt {
-        if !strategy_info.supported_airdrops.contains(&airdrop) {
-            return false;
-        }
-    }
+    let total_strategy_shares = strategy_info.total_shares;
 
-    true
+    decimal_division_in_256(
+        total_strategy_shares,
+        get_decimal_from_uint128(total_sic_tokens),
+    )
 }
 
 #[cfg(test)]
@@ -74,7 +68,7 @@ mod tests {
     use crate::contract::instantiate;
     use crate::helpers::get_vault_apr;
     use crate::msg::InstantiateMsg;
-    use crate::state::STATE;
+    use crate::state::{UserRewardInfo, UserStrategyInfo, STATE, USER_REWARD_INFO_MAP};
     use cosmwasm_std::testing::{
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
         MOCK_CONTRACT_ADDR,
@@ -83,6 +77,8 @@ mod tests {
         Addr, Coin, Decimal, Empty, Env, Fraction, MessageInfo, OwnedDeps, Response, StdResult,
         Uint128,
     };
+    use stader_utils::coin_utils::decimal_division_in_256;
+    use std::ops::Div;
 
     pub fn instantiate_contract(
         deps: &mut OwnedDeps<MockStorage, MockApi, MockQuerier>,
@@ -92,6 +88,7 @@ mod tests {
     ) -> Response<Empty> {
         let instantiate_msg = InstantiateMsg {
             strategy_denom: vault_denom.unwrap_or_else(|| "uluna".to_string()),
+            pools_contract: Addr::unchecked("abc"),
         };
 
         return instantiate(deps.as_mut(), env.clone(), info.clone(), instantiate_msg).unwrap();

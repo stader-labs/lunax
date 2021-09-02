@@ -3,38 +3,16 @@ use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{Addr, Coin, Decimal, Timestamp, Uint128};
 use cw_storage_plus::{Item, Map};
+use stader_utils::coin_utils::DecCoin;
 use std::collections::HashMap;
 use std::fmt;
 use std::fmt::Display;
 
-#[derive(Serialize, Deserialize, Clone, Default, Debug, PartialEq, JsonSchema)]
-pub struct DecCoin {
-    pub(crate) amount: Decimal,
-    pub(crate) denom: String,
-}
-
-impl DecCoin {
-    pub fn new<S: Into<String>>(amount: Decimal, denom: S) -> Self {
-        DecCoin {
-            amount,
-            denom: denom.into(),
-        }
-    }
-}
-
-impl Display for DecCoin {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        // We use the formatting without a space between amount and denom,
-        // which is common in the Cosmos SDK ecosystem:
-        // https://github.com/cosmos/cosmos-sdk/blob/v0.42.4/types/coin.go#L643-L645
-        // For communication to end users, Coin needs to transformed anways (e.g. convert integer uatom to decimal ATOM).
-        write!(f, "{}{}", self.amount, self.denom)
-    }
-}
-
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct State {
     pub manager: Addr,
+
+    pub pool_contract: Addr,
     pub scc_denom: String,
     pub contract_genesis_block_height: u64,
     pub contract_genesis_timestamp: Timestamp,

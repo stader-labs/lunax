@@ -8,12 +8,10 @@ use cosmwasm_std::{
 
 use crate::error::ContractError;
 use crate::msg::{
-    ExecuteMsg, GetCurrentUndelegationBatchIdResponse, GetStateResponse,
-    GetTotalTokensResponse, GetUndelegationBatchInfoResponse, InstantiateMsg, QueryMsg,
+    ExecuteMsg, GetCurrentUndelegationBatchIdResponse, GetStateResponse, GetTotalTokensResponse,
+    GetUndelegationBatchInfoResponse, InstantiateMsg, QueryMsg,
 };
-use crate::state::{
-    BatchUndelegationRecord, State, STATE, UNDELEGATION_INFO_LEDGER,
-};
+use crate::state::{BatchUndelegationRecord, State, STATE, UNDELEGATION_INFO_LEDGER};
 use cw_storage_plus::U64Key;
 use std::collections::HashMap;
 use std::ops::Add;
@@ -32,10 +30,12 @@ pub fn instantiate(
         contract_genesis_block_height: _env.block.height,
         contract_genesis_timestamp: _env.block.time,
         current_undelegation_batch_id: 0,
-        unbonding_period: msg.unbonding_period.unwrap_or_else(|| (21 * 24 * 3600 + 3600)),
+        unbonding_period: msg
+            .unbonding_period
+            .unwrap_or_else(|| (21 * 24 * 3600 + 3600)),
         total_rewards_accumulated: Uint128::zero(),
         total_rewards_in_sic: Uint128::zero(),
-        rewards_in_yield: Uint128::zero()
+        rewards_in_yield: Uint128::zero(),
     };
 
     STATE.save(deps.storage, &state)?;
