@@ -122,4 +122,4 @@ pub const STATE: Item<State> = Item::new("state");
 
 pub const STRATEGY_MAP: Map<&str, StrategyInfo> = Map::new("strategy_map");
 pub const USER_REWARD_INFO_MAP: Map<&Addr, UserRewardInfo> = Map::new("user_reward_info_map");
-pub const AIRDROP_REGISTRY: Map<String, Addr> = Map::new("airdrop_registry");
+pub const AIRDROP_REGISTRY: Map<&str, Addr> = Map::new("airdrop_registry");
