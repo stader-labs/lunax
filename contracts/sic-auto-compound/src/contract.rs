@@ -325,7 +325,7 @@ pub fn try_transfer_rewards(
 
     // check if any money is being sent
     if info.funds.is_empty() {
-        return Err(ContractError::NoFundsSent {});
+        return Ok(Response::default());
     }
 
     // accept only one coin
