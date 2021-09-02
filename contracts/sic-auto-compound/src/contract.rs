@@ -318,10 +318,9 @@ pub fn try_transfer_rewards(
     info: MessageInfo,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let state = STATE.load(deps.storage).unwrap();
-
-    if info.sender != state.scc_address {
-        return Err(ContractError::Unauthorized {});
-    }
+    // if info.sender != state.scc_address {
+    //     return Err(ContractError::Unauthorized {});
+    // }
 
     // check if any money is being sent
     if info.funds.is_empty() {
