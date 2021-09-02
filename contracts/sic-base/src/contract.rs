@@ -73,21 +73,7 @@ pub fn execute(
             airdrop_token,
             amount,
             claim_msg,
-        ),
-        ExecuteMsg::WithdrawAirdrops {
-            airdrop_token_contract,
-            airdrop_token,
-            amount,
-            user,
-        } => try_withdraw_airdrops(
-            deps,
-            _env,
-            info,
-            airdrop_token_contract,
-            airdrop_token,
-            amount,
-            user,
-        ),
+        )
     }
 }
 
@@ -100,18 +86,6 @@ pub fn try_claim_airdrops(
     airdrop_token: String,
     amount: Uint128,
     claim_msg: Binary,
-) -> Result<Response, ContractError> {
-    Ok(Response::default())
-}
-
-pub fn try_withdraw_airdrops(
-    deps: DepsMut,
-    _env: Env,
-    info: MessageInfo,
-    airdrop_token_contract: Addr,
-    airdrop_token: String,
-    amount: Uint128,
-    user: Addr,
 ) -> Result<Response, ContractError> {
     Ok(Response::default())
 }
