@@ -7,9 +7,7 @@ use cosmwasm_std::{
 };
 
 use crate::error::ContractError;
-use crate::helpers::{
-    get_sic_total_tokens, get_strategy_shares_per_token_ratio,
-};
+use crate::helpers::{get_sic_total_tokens, get_strategy_shares_per_token_ratio};
 use crate::msg::{
     ExecuteMsg, GetStateResponse, GetStrategyInfoResponse, InstantiateMsg, QueryMsg,
     UpdateUserAirdropsRequest, UpdateUserRewardsRequest,
@@ -187,7 +185,6 @@ pub fn try_claim_airdrops(
         return Err(ContractError::StrategyInfoDoesNotExist {});
     }
 
-
     let total_shares = strategy_info.total_shares;
     let sic_address = strategy_info.sic_contract_address.clone();
     let airdrop_coin = Coin::new(amount.u128(), denom.clone());
@@ -259,8 +256,8 @@ pub fn try_withdraw_airdrops(
     let mut messages: Vec<WasmMsg> = vec![];
     let mut failed_airdrops: Vec<String> = vec![];
     let user_airdrops = user_reward_info.pending_airdrops;
-    for user_airdrop in user_airdrops.clone() {
-        let airdrop_denom = user_airdrop.denom;
+    user_airdrops.iter().for_each(|user_airdrop| {
+        let airdrop_denom = user_airdrop.denom.clone();
         let airdrop_amount = user_airdrop.amount;
 
         let cw20_token_contracts = CW20_TOKEN_CONTRACTS_REGISTRY
@@ -268,7 +265,7 @@ pub fn try_withdraw_airdrops(
             .unwrap();
         if cw20_token_contracts.is_none() {
             failed_airdrops.push(airdrop_denom);
-            continue;
+            return;
         }
 
         messages.push(WasmMsg::Execute {
@@ -280,7 +277,7 @@ pub fn try_withdraw_airdrops(
             .unwrap(),
             funds: vec![],
         });
-    }
+    });
 
     STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
         state.total_accumulated_airdrops = merge_coin_vector(
@@ -293,7 +290,9 @@ pub fn try_withdraw_airdrops(
         Ok(state)
     });
 
-    Ok(Response::new().add_attribute("failed_airdrops", failed_airdrops.join(",")).add_messages(messages))
+    Ok(Response::new()
+        .add_attribute("failed_airdrops", failed_airdrops.join(","))
+        .add_messages(messages))
 }
 
 pub fn try_withdraw_rewards(
