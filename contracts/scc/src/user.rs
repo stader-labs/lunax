@@ -28,5 +28,5 @@ pub fn get_user_airdrops(
     let user_airdrops =
         multiply_deccoin_vector_with_decimal(&airdrop_pointer_difference, user_shares);
 
-    return Some(deccoin_vec_to_coin_vec(&user_airdrops));
+    Some(deccoin_vec_to_coin_vec(&user_airdrops))
 }

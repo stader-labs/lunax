@@ -31,5 +31,5 @@ pub fn check_equal_reward_info(a: UserRewardInfo, b: UserRewardInfo) -> bool {
         return false;
     }
 
-    return true;
+    true
 }

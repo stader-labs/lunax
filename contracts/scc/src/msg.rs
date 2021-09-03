@@ -1,5 +1,5 @@
-use crate::state::{State, StrategyInfo};
-use cosmwasm_std::{Addr, Binary, Coin, Timestamp, Uint128};
+use crate::state::{State, StrategyInfo, UserRewardInfo};
+use cosmwasm_std::{Addr, Coin, Timestamp, Uint128, Binary};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -31,7 +31,6 @@ pub enum ExecuteMsg {
         strategy_id: String,
         sic_contract_address: Addr,
         unbonding_period: Option<u64>,
-        supported_airdrops: Vec<String>,
     },
     ActivateStrategy {
         strategy_id: String,
@@ -83,6 +82,7 @@ pub enum ExecuteMsg {
 pub enum QueryMsg {
     GetState {},
     GetStrategyInfo { strategy_name: String },
+    GetUserRewardInfo { user: Addr },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -93,4 +93,9 @@ pub struct GetStateResponse {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct GetStrategyInfoResponse {
     pub strategy_info: Option<StrategyInfo>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct GetUserRewardInfo {
+    pub user_reward_info: Option<UserRewardInfo>,
 }

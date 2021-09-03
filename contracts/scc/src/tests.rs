@@ -578,7 +578,7 @@ mod tests {
         STRATEGY_MAP.save(
             deps.as_mut().storage,
             "sid1",
-            &StrategyInfo::new("sid1".to_string(), sid1_sic_address.clone(), None, vec![]),
+            &StrategyInfo::new("sid1".to_string(), sid1_sic_address.clone(), None),
         );
 
         let res = execute(
@@ -658,7 +658,6 @@ mod tests {
                 name: "sid1".to_string(),
                 sic_contract_address: sid1_sic_address.clone(),
                 unbonding_period: None,
-                supported_airdrops: vec![],
                 is_active: true,
                 total_shares: Decimal::from_ratio(5000_u128, 1_u128),
                 global_airdrop_pointer: vec![],
@@ -759,7 +758,6 @@ mod tests {
                 name: "sid1".to_string(),
                 sic_contract_address: sid1_sic_address.clone(),
                 unbonding_period: None,
-                supported_airdrops: vec![],
                 is_active: true,
                 total_shares: Decimal::from_ratio(5000_u128, 1_u128),
                 global_airdrop_pointer: vec![],
@@ -860,7 +858,6 @@ mod tests {
                 name: "sid1".to_string(),
                 sic_contract_address: sid1_sic_address.clone(),
                 unbonding_period: None,
-                supported_airdrops: vec![],
                 is_active: true,
                 total_shares: Decimal::from_ratio(5000_u128, 1_u128),
                 global_airdrop_pointer: vec![],
@@ -961,7 +958,6 @@ mod tests {
                 name: "sid1".to_string(),
                 sic_contract_address: sid1_sic_address.clone(),
                 unbonding_period: None,
-                supported_airdrops: vec![],
                 is_active: true,
                 total_shares: Decimal::from_ratio(5000_u128, 1_u128),
                 global_airdrop_pointer: vec![],
@@ -1005,21 +1001,14 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(res.messages.len(), 2);
+        assert_eq!(res.messages.len(), 1);
         assert!(check_equal_vec(
             res.messages,
-            vec![
-                SubMsg::new(WasmMsg::Execute {
-                    contract_addr: String::from(sid1_sic_address.clone()),
-                    msg: to_binary(&sic_execute_msg::TransferRewards {}).unwrap(),
-                    funds: vec![Coin::new(500_u128, state.scc_denom.clone())]
-                }),
-                SubMsg::new(WasmMsg::Execute {
-                    contract_addr: String::from(sid1_sic_address.clone()),
-                    msg: to_binary(&sic_execute_msg::TransferRewards {}).unwrap(),
-                    funds: vec![Coin::new(500_u128, state.scc_denom.clone())]
-                })
-            ]
+            vec![SubMsg::new(WasmMsg::Execute {
+                contract_addr: String::from(sid1_sic_address.clone()),
+                msg: to_binary(&sic_execute_msg::TransferRewards {}).unwrap(),
+                funds: vec![Coin::new(1000_u128, state.scc_denom.clone())]
+            })]
         ));
 
         let state_response: GetStateResponse =
@@ -1091,7 +1080,6 @@ mod tests {
                 name: "sid1".to_string(),
                 sic_contract_address: sid1_sic_address.clone(),
                 unbonding_period: None,
-                supported_airdrops: vec![],
                 is_active: true,
                 total_shares: Decimal::from_ratio(5000_u128, 1_u128),
                 global_airdrop_pointer: vec![],
@@ -1107,7 +1095,6 @@ mod tests {
                 name: "sid2".to_string(),
                 sic_contract_address: sid2_sic_address.clone(),
                 unbonding_period: None,
-                supported_airdrops: vec![],
                 is_active: true,
                 total_shares: Decimal::from_ratio(5000_u128, 1_u128),
                 global_airdrop_pointer: vec![],
@@ -1249,7 +1236,6 @@ mod tests {
                 name: "sid1".to_string(),
                 sic_contract_address: sid1_sic_address.clone(),
                 unbonding_period: None,
-                supported_airdrops: vec![],
                 is_active: true,
                 total_shares: Decimal::from_ratio(5000_u128, 1_u128),
                 global_airdrop_pointer: vec![
@@ -1384,7 +1370,6 @@ mod tests {
                 name: "sid1".to_string(),
                 sic_contract_address: sid1_sic_address.clone(),
                 unbonding_period: None,
-                supported_airdrops: vec![],
                 is_active: true,
                 total_shares: Decimal::from_ratio(5000_u128, 1_u128),
                 global_airdrop_pointer: vec![
@@ -1406,7 +1391,6 @@ mod tests {
                 name: "sid2".to_string(),
                 sic_contract_address: sid2_sic_address.clone(),
                 unbonding_period: None,
-                supported_airdrops: vec![],
                 is_active: true,
                 total_shares: Decimal::from_ratio(5000_u128, 1_u128),
                 global_airdrop_pointer: vec![
@@ -1428,7 +1412,6 @@ mod tests {
                 name: "sid3".to_string(),
                 sic_contract_address: sid3_sic_address.clone(),
                 unbonding_period: None,
-                supported_airdrops: vec![],
                 is_active: true,
                 total_shares: Decimal::from_ratio(5000_u128, 1_u128),
                 global_airdrop_pointer: vec![DecCoin::new(
@@ -1656,6 +1639,8 @@ mod tests {
             Some(String::from("pools_contract")),
         );
 
+        let strategy_name: String = String::from("sid");
+
         /*
            Test - 1. Unauthorized
         */
@@ -1664,7 +1649,7 @@ mod tests {
             env.clone(),
             mock_info("not-creator", &[]),
             ExecuteMsg::DeactivateStrategy {
-                strategy_id: "sid".to_string(),
+                strategy_id: strategy_name.clone(),
             },
         )
         .unwrap_err();
@@ -1678,11 +1663,14 @@ mod tests {
             env.clone(),
             mock_info("creator", &[]),
             ExecuteMsg::DeactivateStrategy {
-                strategy_id: "sid".to_string(),
+                strategy_id: strategy_name.clone(),
             },
         )
         .unwrap_err();
-        assert!(matches!(err, ContractError::StrategyInfoDoesNotExist {}));
+        assert!(matches!(
+            err,
+            ContractError::StrategyInfoDoesNotExist(String { .. })
+        ));
     }
 
     #[test]
@@ -1763,7 +1751,10 @@ mod tests {
             },
         )
         .unwrap_err();
-        assert!(matches!(err, ContractError::StrategyInfoDoesNotExist {}));
+        assert!(matches!(
+            err,
+            ContractError::StrategyInfoDoesNotExist(String { .. })
+        ));
     }
 
     #[test]
@@ -1829,7 +1820,6 @@ mod tests {
                 strategy_id: "sid".to_string(),
                 sic_contract_address: Addr::unchecked("abc"),
                 unbonding_period: None,
-                supported_airdrops: vec!["anc".to_string(), "mir".to_string()],
             },
         )
         .unwrap_err();
@@ -1852,7 +1842,6 @@ mod tests {
                 strategy_id: "sid".to_string(),
                 sic_contract_address: Addr::unchecked("abc"),
                 unbonding_period: None,
-                supported_airdrops: vec!["anc".to_string(), "mir".to_string()],
             },
         )
         .unwrap_err();
@@ -1881,7 +1870,6 @@ mod tests {
                 strategy_id: "sid".to_string(),
                 sic_contract_address: Addr::unchecked("abc"),
                 unbonding_period: Some(100u64),
-                supported_airdrops: vec!["anc".to_string(), "mir".to_string()],
             },
         )
         .unwrap();
@@ -1895,7 +1883,6 @@ mod tests {
                 name: "sid".to_string(),
                 sic_contract_address: Addr::unchecked("abc"),
                 unbonding_period: Some(100u64),
-                supported_airdrops: vec!["anc".to_string(), "mir".to_string()],
                 is_active: false,
                 total_shares: Default::default(),
                 global_airdrop_pointer: vec![],
