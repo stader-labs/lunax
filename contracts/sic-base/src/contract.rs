@@ -58,6 +58,7 @@ pub fn execute(
         } => try_withdraw_rewards(deps, _env, info, user, undelegation_batch_id, amount),
         ExecuteMsg::ClaimAirdrops {
             airdrop_token_contract,
+            cw20_token_contract,
             airdrop_token,
             amount,
             claim_msg,
@@ -66,6 +67,7 @@ pub fn execute(
             _env,
             info,
             airdrop_token_contract,
+            cw20_token_contract,
             airdrop_token,
             amount,
             claim_msg,
@@ -79,6 +81,7 @@ pub fn try_claim_airdrops(
     _env: Env,
     _info: MessageInfo,
     _airdrop_token_contract: Addr,
+    _cw20_token_contract: Addr,
     _airdrop_token: String,
     _amount: Uint128,
     _claim_msg: Binary,
