@@ -1,8 +1,8 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, to_binary, Addr, Attribute, BankMsg, Binary, Coin, Decimal, Deps, DepsMut,
-    DistributionMsg, Env, Fraction, MessageInfo, Order, Response, StakingMsg, StdResult, Uint128,
+    attr, to_binary, Addr, Attribute, Binary, Coin, Decimal, Deps, DepsMut,
+    DistributionMsg, Env, Fraction, MessageInfo, Response, StakingMsg, StdResult, Uint128,
     WasmMsg,
 };
 
@@ -15,7 +15,6 @@ use crate::state::{
     BatchUndelegationRecord, StakeQuota, State, STATE, UNDELEGATION_INFO_LEDGER,
     VALIDATORS_TO_STAKED_QUOTA,
 };
-use cw20::Cw20ExecuteMsg;
 use cw_storage_plus::U64Key;
 use stader_utils::coin_utils::{
     merge_coin, merge_coin_vector, multiply_coin_with_decimal, CoinOp, CoinVecOp, Operation,
@@ -32,7 +31,7 @@ pub fn instantiate(
     info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
-    let mut state = State {
+    let state = State {
         manager: info.sender.clone(),
         scc_address: msg.scc_address,
         vault_denom: msg.vault_denom.clone(),
@@ -46,7 +45,7 @@ pub fn instantiate(
         accumulated_airdrops: vec![],
         validator_pool: msg.initial_validators,
         unswapped_rewards: vec![],
-        uninvested_rewards: Coin::new(0_u128, msg.vault_denom.clone()),
+        uninvested_rewards: Coin::new(0_u128, msg.vault_denom),
 
         total_staked_tokens: Uint128::zero(),
         total_slashed_amount: Uint128::zero(),
@@ -221,7 +220,7 @@ pub fn try_reconcile_undelegation_batch(
             undelegation_batch.slashing_checked = true;
             Ok(undelegation_batch)
         },
-    );
+    )?;
 
     STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
         state.current_undelegation_funds = state
@@ -305,7 +304,7 @@ pub fn try_swap(
             },
         );
         Ok(state)
-    });
+    })?;
 
     logs.push(attr("total_swapped_rewards", swapped_coin.to_string()));
 
@@ -347,7 +346,7 @@ pub fn try_transfer_rewards(
             },
         );
         Ok(state)
-    });
+    })?;
 
     Ok(Response::default())
 }
@@ -373,7 +372,7 @@ pub fn try_undelegate_rewards(
 
     // For each undelegation request to SIC, we create an undelegation batch. The main intent of the batch
     // is to account for undelegation slashing.
-    let mut new_undelegation_batch_id = state.current_undelegation_batch_id.add(1_u64);
+    let new_undelegation_batch_id = state.current_undelegation_batch_id.add(1_u64);
     STATE.update(deps.storage, |mut state| -> StdResult<_> {
         state.current_undelegation_batch_id = new_undelegation_batch_id;
         Ok(state)
@@ -466,7 +465,7 @@ pub fn try_withdraw_rewards(
         return Err(ContractError::ZeroWithdrawal {});
     }
 
-    let mut undelegation_batch: BatchUndelegationRecord;
+    let undelegation_batch: BatchUndelegationRecord;
     match UNDELEGATION_INFO_LEDGER
         .may_load(deps.storage, U64Key::new(undelegation_batch_id))
         .unwrap()
@@ -590,7 +589,8 @@ pub fn try_reinvest(
             ),
         };
 
-        VALIDATORS_TO_STAKED_QUOTA.save(deps.storage, v, &new_validator_stake_quota);
+        VALIDATORS_TO_STAKED_QUOTA.save(deps.storage, v, &new_validator_stake_quota).unwrap();
+
         extra_split = 0_u128;
     });
 
@@ -627,10 +627,7 @@ pub fn try_redeem_rewards(
         let result = deps
             .querier
             .query_delegation(&_env.contract.address, validator)?;
-        if result.is_none() {
-            continue;
-        } else {
-            let full_delegation = result.unwrap();
+        if let Some(full_delegation) = result  {
             total_rewards = merge_coin_vector(
                 full_delegation.accumulated_rewards,
                 CoinVecOp {
@@ -638,6 +635,8 @@ pub fn try_redeem_rewards(
                     operation: Operation::Add,
                 },
             );
+        } else {
+            continue;
         }
 
         messages.push(DistributionMsg::WithdrawDelegatorReward {
@@ -655,7 +654,7 @@ pub fn try_redeem_rewards(
         );
 
         Ok(state)
-    });
+    })?;
 
     Ok(Response::new().add_messages(messages))
 }
