@@ -16,7 +16,6 @@ thiserror = { version = "1.0.24" }
 cosmwasm-bignumber = "2.1.1"
 terra-cosmwasm = { version = "2.1.0" }
 cw20 = "0.8.0"
-cosmwasm-crypto = "0.16.0"
 sic-base = { path = "./../../contracts/sic-base" }
 
 [dev-dependencies]

@@ -13,10 +13,11 @@ mod tests {
         MOCK_CONTRACT_ADDR,
     };
     use cosmwasm_std::{
-        coins, from_binary, Addr, BankMsg, Coin, Decimal, DistributionMsg, Empty, Env,
-        FullDelegation, MessageInfo, OwnedDeps, Response, StakingMsg, StdResult, SubMsg, Uint128,
-        Validator,
+        coins, from_binary, to_binary, Addr, BankMsg, Binary, Coin, Decimal, DistributionMsg,
+        Empty, Env, FullDelegation, MessageInfo, OwnedDeps, Response, StakingMsg, StdResult,
+        SubMsg, Uint128, Validator, WasmMsg,
     };
+    use cw20::Cw20ExecuteMsg;
     use cw_storage_plus::U64Key;
     use stader_utils::test_helpers::check_equal_vec;
 
@@ -117,7 +118,7 @@ mod tests {
                 unbonding_period: (21 * 24 * 3600 + 3600),
                 current_undelegation_batch_id: 0,
                 current_undelegation_funds: Uint128::zero(),
-                accumulated_vault_airdrops: vec![],
+                accumulated_airdrops: vec![],
                 validator_pool: vec![default_validator1, default_validator2],
                 unswapped_rewards: vec![],
                 uninvested_rewards: Coin::new(0_u128, "uluna".to_string()),
@@ -125,6 +126,171 @@ mod tests {
                 total_slashed_amount: Uint128::zero()
             }
         );
+    }
+
+    #[test]
+    fn test__try_claim_airdrops_fail() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &[]);
+        let env = mock_env();
+
+        let res = instantiate_contract(
+            &mut deps,
+            &info,
+            &env,
+            Some(
+                get_validators()
+                    .iter()
+                    .map(|f| Addr::unchecked(&f.address))
+                    .collect(),
+            ),
+            Option::from("uluna".to_string()),
+        );
+
+        let airdrop_token_contract = Addr::unchecked("airdrop_token_contract");
+        let cw20_token_contract = Addr::unchecked("cw20_token_contract");
+        fn get_airdrop_claim_msg() -> Binary {
+            Binary::from(vec![01, 02, 03, 04, 05, 06, 07, 08])
+        }
+
+        let mut err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("not-scc", &[]),
+            ExecuteMsg::ClaimAirdrops {
+                airdrop_token_contract,
+                cw20_token_contract,
+                airdrop_token: "abc".to_string(),
+                amount: Uint128::new(1000_u128),
+                claim_msg: get_airdrop_claim_msg(),
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::Unauthorized {}));
+    }
+
+    #[test]
+    fn test__try_claim_airdrops_success() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &[]);
+        let env = mock_env();
+
+        let res = instantiate_contract(
+            &mut deps,
+            &info,
+            &env,
+            Some(
+                get_validators()
+                    .iter()
+                    .map(|f| Addr::unchecked(&f.address))
+                    .collect(),
+            ),
+            Option::from("uluna".to_string()),
+        );
+
+        let airdrop_token_contract = Addr::unchecked("airdrop_token_contract");
+        let cw20_token_contract = Addr::unchecked("cw20_token_contract");
+        let scc_address: Addr = Addr::unchecked("scc-address");
+
+        fn get_airdrop_claim_msg() -> Binary {
+            Binary::from(vec![01, 02, 03, 04, 05, 06, 07, 08])
+        }
+
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info(&*get_scc_contract_address(), &[]),
+            ExecuteMsg::ClaimAirdrops {
+                airdrop_token_contract: airdrop_token_contract.clone(),
+                cw20_token_contract: cw20_token_contract.clone(),
+                airdrop_token: "abc".to_string(),
+                amount: Uint128::new(1000_u128),
+                claim_msg: get_airdrop_claim_msg(),
+            },
+        )
+        .unwrap();
+        assert_eq!(res.messages.len(), 2);
+        assert!(check_equal_vec(
+            res.messages,
+            vec![
+                SubMsg::new(WasmMsg::Execute {
+                    contract_addr: airdrop_token_contract.to_string(),
+                    msg: get_airdrop_claim_msg(),
+                    funds: vec![],
+                }),
+                SubMsg::new(WasmMsg::Execute {
+                    contract_addr: cw20_token_contract.to_string(),
+                    msg: to_binary(&cw20::Cw20ExecuteMsg::Transfer {
+                        recipient: scc_address.to_string(),
+                        amount: Uint128::new(1000_u128)
+                    })
+                    .unwrap(),
+                    funds: vec![]
+                })
+            ]
+        ));
+        let state_response: GetStateResponse =
+            from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::GetState {}).unwrap())
+                .unwrap();
+        assert_ne!(state_response.state, None);
+        let state = state_response.state.unwrap();
+        assert_eq!(
+            state.accumulated_airdrops,
+            vec![Coin::new(1000_u128, "abc".to_string())]
+        );
+
+        STATE.update(
+            deps.as_mut().storage,
+            |mut state| -> Result<_, ContractError> {
+                state.accumulated_airdrops = vec![
+                    Coin::new(1000_u128, "def".to_string()),
+                    Coin::new(1500_u128, "abc".to_string()),
+                ];
+                Ok(state)
+            },
+        );
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info(&*get_scc_contract_address(), &[]),
+            ExecuteMsg::ClaimAirdrops {
+                airdrop_token_contract: airdrop_token_contract.clone(),
+                cw20_token_contract: cw20_token_contract.clone(),
+                airdrop_token: "abc".to_string(),
+                amount: Uint128::new(1000_u128),
+                claim_msg: get_airdrop_claim_msg(),
+            },
+        )
+        .unwrap();
+        assert_eq!(res.messages.len(), 2);
+        assert!(check_equal_vec(
+            res.messages,
+            vec![
+                SubMsg::new(WasmMsg::Execute {
+                    contract_addr: airdrop_token_contract.to_string(),
+                    msg: get_airdrop_claim_msg(),
+                    funds: vec![],
+                }),
+                SubMsg::new(WasmMsg::Execute {
+                    contract_addr: cw20_token_contract.to_string(),
+                    msg: to_binary(&cw20::Cw20ExecuteMsg::Transfer {
+                        recipient: scc_address.to_string(),
+                        amount: Uint128::new(1000_u128)
+                    })
+                    .unwrap(),
+                    funds: vec![]
+                })
+            ]
+        ));
+        let state_response: GetStateResponse =
+            from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::GetState {}).unwrap())
+                .unwrap();
+        assert_ne!(state_response.state, None);
+        let state = state_response.state.unwrap();
+        assert!(check_equal_vec(
+            state.accumulated_airdrops,
+            vec![Coin::new(1000_u128, "def"), Coin::new(2500_u128, "abc")]
+        ));
     }
 
     #[test]
@@ -835,6 +1001,10 @@ mod tests {
         let state = state_response.state.unwrap();
         assert_eq!(state.total_staked_tokens, Uint128::new(1000_u128));
         assert_eq!(state.total_slashed_amount, Uint128::zero());
+        assert_eq!(
+            state.uninvested_rewards,
+            Coin::new(0_u128, "uluna".to_string())
+        );
         assert_eq!(res.messages.len(), 2);
         assert!(check_equal_vec(
             res.messages,
@@ -913,6 +1083,10 @@ mod tests {
         let state = state_response.state.unwrap();
         assert_eq!(state.total_staked_tokens, Uint128::new(5000_u128));
         assert_eq!(state.total_slashed_amount, Uint128::zero());
+        assert_eq!(
+            state.uninvested_rewards,
+            Coin::new(0_u128, "uluna".to_string())
+        );
         assert_eq!(res.messages.len(), 2);
         assert!(check_equal_vec(
             res.messages,
@@ -989,6 +1163,10 @@ mod tests {
         let state = state_response.state.unwrap();
         assert_eq!(state.total_staked_tokens, Uint128::new(5000_u128));
         assert_eq!(state.total_slashed_amount, Uint128::new(1000_u128));
+        assert_eq!(
+            state.uninvested_rewards,
+            Coin::new(0_u128, "uluna".to_string())
+        );
         assert_eq!(res.messages.len(), 2);
         assert!(check_equal_vec(
             res.messages,
@@ -1052,24 +1230,6 @@ mod tests {
         )
         .unwrap_err();
         assert!(matches!(err, ContractError::Unauthorized {}));
-
-        let mut err = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info(&*get_scc_contract_address(), &[]),
-            ExecuteMsg::TransferRewards {},
-        )
-        .unwrap_err();
-        assert!(matches!(err, ContractError::NoFundsSent {}));
-
-        let mut err = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info(&*get_scc_contract_address(), &[]),
-            ExecuteMsg::TransferRewards {},
-        )
-        .unwrap_err();
-        assert!(matches!(err, ContractError::NoFundsSent {}));
 
         let mut err = execute(
             deps.as_mut(),

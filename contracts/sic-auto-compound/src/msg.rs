@@ -1,6 +1,5 @@
 use crate::state::{BatchUndelegationRecord, State};
-use cosmwasm_std::{Addr, Uint128};
-use cw_storage_plus::U64Key;
+use cosmwasm_std::{Addr, Binary, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -33,6 +32,16 @@ pub enum ExecuteMsg {
     Swap {},
     Reinvest {},
     RedeemRewards {},
+    // Called by the manager to claim airdrops from different protocols. Airdrop token contract fed from SCC.
+    // The ownership of the airdrops is transferred back to the SCC.
+    ClaimAirdrops {
+        airdrop_token_contract: Addr,
+        // used to transfer ownership from SIC to SCC
+        cw20_token_contract: Addr,
+        airdrop_token: String,
+        amount: Uint128,
+        claim_msg: Binary,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

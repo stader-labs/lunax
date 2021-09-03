@@ -1,9 +1,7 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, to_binary, Addr, Attribute, BankMsg, Binary, Coin, Decimal, Deps, DepsMut,
-    DistributionMsg, Env, Fraction, MessageInfo, Order, Response, StakingMsg, StdResult, Uint128,
-    WasmMsg,
+    to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult, Uint128,
 };
 
 use crate::error::ContractError;
@@ -13,8 +11,6 @@ use crate::msg::{
 };
 use crate::state::{BatchUndelegationRecord, State, STATE, UNDELEGATION_INFO_LEDGER};
 use cw_storage_plus::U64Key;
-use std::collections::HashMap;
-use std::ops::Add;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -23,8 +19,8 @@ pub fn instantiate(
     info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
-    let mut state = State {
-        manager: info.sender.clone(),
+    let state = State {
+        manager: info.sender,
         scc_address: msg.scc_address,
         vault_denom: msg.strategy_denom,
         contract_genesis_block_height: _env.block.height,
@@ -74,81 +70,55 @@ pub fn execute(
             amount,
             claim_msg,
         ),
-        ExecuteMsg::WithdrawAirdrops {
-            airdrop_token_contract,
-            airdrop_token,
-            amount,
-            user,
-        } => try_withdraw_airdrops(
-            deps,
-            _env,
-            info,
-            airdrop_token_contract,
-            airdrop_token,
-            amount,
-            user,
-        ),
     }
 }
 
 // TODO: bchain99 - implement a very basic SIC contract which just holds some funds
 pub fn try_claim_airdrops(
-    deps: DepsMut,
+    _deps: DepsMut,
     _env: Env,
-    info: MessageInfo,
-    airdrop_token_contract: Addr,
-    airdrop_token: String,
-    amount: Uint128,
-    claim_msg: Binary,
-) -> Result<Response, ContractError> {
-    Ok(Response::default())
-}
-
-pub fn try_withdraw_airdrops(
-    deps: DepsMut,
-    _env: Env,
-    info: MessageInfo,
-    airdrop_token_contract: Addr,
-    airdrop_token: String,
-    amount: Uint128,
-    user: Addr,
+    _info: MessageInfo,
+    _airdrop_token_contract: Addr,
+    _airdrop_token: String,
+    _amount: Uint128,
+    _claim_msg: Binary,
 ) -> Result<Response, ContractError> {
     Ok(Response::default())
 }
 
 pub fn try_transfer_rewards(
-    deps: DepsMut,
+    _deps: DepsMut,
     _env: Env,
-    info: MessageInfo,
+    _info: MessageInfo,
 ) -> Result<Response, ContractError> {
     Ok(Response::default())
 }
 
 // SCC needs to call this when it processes the undelegations.
 pub fn try_undelegate_rewards(
-    deps: DepsMut,
+    _deps: DepsMut,
     _env: Env,
-    info: MessageInfo,
-    amount: Uint128,
+    _info: MessageInfo,
+    _amount: Uint128,
 ) -> Result<Response, ContractError> {
     Ok(Response::default())
 }
 
 pub fn try_withdraw_rewards(
-    deps: DepsMut,
+    _deps: DepsMut,
     _env: Env,
-    info: MessageInfo,
-    user: Addr,
-    undelegation_batch_id: u64,
-    amount: Uint128,
+    _info: MessageInfo,
+    _user: Addr,
+    _undelegation_batch_id: u64,
+    _amount: Uint128,
 ) -> Result<Response, ContractError> {
     Ok(Response::default())
 }
 
 pub fn try_reinvest(
-    deps: DepsMut,
+    _deps: DepsMut,
     _env: Env,
-    info: MessageInfo,
+    _info: MessageInfo,
 ) -> Result<Response, ContractError> {
     Ok(Response::default())
 }
