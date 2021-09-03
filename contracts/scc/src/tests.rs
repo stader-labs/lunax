@@ -229,6 +229,7 @@ mod tests {
                 contract_addr: String::from(sic_contract.clone()),
                 msg: to_binary(&sic_execute_msg::ClaimAirdrops {
                     airdrop_token_contract: anc_airdrop_contract.clone(),
+                    cw20_token_contract: anc_cw20_contract.clone(),
                     airdrop_token: "anc".to_string(),
                     amount: Uint128::new(100_u128),
                     claim_msg: get_airdrop_claim_msg(),
@@ -312,6 +313,7 @@ mod tests {
                 contract_addr: String::from(sic_contract.clone()),
                 msg: to_binary(&sic_execute_msg::ClaimAirdrops {
                     airdrop_token_contract: mir_airdrop_contract.clone(),
+                    cw20_token_contract: mir_cw20_contract,
                     airdrop_token: "mir".to_string(),
                     amount: Uint128::new(100_u128),
                     claim_msg: get_airdrop_claim_msg(),

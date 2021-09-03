@@ -225,6 +225,7 @@ pub fn try_claim_airdrops(
         contract_addr: String::from(sic_address),
         msg: to_binary(&sic_execute_msg::ClaimAirdrops {
             airdrop_token_contract: cw20_token_contracts.airdrop_contract,
+            cw20_token_contract: cw20_token_contracts.cw20_token_contract,
             airdrop_token: denom,
             amount,
             claim_msg,
