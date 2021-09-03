@@ -256,6 +256,7 @@ pub fn try_update_user_rewards(
 
     let mut messages: Vec<WasmMsg> = vec![];
     let mut strategy_to_amount: HashMap<Addr, Uint128> = HashMap::new();
+    let mut strategy_to_s_t_ratio: HashMap<String, Decimal> = HashMap::new();
     // iterate thru all requests. This is technically a paginated batch job running
     for user_request in update_user_rewards_requests {
         let user_strategy = user_request.strategy_id;
@@ -274,9 +275,21 @@ pub fn try_update_user_rewards(
         }
 
         // fetch the total tokens from the SIC contract and update the S/T ratio for the strategy
-        let current_strategy_shares_per_token =
-            get_strategy_shares_per_token_ratio(deps.querier, &strategy_info);
-        strategy_info.shares_per_token_ratio = current_strategy_shares_per_token;
+        // compute the S/T ratio only once as we are batching up reward transfer messages. Jus' cache
+        // it up in a map like we always do.
+        let current_strategy_shares_per_token_ratio: Decimal;
+        if !strategy_to_s_t_ratio.contains_key(&user_strategy) {
+            current_strategy_shares_per_token_ratio =
+                get_strategy_shares_per_token_ratio(deps.querier, &strategy_info);
+            strategy_info.shares_per_token_ratio = current_strategy_shares_per_token_ratio;
+            strategy_to_s_t_ratio.insert(
+                user_strategy.clone(),
+                current_strategy_shares_per_token_ratio,
+            );
+        } else {
+            current_strategy_shares_per_token_ratio =
+                *strategy_to_s_t_ratio.get(&user_strategy).unwrap();
+        }
 
         // fetch user reward info. If it is not there, create a new UserRewardInfo
         let mut user_reward_info = UserRewardInfo::new();
@@ -319,7 +332,7 @@ pub fn try_update_user_rewards(
 
         // update user shares based on the S/T ratio
         let user_shares = decimal_multiplication_in_256(
-            current_strategy_shares_per_token,
+            current_strategy_shares_per_token_ratio,
             get_decimal_from_uint128(user_amount),
         );
         user_strategy_info.shares =
@@ -365,6 +378,7 @@ pub fn try_update_user_rewards(
 
     Ok(Response::new().add_messages(messages))
 }
+
 // This assumes that the validator contract will transfer ownership of the airdrops
 // from the validator contract to the SCC contract.
 pub fn try_update_user_airdrops(
