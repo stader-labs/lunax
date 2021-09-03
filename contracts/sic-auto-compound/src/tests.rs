@@ -19,7 +19,7 @@ mod tests {
     };
     use cw20::Cw20ExecuteMsg;
     use cw_storage_plus::U64Key;
-    use stader_utils::test_helpers::check_equal_vec;
+    use stader_utils::test_helpers::{check_equal_bnk_send_msgs, check_equal_vec};
 
     fn get_validators() -> Vec<Validator> {
         vec![
@@ -1292,6 +1292,22 @@ mod tests {
         assert_ne!(state_response.state, None);
         let state = state_response.state.unwrap();
         assert_eq!(state.uninvested_rewards, Coin::new(100_u128, "uluna"));
+        assert_eq!(res.messages.len(), 2);
+        assert!(check_equal_vec(
+            res.messages,
+            vec![
+                SubMsg::new(WasmMsg::Execute {
+                    contract_addr: String::from(env.contract.address.clone()),
+                    msg: to_binary(&ExecuteMsg::RedeemRewards {}).unwrap(),
+                    funds: vec![]
+                }),
+                SubMsg::new(WasmMsg::Execute {
+                    contract_addr: String::from(env.contract.address.clone()),
+                    msg: to_binary(&ExecuteMsg::Reinvest {}).unwrap(),
+                    funds: vec![]
+                })
+            ]
+        ));
 
         /*
            Test - 2. Reinvest with existing uninvested_rewards
@@ -1318,35 +1334,22 @@ mod tests {
         assert_ne!(state_response.state, None);
         let state = state_response.state.unwrap();
         assert_eq!(state.uninvested_rewards, Coin::new(1100_u128, "uluna"));
-    }
-
-    #[test]
-    fn test__try_redeem_rewards_fail() {
-        let mut deps = mock_dependencies(&[]);
-        let info = mock_info("creator", &[]);
-        let env = mock_env();
-
-        let res = instantiate_contract(
-            &mut deps,
-            &info,
-            &env,
-            Some(
-                get_validators()
-                    .iter()
-                    .map(|f| Addr::unchecked(&f.address))
-                    .collect(),
-            ),
-            Option::from("uluna".to_string()),
-        );
-
-        let mut err = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info("not-creator", &[]),
-            ExecuteMsg::RedeemRewards {},
-        )
-        .unwrap_err();
-        assert!(matches!(err, ContractError::Unauthorized {}));
+        assert_eq!(res.messages.len(), 2);
+        assert!(check_equal_vec(
+            res.messages,
+            vec![
+                SubMsg::new(WasmMsg::Execute {
+                    contract_addr: String::from(env.contract.address.clone()),
+                    msg: to_binary(&ExecuteMsg::RedeemRewards {}).unwrap(),
+                    funds: vec![]
+                }),
+                SubMsg::new(WasmMsg::Execute {
+                    contract_addr: String::from(env.contract.address),
+                    msg: to_binary(&ExecuteMsg::Reinvest {}).unwrap(),
+                    funds: vec![]
+                })
+            ]
+        ));
     }
 
     #[test]

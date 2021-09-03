@@ -1,9 +1,8 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, to_binary, Addr, Attribute, Binary, Coin, Decimal, Deps, DepsMut,
-    DistributionMsg, Env, Fraction, MessageInfo, Response, StakingMsg, StdResult, Uint128,
-    WasmMsg,
+    attr, to_binary, Addr, Attribute, Binary, Coin, Decimal, Deps, DepsMut, DistributionMsg, Env,
+    Fraction, MessageInfo, Response, StakingMsg, StdResult, Uint128, WasmMsg,
 };
 
 use crate::error::ContractError;
@@ -348,7 +347,20 @@ pub fn try_transfer_rewards(
         Ok(state)
     })?;
 
-    Ok(Response::default())
+    // reinvest the rewards immediately after a transfer. This is because when transfer rewards
+    // is called, withdrawable shares are already allocated to the user.
+    Ok(Response::new().add_messages(vec![
+        WasmMsg::Execute {
+            contract_addr: String::from(_env.contract.address.clone()),
+            msg: to_binary(&ExecuteMsg::RedeemRewards {}).unwrap(),
+            funds: vec![],
+        },
+        WasmMsg::Execute {
+            contract_addr: String::from(_env.contract.address),
+            msg: to_binary(&ExecuteMsg::Reinvest {}).unwrap(),
+            funds: vec![],
+        },
+    ]))
 }
 
 // SCC needs to call this when it processes the undelegations.
@@ -512,7 +524,9 @@ pub fn try_reinvest(
     info: MessageInfo,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let state = STATE.load(deps.storage)?;
-    if info.sender != state.manager {
+
+    // TODO-bchain99: add validation templates. discuss with gm about pushing it to stader-utils
+    if info.sender != state.manager && info.sender != _env.contract.address {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -573,7 +587,9 @@ pub fn try_reinvest(
             });
         }
 
-        let current_validator_staked_amount = *(validator_to_delegation_map.get(v).unwrap());
+        let current_validator_staked_amount = *(validator_to_delegation_map
+            .get(v)
+            .unwrap_or(&Uint128::zero()));
         let new_validator_staked_amount = current_validator_staked_amount
             .checked_add(delegation_amount)
             .unwrap();
@@ -589,7 +605,9 @@ pub fn try_reinvest(
             ),
         };
 
-        VALIDATORS_TO_STAKED_QUOTA.save(deps.storage, v, &new_validator_stake_quota).unwrap();
+        VALIDATORS_TO_STAKED_QUOTA
+            .save(deps.storage, v, &new_validator_stake_quota)
+            .unwrap();
 
         extra_split = 0_u128;
     });
@@ -616,10 +634,6 @@ pub fn try_redeem_rewards(
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let state = STATE.load(deps.storage)?;
 
-    if info.sender != state.manager {
-        return Err(ContractError::Unauthorized {});
-    }
-
     let mut total_rewards: Vec<Coin> = vec![];
     let mut messages: Vec<DistributionMsg> = vec![];
 
@@ -627,7 +641,7 @@ pub fn try_redeem_rewards(
         let result = deps
             .querier
             .query_delegation(&_env.contract.address, validator)?;
-        if let Some(full_delegation) = result  {
+        if let Some(full_delegation) = result {
             total_rewards = merge_coin_vector(
                 full_delegation.accumulated_rewards,
                 CoinVecOp {
