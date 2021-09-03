@@ -22,6 +22,7 @@ use stader_utils::coin_utils::{
     get_decimal_from_uint128, merge_coin_vector, CoinVecOp, Operation,
 };
 use std::borrow::Borrow;
+use std::collections::HashMap;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -254,6 +255,7 @@ pub fn try_update_user_rewards(
     }
 
     let mut messages: Vec<WasmMsg> = vec![];
+    let mut strategy_to_amount: HashMap<Addr, Uint128> = HashMap::new();
     // iterate thru all requests. This is technically a paginated batch job running
     for user_request in update_user_rewards_requests {
         let user_strategy = user_request.strategy_id;
@@ -335,21 +337,34 @@ pub fn try_update_user_rewards(
             Ok(state)
         })?;
 
-        // send the rewards to sic
-        messages.push(WasmMsg::Execute {
-            contract_addr: strategy_info.sic_contract_address.to_string(),
-            msg: to_binary(&sic_execute_msg::TransferRewards {}).unwrap(),
-            funds: vec![Coin::new(user_amount.u128(), state.scc_denom.clone())],
-        });
+        // batch up the rewards sent to sic
+        let amount_to_insert: Uint128 = user_amount
+            .checked_add(
+                *strategy_to_amount
+                    .get(&strategy_info.sic_contract_address)
+                    .unwrap_or(&Uint128::zero()),
+            )
+            .unwrap();
+        strategy_to_amount.insert(strategy_info.sic_contract_address.clone(), amount_to_insert);
 
         // save up the states
         STRATEGY_MAP.save(deps.storage, &*user_strategy, &strategy_info)?;
         USER_REWARD_INFO_MAP.save(deps.storage, &user_addr, &user_reward_info)?;
     }
 
+    strategy_to_amount.iter().for_each(|s2a| {
+        let sic_address = s2a.0;
+        let amount = s2a.1;
+
+        messages.push(WasmMsg::Execute {
+            contract_addr: String::from(sic_address),
+            msg: to_binary(&sic_execute_msg::TransferRewards {}).unwrap(),
+            funds: vec![Coin::new(amount.u128(), state.scc_denom.clone())],
+        })
+    });
+
     Ok(Response::new().add_messages(messages))
 }
-
 // This assumes that the validator contract will transfer ownership of the airdrops
 // from the validator contract to the SCC contract.
 pub fn try_update_user_airdrops(

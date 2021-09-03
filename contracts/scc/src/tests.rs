@@ -582,21 +582,14 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(res.messages.len(), 2);
+        assert_eq!(res.messages.len(), 1);
         assert!(check_equal_vec(
             res.messages,
-            vec![
-                SubMsg::new(WasmMsg::Execute {
-                    contract_addr: String::from(sid1_sic_address.clone()),
-                    msg: to_binary(&sic_execute_msg::TransferRewards {}).unwrap(),
-                    funds: vec![Coin::new(500_u128, state.scc_denom.clone())]
-                }),
-                SubMsg::new(WasmMsg::Execute {
-                    contract_addr: String::from(sid1_sic_address.clone()),
-                    msg: to_binary(&sic_execute_msg::TransferRewards {}).unwrap(),
-                    funds: vec![Coin::new(500_u128, state.scc_denom.clone())]
-                })
-            ]
+            vec![SubMsg::new(WasmMsg::Execute {
+                contract_addr: String::from(sid1_sic_address.clone()),
+                msg: to_binary(&sic_execute_msg::TransferRewards {}).unwrap(),
+                funds: vec![Coin::new(1000_u128, state.scc_denom.clone())]
+            })]
         ));
 
         let state_response: GetStateResponse =
