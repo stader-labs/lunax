@@ -1227,6 +1227,8 @@ mod tests {
             Some(String::from("pools_contract")),
         );
 
+        let strategy_name: String = String::from("sid");
+
         /*
            Test - 1. Unauthorized
         */
@@ -1235,7 +1237,7 @@ mod tests {
             env.clone(),
             mock_info("not-creator", &[]),
             ExecuteMsg::DeactivateStrategy {
-                strategy_id: "sid".to_string(),
+                strategy_id: strategy_name.clone(),
             },
         )
         .unwrap_err();
@@ -1249,11 +1251,14 @@ mod tests {
             env.clone(),
             mock_info("creator", &[]),
             ExecuteMsg::DeactivateStrategy {
-                strategy_id: "sid".to_string(),
+                strategy_id: strategy_name.clone(),
             },
         )
         .unwrap_err();
-        assert!(matches!(err, ContractError::StrategyInfoDoesNotExist {}));
+        assert!(matches!(
+            err,
+            ContractError::StrategyInfoDoesNotExist(String { .. })
+        ));
     }
 
     #[test]
@@ -1334,7 +1339,10 @@ mod tests {
             },
         )
         .unwrap_err();
-        assert!(matches!(err, ContractError::StrategyInfoDoesNotExist {}));
+        assert!(matches!(
+            err,
+            ContractError::StrategyInfoDoesNotExist(String { .. })
+        ));
     }
 
     #[test]

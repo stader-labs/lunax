@@ -177,10 +177,10 @@ pub fn try_deactivate_strategy(
 
     STRATEGY_MAP.update(
         deps.storage,
-        &*strategy_id,
+        &*strategy_id.clone(),
         |strategy_info_opt| -> Result<_, ContractError> {
             if strategy_info_opt.is_none() {
-                return Err(ContractError::StrategyInfoDoesNotExist {});
+                return Err(ContractError::StrategyInfoDoesNotExist(strategy_id));
             }
 
             let mut strategy_info = strategy_info_opt.unwrap();
@@ -205,10 +205,10 @@ pub fn try_activate_strategy(
 
     STRATEGY_MAP.update(
         deps.storage,
-        &*strategy_id,
+        &*strategy_id.clone(),
         |strategy_info_option| -> Result<_, ContractError> {
             if strategy_info_option.is_none() {
-                return Err(ContractError::StrategyInfoDoesNotExist {});
+                return Err(ContractError::StrategyInfoDoesNotExist(strategy_id));
             }
 
             let mut strategy_info = strategy_info_option.unwrap();
@@ -267,8 +267,8 @@ pub fn try_update_user_rewards(
         {
             strategy_info = strategy_info_mapping;
         } else {
-            // TODO: bchain99 - log something out here
-            continue;
+            // TODO: bchain99 - Review if we can exit gracefully over here
+            return Err(ContractError::StrategyInfoDoesNotExist(user_strategy));
         }
 
         // fetch the total tokens from the SIC contract and update the S/T ratio for the strategy
