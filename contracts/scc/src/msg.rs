@@ -1,4 +1,4 @@
-use crate::state::{State, StrategyInfo};
+use crate::state::{State, StrategyInfo, UserRewardInfo};
 use cosmwasm_std::{Addr, Coin, Timestamp, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -75,6 +75,7 @@ pub enum ExecuteMsg {
 pub enum QueryMsg {
     GetState {},
     GetStrategyInfo { strategy_name: String },
+    GetUserRewardInfo { user: Addr },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -85,4 +86,9 @@ pub struct GetStateResponse {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct GetStrategyInfoResponse {
     pub strategy_info: Option<StrategyInfo>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct GetUserRewardInfo {
+    pub user_reward_info: Option<UserRewardInfo>,
 }

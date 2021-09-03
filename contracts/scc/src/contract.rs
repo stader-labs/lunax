@@ -8,8 +8,8 @@ use cosmwasm_std::{
 use crate::error::ContractError;
 use crate::helpers::get_strategy_shares_per_token_ratio;
 use crate::msg::{
-    ExecuteMsg, GetStateResponse, GetStrategyInfoResponse, InstantiateMsg, QueryMsg,
-    UpdateUserAirdropsRequest, UpdateUserRewardsRequest,
+    ExecuteMsg, GetStateResponse, GetStrategyInfoResponse, GetUserRewardInfo, InstantiateMsg,
+    QueryMsg, UpdateUserAirdropsRequest, UpdateUserRewardsRequest,
 };
 use crate::state::{
     State, StrategyInfo, UserRewardInfo, UserStrategyInfo, STATE, STRATEGY_MAP,
@@ -417,7 +417,13 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::GetStrategyInfo { strategy_name } => {
             to_binary(&query_strategy_info(deps, strategy_name)?)
         }
+        QueryMsg::GetUserRewardInfo { user } => to_binary(&query_user_reward_info(deps, user)?),
     }
+}
+
+fn query_user_reward_info(deps: Deps, user: Addr) -> StdResult<GetUserRewardInfo> {
+    let user_reward_info = USER_REWARD_INFO_MAP.may_load(deps.storage, &user).unwrap();
+    Ok(GetUserRewardInfo { user_reward_info })
 }
 
 fn query_strategy_info(deps: Deps, strategy_name: String) -> StdResult<GetStrategyInfoResponse> {
