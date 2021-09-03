@@ -106,6 +106,13 @@ pub struct UserRewardInfo {
 }
 
 impl UserRewardInfo {
+    pub fn default() -> Self {
+        UserRewardInfo {
+            strategies: vec![],
+            pending_airdrops: vec![],
+        }
+    }
+
     pub fn new() -> Self {
         UserRewardInfo {
             strategies: vec![],

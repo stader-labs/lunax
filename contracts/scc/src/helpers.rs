@@ -52,7 +52,7 @@ pub fn get_strategy_shares_per_token_ratio(
 
     let total_sic_tokens = get_sic_total_tokens(querier, sic_address)
         .total_tokens
-        .unwrap_or(Uint128::zero());
+        .unwrap_or_else(Uint128::zero);
     if total_sic_tokens.is_zero() {
         return default_s_t_ratio;
     }

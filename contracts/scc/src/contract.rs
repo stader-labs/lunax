@@ -6,7 +6,7 @@ use cosmwasm_std::{
 };
 
 use crate::error::ContractError;
-use crate::helpers::{get_sic_total_tokens, get_strategy_shares_per_token_ratio};
+use crate::helpers::get_strategy_shares_per_token_ratio;
 use crate::msg::{
     ExecuteMsg, GetStateResponse, GetStrategyInfoResponse, InstantiateMsg, QueryMsg,
     UpdateUserAirdropsRequest, UpdateUserRewardsRequest,
@@ -291,7 +291,7 @@ pub fn try_update_user_rewards(
         {
             user_strategy_info = &mut user_reward_info.strategies[i];
         } else {
-            let mut new_user_strategy_info: UserStrategyInfo =
+            let new_user_strategy_info: UserStrategyInfo =
                 UserStrategyInfo::new(strategy_info.name.clone(), vec![]);
             user_reward_info.strategies.push(new_user_strategy_info);
             user_strategy_info = user_reward_info.strategies.last_mut().unwrap();
@@ -333,7 +333,7 @@ pub fn try_update_user_rewards(
                 .checked_add(user_amount)
                 .unwrap();
             Ok(state)
-        });
+        })?;
 
         // send the rewards to sic
         messages.push(WasmMsg::Execute {
@@ -343,8 +343,8 @@ pub fn try_update_user_rewards(
         });
 
         // save up the states
-        STRATEGY_MAP.save(deps.storage, &*user_strategy, &strategy_info);
-        USER_REWARD_INFO_MAP.save(deps.storage, &user_addr, &user_reward_info);
+        STRATEGY_MAP.save(deps.storage, &*user_strategy, &strategy_info)?;
+        USER_REWARD_INFO_MAP.save(deps.storage, &user_addr, &user_reward_info)?;
     }
 
     Ok(Response::new().add_messages(messages))
@@ -399,13 +399,13 @@ pub fn try_update_user_airdrops(
             },
         );
 
-        USER_REWARD_INFO_MAP.save(deps.storage, &user, &user_reward_info);
+        USER_REWARD_INFO_MAP.save(deps.storage, &user, &user_reward_info)?;
     }
 
     STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
         state.total_accumulated_airdrops = total_scc_airdrops;
         Ok(state)
-    });
+    })?;
 
     Ok(Response::default())
 }
