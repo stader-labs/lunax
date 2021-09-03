@@ -32,7 +32,6 @@ pub enum ExecuteMsg {
         strategy_id: String,
         sic_contract_address: Addr,
         unbonding_period: Option<u64>,
-        supported_airdrops: Vec<String>,
     },
     ActivateStrategy {
         strategy_id: String,

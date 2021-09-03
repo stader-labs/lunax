@@ -6,9 +6,7 @@ use cosmwasm_std::{
 };
 
 use crate::error::ContractError;
-use crate::helpers::{
-    get_sic_total_tokens, get_strategy_shares_per_token_ratio, strategy_supports_airdrops,
-};
+use crate::helpers::{get_sic_total_tokens, get_strategy_shares_per_token_ratio};
 use crate::msg::{
     ExecuteMsg, GetStateResponse, GetStrategyInfoResponse, InstantiateMsg, QueryMsg,
     UpdateUserAirdropsRequest, UpdateUserRewardsRequest,
@@ -61,7 +59,6 @@ pub fn execute(
             strategy_id,
             unbonding_period,
             sic_contract_address,
-            supported_airdrops,
         } => try_register_strategy(
             deps,
             _env,
@@ -69,7 +66,6 @@ pub fn execute(
             strategy_id,
             unbonding_period,
             sic_contract_address,
-            supported_airdrops,
         ),
         ExecuteMsg::DeactivateStrategy { strategy_id } => {
             try_deactivate_strategy(deps, _env, info, strategy_id)
@@ -145,7 +141,6 @@ pub fn try_register_strategy(
     strategy_id: String,
     unbonding_period: Option<u64>,
     sic_contract_address: Addr,
-    supported_airdrops: Vec<String>,
 ) -> Result<Response, ContractError> {
     let state = STATE.load(deps.storage).unwrap();
     if info.sender != state.manager {
@@ -163,12 +158,7 @@ pub fn try_register_strategy(
     STRATEGY_MAP.save(
         deps.storage,
         &*strategy_id.clone(),
-        &StrategyInfo::new(
-            strategy_id,
-            sic_contract_address,
-            unbonding_period,
-            supported_airdrops,
-        ),
+        &StrategyInfo::new(strategy_id, sic_contract_address, unbonding_period),
     )?;
 
     Ok(Response::default())
