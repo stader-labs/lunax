@@ -1,9 +1,6 @@
 use crate::state::{BatchUndelegationRecord, State};
 use cosmwasm_std::{Addr, Binary, Uint128};
-<<<<<<< HEAD
-=======
 use cw_storage_plus::U64Key;
->>>>>>> 9d9d79ed75c3b1983770424f07d56546edd4779c
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
