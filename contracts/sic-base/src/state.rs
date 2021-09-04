@@ -9,7 +9,7 @@ pub struct State {
     pub manager: Addr,
     pub scc_address: Addr,
 
-    pub vault_denom: String,
+    pub strategy_denom: String,
 
     pub contract_genesis_block_height: u64,
     pub contract_genesis_timestamp: Timestamp,
@@ -18,8 +18,7 @@ pub struct State {
 
     pub unbonding_period: u64, // the blockchain's unbonding_period + buffer_time
     pub total_rewards_accumulated: Uint128,
-    pub total_rewards_in_sic: Uint128,
-    pub rewards_in_yield: Uint128,
+    pub accumulated_airdrops: Vec<Coin>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
