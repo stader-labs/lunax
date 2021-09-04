@@ -1,5 +1,5 @@
 use crate::state::{State, StrategyInfo, UserRewardInfo};
-use cosmwasm_std::{Addr, Coin, Timestamp, Uint128, Binary};
+use cosmwasm_std::{Addr, Binary, Coin, Timestamp, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -41,7 +41,7 @@ pub enum ExecuteMsg {
     RemoveStrategy {
         strategy_id: String,
     },
-    RegsiterCW20Contract {
+    RegisterCw20Contracts {
         denom: String,
         cw20_contract: Addr,
         airdrop_contract: Addr,

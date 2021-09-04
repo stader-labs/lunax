@@ -100,7 +100,7 @@ pub fn execute(
             strategy_id,
         } => try_withdraw_rewards(deps, _env, info, undelegation_timestamp, strategy_id),
         ExecuteMsg::WithdrawAirdrops {} => try_withdraw_airdrops(deps, _env, info),
-        ExecuteMsg::RegsiterCW20Contract {
+        ExecuteMsg::RegisterCw20Contracts {
             denom,
             cw20_contract,
             airdrop_contract,
@@ -207,7 +207,7 @@ pub fn try_claim_airdrops(
         },
     );
 
-    STRATEGY_MAP.save(deps.storage, &*strategy_id, &strategy_info);
+    STRATEGY_MAP.save(deps.storage, &*strategy_id, &strategy_info)?;
 
     STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
         state.total_accumulated_airdrops = merge_coin_vector(
@@ -218,7 +218,7 @@ pub fn try_claim_airdrops(
             },
         );
         Ok(state)
-    });
+    })?;
 
     Ok(Response::new().add_message(WasmMsg::Execute {
         contract_addr: String::from(sic_address),
@@ -242,7 +242,7 @@ pub fn try_withdraw_airdrops(
     // transfer the airdrops in pending_airdrops vector in user_reward_info to the user
     let user_addr = info.sender;
 
-    let user_reward_info: UserRewardInfo;
+    let mut user_reward_info: UserRewardInfo;
     match USER_REWARD_INFO_MAP
         .may_load(deps.storage, &user_addr)
         .unwrap()
@@ -253,20 +253,61 @@ pub fn try_withdraw_airdrops(
         }
     }
 
+    // allocate user airdrops across strategies
+    let mut failed_strategies: Vec<String> = vec![];
+    let mut total_allocated_user_airdrops: Vec<Coin> = vec![];
+    for user_strategy in &mut user_reward_info.strategies {
+        let strategy_name = user_strategy.strategy_name.clone();
+        let user_airdrop_pointer = &user_strategy.airdrop_pointer;
+        let user_shares = user_strategy.shares;
+
+        let strategy_info: StrategyInfo;
+        if let Some(strategy_info_mapping) = STRATEGY_MAP
+            .may_load(deps.storage, &*strategy_name)
+            .unwrap()
+        {
+            strategy_info = strategy_info_mapping;
+        } else {
+            failed_strategies.push(strategy_name);
+            continue;
+        }
+
+        let strategy_global_airdrop_pointer = strategy_info.global_airdrop_pointer;
+        let user_airdrops_for_strategy = get_user_airdrops(
+            &strategy_global_airdrop_pointer,
+            user_airdrop_pointer,
+            user_shares,
+        );
+        if user_airdrops_for_strategy.is_some() {
+            total_allocated_user_airdrops = merge_coin_vector(
+                total_allocated_user_airdrops,
+                CoinVecOp {
+                    fund: user_airdrops_for_strategy.unwrap(),
+                    operation: Operation::Add,
+                },
+            );
+        }
+        user_strategy.airdrop_pointer = strategy_global_airdrop_pointer;
+    }
+
     let mut messages: Vec<WasmMsg> = vec![];
     let mut failed_airdrops: Vec<String> = vec![];
-    let user_airdrops = user_reward_info.pending_airdrops;
-    user_airdrops.iter().for_each(|user_airdrop| {
+    let mut successful_airdrops: Vec<Coin> = vec![];
+    let total_airdrops = merge_coin_vector(
+        user_reward_info.pending_airdrops,
+        CoinVecOp {
+            fund: total_allocated_user_airdrops,
+            operation: Operation::Add,
+        },
+    );
+    // iterate thru all airdrops and transfer ownership to them to the user
+    for user_airdrop in total_airdrops.iter() {
         let airdrop_denom = user_airdrop.denom.clone();
         let airdrop_amount = user_airdrop.amount;
 
         let cw20_token_contracts = CW20_TOKEN_CONTRACTS_REGISTRY
             .may_load(deps.storage, airdrop_denom.clone())
             .unwrap();
-        if cw20_token_contracts.is_none() {
-            failed_airdrops.push(airdrop_denom);
-            return;
-        }
 
         messages.push(WasmMsg::Execute {
             contract_addr: String::from(cw20_token_contracts.unwrap().cw20_token_contract),
@@ -277,21 +318,29 @@ pub fn try_withdraw_airdrops(
             .unwrap(),
             funds: vec![],
         });
-    });
+    }
+
+    user_reward_info.pending_airdrops = vec![];
 
     STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
         state.total_accumulated_airdrops = merge_coin_vector(
             state.total_accumulated_airdrops,
             CoinVecOp {
-                fund: user_airdrops,
+                fund: total_airdrops,
                 operation: Operation::Sub,
             },
         );
         Ok(state)
-    });
+    })?;
+
+    USER_REWARD_INFO_MAP.save(deps.storage, &user_addr, &user_reward_info)?;
 
     Ok(Response::new()
-        .add_attribute("failed_airdrops", failed_airdrops.join(","))
+        .add_attribute(
+            "strategies_failed_airdrop_allocation",
+            failed_strategies.join(","),
+        )
+        .add_attribute("airdrops_failed_to_transfer", failed_airdrops.join(","))
         .add_messages(messages))
 }
 
