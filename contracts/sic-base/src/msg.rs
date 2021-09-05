@@ -40,6 +40,8 @@ pub enum ExecuteMsg {
     // Called by the SCC to claim airdrops from different protocols for the strategy (if airdrop applies)
     // Airdrop token contract is fed from SCC.
     // The airdrops are claimed by the SIC contract and then the ownership of the airdrops are transferred back to the SCC.
+    // In the current SIC/SCC design, airdrops are completely handled by SCC. SIC's are currently only responsible
+    // for sending the airdrops back to the SCC.
     ClaimAirdrops {
         airdrop_token_contract: Addr,
         // used to transfer ownership from SIC to SCC
