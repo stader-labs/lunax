@@ -51,7 +51,7 @@ impl StrategyInfo {
             total_shares: Decimal::zero(),
             global_airdrop_pointer: vec![],
             total_airdrops_accumulated: vec![],
-            shares_per_token_ratio: Decimal::from_ratio(100_000_000_u128, 1_u128),
+            shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
         }
     }
 
