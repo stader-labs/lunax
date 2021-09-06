@@ -389,7 +389,7 @@ pub fn try_update_user_airdrops(
 ) -> Result<Response, ContractError> {
     // check for manager?
     let state = STATE.load(deps.storage).unwrap();
-    if info.sender != state.manager {
+    if info.sender != state.pool_contract {
         return Err(ContractError::Unauthorized {});
     }
 

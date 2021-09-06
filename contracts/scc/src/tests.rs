@@ -1497,7 +1497,7 @@ mod tests {
         let res = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info("creator", &[]),
+            mock_info("pools_contract", &[]),
             ExecuteMsg::UpdateUserAirdrops {
                 update_user_airdrops_requests: vec![],
             },
@@ -1531,7 +1531,7 @@ mod tests {
         let res = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info("creator", &[]),
+            mock_info("pools_contract", &[]),
             ExecuteMsg::UpdateUserAirdrops {
                 update_user_airdrops_requests: vec![
                     UpdateUserAirdropsRequest {
@@ -1645,7 +1645,7 @@ mod tests {
         let res = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info("creator", &[]),
+            mock_info("pools_contract", &[]),
             ExecuteMsg::UpdateUserAirdrops {
                 update_user_airdrops_requests: vec![
                     UpdateUserAirdropsRequest {
