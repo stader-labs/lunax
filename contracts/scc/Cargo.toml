@@ -44,7 +44,6 @@ cosmwasm-bignumber = "2.1.1"
 terra-cosmwasm = { version = "2.1.0" }
 sic-base = { path = "./../sic-base", version = "0.1.0" }
 stader-utils = { path = "./../../packages/stader-utils", version = "0.1.0"}
-mockall = { version = "0.10.2" }
 
 [dev-dependencies]
 cosmwasm-schema = { version = "0.16.0" }

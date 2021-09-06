@@ -35,7 +35,6 @@ pub struct StrategyInfo {
     pub total_airdrops_accumulated: Vec<Coin>,
     // TODO: bchain99 - i want this for strategy APR calc but cross check if we actually need this.
     pub shares_per_token_ratio: Decimal,
-    pub current_unprocessed_undelegations: Uint128,
 }
 
 impl StrategyInfo {
@@ -53,7 +52,6 @@ impl StrategyInfo {
             global_airdrop_pointer: vec![],
             total_airdrops_accumulated: vec![],
             shares_per_token_ratio: Decimal::from_ratio(100_000_000_u128, 1_u128),
-            current_unprocessed_undelegations: Uint128::zero(),
         }
     }
 
@@ -67,7 +65,6 @@ impl StrategyInfo {
             global_airdrop_pointer: vec![],
             total_airdrops_accumulated: vec![],
             shares_per_token_ratio: Default::default(),
-            current_unprocessed_undelegations: Default::default(),
         }
     }
 }

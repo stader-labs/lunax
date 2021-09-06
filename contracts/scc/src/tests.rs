@@ -244,7 +244,6 @@ mod tests {
                 global_airdrop_pointer: vec![],
                 total_airdrops_accumulated: vec![],
                 shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-                current_unprocessed_undelegations: Default::default(),
             },
         );
 
@@ -344,7 +343,6 @@ mod tests {
                 global_airdrop_pointer: vec![],
                 total_airdrops_accumulated: vec![],
                 shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-                current_unprocessed_undelegations: Default::default(),
             },
         );
 
@@ -444,7 +442,6 @@ mod tests {
                 global_airdrop_pointer: vec![],
                 total_airdrops_accumulated: vec![],
                 shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-                current_unprocessed_undelegations: Default::default(),
             },
         );
 
@@ -544,7 +541,6 @@ mod tests {
                 global_airdrop_pointer: vec![],
                 total_airdrops_accumulated: vec![],
                 shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-                current_unprocessed_undelegations: Default::default(),
             },
         );
 
@@ -666,7 +662,6 @@ mod tests {
                 global_airdrop_pointer: vec![],
                 total_airdrops_accumulated: vec![],
                 shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-                current_unprocessed_undelegations: Default::default(),
             },
         );
         STRATEGY_MAP.save(
@@ -681,7 +676,6 @@ mod tests {
                 global_airdrop_pointer: vec![],
                 total_airdrops_accumulated: vec![],
                 shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-                current_unprocessed_undelegations: Default::default(),
             },
         );
 
@@ -828,7 +822,6 @@ mod tests {
                     Coin::new(200_u128, "mir".to_string()),
                 ],
                 shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-                current_unprocessed_undelegations: Default::default(),
             },
         );
         let res = execute(
@@ -962,7 +955,6 @@ mod tests {
                     Coin::new(200_u128, "mir".to_string()),
                 ],
                 shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-                current_unprocessed_undelegations: Default::default(),
             },
         );
         STRATEGY_MAP.save(
@@ -983,7 +975,6 @@ mod tests {
                     Coin::new(200_u128, "mir".to_string()),
                 ],
                 shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-                current_unprocessed_undelegations: Default::default(),
             },
         );
         STRATEGY_MAP.save(
@@ -1001,7 +992,6 @@ mod tests {
                 )],
                 total_airdrops_accumulated: vec![Coin::new(200_u128, "mir".to_string())],
                 shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-                current_unprocessed_undelegations: Default::default(),
             },
         );
         let res = execute(
@@ -1469,7 +1459,6 @@ mod tests {
                 global_airdrop_pointer: vec![],
                 total_airdrops_accumulated: vec![],
                 shares_per_token_ratio: Decimal::from_ratio(100_000_000_u128, 1_u128),
-                current_unprocessed_undelegations: Default::default()
             }
         );
     }
