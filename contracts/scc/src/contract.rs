@@ -256,6 +256,7 @@ pub fn try_update_user_rewards(
 
     let mut messages: Vec<WasmMsg> = vec![];
     let mut strategy_to_amount: HashMap<Addr, Uint128> = HashMap::new();
+    let mut inactive_strategies: Vec<String> = vec![];
     let mut strategy_to_s_t_ratio: HashMap<String, Decimal> = HashMap::new();
     // iterate thru all requests. This is technically a paginated batch job running
     for user_request in update_user_rewards_requests {
@@ -272,6 +273,11 @@ pub fn try_update_user_rewards(
         } else {
             // TODO: bchain99 - Review if we can exit gracefully over here
             return Err(ContractError::StrategyInfoDoesNotExist(user_strategy));
+        }
+
+        if !strategy_info.is_active {
+            inactive_strategies.push(user_strategy);
+            continue;
         }
 
         // fetch the total tokens from the SIC contract and update the S/T ratio for the strategy
@@ -376,7 +382,9 @@ pub fn try_update_user_rewards(
         })
     });
 
-    Ok(Response::new().add_messages(messages))
+    Ok(Response::new()
+        .add_messages(messages)
+        .add_attribute("inactive_strategies", inactive_strategies.join(",")))
 }
 
 // This assumes that the validator contract will transfer ownership of the airdrops

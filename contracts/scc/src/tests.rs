@@ -14,8 +14,8 @@ mod tests {
     use crate::test_helpers::{check_equal_reward_info, check_equal_user_strategies};
     use crate::ContractError;
     use cosmwasm_std::{
-        coins, from_binary, to_binary, Addr, Coin, Decimal, Empty, Env, MessageInfo, OwnedDeps,
-        QuerierWrapper, Response, StdResult, SubMsg, Uint128, WasmMsg,
+        coins, from_binary, to_binary, Addr, Attribute, Coin, Decimal, Empty, Env, MessageInfo,
+        OwnedDeps, QuerierWrapper, Response, StdResult, SubMsg, Uint128, WasmMsg,
     };
     use sic_base::msg::{ExecuteMsg as sic_execute_msg, QueryMsg as sic_query_msg};
     use stader_utils::coin_utils::DecCoin;
@@ -116,6 +116,63 @@ mod tests {
         )
         .unwrap();
         assert_eq!(res, Response::default());
+
+        /*
+            Test - 3. Inactive strategies
+        */
+        let sid1_sic_address = Addr::unchecked("sid1_sic_address");
+        let user1 = Addr::unchecked("user1");
+
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            "sid1",
+            &StrategyInfo {
+                name: "sid1".to_string(),
+                sic_contract_address: sid1_sic_address.clone(),
+                unbonding_period: None,
+                is_active: false,
+                total_shares: Decimal::from_ratio(5000_u128, 1_u128),
+                global_airdrop_pointer: vec![],
+                total_airdrops_accumulated: vec![],
+                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+            },
+        );
+        USER_REWARD_INFO_MAP.save(
+            deps.as_mut().storage,
+            &user1.clone(),
+            &UserRewardInfo {
+                strategies: vec![UserStrategyInfo {
+                    strategy_name: "sid1".to_string(),
+                    shares: Decimal::from_ratio(5000_u128, 1_u128),
+                    airdrop_pointer: vec![],
+                }],
+                pending_airdrops: vec![],
+            },
+        );
+
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("pools_contract", &[]),
+            ExecuteMsg::UpdateUserRewards {
+                update_user_rewards_requests: vec![UpdateUserRewardsRequest {
+                    user: user1.clone(),
+                    rewards: Uint128::new(300_u128),
+                    strategy_id: "sid1".to_string(),
+                }],
+            },
+        )
+        .unwrap();
+
+        assert_eq!(res.messages.len(), 0);
+        assert_eq!(res.attributes.len(), 1);
+        assert!(check_equal_vec(
+            res.attributes,
+            vec![Attribute {
+                key: "inactive_strategies".to_string(),
+                value: "sid1".to_string()
+            }]
+        ))
     }
 
     #[test]
@@ -159,7 +216,16 @@ mod tests {
         STRATEGY_MAP.save(
             deps.as_mut().storage,
             "sid1",
-            &StrategyInfo::new("sid1".to_string(), sid1_sic_address.clone(), None),
+            &StrategyInfo {
+                name: "sid1".to_string(),
+                sic_contract_address: sid1_sic_address.clone(),
+                unbonding_period: None,
+                is_active: true,
+                total_shares: Decimal::zero(),
+                global_airdrop_pointer: vec![],
+                total_airdrops_accumulated: vec![],
+                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+            },
         );
 
         let res = execute(
