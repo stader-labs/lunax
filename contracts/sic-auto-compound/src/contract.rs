@@ -136,7 +136,7 @@ pub fn try_swap(
     }
 
     if state.unswapped_rewards.is_empty() {
-        return Err(ContractError::NoUnswappedRewards {});
+        return Ok(Response::new().add_attribute("no_unswapped_rewards", "1"))
     }
 
     // fetch the swapped money
