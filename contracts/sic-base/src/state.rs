@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Addr, Coin, Timestamp, Uint128};
+use cosmwasm_std::{Addr, Timestamp, Uint128};
 use cw_storage_plus::Item;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -15,7 +15,6 @@ pub struct State {
     pub contract_genesis_timestamp: Timestamp,
 
     pub total_rewards_accumulated: Uint128,
-    pub accumulated_airdrops: Vec<Coin>,
 }
 
 pub const STATE: Item<State> = Item::new("state");

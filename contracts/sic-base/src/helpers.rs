@@ -192,17 +192,10 @@ pub fn map_to_coin_vec(coin_map: HashMap<String, Uint128>) -> Vec<Coin> {
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
-    use crate::contract::instantiate;
-    use crate::msg::InstantiateMsg;
-    use cosmwasm_std::testing::{
-        mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
-    };
-    use cosmwasm_std::{Empty, OwnedDeps, Response, Timestamp};
 
     #[test]
-    fn test__add_coin_vector_to_map() {
+    fn test_add_coin_vector_to_map() {
         let coin1 = Coin {
             amount: Uint128::new(35),
             denom: "token1".to_string(),
@@ -249,7 +242,7 @@ mod tests {
     }
 
     #[test]
-    fn test__subtract_coin_vector_from_map() {
+    fn test_subtract_coin_vector_from_map() {
         let coin1 = Coin {
             amount: Uint128::new(35),
             denom: "token1".to_string(),

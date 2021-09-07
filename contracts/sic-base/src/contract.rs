@@ -6,7 +6,6 @@ use cosmwasm_std::{
 };
 
 use crate::error::ContractError;
-use crate::helpers::{merge_coin_vector, CoinVecOp, Operation};
 use crate::msg::{ExecuteMsg, GetStateResponse, GetTotalTokensResponse, InstantiateMsg, QueryMsg};
 use crate::state::{State, STATE};
 
@@ -24,7 +23,6 @@ pub fn instantiate(
         contract_genesis_block_height: _env.block.height,
         contract_genesis_timestamp: _env.block.time,
         total_rewards_accumulated: Uint128::zero(),
-        accumulated_airdrops: vec![],
     };
 
     STATE.save(deps.storage, &state)?;
@@ -67,13 +65,15 @@ pub fn execute(
 }
 
 // TODO: bchain99 - implement a very basic SIC contract which just holds some funds
+// Note: Avoid erroring out in SIC too much. This can break the entire tx in SCC side.
+// Only error for authorization related stuff for now
 pub fn try_claim_airdrops(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
     airdrop_token_contract: Addr,
     cw20_token_contract: Addr,
-    airdrop_token: String,
+    _airdrop_token: String,
     amount: Uint128,
     claim_msg: Binary,
 ) -> Result<Response, ContractError> {
@@ -102,17 +102,6 @@ pub fn try_claim_airdrops(
         funds: vec![],
     });
 
-    STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
-        state.accumulated_airdrops = merge_coin_vector(
-            state.accumulated_airdrops,
-            CoinVecOp {
-                fund: vec![Coin::new(amount.u128(), airdrop_token)],
-                operation: Operation::Add,
-            },
-        );
-        Ok(state)
-    })?;
-
     Ok(Response::new().add_messages(messages))
 }
 
@@ -129,17 +118,17 @@ pub fn try_transfer_rewards(
     }
 
     if info.funds.is_empty() {
-        return Err(ContractError::NoFundsSent {});
+        return Ok(Response::new().add_attribute("empty_funds", "1"));
     }
 
     if info.funds.len() > 1 {
-        return Err(ContractError::MultipleCoinsSent {});
+        return Ok(Response::new().add_attribute("multiple_coins_sent", "1"));
     }
 
     let coin_sent = info.funds.get(0).unwrap();
 
     if coin_sent.denom.ne(&state.strategy_denom) {
-        return Err(ContractError::DenomDoesNotMatchStrategyDenom {});
+        return Ok(Response::new().add_attribute("wrong_denom_sent", "1"));
     }
 
     STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
@@ -193,7 +182,7 @@ pub fn try_transfer_undelegated_rewards(
     }
 
     if amount.is_zero() {
-        return Err(ContractError::ZeroWithdrawal {});
+        return Ok(Response::new().add_attribute("transferring_zero_rewards", "1"));
     }
 
     // undelegation_batch_id is ignored here as we are not batching anything up
