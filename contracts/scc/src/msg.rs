@@ -33,6 +33,7 @@ pub enum ExecuteMsg {
         sic_contract_address: Addr,
         unbonding_period: Option<u64>,
     },
+    // TODO: bchain99 - Add an UpdateStrategy message rather than having different messages to activate/deactivate
     ActivateStrategy {
         strategy_id: String,
     },
