@@ -190,6 +190,14 @@ pub fn decimal_subtraction_in_256(a: Decimal, b: Decimal) -> Decimal {
     c_u256
 }
 
+pub fn u128_from_decimal(a: Decimal) -> u128 {
+    a.numerator() / a.denominator()
+}
+
+pub fn uint128_from_decimal(a: Decimal) -> Uint128 {
+    Uint128::new(u128_from_decimal(a))
+}
+
 pub fn get_decimal_from_uint128(a: Uint128) -> Decimal {
     Decimal::from_ratio(a, 1_u128)
 }

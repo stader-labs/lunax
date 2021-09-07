@@ -2,6 +2,7 @@
 mod tests {
     use super::*;
     use crate::contract::{execute, instantiate, query};
+    use crate::error::ContractError::{StrategyInfoDoesNotExist, UserNotInStrategy};
     use crate::helpers::get_sic_total_tokens;
     use crate::msg::{
         ExecuteMsg, GetStateResponse, InstantiateMsg, QueryMsg, UpdateUserAirdropsRequest,
@@ -9,13 +10,16 @@ mod tests {
     };
     use crate::state::{
         Cw20TokenContractsInfo, State, StrategyInfo, UserRewardInfo, UserStrategyInfo,
-        CW20_TOKEN_CONTRACTS_REGISTRY, STATE, STRATEGY_MAP, USER_REWARD_INFO_MAP,
+        UserUndelegationRecord, UserUnprocessedUndelegationInfo, CW20_TOKEN_CONTRACTS_REGISTRY,
+        STATE, STRATEGY_MAP, STRATEGY_UNPROCESSED_UNDELEGATIONS, USER_REWARD_INFO_MAP,
+        USER_UNPROCESSED_UNDELEGATIONS,
     };
     use crate::test_helpers::{check_equal_reward_info, check_equal_user_strategies};
     use crate::ContractError;
     use cosmwasm_std::{
-        coins, from_binary, to_binary, Addr, Binary, Coin, Decimal, Empty, Env, MessageInfo,
-        OwnedDeps, QuerierWrapper, Response, StdResult, SubMsg, Uint128, WasmMsg,
+        coins, from_binary, to_binary, Addr, Attribute, Binary, Coin, Decimal, Empty, Env,
+        MessageInfo, OwnedDeps, QuerierWrapper, Response, StdResult, SubMsg, Timestamp, Uint128,
+        WasmMsg,
     };
     use sic_base::msg::{ExecuteMsg as sic_execute_msg, QueryMsg as sic_query_msg};
     use stader_utils::coin_utils::DecCoin;
@@ -69,11 +73,1127 @@ mod tests {
                 scc_denom: "uluna".to_string(),
                 contract_genesis_block_height: env.block.height,
                 contract_genesis_timestamp: env.block.time,
+                event_loop_size: 20,
                 total_accumulated_rewards: Uint128::zero(),
                 current_rewards_in_scc: Uint128::zero(),
-                total_accumulated_airdrops: vec![]
+                total_accumulated_airdrops: vec![],
+                current_undelegated_strategies: vec![]
             }
         );
+    }
+
+    #[test]
+    fn test__try_create_user_undelegation_records_fail() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &[]);
+        let env = mock_env();
+
+        let res = instantiate_contract(
+            &mut deps,
+            &info,
+            &env,
+            Some(String::from("uluna")),
+            Some(String::from("pools_contract")),
+        );
+
+        /*
+            Test - 1. Unauthorized
+        */
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("not-creator", &[]),
+            ExecuteMsg::CreateUserUndelegationRecords {},
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::Unauthorized {}));
+    }
+
+    #[test]
+    fn test__try_create_user_undelegation_records_success() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &[]);
+        let env = mock_env();
+
+        let res = instantiate_contract(
+            &mut deps,
+            &info,
+            &env,
+            Some(String::from("uluna")),
+            Some(String::from("pools_contract")),
+        );
+
+        let user1 = Addr::unchecked("user1");
+        let sic1_address = Addr::unchecked("sic1_address");
+
+        /*
+           Test - 1. Empty undelegation queue
+        */
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::CreateUserUndelegationRecords {},
+        )
+        .unwrap();
+        assert_eq!(res.messages.len(), 1);
+        assert!(check_equal_vec(
+            res.messages,
+            vec![SubMsg::new(WasmMsg::Execute {
+                contract_addr: String::from(env.contract.address),
+                msg: to_binary(&ExecuteMsg::UndelegateFromStrategies {}).unwrap(),
+                funds: vec![]
+            })]
+        ));
+        assert_eq!(res.attributes.len(), 1);
+        assert!(check_equal_vec(
+            res.attributes,
+            vec![Attribute {
+                key: "undelegated_from_strategies".to_string(),
+                value: "1".to_string()
+            }]
+        ));
+
+        /*
+           Test - 2. 1 user with some unprocessed undelegation
+        */
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            "sid1",
+            &StrategyInfo {
+                name: "sid1".to_string(),
+                sic_contract_address: sic1_address.clone(),
+                unbonding_period: 3600,
+                unbonding_buffer: 3600,
+                current_undelegation_batch_id: 0,
+                is_active: true,
+                total_shares: Decimal::from_ratio(5000_u128, 1_u128),
+                global_airdrop_pointer: vec![
+                    DecCoin::new(Decimal::from_ratio(200_u128, 5000_u128), "anc".to_string()),
+                    DecCoin::new(Decimal::from_ratio(300_u128, 5000_u128), "mir".to_string()),
+                ],
+                total_airdrops_accumulated: vec![
+                    Coin::new(200_u128, "anc".to_string()),
+                    Coin::new(300_u128, "mir".to_string()),
+                ],
+                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+            },
+        );
+        USER_REWARD_INFO_MAP.save(
+            deps.as_mut().storage,
+            &user1.clone(),
+            &UserRewardInfo {
+                strategies: vec![UserStrategyInfo {
+                    strategy_name: "sid1".to_string(),
+                    shares: Decimal::from_ratio(2000_u128, 1_u128),
+                    airdrop_pointer: vec![],
+                }],
+                pending_airdrops: vec![
+                    Coin::new(100_u128, "anc".to_string()),
+                    Coin::new(200_u128, "mir".to_string()),
+                ],
+                undelegation_records: vec![],
+            },
+        );
+        USER_UNPROCESSED_UNDELEGATIONS.save(
+            deps.as_mut().storage,
+            &user1,
+            &vec![UserUnprocessedUndelegationInfo {
+                undelegation_amount: Uint128::new(100_u128),
+                strategy_name: "".to_string(),
+            }],
+        );
+    }
+
+    #[test]
+    fn test__try_undelegate_from_strategies_fail() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &[]);
+        let env = mock_env();
+
+        let res = instantiate_contract(
+            &mut deps,
+            &info,
+            &env,
+            Some(String::from("uluna")),
+            Some(String::from("pools_contract")),
+        );
+
+        /*
+            Test - 1. Unauthorized
+        */
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("not-creator", &[]),
+            ExecuteMsg::UndelegateFromStrategies {},
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::Unauthorized {}));
+    }
+
+    #[test]
+    fn test__try_undelegate_from_strategies_success() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &[]);
+        let env = mock_env();
+
+        let res = instantiate_contract(
+            &mut deps,
+            &info,
+            &env,
+            Some(String::from("uluna")),
+            Some(String::from("pools_contract")),
+        );
+
+        let sic1_address = Addr::unchecked("sic1_address");
+        let sic2_address = Addr::unchecked("sic2_address");
+        let sic3_address = Addr::unchecked("sic3_address");
+
+        /*
+            Test - 1. No strategy undelegations
+        */
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::UndelegateFromStrategies {},
+        )
+        .unwrap();
+        assert_eq!(res.attributes.len(), 1);
+        assert!(check_equal_vec(
+            res.attributes,
+            vec![Attribute {
+                key: "no_strategies_to_undelegate_from".to_string(),
+                value: "0".to_string()
+            }]
+        ));
+
+        /*
+           Test - 2. With some strategy undelegations
+        */
+        STATE.update(
+            deps.as_mut().storage,
+            |mut state| -> Result<_, ContractError> {
+                state.current_undelegated_strategies =
+                    vec!["sid1".to_string(), "sid2".to_string(), "sid3".to_string()];
+                Ok(state)
+            },
+        );
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            "sid1",
+            &StrategyInfo::new("sid1".to_string(), sic1_address.clone(), None, None),
+        );
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            "sid2",
+            &StrategyInfo::new("sid2".to_string(), sic2_address.clone(), None, None),
+        );
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            "sid3",
+            &StrategyInfo::new("sid3".to_string(), sic3_address.clone(), None, None),
+        );
+        STRATEGY_UNPROCESSED_UNDELEGATIONS.save(
+            deps.as_mut().storage,
+            "sid1",
+            &Uint128::new(100_u128),
+        );
+        STRATEGY_UNPROCESSED_UNDELEGATIONS.save(
+            deps.as_mut().storage,
+            "sid2",
+            &Uint128::new(200_u128),
+        );
+        STRATEGY_UNPROCESSED_UNDELEGATIONS.save(
+            deps.as_mut().storage,
+            "sid3",
+            &Uint128::new(300_u128),
+        );
+
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::UndelegateFromStrategies {},
+        )
+        .unwrap();
+
+        assert_eq!(res.messages.len(), 3);
+        assert!(check_equal_vec(
+            res.messages,
+            vec![
+                SubMsg::new(WasmMsg::Execute {
+                    contract_addr: sic1_address.clone().to_string(),
+                    msg: to_binary(&sic_execute_msg::UndelegateRewards {
+                        amount: Uint128::new(100_u128)
+                    })
+                    .unwrap(),
+                    funds: vec![]
+                }),
+                SubMsg::new(WasmMsg::Execute {
+                    contract_addr: sic2_address.to_string(),
+                    msg: to_binary(&sic_execute_msg::UndelegateRewards {
+                        amount: Uint128::new(200_u128)
+                    })
+                    .unwrap(),
+                    funds: vec![]
+                }),
+                SubMsg::new(WasmMsg::Execute {
+                    contract_addr: sic3_address.to_string(),
+                    msg: to_binary(&sic_execute_msg::UndelegateRewards {
+                        amount: Uint128::new(300_u128)
+                    })
+                    .unwrap(),
+                    funds: vec![]
+                }),
+            ]
+        ));
+
+        let state_response: GetStateResponse =
+            from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::GetState {}).unwrap())
+                .unwrap();
+        assert_ne!(state_response.state, None);
+        let state = state_response.state.unwrap();
+        assert_eq!(state.current_undelegated_strategies.len(), 0);
+
+        let sid1_unprocessed_undelegation_opt = STRATEGY_UNPROCESSED_UNDELEGATIONS
+            .may_load(deps.as_mut().storage, "sid1")
+            .unwrap();
+        let sid2_unprocessed_undelegation_opt = STRATEGY_UNPROCESSED_UNDELEGATIONS
+            .may_load(deps.as_mut().storage, "sid2")
+            .unwrap();
+        let sid3_unprocessed_undelegation_opt = STRATEGY_UNPROCESSED_UNDELEGATIONS
+            .may_load(deps.as_mut().storage, "sid3")
+            .unwrap();
+        assert_eq!(sid1_unprocessed_undelegation_opt, None);
+        assert_eq!(sid2_unprocessed_undelegation_opt, None);
+        assert_eq!(sid3_unprocessed_undelegation_opt, None);
+
+        let sid1_strategy = STRATEGY_MAP
+            .may_load(deps.as_mut().storage, "sid1")
+            .unwrap()
+            .unwrap();
+        let sid2_strategy = STRATEGY_MAP
+            .may_load(deps.as_mut().storage, "sid2")
+            .unwrap()
+            .unwrap();
+        let sid3_strategy = STRATEGY_MAP
+            .may_load(deps.as_mut().storage, "sid3")
+            .unwrap()
+            .unwrap();
+
+        /*
+           Test - 3. One of the strategies is still cooling down
+        */
+        STATE.update(
+            deps.as_mut().storage,
+            |mut state| -> Result<_, ContractError> {
+                state.current_undelegated_strategies = vec!["sid1".to_string(), "sid2".to_string()];
+                Ok(state)
+            },
+        );
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            "sid1",
+            &StrategyInfo::new("sid1".to_string(), sic1_address.clone(), None, None),
+        );
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            "sid2",
+            &StrategyInfo::new("sid2".to_string(), sic2_address.clone(), None, None),
+        );
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            "sid3",
+            &StrategyInfo {
+                name: "sid3".to_string(),
+                sic_contract_address: sic3_address.clone(),
+                unbonding_period: (3600),
+                unbonding_buffer: 3600,
+                current_undelegation_batch_id: 0,
+                is_active: false,
+                total_shares: Decimal::from_ratio(5000_u128, 1_u128),
+                global_airdrop_pointer: vec![],
+                total_airdrops_accumulated: vec![],
+                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+            },
+        );
+        STRATEGY_UNPROCESSED_UNDELEGATIONS.save(
+            deps.as_mut().storage,
+            "sid1",
+            &Uint128::new(100_u128),
+        );
+        STRATEGY_UNPROCESSED_UNDELEGATIONS.save(
+            deps.as_mut().storage,
+            "sid2",
+            &Uint128::new(200_u128),
+        );
+        STRATEGY_UNPROCESSED_UNDELEGATIONS.save(
+            deps.as_mut().storage,
+            "sid3",
+            &Uint128::new(300_u128),
+        );
+
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::UndelegateFromStrategies {},
+        )
+        .unwrap();
+
+        assert_eq!(res.messages.len(), 2);
+        assert!(check_equal_vec(
+            res.messages,
+            vec![
+                SubMsg::new(WasmMsg::Execute {
+                    contract_addr: sic1_address.clone().to_string(),
+                    msg: to_binary(&sic_execute_msg::UndelegateRewards {
+                        amount: Uint128::new(100_u128)
+                    })
+                    .unwrap(),
+                    funds: vec![]
+                }),
+                SubMsg::new(WasmMsg::Execute {
+                    contract_addr: sic2_address.to_string(),
+                    msg: to_binary(&sic_execute_msg::UndelegateRewards {
+                        amount: Uint128::new(200_u128)
+                    })
+                    .unwrap(),
+                    funds: vec![]
+                }),
+            ]
+        ));
+
+        let state_response: GetStateResponse =
+            from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::GetState {}).unwrap())
+                .unwrap();
+        assert_ne!(state_response.state, None);
+        let state = state_response.state.unwrap();
+        assert_eq!(state.current_undelegated_strategies.len(), 0);
+
+        let sid1_unprocessed_undelegation_opt = STRATEGY_UNPROCESSED_UNDELEGATIONS
+            .may_load(deps.as_mut().storage, "sid1")
+            .unwrap();
+        let sid2_unprocessed_undelegation_opt = STRATEGY_UNPROCESSED_UNDELEGATIONS
+            .may_load(deps.as_mut().storage, "sid2")
+            .unwrap();
+        let sid3_unprocessed_undelegation_opt = STRATEGY_UNPROCESSED_UNDELEGATIONS
+            .may_load(deps.as_mut().storage, "sid3")
+            .unwrap();
+        assert_eq!(sid1_unprocessed_undelegation_opt, None);
+        assert_eq!(sid2_unprocessed_undelegation_opt, None);
+        assert_ne!(sid3_unprocessed_undelegation_opt, None);
+        assert_eq!(
+            sid3_unprocessed_undelegation_opt.unwrap(),
+            Uint128::new(300_u128)
+        );
+
+        let sid1_strategy = STRATEGY_MAP
+            .may_load(deps.as_mut().storage, "sid1")
+            .unwrap()
+            .unwrap();
+        let sid2_strategy = STRATEGY_MAP
+            .may_load(deps.as_mut().storage, "sid2")
+            .unwrap()
+            .unwrap();
+        let sid3_strategy = STRATEGY_MAP
+            .may_load(deps.as_mut().storage, "sid3")
+            .unwrap()
+            .unwrap();
+
+        /*
+           Test - 4. All strategies are in cooldown period
+        */
+        STATE.update(
+            deps.as_mut().storage,
+            |mut state| -> Result<_, ContractError> {
+                state.current_undelegated_strategies = vec![];
+                Ok(state)
+            },
+        );
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            "sid1",
+            &StrategyInfo::new("sid1".to_string(), sic1_address.clone(), None, None),
+        );
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            "sid2",
+            &StrategyInfo::new("sid2".to_string(), sic2_address.clone(), None, None),
+        );
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            "sid3",
+            &StrategyInfo {
+                name: "sid3".to_string(),
+                sic_contract_address: sic3_address.clone(),
+                unbonding_period: (3600),
+                unbonding_buffer: 3600,
+                current_undelegation_batch_id: 0,
+                is_active: false,
+                total_shares: Decimal::from_ratio(5000_u128, 1_u128),
+                global_airdrop_pointer: vec![],
+                total_airdrops_accumulated: vec![],
+                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+            },
+        );
+        STRATEGY_UNPROCESSED_UNDELEGATIONS.save(
+            deps.as_mut().storage,
+            "sid1",
+            &Uint128::new(100_u128),
+        );
+        STRATEGY_UNPROCESSED_UNDELEGATIONS.save(
+            deps.as_mut().storage,
+            "sid2",
+            &Uint128::new(200_u128),
+        );
+        STRATEGY_UNPROCESSED_UNDELEGATIONS.save(
+            deps.as_mut().storage,
+            "sid3",
+            &Uint128::new(300_u128),
+        );
+
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::UndelegateFromStrategies {},
+        )
+        .unwrap();
+        assert_eq!(res.messages.len(), 0);
+        assert_eq!(res.attributes.len(), 1);
+        assert!(check_equal_vec(
+            res.attributes,
+            vec![Attribute {
+                key: "no_strategies_to_undelegate_from".to_string(),
+                value: "0".to_string()
+            }]
+        ));
+
+        let state_response: GetStateResponse =
+            from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::GetState {}).unwrap())
+                .unwrap();
+        assert_ne!(state_response.state, None);
+        let state = state_response.state.unwrap();
+        assert_eq!(state.current_undelegated_strategies.len(), 0);
+
+        let sid1_unprocessed_undelegation_opt = STRATEGY_UNPROCESSED_UNDELEGATIONS
+            .may_load(deps.as_mut().storage, "sid1")
+            .unwrap();
+        let sid2_unprocessed_undelegation_opt = STRATEGY_UNPROCESSED_UNDELEGATIONS
+            .may_load(deps.as_mut().storage, "sid2")
+            .unwrap();
+        let sid3_unprocessed_undelegation_opt = STRATEGY_UNPROCESSED_UNDELEGATIONS
+            .may_load(deps.as_mut().storage, "sid3")
+            .unwrap();
+        assert_ne!(sid1_unprocessed_undelegation_opt, None);
+        assert_ne!(sid2_unprocessed_undelegation_opt, None);
+        assert_ne!(sid3_unprocessed_undelegation_opt, None);
+
+        /*
+            Test - 5. One of the strategies is not in the strategy map
+        */
+        STRATEGY_MAP.remove(deps.as_mut().storage, "sid3");
+        STATE.update(
+            deps.as_mut().storage,
+            |mut state| -> Result<_, ContractError> {
+                state.current_undelegated_strategies =
+                    vec!["sid1".to_string(), "sid2".to_string(), "sid3".to_string()];
+                Ok(state)
+            },
+        );
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            "sid1",
+            &StrategyInfo::new("sid1".to_string(), sic1_address.clone(), None, None),
+        );
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            "sid2",
+            &StrategyInfo::new("sid2".to_string(), sic2_address.clone(), None, None),
+        );
+        STRATEGY_UNPROCESSED_UNDELEGATIONS.save(
+            deps.as_mut().storage,
+            "sid1",
+            &Uint128::new(100_u128),
+        );
+        STRATEGY_UNPROCESSED_UNDELEGATIONS.save(
+            deps.as_mut().storage,
+            "sid2",
+            &Uint128::new(200_u128),
+        );
+        STRATEGY_UNPROCESSED_UNDELEGATIONS.save(
+            deps.as_mut().storage,
+            "sid3",
+            &Uint128::new(300_u128),
+        );
+
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::UndelegateFromStrategies {},
+        )
+        .unwrap();
+
+        assert_eq!(res.messages.len(), 2);
+        assert!(check_equal_vec(
+            res.messages,
+            vec![
+                SubMsg::new(WasmMsg::Execute {
+                    contract_addr: sic1_address.clone().to_string(),
+                    msg: to_binary(&sic_execute_msg::UndelegateRewards {
+                        amount: Uint128::new(100_u128)
+                    })
+                    .unwrap(),
+                    funds: vec![]
+                }),
+                SubMsg::new(WasmMsg::Execute {
+                    contract_addr: sic2_address.to_string(),
+                    msg: to_binary(&sic_execute_msg::UndelegateRewards {
+                        amount: Uint128::new(200_u128)
+                    })
+                    .unwrap(),
+                    funds: vec![]
+                }),
+            ]
+        ));
+        assert_eq!(res.attributes.len(), 1);
+        assert!(check_equal_vec(
+            res.attributes,
+            vec![Attribute {
+                key: "failed_strategies".to_string(),
+                value: "sid3".to_string()
+            }]
+        ));
+
+        let state_response: GetStateResponse =
+            from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::GetState {}).unwrap())
+                .unwrap();
+        assert_ne!(state_response.state, None);
+        let state = state_response.state.unwrap();
+        assert_eq!(state.current_undelegated_strategies.len(), 0);
+
+        let sid1_unprocessed_undelegation_opt = STRATEGY_UNPROCESSED_UNDELEGATIONS
+            .may_load(deps.as_mut().storage, "sid1")
+            .unwrap();
+        let sid2_unprocessed_undelegation_opt = STRATEGY_UNPROCESSED_UNDELEGATIONS
+            .may_load(deps.as_mut().storage, "sid2")
+            .unwrap();
+        let sid3_unprocessed_undelegation_opt = STRATEGY_UNPROCESSED_UNDELEGATIONS
+            .may_load(deps.as_mut().storage, "sid3")
+            .unwrap();
+        assert_eq!(sid1_unprocessed_undelegation_opt, None);
+        assert_eq!(sid2_unprocessed_undelegation_opt, None);
+        assert_ne!(sid3_unprocessed_undelegation_opt, None);
+        assert_eq!(
+            sid3_unprocessed_undelegation_opt.unwrap(),
+            Uint128::new(300_u128)
+        );
+
+        let sid1_strategy = STRATEGY_MAP
+            .may_load(deps.as_mut().storage, "sid1")
+            .unwrap()
+            .unwrap();
+        let sid2_strategy = STRATEGY_MAP
+            .may_load(deps.as_mut().storage, "sid2")
+            .unwrap()
+            .unwrap();
+    }
+
+    #[test]
+    fn test_try_withdraw_rewards_fail() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &[]);
+        let env = mock_env();
+
+        let res = instantiate_contract(
+            &mut deps,
+            &info,
+            &env,
+            Some(String::from("uluna")),
+            Some(String::from("pools_contract")),
+        );
+
+        let user1 = Addr::unchecked("user1");
+
+        /*
+            Test - 1. Strategy info does not exist
+        */
+        let mut err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info(user1.as_str(), &[]),
+            ExecuteMsg::WithdrawRewards {
+                undelegation_id: "123".to_string(),
+                strategy_name: "sid1".to_string(),
+                amount: Default::default(),
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(
+            err,
+            ContractError::StrategyInfoDoesNotExist(String { .. })
+        ));
+
+        /*
+            Test - 2. User reward info does not exist
+        */
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            "sid1",
+            &StrategyInfo::default("sid1".to_string()),
+        );
+        let mut err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info(user1.as_str(), &[]),
+            ExecuteMsg::WithdrawRewards {
+                undelegation_id: "123".to_string(),
+                strategy_name: "sid1".to_string(),
+                amount: Default::default(),
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::UserRewardInfoDoesNotExist {}));
+
+        /*
+            Test - 3. User undelegation record does not exist
+        */
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            "sid1",
+            &StrategyInfo::default("sid1".to_string()),
+        );
+        USER_REWARD_INFO_MAP.save(deps.as_mut().storage, &user1, &UserRewardInfo::default());
+        let mut err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info(user1.as_str(), &[]),
+            ExecuteMsg::WithdrawRewards {
+                undelegation_id: "123".to_string(),
+                strategy_name: "sid1".to_string(),
+                amount: Default::default(),
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::UndelegationRecordNotFound {}));
+    }
+
+    #[test]
+    fn test__try_withdraw_rewards_success() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &[]);
+        let env = mock_env();
+
+        let res = instantiate_contract(
+            &mut deps,
+            &info,
+            &env,
+            Some(String::from("uluna")),
+            Some(String::from("pools_contract")),
+        );
+
+        let user1 = Addr::unchecked("user1");
+        let sic1_address = Addr::unchecked("sic1_address");
+
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            "sid1",
+            &StrategyInfo::new("sid1".to_string(), sic1_address.clone(), None, None),
+        );
+        USER_REWARD_INFO_MAP.save(
+            deps.as_mut().storage,
+            &user1,
+            &UserRewardInfo {
+                strategies: vec![UserStrategyInfo {
+                    strategy_name: "sid1".to_string(),
+                    shares: Decimal::from_ratio(5000_u128, 1_u128),
+                    airdrop_pointer: vec![],
+                }],
+                pending_airdrops: vec![],
+                undelegation_records: vec![UserUndelegationRecord {
+                    id: Timestamp::from_seconds(123),
+                    amount: Uint128::new(100_u128),
+                    strategy_name: "sid1".to_string(),
+                    est_release_time: Timestamp::from_seconds(125),
+                    undelegation_batch_id: 5,
+                }],
+            },
+        );
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info(user1.as_str(), &[]),
+            ExecuteMsg::WithdrawRewards {
+                undelegation_id: "123000000000".to_string(),
+                strategy_name: "sid1".to_string(),
+                amount: Default::default(),
+            },
+        )
+        .unwrap();
+
+        assert_eq!(res.messages.len(), 1);
+        assert!(check_equal_vec(
+            res.messages,
+            vec![SubMsg::new(WasmMsg::Execute {
+                contract_addr: sic1_address.clone().to_string(),
+                msg: to_binary(&sic_execute_msg::WithdrawRewards {
+                    user: user1,
+                    amount: Uint128::new(100_u128),
+                    undelegation_batch_id: 5
+                })
+                .unwrap(),
+                funds: vec![]
+            })]
+        ));
+    }
+
+    #[test]
+    fn test__try_undelegate_user_rewards_fail() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &[]);
+        let env = mock_env();
+
+        let res = instantiate_contract(
+            &mut deps,
+            &info,
+            &env,
+            Some(String::from("uluna")),
+            Some(String::from("pools_contract")),
+        );
+
+        let user1 = Addr::unchecked("user1");
+        let sid1_sic_address = Addr::unchecked("sid1_sic_address");
+
+        /*
+           Test - 1. Zero funds undelegations
+        */
+        let mut err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info(user1.as_str(), &[]),
+            ExecuteMsg::UndelegateRewards {
+                amount: Uint128::zero(),
+                strategy_name: "sid1".to_string(),
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::CannotUndelegateZeroFunds {}));
+
+        /*
+           Test - 2. Strategy info does not exist
+        */
+        let mut err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info(user1.as_str(), &[]),
+            ExecuteMsg::UndelegateRewards {
+                amount: Uint128::new(100_u128),
+                strategy_name: "sid1".to_string(),
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(
+            err,
+            ContractError::StrategyInfoDoesNotExist(String { .. })
+        ));
+
+        /*
+           Test - 3. User reward info does not exist
+        */
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            "sid1",
+            &StrategyInfo::default("sid1".to_string()),
+        );
+        let mut err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info(user1.as_str(), &[]),
+            ExecuteMsg::UndelegateRewards {
+                amount: Uint128::new(100_u128),
+                strategy_name: "sid1".to_string(),
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::UserRewardInfoDoesNotExist {}));
+
+        /*
+           Test - 4. User did not deposit to strategy
+        */
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            "sid1",
+            &StrategyInfo::default("sid1".to_string()),
+        );
+        USER_REWARD_INFO_MAP.save(deps.as_mut().storage, &user1, &UserRewardInfo::default());
+        let mut err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info(user1.as_str(), &[]),
+            ExecuteMsg::UndelegateRewards {
+                amount: Uint128::new(100_u128),
+                strategy_name: "sid1".to_string(),
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::UserNotInStrategy {}));
+        
+        /*
+            Test - 5. User did not have enough shares to undelegate
+         */
+        let mut contracts_to_token: HashMap<Addr, Uint128> = HashMap::new();
+        contracts_to_token.insert(sid1_sic_address.clone(), Uint128::new(0_u128));
+        deps.querier.update_wasm(contracts_to_token);
+
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            "sid1",
+            &StrategyInfo {
+                name: "".to_string(),
+                sic_contract_address: sid1_sic_address.clone(),
+                unbonding_period: 3600,
+                unbonding_buffer: 3600,
+                current_undelegation_batch_id: 0,
+                is_active: true,
+                total_shares: Decimal::from_ratio(5000_u128, 1_u128),
+                global_airdrop_pointer: vec![],
+                total_airdrops_accumulated: vec![],
+                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128)
+            },
+        );
+        USER_REWARD_INFO_MAP.save(deps.as_mut().storage, &user1, &UserRewardInfo {
+            strategies: vec![UserStrategyInfo {
+                strategy_name: "sid1".to_string(),
+                shares: Decimal::from_ratio(3000_u128, 1_u128),
+                airdrop_pointer: vec![]
+            }],
+            pending_airdrops: vec![],
+            undelegation_records: vec![]
+        });
+
+        let mut err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info(user1.as_str(), &[]),
+            ExecuteMsg::UndelegateRewards {
+                amount: Uint128::new(400_u128),
+                strategy_name: "sid1".to_string(),
+            },
+        )
+            .unwrap_err();
+        assert!(matches!(err, ContractError::UserDoesNotHaveEnoughRewards {}));
+    }
+
+    #[test]
+    fn test__try_undelegate_user_rewards_success() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &[]);
+        let env = mock_env();
+
+        let res = instantiate_contract(
+            &mut deps,
+            &info,
+            &env,
+            Some(String::from("uluna")),
+            Some(String::from("pools_contract")),
+        );
+
+        let user1 = Addr::unchecked("user1");
+        let sid1_sic_address = Addr::unchecked("sid1_sic_address");
+        let sid2_sic_address = Addr::unchecked("sid2_sic_address");
+
+        /*
+            Test - 1. User undelegates for the first time from a strategy
+         */
+        let mut contracts_to_token: HashMap<Addr, Uint128> = HashMap::new();
+        contracts_to_token.insert(sid1_sic_address.clone(), Uint128::new(0_u128));
+        deps.querier.update_wasm(contracts_to_token);
+
+        STATE.update(deps.as_mut().storage, |mut state| -> Result<_, ContractError> {
+            state.total_accumulated_rewards = Uint128::new(500_u128);
+            Ok(state)
+        });
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            "sid1",
+            &StrategyInfo {
+                name: "".to_string(),
+                sic_contract_address: sid1_sic_address.clone(),
+                unbonding_period: 3600,
+                unbonding_buffer: 3600,
+                current_undelegation_batch_id: 0,
+                is_active: true,
+                total_shares: Decimal::from_ratio(5000_u128, 1_u128),
+                global_airdrop_pointer: vec![
+                    DecCoin::new(Decimal::from_ratio(200_u128, 5000_u128), "anc".to_string()),
+                    DecCoin::new(Decimal::from_ratio(400_u128, 5000_u128), "mir".to_string()),
+                ],
+                total_airdrops_accumulated: vec![],
+                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128)
+            },
+        );
+        USER_REWARD_INFO_MAP.save(deps.as_mut().storage, &user1, &UserRewardInfo {
+            strategies: vec![UserStrategyInfo {
+                strategy_name: "sid1".to_string(),
+                shares: Decimal::from_ratio(3000_u128, 1_u128),
+                airdrop_pointer: vec![]
+            }],
+            pending_airdrops: vec![],
+            undelegation_records: vec![]
+        });
+
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info(user1.as_str(), &[]),
+            ExecuteMsg::UndelegateRewards {
+                amount: Uint128::new(200_u128),
+                strategy_name: "sid1".to_string(),
+            },
+        ).unwrap();
+        let state_response: GetStateResponse =
+            from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::GetState {}).unwrap())
+                .unwrap();
+        assert_ne!(state_response.state, None);
+        let state = state_response.state.unwrap();
+        assert_eq!(state.total_accumulated_rewards, Uint128::new(300_u128));
+
+        let sid1_strategy_info_opt = STRATEGY_MAP.may_load(deps.as_mut().storage, "sid1").unwrap();
+        assert_ne!(sid1_strategy_info_opt, None);
+        let sid1_strategy_info = sid1_strategy_info_opt.unwrap();
+        assert_eq!(sid1_strategy_info.total_shares, Decimal::from_ratio(3000_u128, 1_u128));
+
+        let user1_reward_info_opt = USER_REWARD_INFO_MAP.may_load(deps.as_mut().storage, &user1).unwrap();
+        assert_ne!(user1_reward_info_opt, None);
+        let user1_reward_info = user1_reward_info_opt.unwrap();
+        assert!(check_equal_vec(user1_reward_info.strategies, vec![UserStrategyInfo {
+            strategy_name: "sid1".to_string(),
+            shares: Decimal::from_ratio(1000_u128, 1_u128),
+            airdrop_pointer: vec![
+                DecCoin::new(Decimal::from_ratio(200_u128, 5000_u128), "anc".to_string()),
+                DecCoin::new(Decimal::from_ratio(400_u128, 5000_u128), "mir".to_string()),
+            ]
+        }]));
+        assert!(check_equal_vec(user1_reward_info.pending_airdrops, vec![
+            Coin::new(120_u128, "anc".to_string()),
+            Coin::new(240_u128, "mir".to_string())
+        ]));
+        assert!(check_equal_vec(user1_reward_info.undelegation_records, vec![
+            UserUndelegationRecord {
+                id: env.block.time,
+                amount: Uint128::new(200_u128),
+                strategy_name: "sid1".to_string(),
+                est_release_time: env.block.time.plus_seconds(7200),
+                undelegation_batch_id: 0
+            }
+        ]));
+
+        /*
+            Test - 2. User undelegates again in the same blocktime
+         */
+        STATE.update(deps.as_mut().storage, |mut state| -> Result<_, ContractError> {
+            state.total_accumulated_rewards = Uint128::new(300_u128);
+            Ok(state)
+        });
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            "sid1",
+            &StrategyInfo {
+                name: "".to_string(),
+                sic_contract_address: sid1_sic_address.clone(),
+                unbonding_period: 3600,
+                unbonding_buffer: 3600,
+                current_undelegation_batch_id: 0,
+                is_active: true,
+                total_shares: Decimal::from_ratio(3000_u128, 1_u128),
+                global_airdrop_pointer: vec![
+                    DecCoin::new(Decimal::from_ratio(200_u128, 5000_u128), "anc".to_string()),
+                    DecCoin::new(Decimal::from_ratio(400_u128, 5000_u128), "mir".to_string()),
+                ],
+                total_airdrops_accumulated: vec![],
+                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128)
+            },
+        );
+        USER_REWARD_INFO_MAP.save(deps.as_mut().storage, &user1, &UserRewardInfo {
+            strategies: vec![UserStrategyInfo {
+                strategy_name: "sid1".to_string(),
+                shares: Decimal::from_ratio(1000_u128, 1_u128),
+                airdrop_pointer: vec![
+                    DecCoin::new(Decimal::from_ratio(200_u128, 5000_u128), "anc".to_string()),
+                    DecCoin::new(Decimal::from_ratio(400_u128, 5000_u128), "mir".to_string()),
+                ]
+            }],
+            pending_airdrops: vec![
+                Coin::new(120_u128, "anc".to_string()),
+                Coin::new(240_u128, "mir".to_string())
+            ],
+            undelegation_records: vec![
+                UserUndelegationRecord {
+                    id: env.block.time,
+                    amount: Uint128::new(200_u128),
+                    strategy_name: "sid1".to_string(),
+                    est_release_time: env.block.time.plus_seconds(7200),
+                    undelegation_batch_id: 0
+                }
+            ]
+        });
+
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info(user1.as_str(), &[]),
+            ExecuteMsg::UndelegateRewards {
+                amount: Uint128::new(50_u128),
+                strategy_name: "sid1".to_string(),
+            },
+        ).unwrap();
+        let state_response: GetStateResponse =
+            from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::GetState {}).unwrap())
+                .unwrap();
+        assert_ne!(state_response.state, None);
+        let state = state_response.state.unwrap();
+        assert_eq!(state.total_accumulated_rewards, Uint128::new(250_u128));
+
+        let sid1_strategy_info_opt = STRATEGY_MAP.may_load(deps.as_mut().storage, "sid1").unwrap();
+        assert_ne!(sid1_strategy_info_opt, None);
+        let sid1_strategy_info = sid1_strategy_info_opt.unwrap();
+        assert_eq!(sid1_strategy_info.total_shares, Decimal::from_ratio(2500_u128, 1_u128));
+
+        let user1_reward_info_opt = USER_REWARD_INFO_MAP.may_load(deps.as_mut().storage, &user1).unwrap();
+        assert_ne!(user1_reward_info_opt, None);
+        let user1_reward_info = user1_reward_info_opt.unwrap();
+        assert!(check_equal_vec(user1_reward_info.strategies, vec![UserStrategyInfo {
+            strategy_name: "sid1".to_string(),
+            shares: Decimal::from_ratio(500_u128, 1_u128),
+            airdrop_pointer: vec![
+                DecCoin::new(Decimal::from_ratio(200_u128, 5000_u128), "anc".to_string()),
+                DecCoin::new(Decimal::from_ratio(400_u128, 5000_u128), "mir".to_string()),
+            ]
+        }]));
+        assert!(check_equal_vec(user1_reward_info.pending_airdrops, vec![
+            Coin::new(120_u128, "anc".to_string()),
+            Coin::new(240_u128, "mir".to_string())
+        ]));
+        assert!(check_equal_vec(user1_reward_info.undelegation_records, vec![
+            UserUndelegationRecord {
+                id: env.block.time,
+                amount: Uint128::new(200_u128),
+                strategy_name: "sid1".to_string(),
+                est_release_time: env.block.time.plus_seconds(7200),
+                undelegation_batch_id: 0
+            },
+            UserUndelegationRecord {
+                id: env.block.time,
+                amount: Uint128::new(50_u128),
+                strategy_name: "sid1".to_string(),
+                est_release_time: env.block.time.plus_seconds(7200),
+                undelegation_batch_id: 0
+            },
+        ]));
     }
 
     #[test]
@@ -203,7 +1323,8 @@ mod tests {
         /*
            Test - 1. Claiming airdrops from the sic for the first time
         */
-        let mut strategy_info = StrategyInfo::new("sid".to_string(), sic_contract.clone(), None);
+        let mut strategy_info =
+            StrategyInfo::new("sid".to_string(), sic_contract.clone(), None, None);
         strategy_info.total_shares = Decimal::from_ratio(100_000_000_u128, 1_u128);
         STRATEGY_MAP.save(deps.as_mut().storage, "sid", &strategy_info);
 
@@ -265,7 +1386,8 @@ mod tests {
         /*
             Test - 2. Claiming airdrops a mir airdrop with anc airdrop
         */
-        let mut strategy_info = StrategyInfo::new("sid".to_string(), sic_contract.clone(), None);
+        let mut strategy_info =
+            StrategyInfo::new("sid".to_string(), sic_contract.clone(), None, None);
         strategy_info.total_shares = Decimal::from_ratio(100_000_000_u128, 1_u128);
         strategy_info.global_airdrop_pointer = vec![DecCoin::new(
             Decimal::from_ratio(100_u128, 100_000_000_u128),
@@ -428,7 +1550,9 @@ mod tests {
             &StrategyInfo {
                 name: "sid1".to_string(),
                 sic_contract_address: sic1_address,
-                unbonding_period: None,
+                unbonding_period: (21 * 24 * 3600),
+                unbonding_buffer: 3600,
+                current_undelegation_batch_id: 0,
                 is_active: true,
                 total_shares: Decimal::from_ratio(5000_u128, 1_u128),
                 global_airdrop_pointer: vec![
@@ -440,7 +1564,6 @@ mod tests {
                     Coin::new(200_u128, "mir".to_string()),
                 ],
                 shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-                current_unprocessed_undelegations: Default::default(),
             },
         );
 
@@ -454,6 +1577,7 @@ mod tests {
                     airdrop_pointer: vec![],
                 }],
                 pending_airdrops: vec![],
+                undelegation_records: vec![],
             },
         );
         STATE.update(deps.as_mut().storage, |mut state| -> StdResult<_> {
@@ -597,12 +1721,13 @@ mod tests {
             &UserRewardInfo {
                 strategies: vec![],
                 pending_airdrops: vec![],
+                undelegation_records: vec![],
             },
         );
         STRATEGY_MAP.save(
             deps.as_mut().storage,
             "sid1",
-            &StrategyInfo::new("sid1".to_string(), sid1_sic_address.clone(), None),
+            &StrategyInfo::new("sid1".to_string(), sid1_sic_address.clone(), None, None),
         );
 
         let res = execute(
@@ -681,13 +1806,14 @@ mod tests {
             &StrategyInfo {
                 name: "sid1".to_string(),
                 sic_contract_address: sid1_sic_address.clone(),
-                unbonding_period: None,
+                unbonding_period: (21 * 24 * 3600),
+                unbonding_buffer: 3600,
+                current_undelegation_batch_id: 0,
                 is_active: true,
                 total_shares: Decimal::from_ratio(5000_u128, 1_u128),
                 global_airdrop_pointer: vec![],
                 total_airdrops_accumulated: vec![],
                 shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-                current_unprocessed_undelegations: Default::default(),
             },
         );
 
@@ -701,6 +1827,7 @@ mod tests {
                     airdrop_pointer: vec![],
                 }],
                 pending_airdrops: vec![],
+                undelegation_records: vec![],
             },
         );
 
@@ -781,13 +1908,14 @@ mod tests {
             &StrategyInfo {
                 name: "sid1".to_string(),
                 sic_contract_address: sid1_sic_address.clone(),
-                unbonding_period: None,
+                unbonding_period: (21 * 24 * 3600),
+                unbonding_buffer: 3600,
+                current_undelegation_batch_id: 0,
                 is_active: true,
                 total_shares: Decimal::from_ratio(5000_u128, 1_u128),
                 global_airdrop_pointer: vec![],
                 total_airdrops_accumulated: vec![],
                 shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-                current_unprocessed_undelegations: Default::default(),
             },
         );
 
@@ -801,6 +1929,7 @@ mod tests {
                     airdrop_pointer: vec![],
                 }],
                 pending_airdrops: vec![],
+                undelegation_records: vec![],
             },
         );
 
@@ -881,13 +2010,14 @@ mod tests {
             &StrategyInfo {
                 name: "sid1".to_string(),
                 sic_contract_address: sid1_sic_address.clone(),
-                unbonding_period: None,
+                unbonding_period: (21 * 24 * 3600),
+                unbonding_buffer: 3600,
+                current_undelegation_batch_id: 0,
                 is_active: true,
                 total_shares: Decimal::from_ratio(5000_u128, 1_u128),
                 global_airdrop_pointer: vec![],
                 total_airdrops_accumulated: vec![],
                 shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-                current_unprocessed_undelegations: Default::default(),
             },
         );
 
@@ -901,6 +2031,7 @@ mod tests {
                     airdrop_pointer: vec![],
                 }],
                 pending_airdrops: vec![],
+                undelegation_records: vec![],
             },
         );
 
@@ -981,13 +2112,14 @@ mod tests {
             &StrategyInfo {
                 name: "sid1".to_string(),
                 sic_contract_address: sid1_sic_address.clone(),
-                unbonding_period: None,
+                unbonding_period: (21 * 24 * 3600),
+                unbonding_buffer: 3600,
+                current_undelegation_batch_id: 0,
                 is_active: true,
                 total_shares: Decimal::from_ratio(5000_u128, 1_u128),
                 global_airdrop_pointer: vec![],
                 total_airdrops_accumulated: vec![],
                 shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-                current_unprocessed_undelegations: Default::default(),
             },
         );
 
@@ -1001,6 +2133,7 @@ mod tests {
                     airdrop_pointer: vec![],
                 }],
                 pending_airdrops: vec![],
+                undelegation_records: vec![],
             },
         );
 
@@ -1103,13 +2236,14 @@ mod tests {
             &StrategyInfo {
                 name: "sid1".to_string(),
                 sic_contract_address: sid1_sic_address.clone(),
-                unbonding_period: None,
+                unbonding_period: (21 * 24 * 3600),
+                unbonding_buffer: 3600,
+                current_undelegation_batch_id: 0,
                 is_active: true,
                 total_shares: Decimal::from_ratio(5000_u128, 1_u128),
                 global_airdrop_pointer: vec![],
                 total_airdrops_accumulated: vec![],
                 shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-                current_unprocessed_undelegations: Default::default(),
             },
         );
         STRATEGY_MAP.save(
@@ -1118,13 +2252,14 @@ mod tests {
             &StrategyInfo {
                 name: "sid2".to_string(),
                 sic_contract_address: sid2_sic_address.clone(),
-                unbonding_period: None,
+                unbonding_period: (21 * 24 * 3600),
+                unbonding_buffer: 3600,
+                current_undelegation_batch_id: 0,
                 is_active: true,
                 total_shares: Decimal::from_ratio(5000_u128, 1_u128),
                 global_airdrop_pointer: vec![],
                 total_airdrops_accumulated: vec![],
                 shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-                current_unprocessed_undelegations: Default::default(),
             },
         );
 
@@ -1134,6 +2269,7 @@ mod tests {
             &UserRewardInfo {
                 strategies: vec![],
                 pending_airdrops: vec![],
+                undelegation_records: vec![],
             },
         );
 
@@ -1251,6 +2387,7 @@ mod tests {
                     airdrop_pointer: vec![],
                 }],
                 pending_airdrops: vec![],
+                undelegation_records: vec![],
             },
         );
         STRATEGY_MAP.save(
@@ -1259,7 +2396,9 @@ mod tests {
             &StrategyInfo {
                 name: "sid1".to_string(),
                 sic_contract_address: sid1_sic_address.clone(),
-                unbonding_period: None,
+                unbonding_period: (21 * 24 * 3600),
+                unbonding_buffer: 3600,
+                current_undelegation_batch_id: 0,
                 is_active: true,
                 total_shares: Decimal::from_ratio(5000_u128, 1_u128),
                 global_airdrop_pointer: vec![
@@ -1271,7 +2410,6 @@ mod tests {
                     Coin::new(200_u128, "mir".to_string()),
                 ],
                 shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-                current_unprocessed_undelegations: Default::default(),
             },
         );
         let res = execute(
@@ -1385,6 +2523,7 @@ mod tests {
                     },
                 ],
                 pending_airdrops: vec![Coin::new(500_u128, "anc".to_string())],
+                undelegation_records: vec![],
             },
         );
         STRATEGY_MAP.save(
@@ -1393,7 +2532,9 @@ mod tests {
             &StrategyInfo {
                 name: "sid1".to_string(),
                 sic_contract_address: sid1_sic_address.clone(),
-                unbonding_period: None,
+                unbonding_period: (21 * 24 * 3600),
+                unbonding_buffer: 3600,
+                current_undelegation_batch_id: 0,
                 is_active: true,
                 total_shares: Decimal::from_ratio(5000_u128, 1_u128),
                 global_airdrop_pointer: vec![
@@ -1405,7 +2546,6 @@ mod tests {
                     Coin::new(200_u128, "mir".to_string()),
                 ],
                 shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-                current_unprocessed_undelegations: Default::default(),
             },
         );
         STRATEGY_MAP.save(
@@ -1414,7 +2554,9 @@ mod tests {
             &StrategyInfo {
                 name: "sid2".to_string(),
                 sic_contract_address: sid2_sic_address.clone(),
-                unbonding_period: None,
+                unbonding_period: (21 * 24 * 3600),
+                unbonding_buffer: 3600,
+                current_undelegation_batch_id: 0,
                 is_active: true,
                 total_shares: Decimal::from_ratio(5000_u128, 1_u128),
                 global_airdrop_pointer: vec![
@@ -1426,7 +2568,6 @@ mod tests {
                     Coin::new(200_u128, "mir".to_string()),
                 ],
                 shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-                current_unprocessed_undelegations: Default::default(),
             },
         );
         STRATEGY_MAP.save(
@@ -1435,7 +2576,9 @@ mod tests {
             &StrategyInfo {
                 name: "sid3".to_string(),
                 sic_contract_address: sid3_sic_address.clone(),
-                unbonding_period: None,
+                unbonding_period: (21 * 24 * 3600),
+                unbonding_buffer: 3600,
+                current_undelegation_batch_id: 0,
                 is_active: true,
                 total_shares: Decimal::from_ratio(5000_u128, 1_u128),
                 global_airdrop_pointer: vec![DecCoin::new(
@@ -1444,7 +2587,6 @@ mod tests {
                 )],
                 total_airdrops_accumulated: vec![Coin::new(200_u128, "mir".to_string())],
                 shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-                current_unprocessed_undelegations: Default::default(),
             },
         );
         let res = execute(
@@ -1843,6 +2985,7 @@ mod tests {
             ExecuteMsg::RegisterStrategy {
                 strategy_id: "sid".to_string(),
                 sic_contract_address: Addr::unchecked("abc"),
+                unbonding_buffer: None,
                 unbonding_period: None,
             },
         )
@@ -1865,6 +3008,7 @@ mod tests {
             ExecuteMsg::RegisterStrategy {
                 strategy_id: "sid".to_string(),
                 sic_contract_address: Addr::unchecked("abc"),
+                unbonding_buffer: None,
                 unbonding_period: None,
             },
         )
@@ -1893,6 +3037,7 @@ mod tests {
             ExecuteMsg::RegisterStrategy {
                 strategy_id: "sid".to_string(),
                 sic_contract_address: Addr::unchecked("abc"),
+                unbonding_buffer: Some(100u64),
                 unbonding_period: Some(100u64),
             },
         )
@@ -1906,13 +3051,14 @@ mod tests {
             StrategyInfo {
                 name: "sid".to_string(),
                 sic_contract_address: Addr::unchecked("abc"),
-                unbonding_period: Some(100u64),
+                unbonding_period: 100u64,
+                unbonding_buffer: 3600,
+                current_undelegation_batch_id: 0,
                 is_active: false,
                 total_shares: Default::default(),
                 global_airdrop_pointer: vec![],
                 total_airdrops_accumulated: vec![],
-                shares_per_token_ratio: Decimal::from_ratio(100_000_000_u128, 1_u128),
-                current_unprocessed_undelegations: Default::default()
+                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
             }
         );
     }
@@ -1951,7 +3097,7 @@ mod tests {
         let res = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info("creator", &[]),
+            mock_info("pools_contract", &[]),
             ExecuteMsg::UpdateUserAirdrops {
                 update_user_airdrops_requests: vec![],
             },
@@ -1985,7 +3131,7 @@ mod tests {
         let res = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info("creator", &[]),
+            mock_info("pools_contract", &[]),
             ExecuteMsg::UpdateUserAirdrops {
                 update_user_airdrops_requests: vec![
                     UpdateUserAirdropsRequest {
@@ -2069,6 +3215,7 @@ mod tests {
             &UserRewardInfo {
                 strategies: vec![],
                 pending_airdrops: vec![Coin::new(10_u128, "abc"), Coin::new(200_u128, "def")],
+                undelegation_records: vec![],
             },
         );
         USER_REWARD_INFO_MAP.save(
@@ -2077,6 +3224,7 @@ mod tests {
             &UserRewardInfo {
                 strategies: vec![],
                 pending_airdrops: vec![Coin::new(20_u128, "abc"), Coin::new(100_u128, "def")],
+                undelegation_records: vec![],
             },
         );
         USER_REWARD_INFO_MAP.save(
@@ -2085,6 +3233,7 @@ mod tests {
             &UserRewardInfo {
                 strategies: vec![],
                 pending_airdrops: vec![Coin::new(30_u128, "abc"), Coin::new(50_u128, "def")],
+                undelegation_records: vec![],
             },
         );
         USER_REWARD_INFO_MAP.save(
@@ -2093,13 +3242,14 @@ mod tests {
             &UserRewardInfo {
                 strategies: vec![],
                 pending_airdrops: vec![Coin::new(40_u128, "abc"), Coin::new(80_u128, "def")],
+                undelegation_records: vec![],
             },
         );
 
         let res = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info("creator", &[]),
+            mock_info("pools_contract", &[]),
             ExecuteMsg::UpdateUserAirdrops {
                 update_user_airdrops_requests: vec![
                     UpdateUserAirdropsRequest {

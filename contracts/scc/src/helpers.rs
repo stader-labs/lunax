@@ -1,11 +1,14 @@
 use crate::state::{StrategyInfo, UserRewardInfo, UserStrategyInfo, USER_REWARD_INFO_MAP};
+use crate::user::get_user_airdrops;
 use cosmwasm_std::{
-    Addr, Decimal, Fraction, QuerierWrapper, Response, Storage, Timestamp, Uint128,
+    Addr, Coin, Decimal, Fraction, QuerierWrapper, Response, Storage, Timestamp, Uint128,
 };
-use sic_base::msg::{GetTotalTokensResponse, QueryMsg as sic_msg};
+use sic_base::msg::{
+    GetCurrentUndelegationBatchIdResponse, GetTotalTokensResponse, QueryMsg as sic_msg,
+};
 use stader_utils::coin_utils::{
     decimal_division_in_256, decimal_multiplication_in_256, decimal_subtraction_in_256,
-    get_decimal_from_uint128,
+    get_decimal_from_uint128, merge_coin_vector, uint128_from_decimal,
 };
 
 pub fn get_vault_apr(
@@ -61,6 +64,26 @@ pub fn get_strategy_shares_per_token_ratio(
         total_strategy_shares,
         get_decimal_from_uint128(total_sic_tokens),
     )
+}
+
+pub fn get_strategy_current_undelegation_batch_id(
+    querier: QuerierWrapper,
+    strategy_info: &StrategyInfo,
+) -> u64 {
+    let sic_address = &strategy_info.sic_contract_address;
+
+    let res: GetCurrentUndelegationBatchIdResponse = querier
+        .query_wasm_smart(sic_address, &sic_msg::GetCurrentUndelegationBatchId {})
+        .unwrap();
+
+    res.current_undelegation_batch_id
+}
+
+pub fn get_user_staked_amount(shares_per_token_ratio: Decimal, total_shares: Decimal) -> Uint128 {
+    uint128_from_decimal(decimal_division_in_256(
+        total_shares,
+        shares_per_token_ratio,
+    ))
 }
 
 #[cfg(test)]

@@ -27,9 +27,13 @@ pub struct UpdateUserAirdropsRequest {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
+    /*
+       Manager messages
+    */
     RegisterStrategy {
         strategy_id: String,
         sic_contract_address: Addr,
+        unbonding_buffer: Option<u64>,
         unbonding_period: Option<u64>,
     },
     ActivateStrategy {
@@ -46,23 +50,6 @@ pub enum ExecuteMsg {
         cw20_contract: Addr,
         airdrop_contract: Addr,
     },
-    // called by validator contract to transfer rewards from validator contract to SCC
-    // this message also moves rewards from SCC to the corresponding SIC. This message will
-    // transfer the rewards to the SIC per user. this is because the batching is already being done
-    // by the pools contract. Calls to this message will be paginated.
-    UpdateUserRewards {
-        update_user_rewards_requests: Vec<UpdateUserRewardsRequest>,
-    },
-    // called by validator contract to transfer airdrops from validator contract to SCC. This will be a separate
-    // epoch in the pools contract.
-    UpdateUserAirdrops {
-        update_user_airdrops_requests: Vec<UpdateUserAirdropsRequest>,
-    },
-    // called by user to undelegate his rewards from a strategy
-    UndelegateRewards {
-        amount: Uint128,
-        strategy_id: String,
-    },
     // called by scc manager to periodically claim airdrops for a particular strategy if it supported
     ClaimAirdrops {
         strategy_id: String,
@@ -70,9 +57,38 @@ pub enum ExecuteMsg {
         denom: String,
         claim_msg: Binary,
     },
+    // undelegate all the queued up undelegation from all strategies. This takes into account
+    // a cooling period for the strategy. Certain strategies cannot be undelegate
+    UndelegateFromStrategies {},
+    // creates the undelegation records for the users.
+    CreateUserUndelegationRecords {},
+    /*
+       Pools contract messages
+    */
+    // called by pools contract to transfer rewards from validator contract to SCC
+    // this message also moves rewards from SCC to the corresponding SIC. This message will
+    // transfer the rewards to the SIC per user. this is because the batching is already being done
+    // by the pools contract. Calls to this message will be paginated.
+    UpdateUserRewards {
+        update_user_rewards_requests: Vec<UpdateUserRewardsRequest>,
+    },
+    // called by pools contract to transfer airdrops from validator contract to SCC. This will be a separate
+    // epoch in the pools contract.
+    UpdateUserAirdrops {
+        update_user_airdrops_requests: Vec<UpdateUserAirdropsRequest>,
+    },
+    /*
+       User messages
+    */
+    // called by user to undelegate his rewards from a strategy
+    UndelegateRewards {
+        amount: Uint128,
+        strategy_name: String,
+    },
     WithdrawRewards {
-        undelegation_timestamp: Timestamp,
-        strategy_id: String,
+        undelegation_id: String,
+        strategy_name: String,
+        amount: Uint128,
     },
     WithdrawAirdrops {},
 }

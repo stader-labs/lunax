@@ -16,26 +16,31 @@ pub struct State {
     pub scc_denom: String,
     pub contract_genesis_block_height: u64,
     pub contract_genesis_timestamp: Timestamp,
+    pub event_loop_size: u64,
 
     // total historical rewards accumulated in the SCC
     pub total_accumulated_rewards: Uint128,
     // current rewards sitting in the SCC
     pub current_rewards_in_scc: Uint128,
     pub total_accumulated_airdrops: Vec<Coin>,
+
+    pub current_undelegated_strategies: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct StrategyInfo {
     pub name: String,
     pub sic_contract_address: Addr,
-    pub unbonding_period: Option<u64>,
+    pub unbonding_period: u64,
+    pub unbonding_buffer: u64,
+    pub current_undelegation_batch_id: u64,
     pub is_active: bool,
     pub total_shares: Decimal,
     pub global_airdrop_pointer: Vec<DecCoin>,
     pub total_airdrops_accumulated: Vec<Coin>,
     // TODO: bchain99 - i want this for strategy APR calc but cross check if we actually need this.
+    // TODO: bchain99 - remove this. not needed. We are computing the S/T ratio on demand when needed for a strategy
     pub shares_per_token_ratio: Decimal,
-    pub current_unprocessed_undelegations: Uint128,
 }
 
 impl StrategyInfo {
@@ -43,17 +48,19 @@ impl StrategyInfo {
         strategy_name: String,
         sic_contract_address: Addr,
         unbonding_period: Option<u64>,
+        unbonding_buffer: Option<u64>,
     ) -> Self {
         StrategyInfo {
             name: strategy_name,
             sic_contract_address,
-            unbonding_period,
+            unbonding_period: unbonding_period.unwrap_or(21 * 24 * 3600),
+            unbonding_buffer: unbonding_buffer.unwrap_or(3600),
+            current_undelegation_batch_id: 0,
             is_active: false,
             total_shares: Decimal::zero(),
             global_airdrop_pointer: vec![],
             total_airdrops_accumulated: vec![],
-            shares_per_token_ratio: Decimal::from_ratio(100_000_000_u128, 1_u128),
-            current_unprocessed_undelegations: Uint128::zero(),
+            shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
         }
     }
 
@@ -61,13 +68,14 @@ impl StrategyInfo {
         StrategyInfo {
             name: strategy_name,
             sic_contract_address: Addr::unchecked("default-sic"),
-            unbonding_period: None,
+            unbonding_period: 21 * 24 * 3600,
+            unbonding_buffer: 3600,
+            current_undelegation_batch_id: 0,
             is_active: false,
             total_shares: Default::default(),
             global_airdrop_pointer: vec![],
             total_airdrops_accumulated: vec![],
             shares_per_token_ratio: Default::default(),
-            current_unprocessed_undelegations: Default::default(),
         }
     }
 }
@@ -103,6 +111,7 @@ pub struct UserRewardInfo {
     pub strategies: Vec<UserStrategyInfo>,
     // pending_airdrops is the airdrops accumulated from the validator_contract and all the strategy contracts
     pub pending_airdrops: Vec<Coin>,
+    pub undelegation_records: Vec<UserUndelegationRecord>,
 }
 
 impl UserRewardInfo {
@@ -110,6 +119,7 @@ impl UserRewardInfo {
         UserRewardInfo {
             strategies: vec![],
             pending_airdrops: vec![],
+            undelegation_records: vec![],
         }
     }
 
@@ -117,6 +127,41 @@ impl UserRewardInfo {
         UserRewardInfo {
             strategies: vec![],
             pending_airdrops: vec![],
+            undelegation_records: vec![],
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct UserUndelegationRecord {
+    pub id: Timestamp,
+    pub amount: Uint128,
+    pub strategy_name: String,
+    pub est_release_time: Timestamp,
+    // the undelegation batch id is specific to the strategy. It is mainly used by the SIC
+    // to account for any undelegation slashing or any form of impact which has occured to the user
+    // during undelegations.
+    pub undelegation_batch_id: u64,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct UserUnprocessedUndelegationInfo {
+    pub undelegation_amount: Uint128,
+    pub strategy_name: String,
+}
+
+impl UserUnprocessedUndelegationInfo {
+    pub fn default() -> Self {
+        UserUnprocessedUndelegationInfo {
+            undelegation_amount: Uint128::zero(),
+            strategy_name: "".to_string(),
+        }
+    }
+
+    pub fn new(strategy_name: String) -> Self {
+        UserUnprocessedUndelegationInfo {
+            undelegation_amount: Uint128::zero(),
+            strategy_name,
         }
     }
 }
@@ -133,3 +178,7 @@ pub const STRATEGY_MAP: Map<&str, StrategyInfo> = Map::new("strategy_map");
 pub const USER_REWARD_INFO_MAP: Map<&Addr, UserRewardInfo> = Map::new("user_reward_info_map");
 pub const CW20_TOKEN_CONTRACTS_REGISTRY: Map<String, Cw20TokenContractsInfo> =
     Map::new("cw20_token_contracts_registry");
+pub const USER_UNPROCESSED_UNDELEGATIONS: Map<&Addr, Vec<UserUnprocessedUndelegationInfo>> =
+    Map::new("user_unprocessed_undelegations");
+pub const STRATEGY_UNPROCESSED_UNDELEGATIONS: Map<&str, Uint128> =
+    Map::new("strategy_unprocessed_undelegations");

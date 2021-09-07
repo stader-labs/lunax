@@ -2,26 +2,31 @@
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     attr, to_binary, Addr, Attribute, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env,
-    Fraction, MessageInfo, QuerierResult, Response, StdError, StdResult, Timestamp, Uint128,
+    Fraction, MessageInfo, Order, QuerierResult, Response, StdError, StdResult, Timestamp, Uint128,
     WasmMsg,
 };
 
 use crate::error::ContractError;
-use crate::helpers::get_strategy_shares_per_token_ratio;
+use crate::helpers::{
+    get_strategy_current_undelegation_batch_id, get_strategy_shares_per_token_ratio,
+    get_user_staked_amount,
+};
 use crate::msg::{
     ExecuteMsg, GetStateResponse, GetStrategyInfoResponse, GetUserRewardInfo, InstantiateMsg,
     QueryMsg, UpdateUserAirdropsRequest, UpdateUserRewardsRequest,
 };
 use crate::state::{
     Cw20TokenContractsInfo, State, StrategyInfo, UserRewardInfo, UserStrategyInfo,
-    CW20_TOKEN_CONTRACTS_REGISTRY, STATE, STRATEGY_MAP, USER_REWARD_INFO_MAP,
+    UserUndelegationRecord, UserUnprocessedUndelegationInfo, CW20_TOKEN_CONTRACTS_REGISTRY, STATE,
+    STRATEGY_MAP, STRATEGY_UNPROCESSED_UNDELEGATIONS, USER_REWARD_INFO_MAP,
+    USER_UNPROCESSED_UNDELEGATIONS,
 };
 use crate::user::get_user_airdrops;
 use sic_base::msg::{ExecuteMsg as sic_execute_msg, QueryMsg as sic_query_msg};
 use stader_utils::coin_utils::{
-    decimal_division_in_256, decimal_multiplication_in_256, decimal_summation_in_256,
-    get_decimal_from_uint128, merge_coin_vector, merge_dec_coin_vector, CoinVecOp, DecCoin,
-    DecCoinVecOp, Operation,
+    decimal_division_in_256, decimal_multiplication_in_256, decimal_subtraction_in_256,
+    decimal_summation_in_256, get_decimal_from_uint128, merge_coin_vector, merge_dec_coin_vector,
+    CoinVecOp, DecCoin, DecCoinVecOp, Operation,
 };
 use std::borrow::Borrow;
 use std::collections::HashMap;
@@ -39,9 +44,11 @@ pub fn instantiate(
         scc_denom: msg.strategy_denom,
         contract_genesis_block_height: _env.block.height,
         contract_genesis_timestamp: _env.block.time,
+        event_loop_size: 20,
         total_accumulated_rewards: Uint128::zero(),
         current_rewards_in_scc: Uint128::zero(),
         total_accumulated_airdrops: vec![],
+        current_undelegated_strategies: vec![],
     };
     STATE.save(deps.storage, &state)?;
 
@@ -61,14 +68,16 @@ pub fn execute(
         ExecuteMsg::RegisterStrategy {
             strategy_id,
             unbonding_period,
+            unbonding_buffer,
             sic_contract_address,
         } => try_register_strategy(
             deps,
             _env,
             info,
             strategy_id,
-            unbonding_period,
             sic_contract_address,
+            unbonding_period,
+            unbonding_buffer,
         ),
         ExecuteMsg::DeactivateStrategy { strategy_id } => {
             try_deactivate_strategy(deps, _env, info, strategy_id)
@@ -87,8 +96,8 @@ pub fn execute(
         } => try_update_user_airdrops(deps, _env, info, update_user_airdrops_requests),
         ExecuteMsg::UndelegateRewards {
             amount,
-            strategy_id,
-        } => try_undelegate_rewards(deps, _env, info, amount, strategy_id),
+            strategy_name,
+        } => try_undelegate_user_rewards(deps, _env, info, amount, strategy_name),
         ExecuteMsg::ClaimAirdrops {
             strategy_id,
             amount,
@@ -96,9 +105,10 @@ pub fn execute(
             claim_msg,
         } => try_claim_airdrops(deps, _env, info, strategy_id, amount, denom, claim_msg),
         ExecuteMsg::WithdrawRewards {
-            undelegation_timestamp,
-            strategy_id,
-        } => try_withdraw_rewards(deps, _env, info, undelegation_timestamp, strategy_id),
+            undelegation_id,
+            strategy_name,
+            amount,
+        } => try_withdraw_rewards(deps, _env, info, undelegation_id, strategy_name, amount),
         ExecuteMsg::WithdrawAirdrops {} => try_withdraw_airdrops(deps, _env, info),
         ExecuteMsg::RegisterCw20Contracts {
             denom,
@@ -112,7 +122,281 @@ pub fn execute(
             cw20_contract,
             airdrop_contract,
         ),
+        ExecuteMsg::UndelegateFromStrategies {} => try_undelegate_from_strategies(deps, _env, info),
+        ExecuteMsg::CreateUserUndelegationRecords {} => {
+            try_create_user_undelegation_records(deps, _env, info)
+        }
     }
+}
+
+pub fn try_undelegate_from_strategies(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+) -> Result<Response, ContractError> {
+    let state = STATE.load(deps.storage)?;
+
+    // only manager or the current contract can call it.
+    // create_user_undelegation_records calls undelegate_from_strategies once all user undelegations
+    // have been settled.
+    if info.sender != state.manager && info.sender != _env.contract.address {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    let mut strategy_to_undelegation: HashMap<String, Uint128> = HashMap::new();
+
+    // go thru all strategies and undelegate from them
+    let mut failed_strategies: Vec<String> = vec![];
+    let mut messages: Vec<WasmMsg> = vec![];
+    STRATEGY_UNPROCESSED_UNDELEGATIONS
+        .range(deps.storage, None, None, Order::Ascending)
+        .for_each(|res| {
+            let unwrapped = res.unwrap();
+            let strategy_name = String::from_utf8(unwrapped.0).unwrap();
+            let strategy_undelegation_amount = unwrapped.1;
+
+            if state
+                .current_undelegated_strategies
+                .contains(&strategy_name)
+            {
+                strategy_to_undelegation.insert(strategy_name, strategy_undelegation_amount);
+            }
+        });
+
+    if strategy_to_undelegation.is_empty() {
+        return Ok(Response::new().add_attribute("no_strategies_to_undelegate_from", "0"));
+    }
+
+    strategy_to_undelegation.iter().for_each(|s2u| {
+        let strategy_name = s2u.0;
+        let undelegation_amount = s2u.1;
+
+        let mut strategy_info: StrategyInfo;
+        if let Some(strategy_info_mapping) = STRATEGY_MAP
+            .may_load(deps.storage, &*strategy_name)
+            .unwrap()
+        {
+            strategy_info = strategy_info_mapping;
+        } else {
+            failed_strategies.push(strategy_name.clone());
+            return;
+        }
+
+        // strategy shares reduction will be done when we are creating the user undelegation records.
+        // strategy_info.last_undelegated_time = _env.block.time;
+        messages.push(WasmMsg::Execute {
+            contract_addr: strategy_info.sic_contract_address.to_string(),
+            msg: to_binary(&sic_execute_msg::UndelegateRewards {
+                amount: undelegation_amount.clone(),
+            })
+            .unwrap(),
+            funds: vec![],
+        });
+
+        STRATEGY_MAP.save(deps.storage, &*strategy_name, &strategy_info);
+        STRATEGY_UNPROCESSED_UNDELEGATIONS.remove(deps.storage, &*strategy_name);
+    });
+
+    // clear the current undelegated strategies vector
+    STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
+        state.current_undelegated_strategies = vec![];
+        Ok(state)
+    })?;
+
+    Ok(Response::new()
+        .add_messages(messages)
+        .add_attribute("failed_strategies", failed_strategies.join(",")))
+}
+
+pub fn try_create_user_undelegation_records(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+) -> Result<Response, ContractError> {
+    // let state = STATE.load(deps.storage)?;
+    // if info.sender != state.manager {
+    //     return Err(ContractError::Unauthorized {});
+    // }
+    //
+    // // iterate thru all the user unprocessed undelegations and create the user undelegation
+    // // records for the users currently undelegated.
+    // let undelegation_user_addresses: Vec<Addr> = USER_UNPROCESSED_UNDELEGATIONS
+    //     .prefix(())
+    //     .range(deps.storage, None, None, Order::Ascending)
+    //     .take(state.event_loop_size as usize)
+    //     .map(|res| {
+    //         deps.api
+    //             .addr_validate(&String::from_utf8(res.unwrap().0).unwrap())
+    //             .unwrap()
+    //     })
+    //     .collect();
+    //
+    // if undelegation_user_addresses.is_empty() {
+    //     // Now undelegate from all strategies
+    //     // when there are no undelegations to process, it could mean 2 things:
+    //     // 1. No user has undelegated in which case there will be an empty queue for unprocessed strategies
+    //     // which will exit early
+    //     // 2. All user undelegations have been settled in which case we can start undelegating from the strategies
+    //     // This will execute undelegate from strategies in the same tx which will not cause any problems
+    //     // with undelegations being added b/w txs which can happen if create_user_undelegation_records and
+    //     // undelegate_from_strategies execute in different txs.
+    //     return Ok(Response::new()
+    //         .add_message(WasmMsg::Execute {
+    //             contract_addr: String::from(env.contract.address),
+    //             msg: to_binary(&ExecuteMsg::UndelegateFromStrategies {}).unwrap(),
+    //             funds: vec![],
+    //         })
+    //         .add_attribute("undelegated_from_strategies", "1"));
+    // }
+    //
+    // // IMPORTANT: only create the records for users if the strategy has crossed its cooling period
+    // let mut failed_strategies: Vec<String> = vec![];
+    // let mut failed_users: Vec<String> = vec![];
+    // let mut strategies_in_cooldown: Vec<String> = vec![];
+    // let mut undelegated_strategies: Vec<String> = vec![];
+    // let mut strategy_to_s_t_ratio: HashMap<String, Decimal> = HashMap::new();
+    // undelegation_user_addresses.iter().for_each(|user_addr| {
+    //     let user_unprocessed_undelegation_records: Vec<UserUnprocessedUndelegationInfo>;
+    //     if let Some(uuur_map) = USER_UNPROCESSED_UNDELEGATIONS
+    //         .may_load(deps.storage, user_addr)
+    //         .unwrap()
+    //     {
+    //         user_unprocessed_undelegation_records = uuur_map;
+    //     } else {
+    //         return;
+    //     }
+    //
+    //     let mut user_reward_info: UserRewardInfo;
+    //     if let Some(user_reward_info_map) = USER_REWARD_INFO_MAP
+    //         .may_load(deps.storage, user_addr)
+    //         .unwrap()
+    //     {
+    //         user_reward_info = user_reward_info_map;
+    //     } else {
+    //         failed_users.push(user_addr.clone().to_string());
+    //         return;
+    //     }
+    //
+    //     for user_unprocessed_undelegation_record in user_unprocessed_undelegation_records {
+    //         let strategy_name = user_unprocessed_undelegation_record.strategy_name;
+    //         let undelegation_amount = user_unprocessed_undelegation_record.undelegation_amount;
+    //
+    //         if strategies_in_cooldown.contains(&strategy_name)
+    //             || failed_strategies.contains(&strategy_name)
+    //         {
+    //             continue;
+    //         }
+    //
+    //         let mut strategy_info: StrategyInfo;
+    //         if let Some(strategy_info_mapping) = STRATEGY_MAP
+    //             .may_load(deps.storage, &*strategy_name)
+    //             .unwrap()
+    //         {
+    //             strategy_info = strategy_info_mapping;
+    //         } else {
+    //             failed_strategies.push(strategy_name);
+    //             continue;
+    //         }
+    //
+    //         if strategy_info
+    //             .last_undelegated_time
+    //             .plus_seconds(strategy_info.cooling_period)
+    //             .lt(&env.block.time)
+    //         {
+    //             strategies_in_cooldown.push(strategy_name);
+    //             continue;
+    //         }
+    //
+    //         let user_strategy_info: &mut UserStrategyInfo;
+    //         if let Some(user_strategy_info_mapping) = user_reward_info
+    //             .strategies
+    //             .iter_mut()
+    //             .find(|x| x.strategy_name.eq(&strategy_name))
+    //         {
+    //             user_strategy_info = user_strategy_info_mapping;
+    //         } else {
+    //             continue;
+    //         }
+    //
+    //         // compute the S/T ratio only once.
+    //         let current_strategy_shares_per_token_ratio: Decimal;
+    //         if !strategy_to_s_t_ratio.contains_key(&strategy_name) {
+    //             current_strategy_shares_per_token_ratio =
+    //                 get_strategy_shares_per_token_ratio(deps.querier, &strategy_info);
+    //             strategy_info.shares_per_token_ratio = current_strategy_shares_per_token_ratio;
+    //             strategy_to_s_t_ratio.insert(
+    //                 strategy_name.clone(),
+    //                 current_strategy_shares_per_token_ratio,
+    //             );
+    //         } else {
+    //             current_strategy_shares_per_token_ratio =
+    //                 *strategy_to_s_t_ratio.get(&strategy_name).unwrap();
+    //         }
+    //
+    //         // update the user airdrop pointer and allocate the user pending airdrops for the strategy
+    //         let mut user_airdrops: Vec<Coin> = vec![];
+    //         if let Some(new_user_airdrops) = get_user_airdrops(
+    //             &strategy_info.global_airdrop_pointer,
+    //             &user_strategy_info.airdrop_pointer,
+    //             user_strategy_info.shares,
+    //         ) {
+    //             user_airdrops = new_user_airdrops;
+    //         }
+    //         user_strategy_info.airdrop_pointer = strategy_info.global_airdrop_pointer.clone();
+    //         user_reward_info.pending_airdrops = merge_coin_vector(
+    //             user_reward_info.pending_airdrops,
+    //             CoinVecOp {
+    //                 fund: user_airdrops,
+    //                 operation: Operation::Add,
+    //             },
+    //         );
+    //
+    //         let total_user_undelegated_shares = decimal_multiplication_in_256(
+    //             current_strategy_shares_per_token_ratio,
+    //             Decimal::from_ratio(undelegation_amount.u128(), 1_u128),
+    //         );
+    //         user_strategy_info.shares = decimal_subtraction_in_256(
+    //             user_strategy_info.shares,
+    //             total_user_undelegated_shares,
+    //         );
+    //         strategy_info.total_shares = decimal_subtraction_in_256(
+    //             strategy_info.total_shares,
+    //             total_user_undelegated_shares,
+    //         );
+    //
+    //         let strategy_undelegation_batch_id =
+    //             get_strategy_current_undelegation_batch_id(deps.querier, &strategy_info);
+    //         let strategy_unbonding_period = strategy_info.unbonding_period;
+    //
+    //         STRATEGY_MAP.save(deps.storage, &*strategy_name, &strategy_info);
+    //         undelegated_strategies.push(strategy_name.clone());
+    //
+    //         user_reward_info
+    //             .undelegation_records
+    //             .push(UserUndelegationRecord {
+    //                 id: env.block.time,
+    //                 amount: undelegation_amount,
+    //                 strategy_name,
+    //                 est_release_time: env.block.time.plus_seconds(strategy_unbonding_period),
+    //                 // TODO: bchain99 - discuss this once with someone. We can have a separate create_undelegation_batch interface
+    //                 // in the SIC. maybe we can avoid this.
+    //                 undelegation_batch_id: strategy_undelegation_batch_id + 1,
+    //             });
+    //     }
+    //     USER_REWARD_INFO_MAP.save(deps.storage, &user_addr, &user_reward_info);
+    //     USER_UNPROCESSED_UNDELEGATIONS.remove(deps.storage, user_addr);
+    // });
+    //
+    // STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
+    //     state.current_undelegated_strategies = undelegated_strategies;
+    //     Ok(state)
+    // })?;
+    //
+    // Ok(Response::new()
+    //     .add_attribute("failed_strategies", failed_strategies.join(","))
+    //     .add_attribute("strategies_in_cooldown", strategies_in_cooldown.join(","))
+    //     .add_attribute("failed_users", failed_users.join(",")))
+    Ok(Response::default())
 }
 
 pub fn try_update_cw20_contracts_registry(
@@ -140,13 +424,115 @@ pub fn try_update_cw20_contracts_registry(
     Ok(Response::default())
 }
 
-pub fn try_undelegate_rewards(
+pub fn try_undelegate_user_rewards(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
     amount: Uint128,
-    strategy_id: String,
+    strategy_name: String,
 ) -> Result<Response, ContractError> {
+    if amount.is_zero() {
+        return Err(ContractError::CannotUndelegateZeroFunds {});
+    }
+
+    let user_addr = info.sender;
+
+    let mut strategy_info: StrategyInfo;
+    if let Some(strategy_info_mapping) = STRATEGY_MAP.may_load(deps.storage, &*strategy_name)? {
+        strategy_info = strategy_info_mapping;
+    } else {
+        return Err(ContractError::StrategyInfoDoesNotExist(strategy_name));
+    }
+
+    let mut user_reward_info: UserRewardInfo;
+    if let Some(user_reward_info_mapping) =
+        USER_REWARD_INFO_MAP.may_load(deps.storage, &user_addr)?
+    {
+        user_reward_info = user_reward_info_mapping;
+    } else {
+        return Err(ContractError::UserRewardInfoDoesNotExist {});
+    }
+
+    // check if the undelegation amount crosses the user total undelegatable amount
+    let user_strategy_info: &mut UserStrategyInfo;
+    if let Some(user_strategy_info_mapping) = user_reward_info
+        .strategies
+        .iter_mut()
+        .find(|x| x.strategy_name.eq(&strategy_name))
+    {
+        user_strategy_info = user_strategy_info_mapping;
+    } else {
+        return Err(ContractError::UserNotInStrategy {});
+    }
+
+    // update the user airdrop pointer and allocate the user pending airdrops for the strategy
+    let mut user_airdrops: Vec<Coin> = vec![];
+    if let Some(new_user_airdrops) = get_user_airdrops(
+        &strategy_info.global_airdrop_pointer,
+        &user_strategy_info.airdrop_pointer,
+        user_strategy_info.shares,
+    ) {
+        user_airdrops = new_user_airdrops;
+    }
+    user_strategy_info.airdrop_pointer = strategy_info.global_airdrop_pointer.clone();
+    user_reward_info.pending_airdrops = merge_coin_vector(
+        user_reward_info.pending_airdrops,
+        CoinVecOp {
+            fund: user_airdrops,
+            operation: Operation::Add,
+        },
+    );
+
+    // subtract the user shares based on how much they want to withdraw.
+    let strategy_shares_per_token_ratio =
+        get_strategy_shares_per_token_ratio(deps.querier, &strategy_info);
+    strategy_info.shares_per_token_ratio = strategy_shares_per_token_ratio;
+    let user_total_shares = user_strategy_info.shares;
+    let user_undelegated_shares = decimal_multiplication_in_256(
+        strategy_shares_per_token_ratio,
+        Decimal::from_ratio(amount, 1_u128),
+    );
+
+    if user_undelegated_shares.gt(&user_total_shares) {
+        return Err(ContractError::UserDoesNotHaveEnoughRewards {});
+    }
+
+    user_strategy_info.shares =
+        decimal_subtraction_in_256(user_total_shares, user_undelegated_shares);
+    strategy_info.total_shares =
+        decimal_subtraction_in_256(strategy_info.total_shares, user_undelegated_shares);
+
+    user_reward_info
+        .undelegation_records
+        .push(UserUndelegationRecord {
+            // there may multiple records with the same id. when withdrawing, use amount as the tie-breaker in such a case.
+            id: _env.block.time,
+            amount,
+            strategy_name: strategy_name.clone(),
+            est_release_time: _env
+                .block
+                .time
+                .plus_seconds(strategy_info.unbonding_period + strategy_info.unbonding_buffer),
+            undelegation_batch_id: strategy_info.current_undelegation_batch_id,
+        });
+
+    STRATEGY_MAP.save(deps.storage, &*strategy_name, &strategy_info)?;
+    USER_REWARD_INFO_MAP.save(deps.storage, &user_addr, &user_reward_info)?;
+
+    STRATEGY_UNPROCESSED_UNDELEGATIONS.update(
+        deps.storage,
+        &*strategy_name,
+        |suu| -> Result<_, ContractError> {
+            Ok(suu.unwrap_or(Uint128::zero()).checked_add(amount).unwrap())
+        },
+    )?;
+
+    STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
+        state.total_accumulated_rewards =
+            state.total_accumulated_rewards.checked_sub(amount).unwrap();
+        Ok(state)
+    })?;
+
     Ok(Response::default())
 }
 
@@ -292,7 +678,6 @@ pub fn try_withdraw_airdrops(
 
     let mut messages: Vec<WasmMsg> = vec![];
     let mut failed_airdrops: Vec<String> = vec![];
-    let mut successful_airdrops: Vec<Coin> = vec![];
     let total_airdrops = merge_coin_vector(
         user_reward_info.pending_airdrops,
         CoinVecOp {
@@ -340,7 +725,6 @@ pub fn try_withdraw_airdrops(
             "strategies_failed_airdrop_allocation",
             failed_strategies.join(","),
         )
-        .add_attribute("airdrops_failed_to_transfer", failed_airdrops.join(","))
         .add_messages(messages))
 }
 
@@ -348,10 +732,57 @@ pub fn try_withdraw_rewards(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    undelegation_timestamp: Timestamp,
-    strategy_id: String,
+    undelegation_id: String,
+    strategy_name: String,
+    amount: Uint128,
 ) -> Result<Response, ContractError> {
-    Ok(Response::default())
+    let user_addr = info.sender;
+
+    let strategy_info: StrategyInfo;
+    if let Some(strategy_info_mapping) = STRATEGY_MAP
+        .may_load(deps.storage, &*strategy_name)
+        .unwrap()
+    {
+        strategy_info = strategy_info_mapping;
+    } else {
+        return Err(ContractError::StrategyInfoDoesNotExist(strategy_name));
+    }
+
+    let user_reward_info: UserRewardInfo;
+    if let Some(user_reward_info_mapping) = USER_REWARD_INFO_MAP
+        .may_load(deps.storage, &user_addr)
+        .unwrap()
+    {
+        user_reward_info = user_reward_info_mapping;
+    } else {
+        return Err(ContractError::UserRewardInfoDoesNotExist {});
+    }
+
+    let undelegation_timestamp = Timestamp::from_nanos(undelegation_id.parse::<u64>().unwrap());
+
+    let user_undelegation_record: &UserUndelegationRecord;
+    if let Some(user_undelegation_record_mappings) =
+        user_reward_info.undelegation_records.iter().find(|x| {
+            x.id.eq(&undelegation_timestamp)
+                && x.strategy_name.eq(&strategy_name)
+                && x.amount.eq(&amount)
+        })
+    {
+        user_undelegation_record = user_undelegation_record_mappings;
+    } else {
+        return Err(ContractError::UndelegationRecordNotFound {});
+    }
+
+    Ok(Response::new().add_message(WasmMsg::Execute {
+        contract_addr: strategy_info.sic_contract_address.to_string(),
+        msg: to_binary(&sic_execute_msg::WithdrawRewards {
+            user: user_addr,
+            amount: user_undelegation_record.amount,
+            undelegation_batch_id: user_undelegation_record.undelegation_batch_id,
+        })
+        .unwrap(),
+        funds: vec![],
+    }))
 }
 
 pub fn try_register_strategy(
@@ -359,8 +790,9 @@ pub fn try_register_strategy(
     _env: Env,
     info: MessageInfo,
     strategy_id: String,
-    unbonding_period: Option<u64>,
     sic_contract_address: Addr,
+    unbonding_period: Option<u64>,
+    unbonding_buffer: Option<u64>,
 ) -> Result<Response, ContractError> {
     let state = STATE.load(deps.storage).unwrap();
     if info.sender != state.manager {
@@ -378,7 +810,12 @@ pub fn try_register_strategy(
     STRATEGY_MAP.save(
         deps.storage,
         &*strategy_id.clone(),
-        &StrategyInfo::new(strategy_id, sic_contract_address, unbonding_period),
+        &StrategyInfo::new(
+            strategy_id,
+            sic_contract_address,
+            unbonding_period,
+            unbonding_buffer,
+        ),
     )?;
 
     Ok(Response::default())
@@ -608,7 +1045,7 @@ pub fn try_update_user_airdrops(
 ) -> Result<Response, ContractError> {
     // check for manager?
     let state = STATE.load(deps.storage).unwrap();
-    if info.sender != state.manager {
+    if info.sender != state.pool_contract {
         return Err(ContractError::Unauthorized {});
     }
 

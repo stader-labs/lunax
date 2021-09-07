@@ -30,4 +30,16 @@ pub enum ContractError {
 
     #[error("Airdrop not registered")]
     AirdropNotRegistered {},
+
+    #[error("Cannot undelegate zero funds")]
+    CannotUndelegateZeroFunds {},
+
+    #[error("User does not have rewards in the strategy")]
+    UserNotInStrategy {},
+
+    #[error("User does not have enough rewards to undelegate")]
+    UserDoesNotHaveEnoughRewards {},
+
+    #[error("Undelegation record not found")]
+    UndelegationRecordNotFound {},
 }
