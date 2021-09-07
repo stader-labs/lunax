@@ -124,14 +124,74 @@ pub fn execute(
             cw20_contract,
             airdrop_contract,
         ),
-        ExecuteMsg::UndelegateFromStrategies {} => try_undelegate_from_strategies(deps, _env, info),
-        ExecuteMsg::CreateUserUndelegationRecords {} => {
-            try_create_user_undelegation_records(deps, _env, info)
+        ExecuteMsg::UndelegateFromStrategies { strategies } => {
+            try_undelegate_from_strategies(deps, _env, info, strategies)
         }
         ExecuteMsg::CreateUndelegationBatches { strategies } => {
             try_create_undelegation_batches(deps, _env, info, strategies)
         }
     }
+}
+
+pub fn try_undelegate_from_strategies(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    strategies: Vec<String>,
+) -> Result<Response, ContractError> {
+    let state = STATE.load(deps.storage)?;
+    if info.sender != state.manager {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    if strategies.is_empty() {
+        return Ok(Response::new().add_attribute("no_strategies", "1"));
+    }
+
+    let mut failed_strategies: Vec<String> = vec![];
+    let mut strategies_with_no_undelegations: Vec<String> = vec![];
+    let mut messages: Vec<WasmMsg> = vec![];
+    for strategy in strategies {
+        let strategy_info: StrategyInfo;
+        if let Some(strategy_info_mapping) =
+            STRATEGY_MAP.may_load(deps.storage, &*strategy).unwrap()
+        {
+            strategy_info = strategy_info_mapping;
+        } else {
+            failed_strategies.push(strategy);
+            continue;
+        }
+
+        let strategy_undelegation: Uint128;
+        if let Some(undelegation) = STRATEGY_UNPROCESSED_UNDELEGATIONS
+            .may_load(deps.storage, &*strategy)
+            .unwrap()
+        {
+            strategy_undelegation = undelegation;
+        } else {
+            strategies_with_no_undelegations.push(strategy);
+            continue;
+        }
+
+        messages.push(WasmMsg::Execute {
+            contract_addr: String::from(strategy_info.sic_contract_address),
+            msg: to_binary(&sic_execute_msg::UndelegateRewards {
+                amount: strategy_undelegation,
+            })
+            .unwrap(),
+            funds: vec![],
+        });
+
+        STRATEGY_UNPROCESSED_UNDELEGATIONS.remove(deps.storage, &*strategy);
+    }
+
+    Ok(Response::new()
+        .add_attribute("failed_strategies", failed_strategies.join(","))
+        .add_attribute(
+            "strategies_with_no_undelegations",
+            strategies_with_no_undelegations.join(","),
+        )
+        .add_messages(messages))
 }
 
 pub fn try_create_undelegation_batches(
@@ -184,84 +244,84 @@ pub fn try_create_undelegation_batches(
     Ok(Response::new().add_attribute("failed_strategies", failed_strategies.join(",")))
 }
 
-pub fn try_undelegate_from_strategies(
-    deps: DepsMut,
-    _env: Env,
-    info: MessageInfo,
-) -> Result<Response, ContractError> {
-    let state = STATE.load(deps.storage)?;
-
-    // only manager or the current contract can call it.
-    // create_user_undelegation_records calls undelegate_from_strategies once all user undelegations
-    // have been settled.
-    if info.sender != state.manager && info.sender != _env.contract.address {
-        return Err(ContractError::Unauthorized {});
-    }
-
-    let mut strategy_to_undelegation: HashMap<String, Uint128> = HashMap::new();
-
-    // go thru all strategies and undelegate from them
-    let mut failed_strategies: Vec<String> = vec![];
-    let mut messages: Vec<WasmMsg> = vec![];
-    STRATEGY_UNPROCESSED_UNDELEGATIONS
-        .range(deps.storage, None, None, Order::Ascending)
-        .for_each(|res| {
-            let unwrapped = res.unwrap();
-            let strategy_name = String::from_utf8(unwrapped.0).unwrap();
-            let strategy_undelegation_amount = unwrapped.1;
-
-            if state
-                .current_undelegated_strategies
-                .contains(&strategy_name)
-            {
-                strategy_to_undelegation.insert(strategy_name, strategy_undelegation_amount);
-            }
-        });
-
-    if strategy_to_undelegation.is_empty() {
-        return Ok(Response::new().add_attribute("no_strategies_to_undelegate_from", "0"));
-    }
-
-    strategy_to_undelegation.iter().for_each(|s2u| {
-        let strategy_name = s2u.0;
-        let undelegation_amount = s2u.1;
-
-        let mut strategy_info: StrategyInfo;
-        if let Some(strategy_info_mapping) = STRATEGY_MAP
-            .may_load(deps.storage, &*strategy_name)
-            .unwrap()
-        {
-            strategy_info = strategy_info_mapping;
-        } else {
-            failed_strategies.push(strategy_name.clone());
-            return;
-        }
-
-        // strategy shares reduction will be done when we are creating the user undelegation records.
-        // strategy_info.last_undelegated_time = _env.block.time;
-        messages.push(WasmMsg::Execute {
-            contract_addr: strategy_info.sic_contract_address.to_string(),
-            msg: to_binary(&sic_execute_msg::UndelegateRewards {
-                amount: undelegation_amount.clone(),
-            })
-            .unwrap(),
-            funds: vec![],
-        });
-
-        STRATEGY_MAP.save(deps.storage, &*strategy_name, &strategy_info);
-        STRATEGY_UNPROCESSED_UNDELEGATIONS.remove(deps.storage, &*strategy_name);
-    });
-
-    // clear the current undelegated strategies vector
-    STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
-        state.current_undelegated_strategies = vec![];
-        Ok(state)
-    })?;
-
-    Ok(Response::new()
-        .add_messages(messages)
-        .add_attribute("failed_strategies", failed_strategies.join(",")))
-}
+// pub fn try_undelegate_from_strategies(
+//     deps: DepsMut,
+//     _env: Env,
+//     info: MessageInfo,
+// ) -> Result<Response, ContractError> {
+//     let state = STATE.load(deps.storage)?;
+//
+//     // only manager or the current contract can call it.
+//     // create_user_undelegation_records calls undelegate_from_strategies once all user undelegations
+//     // have been settled.
+//     if info.sender != state.manager && info.sender != _env.contract.address {
+//         return Err(ContractError::Unauthorized {});
+//     }
+//
+//     let mut strategy_to_undelegation: HashMap<String, Uint128> = HashMap::new();
+//
+//     // go thru all strategies and undelegate from them
+//     let mut failed_strategies: Vec<String> = vec![];
+//     let mut messages: Vec<WasmMsg> = vec![];
+//     STRATEGY_UNPROCESSED_UNDELEGATIONS
+//         .range(deps.storage, None, None, Order::Ascending)
+//         .for_each(|res| {
+//             let unwrapped = res.unwrap();
+//             let strategy_name = String::from_utf8(unwrapped.0).unwrap();
+//             let strategy_undelegation_amount = unwrapped.1;
+//
+//             if state
+//                 .current_undelegated_strategies
+//                 .contains(&strategy_name)
+//             {
+//                 strategy_to_undelegation.insert(strategy_name, strategy_undelegation_amount);
+//             }
+//         });
+//
+//     if strategy_to_undelegation.is_empty() {
+//         return Ok(Response::new().add_attribute("no_strategies_to_undelegate_from", "0"));
+//     }
+//
+//     strategy_to_undelegation.iter().for_each(|s2u| {
+//         let strategy_name = s2u.0;
+//         let undelegation_amount = s2u.1;
+//
+//         let mut strategy_info: StrategyInfo;
+//         if let Some(strategy_info_mapping) = STRATEGY_MAP
+//             .may_load(deps.storage, &*strategy_name)
+//             .unwrap()
+//         {
+//             strategy_info = strategy_info_mapping;
+//         } else {
+//             failed_strategies.push(strategy_name.clone());
+//             return;
+//         }
+//
+//         // strategy shares reduction will be done when we are creating the user undelegation records.
+//         // strategy_info.last_undelegated_time = _env.block.time;
+//         messages.push(WasmMsg::Execute {
+//             contract_addr: strategy_info.sic_contract_address.to_string(),
+//             msg: to_binary(&sic_execute_msg::UndelegateRewards {
+//                 amount: undelegation_amount.clone(),
+//             })
+//             .unwrap(),
+//             funds: vec![],
+//         });
+//
+//         STRATEGY_MAP.save(deps.storage, &*strategy_name, &strategy_info);
+//         STRATEGY_UNPROCESSED_UNDELEGATIONS.remove(deps.storage, &*strategy_name);
+//     });
+//
+//     // clear the current undelegated strategies vector
+//     STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
+//         state.current_undelegated_strategies = vec![];
+//         Ok(state)
+//     })?;
+//
+//     Ok(Response::new()
+//         .add_messages(messages)
+//         .add_attribute("failed_strategies", failed_strategies.join(",")))
+// }
 
 pub fn try_create_user_undelegation_records(
     deps: DepsMut,

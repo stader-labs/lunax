@@ -59,9 +59,11 @@ pub enum ExecuteMsg {
     },
     // undelegate all the queued up undelegation from all strategies. This takes into account
     // a cooling period for the strategy. Certain strategies cannot be undelegate
-    UndelegateFromStrategies {},
+    UndelegateFromStrategies {
+        strategies: Vec<String>,
+    },
     // creates the undelegation records for the users.
-    CreateUserUndelegationRecords {},
+    // CreateUserUndelegationRecords {},
     CreateUndelegationBatches {
         strategies: Vec<String>,
     },
