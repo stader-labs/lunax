@@ -26,7 +26,6 @@ mod tests {
         let instantiate_msg = InstantiateMsg {
             scc_address: Addr::unchecked(get_scc_contract_address()),
             strategy_denom: "uluna".to_string(),
-            unbonding_period: None,
         };
 
         return instantiate(deps.as_mut(), env.clone(), info.clone(), instantiate_msg).unwrap();
@@ -58,8 +57,6 @@ mod tests {
                 strategy_denom: "uluna".to_string(),
                 contract_genesis_block_height: env.block.height,
                 contract_genesis_timestamp: env.block.time,
-                current_undelegation_batch_id: 0,
-                unbonding_period: (21 * 24 * 3600 + 3600),
                 total_rewards_accumulated: Uint128::zero(),
                 accumulated_airdrops: vec![]
             }
@@ -302,7 +299,7 @@ mod tests {
     }
 
     #[test]
-    fn test__try_withdraw_rewards__fail() {
+    fn test__try_transfer_undelegated_rewards__fail() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -317,10 +314,8 @@ mod tests {
             deps.as_mut(),
             env.clone(),
             mock_info("not-scc", &[]),
-            ExecuteMsg::WithdrawRewards {
-                user: user1.clone(),
+            ExecuteMsg::TransferUndelegatedRewards {
                 amount: Uint128::new(100_u128),
-                undelegation_batch_id: 0,
             },
         )
         .unwrap_err();
@@ -330,10 +325,8 @@ mod tests {
             deps.as_mut(),
             env.clone(),
             mock_info(&*get_scc_contract_address(), &[]),
-            ExecuteMsg::WithdrawRewards {
-                user: user1,
+            ExecuteMsg::TransferUndelegatedRewards {
                 amount: Uint128::zero(),
-                undelegation_batch_id: 0,
             },
         )
         .unwrap_err();
@@ -341,7 +334,7 @@ mod tests {
     }
 
     #[test]
-    fn test__try_withdraw_rewards__success() {
+    fn test__try_transfer_undelegated_rewards__success() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -356,10 +349,8 @@ mod tests {
             deps.as_mut(),
             env.clone(),
             mock_info(&*get_scc_contract_address(), &[]),
-            ExecuteMsg::WithdrawRewards {
-                user: user1.clone(),
+            ExecuteMsg::TransferUndelegatedRewards {
                 amount: Uint128::new(100_u128),
-                undelegation_batch_id: 0,
             },
         )
         .unwrap();
@@ -367,7 +358,7 @@ mod tests {
         assert!(check_equal_vec(
             res.messages,
             vec![SubMsg::new(BankMsg::Send {
-                to_address: String::from(user1),
+                to_address: get_scc_contract_address(),
                 amount: vec![coin(100_u128, "uluna".to_string())]
             })]
         ))
