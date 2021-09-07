@@ -3235,7 +3235,7 @@ mod tests {
                 name: "sid".to_string(),
                 sic_contract_address: Addr::unchecked("abc"),
                 unbonding_period: 100u64,
-                unbonding_buffer: 3600,
+                unbonding_buffer: 100,
                 current_undelegation_batch_id: 0,
                 last_reconciled_batch_id: 0,
                 is_active: false,
