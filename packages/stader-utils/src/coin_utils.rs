@@ -1,8 +1,5 @@
 use cosmwasm_bignumber::Decimal256;
-use cosmwasm_std::{
-    Coin, Decimal, Fraction, Storage,
-    Uint128,
-};
+use cosmwasm_std::{Coin, Decimal, Fraction, Storage, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -33,7 +30,6 @@ impl Display for DecCoin {
         write!(f, "{}{}", self.amount, self.denom)
     }
 }
-
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub enum Operation {

@@ -6,8 +6,12 @@ use cosmwasm_std::{
 };
 
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, GetStateResponse, GetTotalTokensResponse, InstantiateMsg, QueryMsg};
+use crate::msg::{
+    ExecuteMsg, GetFulfillableUndelegatedFundsResponse, GetStateResponse, GetTotalTokensResponse,
+    InstantiateMsg, QueryMsg,
+};
 use crate::state::{State, STATE};
+use std::cmp::min;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -196,6 +200,9 @@ pub fn try_transfer_undelegated_rewards(
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetTotalTokens {} => to_binary(&query_total_tokens(deps, _env)?),
+        QueryMsg::GetFulfillableUndelegatedFunds { amount } => {
+            to_binary(&query_fulfillable_undelegated_funds(deps, amount)?)
+        }
         QueryMsg::GetState {} => to_binary(&query_state(deps)?),
     }
 }
@@ -204,6 +211,17 @@ fn query_state(deps: Deps) -> StdResult<GetStateResponse> {
     let state = STATE.may_load(deps.storage).unwrap();
 
     Ok(GetStateResponse { state })
+}
+
+fn query_fulfillable_undelegated_funds(
+    deps: Deps,
+    amount: Uint128,
+) -> StdResult<GetFulfillableUndelegatedFundsResponse> {
+    let state = STATE.load(deps.storage)?;
+
+    Ok(GetFulfillableUndelegatedFundsResponse {
+        undelegated_funds: Some(min(state.total_rewards_accumulated, amount)),
+    })
 }
 
 fn query_total_tokens(deps: Deps, _env: Env) -> StdResult<GetTotalTokensResponse> {

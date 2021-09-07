@@ -8,8 +8,8 @@ use cosmwasm_std::{
 use crate::error::ContractError;
 use crate::helpers::get_unaccounted_funds;
 use crate::msg::{
-    ExecuteMsg, GetStateResponse, GetTotalTokensResponse, GetUndelegatedFunds, InstantiateMsg,
-    QueryMsg,
+    ExecuteMsg, GetFulfillableUndelegatedFundsResponse, GetStateResponse, GetTotalTokensResponse,
+    InstantiateMsg, QueryMsg,
 };
 use crate::state::{StakeQuota, State, STATE, VALIDATORS_TO_STAKED_QUOTA};
 use stader_utils::coin_utils::{merge_coin, merge_coin_vector, CoinOp, CoinVecOp, Operation};
@@ -517,8 +517,8 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetTotalTokens {} => to_binary(&query_total_tokens(deps, _env)?),
         QueryMsg::GetState {} => to_binary(&query_state(deps)?),
-        QueryMsg::GetUndelegatedFunds { amount } => {
-            to_binary(&query_undelegated_funds(deps, _env, amount)?)
+        QueryMsg::GetFulfillableUndelegatedFunds { amount } => {
+            to_binary(&query_fulfillable_undelegated_funds(deps, _env, amount)?)
         }
     }
 }
@@ -536,7 +536,7 @@ fn query_total_tokens(deps: Deps, _env: Env) -> StdResult<GetTotalTokensResponse
     })
 }
 
-fn query_undelegated_funds(
+fn query_fulfillable_undelegated_funds(
     deps: Deps,
     env: Env,
     amount: Uint128,
@@ -545,7 +545,7 @@ fn query_undelegated_funds(
 
     let unaccounted_funds = get_unaccounted_funds(deps.querier, env.contract.address, &state);
 
-    Ok(GetUndelegatedFunds {
+    Ok(GetFulfillableUndelegatedFundsResponse {
         undelegated_funds: Some(min(unaccounted_funds, amount)),
     })
 }

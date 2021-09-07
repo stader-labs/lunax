@@ -46,6 +46,7 @@ pub enum ExecuteMsg {
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     GetTotalTokens {},
+    GetFulfillableUndelegatedFunds { amount: Uint128 },
     GetState {},
 }
 
@@ -57,4 +58,9 @@ pub struct GetStateResponse {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct GetTotalTokensResponse {
     pub total_tokens: Option<Uint128>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct GetFulfillableUndelegatedFundsResponse {
+    pub undelegated_funds: Option<Uint128>,
 }

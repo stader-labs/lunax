@@ -42,7 +42,7 @@ pub enum ExecuteMsg {
 pub enum QueryMsg {
     GetTotalTokens {},
     GetState {},
-    GetUndelegatedFunds { amount: Uint128 },
+    GetFulfillableUndelegatedFunds { amount: Uint128 },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -56,6 +56,6 @@ pub struct GetTotalTokensResponse {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct GetUndelegatedFunds {
+pub struct GetFulfillableUndelegatedFundsResponse {
     pub undelegated_funds: Option<Uint128>,
 }
