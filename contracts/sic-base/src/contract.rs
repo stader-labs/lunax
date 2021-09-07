@@ -7,11 +7,8 @@ use cosmwasm_std::{
 
 use crate::error::ContractError;
 use crate::helpers::{merge_coin_vector, CoinVecOp, Operation};
-use crate::msg::{
-    ExecuteMsg, GetCurrentUndelegationBatchIdResponse, GetStateResponse, GetTotalTokensResponse,
-    GetUndelegationBatchInfoResponse, InstantiateMsg, QueryMsg,
-};
-use crate::state::{State, STATE, UNDELEGATION_INFO_LEDGER};
+use crate::msg::{ExecuteMsg, GetStateResponse, GetTotalTokensResponse, InstantiateMsg, QueryMsg};
+use crate::state::{State, STATE};
 use cw_storage_plus::U64Key;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -27,8 +24,6 @@ pub fn instantiate(
         strategy_denom: msg.strategy_denom,
         contract_genesis_block_height: _env.block.height,
         contract_genesis_timestamp: _env.block.time,
-        current_undelegation_batch_id: 0,
-        unbonding_period: msg.unbonding_period.unwrap_or((21 * 24 * 3600 + 3600)),
         total_rewards_accumulated: Uint128::zero(),
         accumulated_airdrops: vec![],
     };
@@ -50,11 +45,9 @@ pub fn execute(
         ExecuteMsg::UndelegateRewards { amount } => {
             try_undelegate_rewards(deps, _env, info, amount)
         }
-        ExecuteMsg::WithdrawRewards {
-            user,
-            undelegation_batch_id,
-            amount,
-        } => try_withdraw_rewards(deps, _env, info, user, undelegation_batch_id, amount),
+        ExecuteMsg::TransferUndelegatedRewards { amount } => {
+            try_transfer_undelegated_rewards(deps, _env, info, amount)
+        }
         ExecuteMsg::ClaimAirdrops {
             airdrop_token_contract,
             cw20_token_contract,
@@ -183,18 +176,16 @@ pub fn try_undelegate_rewards(
        to destination takes time and has complexities on the way(yes, I am speaking about unbonding slashing).
 
        If there are no issues for transferring the rewards from the source to the destination then the strategist
-       can choose to leave this as a no-op and directly call withdraw_rewards.
+       can choose to leave this as a no-op and directly call transfer.
     */
 
     Ok(Response::default())
 }
 
-pub fn try_withdraw_rewards(
+pub fn try_transfer_undelegated_rewards(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    user: Addr,
-    _undelegation_batch_id: u64,
     amount: Uint128,
 ) -> Result<Response, ContractError> {
     let state = STATE.load(deps.storage).unwrap();
@@ -208,7 +199,7 @@ pub fn try_withdraw_rewards(
 
     // undelegation_batch_id is ignored here as we are not batching anything up
     Ok(Response::new().add_message(BankMsg::Send {
-        to_address: user.to_string(),
+        to_address: state.scc_address.to_string(),
         amount: vec![Coin::new(amount.u128(), state.strategy_denom)],
     }))
 }
@@ -217,13 +208,7 @@ pub fn try_withdraw_rewards(
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetTotalTokens {} => to_binary(&query_total_tokens(deps, _env)?),
-        QueryMsg::GetCurrentUndelegationBatchId {} => {
-            to_binary(&query_current_undelegation_batch_id(deps, _env)?)
-        }
         QueryMsg::GetState {} => to_binary(&query_state(deps)?),
-        QueryMsg::GetUndelegationBatchInfo {
-            undelegation_batch_id,
-        } => to_binary(&query_undelegation_batch_info(deps, undelegation_batch_id)?),
     }
 }
 
@@ -237,25 +222,5 @@ fn query_total_tokens(deps: Deps, _env: Env) -> StdResult<GetTotalTokensResponse
     let state = STATE.load(deps.storage).unwrap();
     Ok(GetTotalTokensResponse {
         total_tokens: Some(state.total_rewards_accumulated),
-    })
-}
-
-fn query_current_undelegation_batch_id(
-    deps: Deps,
-    _env: Env,
-) -> StdResult<GetCurrentUndelegationBatchIdResponse> {
-    let state = STATE.load(deps.storage).unwrap();
-
-    Ok(GetCurrentUndelegationBatchIdResponse {
-        current_undelegation_batch_id: state.current_undelegation_batch_id,
-    })
-}
-
-fn query_undelegation_batch_info(
-    deps: Deps,
-    undelegation_batch_id: u64,
-) -> StdResult<GetUndelegationBatchInfoResponse> {
-    Ok(GetUndelegationBatchInfoResponse {
-        undelegation_batch_info: None,
     })
 }
