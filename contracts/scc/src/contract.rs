@@ -1,9 +1,9 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, to_binary, Addr, Attribute, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env,
-    Fraction, MessageInfo, Order, QuerierResult, Response, StdError, StdResult, Timestamp, Uint128,
-    WasmMsg,
+    attr, to_binary, Addr, Attribute, BankMsg, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut,
+    Env, Fraction, MessageInfo, Order, QuerierResult, Response, StdError, StdResult, Timestamp,
+    Uint128, WasmMsg,
 };
 
 use crate::error::ContractError;
@@ -28,7 +28,7 @@ use sic_base::msg::{ExecuteMsg as sic_execute_msg, QueryMsg as sic_query_msg};
 use stader_utils::coin_utils::{
     decimal_division_in_256, decimal_multiplication_in_256, decimal_subtraction_in_256,
     decimal_summation_in_256, get_decimal_from_uint128, merge_coin_vector, merge_dec_coin_vector,
-    CoinVecOp, DecCoin, DecCoinVecOp, Operation,
+    u128_from_decimal, uint128_from_decimal, CoinVecOp, DecCoin, DecCoinVecOp, Operation,
 };
 use std::borrow::Borrow;
 use std::collections::HashMap;
@@ -845,12 +845,13 @@ pub fn try_withdraw_airdrops(
 
 pub fn try_withdraw_rewards(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     info: MessageInfo,
     undelegation_id: String,
     strategy_name: String,
     amount: Uint128,
 ) -> Result<Response, ContractError> {
+    let state = STATE.load(deps.storage)?;
     let user_addr = info.sender;
 
     let strategy_info: StrategyInfo;
@@ -888,16 +889,51 @@ pub fn try_withdraw_rewards(
         return Err(ContractError::UndelegationRecordNotFound {});
     }
 
-    Ok(Response::new().add_message(WasmMsg::Execute {
-        contract_addr: strategy_info.sic_contract_address.to_string(),
-        msg: to_binary(&sic_execute_msg::WithdrawRewards {
-            user: user_addr,
-            amount: user_undelegation_record.amount,
-            undelegation_batch_id: user_undelegation_record.undelegation_batch_id,
+    let undelegation_batch_id = U64Key::new(user_undelegation_record.undelegation_batch_id);
+    let undelegation_batch: BatchUndelegationRecord;
+    if let Some(undelegation_batch_map) = UNDELEGATION_BATCH_MAP
+        .may_load(deps.storage, (undelegation_batch_id, &*strategy_name))
+        .unwrap()
+    {
+        undelegation_batch = undelegation_batch_map;
+    } else {
+        return Err(ContractError::UndelegationBatchNotFound {});
+    }
+
+    if undelegation_batch.est_release_time.gt(&env.block.time) {
+        return Err(ContractError::UndelegationInUnbondingPeriod {});
+    }
+
+    if !undelegation_batch.slashing_checked {
+        return Err(ContractError::SlashingNotChecked {});
+    }
+
+    let effective_user_withdrawable_amount = u128_from_decimal(decimal_multiplication_in_256(
+        Decimal::from_ratio(amount, 1_u128),
+        undelegation_batch.unbonding_slashing_ratio,
+    ));
+
+    let mut failed_message: Vec<Attribute> = vec![];
+    STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
+        state.current_rewards_in_scc = state
+            .current_rewards_in_scc
+            .checked_sub(Uint128::new(effective_user_withdrawable_amount))
+            .unwrap_or_else(|x| {
+                failed_message.push(attr("current_rewards_in_scc_overflow_error", "1"));
+                state.current_rewards_in_scc
+            });
+        Ok(state)
+    })?;
+
+    Ok(Response::new()
+        .add_message(BankMsg::Send {
+            to_address: String::from(user_addr),
+            amount: vec![Coin::new(
+                effective_user_withdrawable_amount,
+                state.scc_denom,
+            )],
         })
-        .unwrap(),
-        funds: vec![],
-    }))
+        .add_attributes(failed_message))
 }
 
 pub fn try_register_strategy(

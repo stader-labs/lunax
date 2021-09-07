@@ -42,4 +42,13 @@ pub enum ContractError {
 
     #[error("Undelegation record not found")]
     UndelegationRecordNotFound {},
+
+    #[error("Undelegation batch not found")]
+    UndelegationBatchNotFound {},
+
+    #[error("Undelegation in unbonding period")]
+    UndelegationInUnbondingPeriod {},
+
+    #[error("Slashing has not been checked for undelegation batch")]
+    SlashingNotChecked {},
 }

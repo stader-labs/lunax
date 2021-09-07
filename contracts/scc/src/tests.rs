@@ -17,7 +17,7 @@ mod tests {
     use crate::test_helpers::{check_equal_reward_info, check_equal_user_strategies};
     use crate::ContractError;
     use cosmwasm_std::{
-        coins, from_binary, to_binary, Addr, Attribute, Binary, Coin, Decimal, Empty, Env,
+        coins, from_binary, to_binary, Addr, Attribute, BankMsg, Binary, Coin, Decimal, Empty, Env,
         MessageInfo, OwnedDeps, QuerierWrapper, Response, StdResult, SubMsg, Timestamp, Uint128,
         WasmMsg,
     };
@@ -874,6 +874,151 @@ mod tests {
         )
         .unwrap_err();
         assert!(matches!(err, ContractError::UndelegationRecordNotFound {}));
+
+        /*
+            Test - 3. Undelegation batch not found
+        */
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            "sid1",
+            &StrategyInfo::default("sid1".to_string()),
+        );
+        USER_REWARD_INFO_MAP.save(
+            deps.as_mut().storage,
+            &user1,
+            &UserRewardInfo {
+                strategies: vec![UserStrategyInfo {
+                    strategy_name: "sid1".to_string(),
+                    shares: Decimal::from_ratio(1000_u128, 1_u128),
+                    airdrop_pointer: vec![],
+                }],
+                pending_airdrops: vec![],
+                undelegation_records: vec![UserUndelegationRecord {
+                    id: Timestamp::from_seconds(123),
+                    amount: Uint128::new(100_u128),
+                    strategy_name: "sid1".to_string(),
+                    est_release_time: Timestamp::from_seconds(123 + 7200),
+                    undelegation_batch_id: 3,
+                }],
+            },
+        );
+        let mut err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info(user1.as_str(), &[]),
+            ExecuteMsg::WithdrawRewards {
+                undelegation_id: "123000000000".to_string(),
+                strategy_name: "sid1".to_string(),
+                amount: Uint128::new(100_u128),
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::UndelegationBatchNotFound {}));
+
+        /*
+           Test - 4. Undelegation batch in unbonding period
+        */
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            "sid1",
+            &StrategyInfo::default("sid1".to_string()),
+        );
+        USER_REWARD_INFO_MAP.save(
+            deps.as_mut().storage,
+            &user1,
+            &UserRewardInfo {
+                strategies: vec![UserStrategyInfo {
+                    strategy_name: "sid1".to_string(),
+                    shares: Decimal::from_ratio(1000_u128, 1_u128),
+                    airdrop_pointer: vec![],
+                }],
+                pending_airdrops: vec![],
+                undelegation_records: vec![UserUndelegationRecord {
+                    id: Timestamp::from_seconds(123),
+                    amount: Uint128::new(100_u128),
+                    strategy_name: "sid1".to_string(),
+                    est_release_time: Timestamp::from_seconds(1831013565),
+                    undelegation_batch_id: 3,
+                }],
+            },
+        );
+        UNDELEGATION_BATCH_MAP.save(
+            deps.as_mut().storage,
+            (U64Key::new(3), "sid1"),
+            &BatchUndelegationRecord {
+                amount: Uint128::new(400_u128),
+                unbonding_slashing_ratio: Decimal::from_ratio(3_u128, 4_u128),
+                create_time: Timestamp::from_seconds(150),
+                est_release_time: Timestamp::from_seconds(1831013565),
+                slashing_checked: false,
+            },
+        );
+        let mut err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info(user1.as_str(), &[]),
+            ExecuteMsg::WithdrawRewards {
+                undelegation_id: "123000000000".to_string(),
+                strategy_name: "sid1".to_string(),
+                amount: Uint128::new(100_u128),
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(
+            err,
+            ContractError::UndelegationInUnbondingPeriod {}
+        ));
+
+        /*
+           Test - 5. Undelegation slashing not checked
+        */
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            "sid1",
+            &StrategyInfo::default("sid1".to_string()),
+        );
+        USER_REWARD_INFO_MAP.save(
+            deps.as_mut().storage,
+            &user1,
+            &UserRewardInfo {
+                strategies: vec![UserStrategyInfo {
+                    strategy_name: "sid1".to_string(),
+                    shares: Decimal::from_ratio(1000_u128, 1_u128),
+                    airdrop_pointer: vec![],
+                }],
+                pending_airdrops: vec![],
+                undelegation_records: vec![UserUndelegationRecord {
+                    id: Timestamp::from_seconds(123),
+                    amount: Uint128::new(100_u128),
+                    strategy_name: "sid1".to_string(),
+                    est_release_time: Timestamp::from_seconds(150 + 7200),
+                    undelegation_batch_id: 3,
+                }],
+            },
+        );
+        UNDELEGATION_BATCH_MAP.save(
+            deps.as_mut().storage,
+            (U64Key::new(3), "sid1"),
+            &BatchUndelegationRecord {
+                amount: Uint128::new(400_u128),
+                unbonding_slashing_ratio: Decimal::from_ratio(3_u128, 4_u128),
+                create_time: Timestamp::from_seconds(150),
+                est_release_time: Timestamp::from_seconds(150 + 7200),
+                slashing_checked: false,
+            },
+        );
+        let mut err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info(user1.as_str(), &[]),
+            ExecuteMsg::WithdrawRewards {
+                undelegation_id: "123000000000".to_string(),
+                strategy_name: "sid1".to_string(),
+                amount: Uint128::new(100_u128),
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::SlashingNotChecked {}));
     }
 
     #[test]
@@ -893,6 +1038,13 @@ mod tests {
         let user1 = Addr::unchecked("user1");
         let sic1_address = Addr::unchecked("sic1_address");
 
+        STATE.update(
+            deps.as_mut().storage,
+            |mut state| -> Result<_, ContractError> {
+                state.current_rewards_in_scc = Uint128::new(400_u128);
+                Ok(state)
+            },
+        );
         STRATEGY_MAP.save(
             deps.as_mut().storage,
             "sid1",
@@ -917,6 +1069,17 @@ mod tests {
                 }],
             },
         );
+        UNDELEGATION_BATCH_MAP.save(
+            deps.as_mut().storage,
+            (U64Key::new(5), "sid1"),
+            &BatchUndelegationRecord {
+                amount: Uint128::new(400_u128),
+                unbonding_slashing_ratio: Decimal::from_ratio(3_u128, 4_u128),
+                create_time: Timestamp::from_seconds(150),
+                est_release_time: Timestamp::from_seconds(150 + 7200),
+                slashing_checked: true,
+            },
+        );
         let res = execute(
             deps.as_mut(),
             env.clone(),
@@ -924,7 +1087,7 @@ mod tests {
             ExecuteMsg::WithdrawRewards {
                 undelegation_id: "123000000000".to_string(),
                 strategy_name: "sid1".to_string(),
-                amount: Default::default(),
+                amount: Uint128::new(100_u128),
             },
         )
         .unwrap();
@@ -932,17 +1095,17 @@ mod tests {
         assert_eq!(res.messages.len(), 1);
         assert!(check_equal_vec(
             res.messages,
-            vec![SubMsg::new(WasmMsg::Execute {
-                contract_addr: sic1_address.clone().to_string(),
-                msg: to_binary(&sic_execute_msg::WithdrawRewards {
-                    user: user1,
-                    amount: Uint128::new(100_u128),
-                    undelegation_batch_id: 5
-                })
-                .unwrap(),
-                funds: vec![]
+            vec![SubMsg::new(BankMsg::Send {
+                to_address: String::from(user1.clone()),
+                amount: vec![Coin::new(75_u128, "uluna".to_string())]
             })]
         ));
+        let state_response: GetStateResponse =
+            from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::GetState {}).unwrap())
+                .unwrap();
+        assert_ne!(state_response.state, None);
+        let state = state_response.state.unwrap();
+        assert_eq!(state.current_rewards_in_scc, Uint128::new(325_u128))
     }
 
     #[test]
