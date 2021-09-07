@@ -486,8 +486,6 @@ impl NoWasmQuerier {
                         };
                         to_binary(&res).unwrap()
                     }
-                    QueryMsg::GetCurrentUndelegationBatchId { .. } => default_output,
-                    QueryMsg::GetUndelegationBatchInfo { .. } => default_output,
                     QueryMsg::GetState { .. } => default_output,
                 }
             }
