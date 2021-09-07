@@ -140,10 +140,6 @@ pub struct UserUndelegationRecord {
     pub id: Timestamp,
     pub amount: Uint128,
     pub strategy_name: String,
-    pub est_release_time: Timestamp,
-    // the undelegation batch id is specific to the strategy. It is mainly used by the SIC
-    // to account for any undelegation slashing or any form of impact which has occured to the user
-    // during undelegations.
     pub undelegation_batch_id: u64,
 }
 

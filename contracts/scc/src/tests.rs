@@ -897,7 +897,6 @@ mod tests {
                     id: Timestamp::from_seconds(123),
                     amount: Uint128::new(100_u128),
                     strategy_name: "sid1".to_string(),
-                    est_release_time: Timestamp::from_seconds(123 + 7200),
                     undelegation_batch_id: 3,
                 }],
             },
@@ -937,7 +936,6 @@ mod tests {
                     id: Timestamp::from_seconds(123),
                     amount: Uint128::new(100_u128),
                     strategy_name: "sid1".to_string(),
-                    est_release_time: Timestamp::from_seconds(1831013565),
                     undelegation_batch_id: 3,
                 }],
             },
@@ -991,7 +989,6 @@ mod tests {
                     id: Timestamp::from_seconds(123),
                     amount: Uint128::new(100_u128),
                     strategy_name: "sid1".to_string(),
-                    est_release_time: Timestamp::from_seconds(150 + 7200),
                     undelegation_batch_id: 3,
                 }],
             },
@@ -1064,7 +1061,6 @@ mod tests {
                     id: Timestamp::from_seconds(123),
                     amount: Uint128::new(100_u128),
                     strategy_name: "sid1".to_string(),
-                    est_release_time: Timestamp::from_seconds(125),
                     undelegation_batch_id: 5,
                 }],
             },
@@ -1375,7 +1371,6 @@ mod tests {
                 id: env.block.time,
                 amount: Uint128::new(200_u128),
                 strategy_name: "sid1".to_string(),
-                est_release_time: env.block.time.plus_seconds(7200),
                 undelegation_batch_id: 0
             }]
         ));
@@ -1436,7 +1431,6 @@ mod tests {
                     id: env.block.time,
                     amount: Uint128::new(200_u128),
                     strategy_name: "sid1".to_string(),
-                    est_release_time: env.block.time.plus_seconds(7200),
                     undelegation_batch_id: 0,
                 }],
             },
@@ -1499,14 +1493,12 @@ mod tests {
                     id: env.block.time,
                     amount: Uint128::new(200_u128),
                     strategy_name: "sid1".to_string(),
-                    est_release_time: env.block.time.plus_seconds(7200),
                     undelegation_batch_id: 0
                 },
                 UserUndelegationRecord {
                     id: env.block.time,
                     amount: Uint128::new(50_u128),
                     strategy_name: "sid1".to_string(),
-                    est_release_time: env.block.time.plus_seconds(7200),
                     undelegation_batch_id: 0
                 },
             ]
