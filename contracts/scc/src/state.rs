@@ -2,7 +2,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{Addr, Coin, Decimal, Timestamp, Uint128};
-use cw_storage_plus::{Item, Map};
+use cw_storage_plus::{Item, Map, U64Key};
 use stader_utils::coin_utils::DecCoin;
 use std::collections::HashMap;
 use std::fmt;
@@ -34,6 +34,7 @@ pub struct StrategyInfo {
     pub unbonding_period: u64,
     pub unbonding_buffer: u64,
     pub current_undelegation_batch_id: u64,
+    pub last_reconciled_batch_id: u64,
     pub is_active: bool,
     pub total_shares: Decimal,
     pub global_airdrop_pointer: Vec<DecCoin>,
@@ -56,6 +57,7 @@ impl StrategyInfo {
             unbonding_period: unbonding_period.unwrap_or(21 * 24 * 3600),
             unbonding_buffer: unbonding_buffer.unwrap_or(3600),
             current_undelegation_batch_id: 0,
+            last_reconciled_batch_id: 0,
             is_active: false,
             total_shares: Decimal::zero(),
             global_airdrop_pointer: vec![],
@@ -71,6 +73,7 @@ impl StrategyInfo {
             unbonding_period: 21 * 24 * 3600,
             unbonding_buffer: 3600,
             current_undelegation_batch_id: 0,
+            last_reconciled_batch_id: 0,
             is_active: false,
             total_shares: Default::default(),
             global_airdrop_pointer: vec![],
@@ -172,13 +175,22 @@ pub struct Cw20TokenContractsInfo {
     pub cw20_token_contract: Addr,
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct BatchUndelegationRecord {
+    pub amount: Uint128,
+    pub unbonding_slashing_ratio: Decimal,
+    pub create_time: Timestamp,
+    pub est_release_time: Timestamp,
+    pub slashing_checked: bool,
+}
+
 pub const STATE: Item<State> = Item::new("state");
 
 pub const STRATEGY_MAP: Map<&str, StrategyInfo> = Map::new("strategy_map");
 pub const USER_REWARD_INFO_MAP: Map<&Addr, UserRewardInfo> = Map::new("user_reward_info_map");
 pub const CW20_TOKEN_CONTRACTS_REGISTRY: Map<String, Cw20TokenContractsInfo> =
     Map::new("cw20_token_contracts_registry");
-pub const USER_UNPROCESSED_UNDELEGATIONS: Map<&Addr, Vec<UserUnprocessedUndelegationInfo>> =
-    Map::new("user_unprocessed_undelegations");
 pub const STRATEGY_UNPROCESSED_UNDELEGATIONS: Map<&str, Uint128> =
     Map::new("strategy_unprocessed_undelegations");
+pub const UNDELEGATION_BATCH_MAP: Map<(U64Key, &str), BatchUndelegationRecord> =
+    Map::new("undelegation_batch_map");

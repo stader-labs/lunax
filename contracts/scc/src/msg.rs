@@ -62,6 +62,9 @@ pub enum ExecuteMsg {
     UndelegateFromStrategies {},
     // creates the undelegation records for the users.
     CreateUserUndelegationRecords {},
+    CreateUndelegationBatches {
+        strategies: Vec<String>,
+    },
     /*
        Pools contract messages
     */
