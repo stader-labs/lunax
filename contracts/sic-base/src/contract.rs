@@ -9,7 +9,6 @@ use crate::error::ContractError;
 use crate::helpers::{merge_coin_vector, CoinVecOp, Operation};
 use crate::msg::{ExecuteMsg, GetStateResponse, GetTotalTokensResponse, InstantiateMsg, QueryMsg};
 use crate::state::{State, STATE};
-use cw_storage_plus::U64Key;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(

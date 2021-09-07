@@ -1,5 +1,7 @@
+#![allow(dead_code)]
+
 use crate::state::State;
-use cosmwasm_std::{Addr, Coin, QuerierWrapper, Storage, Uint128};
+use cosmwasm_std::{Addr, Coin, QuerierWrapper, Uint128};
 
 pub fn get_unaccounted_funds(
     querier: QuerierWrapper,
@@ -20,11 +22,10 @@ pub fn get_unaccounted_funds(
         .cloned()
         .unwrap_or_else(|| Coin::new(0, vault_denom))
         .amount;
-    let unaccounted_base_funds = total_base_funds_in_strategy
+
+    total_base_funds_in_strategy
         .checked_sub(current_uninvested_rewards)
         .unwrap()
         .checked_sub(base_funds_from_rewards)
-        .unwrap();
-
-    unaccounted_base_funds
+        .unwrap()
 }

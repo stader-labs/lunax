@@ -12,14 +12,10 @@ use crate::msg::{
     QueryMsg,
 };
 use crate::state::{StakeQuota, State, STATE, VALIDATORS_TO_STAKED_QUOTA};
-use cw_storage_plus::U64Key;
-use stader_utils::coin_utils::{
-    merge_coin, merge_coin_vector, multiply_coin_with_decimal, CoinOp, CoinVecOp, Operation,
-};
+use stader_utils::coin_utils::{merge_coin, merge_coin_vector, CoinOp, CoinVecOp, Operation};
 use stader_utils::helpers::send_funds_msg;
 use std::cmp::min;
 use std::collections::HashMap;
-use std::ops::Add;
 use terra_cosmwasm::{create_swap_msg, SwapResponse, TerraMsgWrapper, TerraQuerier};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -93,7 +89,7 @@ pub fn try_claim_airdrops(
     info: MessageInfo,
     airdrop_token_contract: Addr,
     cw20_token_contract: Addr,
-    airdrop_token: String,
+    _airdrop_token: String,
     amount: Uint128,
     claim_msg: Binary,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
@@ -136,7 +132,7 @@ pub fn try_swap(
     }
 
     if state.unswapped_rewards.is_empty() {
-        return Ok(Response::new().add_attribute("no_unswapped_rewards", "1"))
+        return Ok(Response::new().add_attribute("no_unswapped_rewards", "1"));
     }
 
     // fetch the swapped money
@@ -473,7 +469,7 @@ pub fn try_reinvest(
 pub fn try_redeem_rewards(
     deps: DepsMut,
     _env: Env,
-    info: MessageInfo,
+    _info: MessageInfo,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let state = STATE.load(deps.storage)?;
 
