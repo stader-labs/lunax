@@ -8,7 +8,7 @@ use cosmwasm_std::{
 
 use crate::error::ContractError;
 use crate::helpers::{
-    get_strategy_current_undelegation_batch_id, get_strategy_shares_per_token_ratio,
+    get_sic_fulfillable_undelegated_funds, get_strategy_shares_per_token_ratio,
     get_user_staked_amount,
 };
 use crate::msg::{
@@ -130,7 +130,131 @@ pub fn execute(
         ExecuteMsg::CreateUndelegationBatches { strategies } => {
             try_create_undelegation_batches(deps, _env, info, strategies)
         }
+        ExecuteMsg::FetchUndelegatedRewardsFromStrategies { strategies } => {
+            try_fetch_undelegated_rewards_from_strategies(deps, _env, info, strategies)
+        }
     }
+}
+
+pub fn try_fetch_undelegated_rewards_from_strategies(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    strategies: Vec<String>,
+) -> Result<Response, ContractError> {
+    let state = STATE.load(deps.storage)?;
+    if info.sender != state.manager {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    if strategies.is_empty() {
+        return Ok(Response::new().add_attribute("no_strategies", "1"));
+    }
+
+    let mut messages: Vec<WasmMsg> = vec![];
+    let mut failed_strategies: Vec<String> = vec![];
+    let mut failed_undelegation_batches: Vec<String> = vec![];
+    let mut undelegation_batches_in_unbonding_period: Vec<String> = vec![];
+    let mut total_funds_transferred_to_scc: Uint128 = Uint128::zero();
+    for strategy in strategies {
+        let mut strategy_info: StrategyInfo;
+        if let Some(strategy_info_mapping) =
+            STRATEGY_MAP.may_load(deps.storage, &*strategy).unwrap()
+        {
+            strategy_info = strategy_info_mapping;
+        } else {
+            failed_strategies.push(strategy);
+            continue;
+        }
+
+        let last_reconciled_batch_id = strategy_info.last_reconciled_batch_id;
+        let current_undelegation_batch_id = strategy_info.current_undelegation_batch_id;
+        let strategy_name = strategy_info.name.clone();
+        for i in last_reconciled_batch_id..(strategy_info.current_undelegation_batch_id + 1) {
+            let mut undelegation_batch: BatchUndelegationRecord;
+            if let Some(undelegation_batch_map) = UNDELEGATION_BATCH_MAP
+                .may_load(deps.storage, (U64Key::new(i), &*strategy_name))
+                .unwrap()
+            {
+                undelegation_batch = undelegation_batch_map;
+            } else {
+                failed_undelegation_batches.push(format!(
+                    "{}, {}",
+                    i.to_string(),
+                    strategy_name.as_str()
+                ));
+                continue;
+            }
+
+            if undelegation_batch.est_release_time.gt(&env.block.time) {
+                undelegation_batches_in_unbonding_period.push(format!(
+                    "{}, {}",
+                    i.to_string(),
+                    strategy_name.as_str()
+                ));
+                continue;
+            }
+
+            let undelegation_batch_amount = undelegation_batch.amount;
+
+            // query the undelegated funds which we will receive from the SIC on best effort
+            let fulfillable_amount = get_sic_fulfillable_undelegated_funds(
+                deps.querier,
+                undelegation_batch_amount,
+                &strategy_info.sic_contract_address,
+            );
+            let unbonding_slashing_ratio = if fulfillable_amount.lt(&undelegation_batch_amount) {
+                Decimal::from_ratio(fulfillable_amount, undelegation_batch_amount)
+            } else {
+                Decimal::one()
+            };
+
+            undelegation_batch.unbonding_slashing_ratio = unbonding_slashing_ratio;
+            undelegation_batch.slashing_checked = true;
+
+            total_funds_transferred_to_scc = total_funds_transferred_to_scc
+                .checked_add(fulfillable_amount)
+                .unwrap_or(Uint128::zero());
+
+            messages.push(WasmMsg::Execute {
+                contract_addr: strategy_info.sic_contract_address.to_string(),
+                msg: to_binary(&sic_execute_msg::TransferUndelegatedRewards {
+                    amount: undelegation_batch_amount,
+                })
+                .unwrap(),
+                funds: vec![],
+            });
+
+            UNDELEGATION_BATCH_MAP.save(
+                deps.storage,
+                (U64Key::new(i), &*strategy_name),
+                &undelegation_batch,
+            )?;
+        }
+
+        strategy_info.last_reconciled_batch_id = current_undelegation_batch_id;
+        STRATEGY_MAP.save(deps.storage, &*strategy_name, &strategy_info)?;
+    }
+
+    STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
+        state.current_rewards_in_scc = state
+            .current_rewards_in_scc
+            .checked_add(total_funds_transferred_to_scc)
+            .unwrap_or(state.current_rewards_in_scc);
+        Ok(state)
+    })?;
+
+    Ok(Response::new()
+        .add_messages(messages)
+        .add_attribute("failed_strategies", failed_strategies.join(","))
+        .add_attribute(
+            "failed_undelegation_batches",
+            failed_undelegation_batches.join(","),
+        )
+        .add_attribute(
+            "undelegation_batches_in_unbonding_period",
+            undelegation_batches_in_unbonding_period.join(","),
+        ))
 }
 
 pub fn try_undelegate_from_strategies(
@@ -644,7 +768,7 @@ pub fn try_withdraw_rewards(
         state.current_rewards_in_scc = state
             .current_rewards_in_scc
             .checked_sub(Uint128::new(effective_user_withdrawable_amount))
-            .unwrap_or_else(|x| {
+            .unwrap_or_else(|_| {
                 failed_message.push(attr("current_rewards_in_scc_overflow_error", "1"));
                 state.current_rewards_in_scc
             });

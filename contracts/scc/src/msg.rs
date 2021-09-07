@@ -67,6 +67,9 @@ pub enum ExecuteMsg {
     CreateUndelegationBatches {
         strategies: Vec<String>,
     },
+    FetchUndelegatedRewardsFromStrategies {
+        strategies: Vec<String>,
+    },
     /*
        Pools contract messages
     */

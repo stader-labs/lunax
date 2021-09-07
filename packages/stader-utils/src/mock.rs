@@ -19,8 +19,8 @@ use cosmwasm_std::{
     SystemError, SystemResult, Timestamp, Uint128, Validator, ValidatorResponse, VerificationError,
     WasmQuery,
 };
-use sic_base::msg::QueryMsg::GetTotalTokens;
-use sic_base::msg::{GetTotalTokensResponse, QueryMsg};
+use sic_base::msg::QueryMsg::{GetTotalTokens, GetFulfillableUndelegatedFunds};
+use sic_base::msg::{GetTotalTokensResponse, QueryMsg, GetFulfillableUndelegatedFundsResponse};
 
 pub const MOCK_CONTRACT_ADDR: &str = "cosmos2contract";
 
@@ -406,8 +406,8 @@ impl<C: DeserializeOwned> MockQuerier<C> {
         self.staking = StakingQuerier::new(denom, validators, delegations);
     }
 
-    pub fn update_wasm(&mut self, contract_to_tokens: HashMap<Addr, Uint128>) {
-        self.wasm = NoWasmQuerier::new(contract_to_tokens);
+    pub fn update_wasm(&mut self, contract_to_tokens: Option<HashMap<Addr, Uint128>>, fulfillable_undelegation_amount: Option<HashMap<Addr, Uint128>>) {
+        self.wasm = NoWasmQuerier::new(contract_to_tokens, fulfillable_undelegation_amount);
     }
 
     pub fn with_custom_handler<CH: 'static>(mut self, handler: CH) -> Self
@@ -458,16 +458,24 @@ impl<C: CustomQuery + DeserializeOwned> MockQuerier<C> {
 struct NoWasmQuerier {
     // FIXME: actually provide a way to call out
     pub contract_to_tokens: HashMap<Addr, Uint128>,
+    pub fulfillable_undelegation_amount: HashMap<Addr, Uint128>,
 }
 
 impl NoWasmQuerier {
     fn default() -> Self {
         NoWasmQuerier {
             contract_to_tokens: HashMap::new(),
+            fulfillable_undelegation_amount: HashMap::new(),
         }
     }
-    fn new(contract_to_tokens: HashMap<Addr, Uint128>) -> Self {
-        NoWasmQuerier { contract_to_tokens }
+    fn new(
+        contract_to_tokens: Option<HashMap<Addr, Uint128>>,
+        fulfillable_undelegation_amount: Option<HashMap<Addr, Uint128>>,
+    ) -> Self {
+        NoWasmQuerier {
+            contract_to_tokens: contract_to_tokens.unwrap_or(HashMap::new()),
+            fulfillable_undelegation_amount: fulfillable_undelegation_amount.unwrap_or(HashMap::new()),
+        }
     }
     fn query(&self, request: &WasmQuery) -> QuerierResult {
         let mut default_output = Binary::default();
@@ -489,6 +497,17 @@ impl NoWasmQuerier {
                     QueryMsg::GetCurrentUndelegationBatchId { .. } => default_output,
                     QueryMsg::GetUndelegationBatchInfo { .. } => default_output,
                     QueryMsg::GetState { .. } => default_output,
+                    QueryMsg::GetFulfillableUndelegatedFunds { .. } => {
+                        let fulfillable_amount = self
+                            .fulfillable_undelegation_amount
+                            .get(&Addr::unchecked(contract_addr))
+                            .unwrap()
+                            .clone();
+                        let res = GetFulfillableUndelegatedFundsResponse {
+                            undelegated_funds: Some(fulfillable_amount)
+                        };
+                        to_binary(&res).unwrap()
+                    },
                 }
             }
             WasmQuery::Raw { contract_addr, .. } => default_output,
