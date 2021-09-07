@@ -344,8 +344,17 @@ pub fn try_transfer_undelegated_rewards(
 
     let unaccounted_funds = get_unaccounted_funds(deps.querier, _env.contract.address, &state);
 
+    // this way of handling slashing makes us more optimistic while handling undelegation slashing.
+    // We have to give the user a warning when they remove their funds that it may potentially be slashed
+    // during undelegation. here undelegation slashing is moved to the end. Let's take the following example
+    // Undelegation 1: Expected 800, got back 780
+    // Undelegation 2: Expected 600, got back 500
+    // Undelegation 3: Expected 600, got back 600
+    // When SCC requests the 800, we give back 800. Then when SCC requests 600, we give the 600.
+    // When SCC finally requests 600, we give 480
     let total_funds_to_send = min(unaccounted_funds, amount);
 
+    // no need to account for the undelegated funds separately as it will be deducted from the contract balance
     Ok(Response::new().add_message(send_funds_msg(
         &state.scc_address,
         &vec![Coin::new(total_funds_to_send.u128(), state.vault_denom)],
