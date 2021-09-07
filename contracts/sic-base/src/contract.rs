@@ -7,10 +7,7 @@ use cosmwasm_std::{
 
 use crate::error::ContractError;
 use crate::helpers::{merge_coin_vector, CoinVecOp, Operation};
-use crate::msg::{
-    ExecuteMsg, GetCurrentUndelegationBatchIdResponse, GetStateResponse, GetTotalTokensResponse,
-    GetUndelegationBatchInfoResponse, InstantiateMsg, QueryMsg,
-};
+use crate::msg::{ExecuteMsg, GetCurrentUndelegationBatchIdResponse, GetStateResponse, GetTotalTokensResponse, GetUndelegationBatchInfoResponse, InstantiateMsg, QueryMsg, GetFulfillableUndelegatedFundsResponse};
 use crate::state::{BatchUndelegationRecord, State, STATE, UNDELEGATION_INFO_LEDGER};
 use cw_storage_plus::U64Key;
 
@@ -50,11 +47,9 @@ pub fn execute(
         ExecuteMsg::UndelegateRewards { amount } => {
             try_undelegate_rewards(deps, _env, info, amount)
         }
-        ExecuteMsg::WithdrawRewards {
-            user,
-            undelegation_batch_id,
-            amount,
-        } => try_withdraw_rewards(deps, _env, info, user, undelegation_batch_id, amount),
+        ExecuteMsg::TransferUndelegatedRewards { amount } => {
+            try_transfer_undelegated_rewards(deps, _env, info, amount)
+        }
         ExecuteMsg::ClaimAirdrops {
             airdrop_token_contract,
             cw20_token_contract,
@@ -189,12 +184,10 @@ pub fn try_undelegate_rewards(
     Ok(Response::default())
 }
 
-pub fn try_withdraw_rewards(
+pub fn try_transfer_undelegated_rewards(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    user: Addr,
-    _undelegation_batch_id: u64,
     amount: Uint128,
 ) -> Result<Response, ContractError> {
     let state = STATE.load(deps.storage).unwrap();
@@ -208,7 +201,7 @@ pub fn try_withdraw_rewards(
 
     // undelegation_batch_id is ignored here as we are not batching anything up
     Ok(Response::new().add_message(BankMsg::Send {
-        to_address: user.to_string(),
+        to_address: state.scc_address.to_string(),
         amount: vec![Coin::new(amount.u128(), state.strategy_denom)],
     }))
 }
@@ -224,6 +217,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::GetUndelegationBatchInfo {
             undelegation_batch_id,
         } => to_binary(&query_undelegation_batch_info(deps, undelegation_batch_id)?),
+        QueryMsg::GetFulfillableUndelegatedFunds { amount } => {
+            to_binary(&query_fulfillable_undelegated_funds(deps, amount)?)
+        }
     }
 }
 
@@ -231,6 +227,15 @@ fn query_state(deps: Deps) -> StdResult<GetStateResponse> {
     let state = STATE.may_load(deps.storage).unwrap();
 
     Ok(GetStateResponse { state })
+}
+
+fn query_fulfillable_undelegated_funds(
+    deps: Deps,
+    amount: Uint128,
+) -> StdResult<GetFulfillableUndelegatedFundsResponse> {
+    Ok(GetFulfillableUndelegatedFundsResponse {
+        undelegated_funds: Some(Uint128::zero()),
+    })
 }
 
 fn query_total_tokens(deps: Deps, _env: Env) -> StdResult<GetTotalTokensResponse> {

@@ -32,10 +32,8 @@ pub enum ExecuteMsg {
     // The undelegation_batch_id is responsible for cutting the user rewards if there was any undelegation slashing
     // for the batch which contains the user undelegation.
     // TODO - bchain99: If we have insurance for undelegation slashing, then we don't need to have such a clunky interface
-    WithdrawRewards {
-        user: Addr,
+    TransferUndelegatedRewards {
         amount: Uint128,
-        undelegation_batch_id: u64,
     },
     // Called by the SCC to claim airdrops from different protocols for the strategy (if airdrop applies)
     // Airdrop token contract is fed from SCC.
@@ -58,6 +56,7 @@ pub enum QueryMsg {
     GetTotalTokens {},
     GetCurrentUndelegationBatchId {},
     GetUndelegationBatchInfo { undelegation_batch_id: u64 },
+    GetFulfillableUndelegatedFunds { amount: Uint128 },
     GetState {},
 }
 
@@ -79,4 +78,9 @@ pub struct GetCurrentUndelegationBatchIdResponse {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct GetUndelegationBatchInfoResponse {
     pub undelegation_batch_info: Option<BatchUndelegationRecord>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct GetFulfillableUndelegatedFundsResponse {
+    pub undelegated_funds: Option<Uint128>,
 }
