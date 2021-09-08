@@ -328,7 +328,7 @@ mod tests {
         ));
 
         /*
-            Test - 6. Undelegation batches have already been slashed
+            Test - 6. Undelegation batches have already been accounted for slashing
         */
         STRATEGY_MAP.save(
             deps.as_mut().storage,
@@ -770,6 +770,177 @@ mod tests {
         assert_ne!(state_response.state, None);
         let state = state_response.state.unwrap();
         assert_eq!(state.current_rewards_in_scc, Uint128::new(375_u128));
+
+        /*
+            Test - 3. Strategies have surplus of the requested amount
+        */
+        let mut contracts_to_fulfillable_undelegation: HashMap<Addr, Uint128> = HashMap::new();
+        contracts_to_fulfillable_undelegation
+            .insert(sid1_sic_address.clone(), Uint128::new(120_u128));
+        contracts_to_fulfillable_undelegation
+            .insert(sid2_sic_address.clone(), Uint128::new(500_u128));
+        deps.querier
+            .update_wasm(None, Some(contracts_to_fulfillable_undelegation));
+
+        STATE.update(
+            deps.as_mut().storage,
+            |mut state| -> Result<_, ContractError> {
+                state.current_rewards_in_scc = Uint128::new(500_u128);
+                Ok(state)
+            },
+        );
+
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            "sid1",
+            &StrategyInfo {
+                name: "sid1".to_string(),
+                sic_contract_address: sid1_sic_address.clone(),
+                unbonding_period: 3600,
+                unbonding_buffer: 3600,
+                current_undelegation_batch_id: 2,
+                last_reconciled_batch_id: 1,
+                is_active: true,
+                total_shares: Decimal::from_ratio(5000_u128, 1_u128),
+                global_airdrop_pointer: vec![],
+                total_airdrops_accumulated: vec![],
+                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+            },
+        );
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            "sid2",
+            &StrategyInfo {
+                name: "sid2".to_string(),
+                sic_contract_address: sid2_sic_address.clone(),
+                unbonding_period: 3600,
+                unbonding_buffer: 3600,
+                current_undelegation_batch_id: 3,
+                last_reconciled_batch_id: 2,
+                is_active: true,
+                total_shares: Decimal::from_ratio(5000_u128, 1_u128),
+                global_airdrop_pointer: vec![],
+                total_airdrops_accumulated: vec![],
+                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+            },
+        );
+        UNDELEGATION_BATCH_MAP.save(
+            deps.as_mut().storage,
+            (U64Key::new(2), "sid1"),
+            &BatchUndelegationRecord {
+                amount: Uint128::new(100_u128),
+                unbonding_slashing_ratio: Decimal::one(),
+                create_time: Timestamp::from_seconds(123),
+                est_release_time: Timestamp::from_seconds(125),
+                slashing_checked: false,
+            },
+        );
+        UNDELEGATION_BATCH_MAP.save(
+            deps.as_mut().storage,
+            (U64Key::new(3), "sid2"),
+            &BatchUndelegationRecord {
+                amount: Uint128::new(400_u128),
+                unbonding_slashing_ratio: Decimal::one(),
+                create_time: Timestamp::from_seconds(123),
+                est_release_time: Timestamp::from_seconds(125),
+                slashing_checked: false,
+            },
+        );
+
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::FetchUndelegatedRewardsFromStrategies {
+                strategies: vec!["sid1".to_string(), "sid2".to_string()],
+            },
+        )
+        .unwrap();
+        assert_eq!(res.attributes.len(), 4);
+        assert!(check_equal_vec(
+            res.attributes,
+            vec![
+                Attribute {
+                    key: "failed_strategies".to_string(),
+                    value: "".to_string()
+                },
+                Attribute {
+                    key: "failed_undelegation_batches".to_string(),
+                    value: "".to_string()
+                },
+                Attribute {
+                    key: "undelegation_batches_in_unbonding_period".to_string(),
+                    value: "".to_string()
+                },
+                Attribute {
+                    key: "undelegation_batches_slashing_checked".to_string(),
+                    value: "".to_string()
+                }
+            ]
+        ));
+        assert_eq!(res.messages.len(), 2);
+        assert!(check_equal_vec(
+            res.messages,
+            vec![
+                SubMsg::new(WasmMsg::Execute {
+                    contract_addr: sid1_sic_address.clone().to_string(),
+                    msg: to_binary(&sic_execute_msg::TransferUndelegatedRewards {
+                        amount: Uint128::new(100_u128),
+                    })
+                    .unwrap(),
+                    funds: vec![]
+                }),
+                SubMsg::new(WasmMsg::Execute {
+                    contract_addr: sid2_sic_address.clone().to_string(),
+                    msg: to_binary(&sic_execute_msg::TransferUndelegatedRewards {
+                        amount: Uint128::new(400_u128),
+                    })
+                    .unwrap(),
+                    funds: vec![]
+                }),
+            ]
+        ));
+
+        let sid1_strategy_info_opt = STRATEGY_MAP
+            .may_load(deps.as_mut().storage, "sid1")
+            .unwrap();
+        let sid2_strategy_info_opt = STRATEGY_MAP
+            .may_load(deps.as_mut().storage, "sid2")
+            .unwrap();
+        assert_ne!(sid1_strategy_info_opt, None);
+        assert_ne!(sid2_strategy_info_opt, None);
+        let sid1_strategy_info = sid1_strategy_info_opt.unwrap();
+        let sid2_strategy_info = sid2_strategy_info_opt.unwrap();
+        assert_eq!(sid1_strategy_info.current_undelegation_batch_id, 2);
+        assert_eq!(sid1_strategy_info.last_reconciled_batch_id, 2);
+        assert_eq!(sid2_strategy_info.current_undelegation_batch_id, 3);
+        assert_eq!(sid2_strategy_info.last_reconciled_batch_id, 3);
+        let sid1_undelegation_batch_opt = UNDELEGATION_BATCH_MAP
+            .may_load(deps.as_mut().storage, (U64Key::new(2), "sid1"))
+            .unwrap();
+        let sid2_undelegation_batch_opt = UNDELEGATION_BATCH_MAP
+            .may_load(deps.as_mut().storage, (U64Key::new(3), "sid2"))
+            .unwrap();
+        assert_ne!(sid1_undelegation_batch_opt, None);
+        assert_ne!(sid2_undelegation_batch_opt, None);
+        let sid1_undelegation_batch = sid1_undelegation_batch_opt.unwrap();
+        let sid2_undelegation_batch = sid2_undelegation_batch_opt.unwrap();
+        assert!(sid1_undelegation_batch.slashing_checked);
+        assert!(sid2_undelegation_batch.slashing_checked);
+        assert_eq!(
+            sid1_undelegation_batch.unbonding_slashing_ratio,
+            Decimal::one()
+        );
+        assert_eq!(
+            sid2_undelegation_batch.unbonding_slashing_ratio,
+            Decimal::one()
+        );
+        let state_response: GetStateResponse =
+            from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::GetState {}).unwrap())
+                .unwrap();
+        assert_ne!(state_response.state, None);
+        let state = state_response.state.unwrap();
+        assert_eq!(state.current_rewards_in_scc, Uint128::new(1000_u128));
     }
 
     #[test]
