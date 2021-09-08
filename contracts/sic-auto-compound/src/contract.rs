@@ -540,7 +540,7 @@ fn query_fulfillable_undelegated_funds(
     deps: Deps,
     env: Env,
     amount: Uint128,
-) -> StdResult<GetUndelegatedFunds> {
+) -> StdResult<GetFulfillableUndelegatedFundsResponse> {
     let state = STATE.load(deps.storage)?;
 
     let unaccounted_funds = get_unaccounted_funds(deps.querier, env.contract.address, &state);
