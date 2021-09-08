@@ -251,7 +251,7 @@ pub fn try_update_user_rewards(
     }
 
     if update_user_rewards_requests.is_empty() {
-        return Ok(Response::default());
+        return Ok(Response::new().add_attribute("zero_update_user_rewards_requests", "1"));
     }
 
     let mut messages: Vec<WasmMsg> = vec![];
@@ -402,7 +402,7 @@ pub fn try_update_user_airdrops(
     }
 
     if update_user_airdrops_requests.is_empty() {
-        return Ok(Response::default());
+        return Ok(Response::new().add_attribute("zero_user_airdrop_requests", "1"));
     }
 
     // iterate thru update_user_airdrops_request

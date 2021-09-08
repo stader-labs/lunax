@@ -115,7 +115,14 @@ mod tests {
             },
         )
         .unwrap();
-        assert_eq!(res, Response::default());
+        assert_eq!(res.attributes.len(), 1);
+        assert!(check_equal_vec(
+            res.attributes,
+            vec![Attribute {
+                key: "zero_update_user_rewards_requests".to_string(),
+                value: "1".to_string()
+            }]
+        ));
 
         /*
             Test - 3. Inactive strategies
@@ -203,7 +210,7 @@ mod tests {
 
         let mut contracts_to_token: HashMap<Addr, Uint128> = HashMap::new();
         contracts_to_token.insert(sid1_sic_address.clone(), Uint128::new(0_u128));
-        deps.querier.update_wasm(contracts_to_token);
+        deps.querier.update_wasm(Some(contracts_to_token), None);
 
         USER_REWARD_INFO_MAP.save(
             deps.as_mut().storage,
@@ -291,7 +298,7 @@ mod tests {
         */
         let mut contracts_to_token: HashMap<Addr, Uint128> = HashMap::new();
         contracts_to_token.insert(sid1_sic_address.clone(), Uint128::new(500_u128));
-        deps.querier.update_wasm(contracts_to_token);
+        deps.querier.update_wasm(Some(contracts_to_token), None);
 
         STATE.update(deps.as_mut().storage, |mut state| -> StdResult<_> {
             state.total_accumulated_rewards = Uint128::new(500_u128);
@@ -390,7 +397,7 @@ mod tests {
         */
         let mut contracts_to_token: HashMap<Addr, Uint128> = HashMap::new();
         contracts_to_token.insert(sid1_sic_address.clone(), Uint128::new(1000_u128));
-        deps.querier.update_wasm(contracts_to_token);
+        deps.querier.update_wasm(Some(contracts_to_token), None);
 
         STATE.update(deps.as_mut().storage, |mut state| -> StdResult<_> {
             state.total_accumulated_rewards = Uint128::new(500_u128);
@@ -489,7 +496,7 @@ mod tests {
         */
         let mut contracts_to_token: HashMap<Addr, Uint128> = HashMap::new();
         contracts_to_token.insert(sid1_sic_address.clone(), Uint128::new(100_u128));
-        deps.querier.update_wasm(contracts_to_token);
+        deps.querier.update_wasm(Some(contracts_to_token), None);
 
         STATE.update(deps.as_mut().storage, |mut state| -> StdResult<_> {
             state.total_accumulated_rewards = Uint128::new(500_u128);
@@ -588,7 +595,7 @@ mod tests {
         */
         let mut contracts_to_token: HashMap<Addr, Uint128> = HashMap::new();
         contracts_to_token.insert(sid1_sic_address.clone(), Uint128::new(0_u128));
-        deps.querier.update_wasm(contracts_to_token);
+        deps.querier.update_wasm(Some(contracts_to_token), None);
 
         STATE.update(deps.as_mut().storage, |mut state| -> StdResult<_> {
             state.total_accumulated_rewards = Uint128::new(500_u128);
@@ -709,7 +716,7 @@ mod tests {
         let mut contracts_to_token: HashMap<Addr, Uint128> = HashMap::new();
         contracts_to_token.insert(sid1_sic_address.clone(), Uint128::new(0_u128));
         contracts_to_token.insert(sid2_sic_address.clone(), Uint128::new(0_u128));
-        deps.querier.update_wasm(contracts_to_token);
+        deps.querier.update_wasm(Some(contracts_to_token), None);
 
         STATE.update(deps.as_mut().storage, |mut state| -> StdResult<_> {
             state.total_accumulated_rewards = Uint128::new(1000_u128);
@@ -851,7 +858,7 @@ mod tests {
         */
         let mut contracts_to_token: HashMap<Addr, Uint128> = HashMap::new();
         contracts_to_token.insert(sid1_sic_address.clone(), Uint128::new(0_u128));
-        deps.querier.update_wasm(contracts_to_token);
+        deps.querier.update_wasm(Some(contracts_to_token), None);
 
         STATE.update(deps.as_mut().storage, |mut state| -> StdResult<_> {
             state.total_accumulated_rewards = Uint128::new(500_u128);
@@ -966,7 +973,7 @@ mod tests {
         contracts_to_token.insert(sid1_sic_address.clone(), Uint128::new(0_u128));
         contracts_to_token.insert(sid2_sic_address.clone(), Uint128::new(0_u128));
         contracts_to_token.insert(sid3_sic_address.clone(), Uint128::new(0_u128));
-        deps.querier.update_wasm(contracts_to_token);
+        deps.querier.update_wasm(Some(contracts_to_token), None);
 
         STATE.update(deps.as_mut().storage, |mut state| -> StdResult<_> {
             state.total_accumulated_rewards = Uint128::new(500_u128);
@@ -1569,7 +1576,14 @@ mod tests {
             },
         )
         .unwrap();
-        assert_eq!(res, Response::default());
+        assert_eq!(res.attributes.len(), 1);
+        assert!(check_equal_vec(
+            res.attributes,
+            vec![Attribute {
+                key: "zero_user_airdrop_requests".to_string(),
+                value: "1".to_string()
+            }]
+        ));
     }
 
     #[test]
