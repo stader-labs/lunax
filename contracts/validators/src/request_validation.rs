@@ -11,6 +11,8 @@ pub enum Verify {
 
     SenderPoolsContract,
 
+    SenderManagerOrPoolsContract,
+
     //Info.funds is expected to be one
     NonZeroSingleInfoFund,
     // If info.funds are empty or zero
@@ -18,30 +20,33 @@ pub enum Verify {
 }
 
 pub fn validate(
-    state: &Config, info: &MessageInfo, checks: Vec<Verify>,
+    config: &Config, info: &MessageInfo, checks: Vec<Verify>,
 ) -> Result<(), ContractError> {
     for check in checks {
-        println!("Check| {:?}", check.clone());
         match check {
             Verify::SenderManager => {
-                if info.sender != state.manager {
+                if info.sender != config.manager {
                     return Err(ContractError::Unauthorized {});
                 }
             },
             Verify::SenderPoolsContract => {
-                if info.sender != state.pools_contract_addr {
+                if info.sender != config.pools_contract_addr {
+                    return Err(ContractError::Unauthorized {});
+                }
+            },
+            Verify::SenderManagerOrPoolsContract => {
+                if info.sender != config.manager && info.sender != config.pools_contract_addr {
                     return Err(ContractError::Unauthorized {});
                 }
             },
             Verify::NonZeroSingleInfoFund => {
-                println!("Info_Funds|{:?}", &info.funds);
                 if info.funds.is_empty() || info.funds[0].amount.is_zero() {
                     return Err(ContractError::NoFunds {});
                 }
                 if info.funds.len() > 1 {
                     return Err(ContractError::MultipleFunds {});
                 }
-                if info.funds[0].denom != state.vault_denom {
+                if info.funds[0].denom != config.vault_denom {
                     return Err(ContractError::InvalidDenom {});
                 }
             },
