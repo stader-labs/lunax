@@ -1,12 +1,17 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_binary, Addr, Binary, Coin, Decimal, Deps, DepsMut, DistributionMsg, Env, MessageInfo, Response, StakingMsg, StdResult, Uint128, Event};
+use cosmwasm_std::{
+    to_binary, Addr, Binary, Coin, Decimal, Deps, DepsMut, DistributionMsg, Env, Event,
+    MessageInfo, Response, StakingMsg, StdResult, Uint128,
+};
 
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, GetConfigResponse, InstantiateMsg, QueryMsg};
 use crate::request_validation::{validate, Verify};
 use crate::state::{Config, VMeta, CONFIG, VALIDATOR_META};
-use stader_utils::coin_utils::{merge_coin, Operation, CoinOp, multiply_coin_with_decimal, merge_coin_vector, CoinVecOp};
+use stader_utils::coin_utils::{
+    merge_coin, merge_coin_vector, multiply_coin_with_decimal, CoinOp, CoinVecOp, Operation,
+};
 use stader_utils::helpers::send_funds_msg;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -41,8 +46,12 @@ pub fn add_validator(
     let config = CONFIG.load(deps.storage)?;
     validate(&config, &info, vec![Verify::SenderManager])?;
 
-    if VALIDATOR_META.may_load(deps.storage, &val_addr).unwrap().is_some() {
-        return Err(ContractError::ValidatorAlreadyExists {})
+    if VALIDATOR_META
+        .may_load(deps.storage, &val_addr)
+        .unwrap()
+        .is_some()
+    {
+        return Err(ContractError::ValidatorAlreadyExists {});
     }
 
     // check if the validator exists in the blockchain
@@ -109,13 +118,13 @@ pub fn stake_to_validator(
         },
     )?;
 
-    Ok(Response::new()
-        .add_message(StakingMsg::Delegate {
-            validator: val_addr.to_string(),
-            amount: stake_amount.clone(),
-        })
-        .add_attribute("Stake", stake_amount.to_string())
-        // .add_event(Event::new("rewards", accrued_rewards))
+    Ok(
+        Response::new()
+            .add_message(StakingMsg::Delegate {
+                validator: val_addr.to_string(),
+                amount: stake_amount.clone(),
+            })
+            .add_attribute("Stake", stake_amount.to_string()), // .add_event(Event::new("rewards", accrued_rewards))
     )
 }
 

@@ -1,4 +1,4 @@
-use crate::state::{BatchUndelegationRecord, State};
+use crate::state::State;
 use cosmwasm_std::{Addr, Binary, Uint128};
 use cw_storage_plus::U64Key;
 use schemars::JsonSchema;
@@ -9,8 +9,6 @@ pub struct InstantiateMsg {
     pub scc_address: Addr,
     // denomination of the staking coin
     pub strategy_denom: String,
-    // unbonding period in seconds (defaults to 21 days + 3600s)
-    pub unbonding_period: Option<u64>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -23,11 +21,12 @@ pub enum ExecuteMsg {
     UndelegateRewards {
         amount: Uint128,
     },
-    // Called by the SCC to finally withdraw rewards from SIC after the unbonding period
-    WithdrawRewards {
-        user: Addr,
+    // Called by the SCC to transfer the undelegated rewards back to the SIC after the unbonding period.
+    // The SIC needs to send back the undelegated rewards back to the SCC with best effort.
+    // eg: If SCC has previously undelegated 800uluna and SIC receives only 780uluna, then SIC will
+    // send back 780uluna. It will send back min(amount, received_undelegated_funds)
+    TransferUndelegatedRewards {
         amount: Uint128,
-        undelegation_batch_id: u64,
     },
     // Called by the SCC to claim airdrops from different protocols for the strategy (if airdrop applies)
     // Airdrop token contract is fed from SCC.
@@ -48,8 +47,7 @@ pub enum ExecuteMsg {
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     GetTotalTokens {},
-    GetCurrentUndelegationBatchId {},
-    GetUndelegationBatchInfo { undelegation_batch_id: u64 },
+    GetFulfillableUndelegatedFunds { amount: Uint128 },
     GetState {},
 }
 
@@ -64,11 +62,6 @@ pub struct GetTotalTokensResponse {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct GetCurrentUndelegationBatchIdResponse {
-    pub current_undelegation_batch_id: u64,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct GetUndelegationBatchInfoResponse {
-    pub undelegation_batch_info: Option<BatchUndelegationRecord>,
+pub struct GetFulfillableUndelegatedFundsResponse {
+    pub undelegated_funds: Option<Uint128>,
 }
