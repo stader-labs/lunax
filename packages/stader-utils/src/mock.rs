@@ -13,6 +13,7 @@ use cosmwasm_std::{
     WasmQuery,
 };
 use sic_base::msg::{GetFulfillableUndelegatedFundsResponse, GetTotalTokensResponse, QueryMsg};
+use std::cmp::min;
 
 pub const MOCK_CONTRACT_ADDR: &str = "cosmos2contract";
 
@@ -246,12 +247,12 @@ impl<C: DeserializeOwned> MockQuerier<C> {
 
     pub fn update_wasm(
         &mut self,
-        contract_to_tokens: HashMap<Addr, Uint128>,
-        contract_to_fulfillable_undelegation: HashMap<Addr, Uint128>,
+        contract_to_tokens: Option<HashMap<Addr, Uint128>>,
+        contract_to_fulfillable_undelegation: Option<HashMap<Addr, Uint128>>,
     ) {
         self.wasm = NoWasmQuerier::new(
-            Some(contract_to_tokens),
-            Some(contract_to_fulfillable_undelegation),
+            contract_to_tokens,
+            contract_to_fulfillable_undelegation,
         );
     }
 
@@ -346,7 +347,7 @@ impl NoWasmQuerier {
                             .get(&Addr::unchecked(contract_addr))
                             .unwrap();
                         let res = GetFulfillableUndelegatedFundsResponse {
-                            undelegated_funds: Some(contract_fulfillable_undelegation),
+                            undelegated_funds: Some(min(amount, contract_fulfillable_undelegation)),
                         };
                         to_binary(&res).unwrap()
                     }
