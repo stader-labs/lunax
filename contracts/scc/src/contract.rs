@@ -257,12 +257,20 @@ pub fn try_update_user_rewards(
     let mut messages: Vec<WasmMsg> = vec![];
     let mut strategy_to_amount: HashMap<Addr, Uint128> = HashMap::new();
     let mut inactive_strategies: Vec<String> = vec![];
+    let mut failed_strategies: Vec<String> = vec![];
+    let mut zero_amount_users: Vec<String> = vec![];
+    // cache for the S/T ratio per strategy. We fetch it once and cache it up.
     let mut strategy_to_s_t_ratio: HashMap<String, Decimal> = HashMap::new();
     // iterate thru all requests. This is technically a paginated batch job running
     for user_request in update_user_rewards_requests {
         let user_strategy = user_request.strategy_id;
         let user_amount = user_request.rewards;
         let user_addr = user_request.user;
+
+        if user_amount.is_zero() {
+            zero_amount_users.push(format!("{}:{}", user_strategy, user_addr.to_string()));
+            continue;
+        }
 
         let mut strategy_info: StrategyInfo;
         if let Some(strategy_info_mapping) = STRATEGY_MAP
@@ -271,8 +279,8 @@ pub fn try_update_user_rewards(
         {
             strategy_info = strategy_info_mapping;
         } else {
-            // TODO: bchain99 - Review if we can exit gracefully over here
-            return Err(ContractError::StrategyInfoDoesNotExist(user_strategy));
+            failed_strategies.push(user_strategy);
+            continue;
         }
 
         if !strategy_info.is_active {
@@ -384,7 +392,9 @@ pub fn try_update_user_rewards(
 
     Ok(Response::new()
         .add_messages(messages)
-        .add_attribute("inactive_strategies", inactive_strategies.join(",")))
+        .add_attribute("inactive_strategies", inactive_strategies.join(","))
+        .add_attribute("zero_amount_users", zero_amount_users.join(","))
+        .add_attribute("failed_strategies", failed_strategies.join(",")))
 }
 
 // This assumes that the validator contract will transfer ownership of the airdrops

@@ -172,14 +172,78 @@ mod tests {
         .unwrap();
 
         assert_eq!(res.messages.len(), 0);
-        assert_eq!(res.attributes.len(), 1);
+        assert_eq!(res.attributes.len(), 3);
         assert!(check_equal_vec(
             res.attributes,
             vec![Attribute {
                 key: "inactive_strategies".to_string(),
                 value: "sid1".to_string()
-            }]
-        ))
+            },
+                Attribute {
+                    key: "zero_amount_users".to_string(),
+                    value: "".to_string()
+                },
+                Attribute {
+                    key: "failed_strategies".to_string(),
+                    value: "".to_string()
+                }
+            ]
+        ));
+
+        /*
+            Test - 4. strategy not found
+        */
+
+        let sid1_sic_address = Addr::unchecked("sid1_sic_address");
+        let user1 = Addr::unchecked("user1");
+
+        USER_REWARD_INFO_MAP.save(
+            deps.as_mut().storage,
+            &user1.clone(),
+            &UserRewardInfo {
+                strategies: vec![UserStrategyInfo {
+                    strategy_name: "sid1".to_string(),
+                    shares: Decimal::from_ratio(5000_u128, 1_u128),
+                    airdrop_pointer: vec![],
+                }],
+                pending_airdrops: vec![],
+            },
+        );
+
+
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("pools_contract", &[]),
+            ExecuteMsg::UpdateUserRewards {
+                update_user_rewards_requests: vec![UpdateUserRewardsRequest {
+                    user: user1.clone(),
+                    rewards: Uint128::new(100_u128),
+                    strategy_id: "sid4".to_string(),
+                }],
+            },
+        )
+            .unwrap();
+
+        assert_eq!(res.messages.len(), 0);
+        assert_eq!(res.attributes.len(), 3);
+        assert!(check_equal_vec(
+            res.attributes,
+            vec![Attribute {
+                key: "inactive_strategies".to_string(),
+                value: "".to_string()
+            },
+                Attribute {
+                    key: "zero_amount_users".to_string(),
+                    value: "".to_string()
+                },
+                Attribute {
+                    key: "failed_strategies".to_string(),
+                    value: "sid4".to_string()
+                }
+            ]
+        ));
+
     }
 
     #[test]
