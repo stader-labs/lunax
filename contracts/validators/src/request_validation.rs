@@ -27,12 +27,12 @@ pub fn validate(
                 if info.sender != state.manager {
                     return Err(ContractError::Unauthorized {});
                 }
-            },
+            }
             Verify::SenderPoolsContract => {
                 if info.sender != state.pools_contract_addr {
                     return Err(ContractError::Unauthorized {});
                 }
-            },
+            }
             Verify::NonZeroSingleInfoFund => {
                 println!("Info_Funds|{:?}", &info.funds);
                 if info.funds.is_empty() || info.funds[0].amount.is_zero() {
@@ -44,7 +44,7 @@ pub fn validate(
                 if info.funds[0].denom != state.vault_denom {
                     return Err(ContractError::InvalidDenom {});
                 }
-            },
+            }
         }
     }
 
