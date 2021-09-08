@@ -152,9 +152,12 @@ pub fn try_fetch_undelegated_rewards_from_strategies(
     }
 
     let mut messages: Vec<WasmMsg> = vec![];
+    // I know, this is a lot of logging.
+    // well, we need to know what went wrong right? :P
     let mut failed_strategies: Vec<String> = vec![];
     let mut failed_undelegation_batches: Vec<String> = vec![];
     let mut undelegation_batches_in_unbonding_period: Vec<String> = vec![];
+    let mut undelegation_batches_slashing_checked: Vec<String> = vec![];
     let mut total_funds_transferred_to_scc: Uint128 = Uint128::zero();
     for strategy in strategies {
         let mut strategy_info: StrategyInfo;
@@ -170,7 +173,7 @@ pub fn try_fetch_undelegated_rewards_from_strategies(
         let last_reconciled_batch_id = strategy_info.last_reconciled_batch_id;
         let current_undelegation_batch_id = strategy_info.current_undelegation_batch_id;
         let strategy_name = strategy_info.name.clone();
-        for i in last_reconciled_batch_id..(strategy_info.current_undelegation_batch_id + 1) {
+        for i in (last_reconciled_batch_id + 1)..(strategy_info.current_undelegation_batch_id + 1) {
             let mut undelegation_batch: BatchUndelegationRecord;
             if let Some(undelegation_batch_map) = UNDELEGATION_BATCH_MAP
                 .may_load(deps.storage, (U64Key::new(i), &*strategy_name))
@@ -179,18 +182,29 @@ pub fn try_fetch_undelegated_rewards_from_strategies(
                 undelegation_batch = undelegation_batch_map;
             } else {
                 failed_undelegation_batches.push(format!(
-                    "{}, {}",
+                    "{}:{}",
+                    strategy_name.as_str(),
                     i.to_string(),
-                    strategy_name.as_str()
                 ));
                 continue;
             }
 
+            // undelegation batch is still in unbonding period
             if undelegation_batch.est_release_time.gt(&env.block.time) {
                 undelegation_batches_in_unbonding_period.push(format!(
-                    "{}, {}",
+                    "{}:{}",
+                    strategy_name.as_str(),
                     i.to_string(),
-                    strategy_name.as_str()
+                ));
+                continue;
+            }
+
+            // undelegation batch has been checked for slashing
+            if undelegation_batch.slashing_checked {
+                undelegation_batches_slashing_checked.push(format!(
+                    "{}:{}",
+                    strategy_name.as_str(),
+                    i.to_string(),
                 ));
                 continue;
             }
@@ -254,6 +268,10 @@ pub fn try_fetch_undelegated_rewards_from_strategies(
         .add_attribute(
             "undelegation_batches_in_unbonding_period",
             undelegation_batches_in_unbonding_period.join(","),
+        )
+        .add_attribute(
+            "undelegation_batches_slashing_checked",
+            undelegation_batches_slashing_checked.join(","),
         ))
 }
 

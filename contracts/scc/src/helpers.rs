@@ -3,7 +3,9 @@ use crate::user::get_user_airdrops;
 use cosmwasm_std::{
     Addr, Coin, Decimal, Fraction, QuerierWrapper, Response, Storage, Timestamp, Uint128,
 };
-use sic_base::msg::{GetCurrentUndelegationBatchIdResponse, GetTotalTokensResponse, QueryMsg as sic_msg, GetFulfillableUndelegatedFundsResponse};
+use sic_base::msg::{
+    GetFulfillableUndelegatedFundsResponse, GetTotalTokensResponse, QueryMsg as sic_msg,
+};
 use stader_utils::coin_utils::{
     decimal_division_in_256, decimal_multiplication_in_256, decimal_subtraction_in_256,
     get_decimal_from_uint128, merge_coin_vector, uint128_from_decimal,
