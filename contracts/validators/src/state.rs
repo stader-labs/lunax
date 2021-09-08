@@ -38,4 +38,3 @@ pub struct AirdropRegistryInfo {
 
 // Map of airdrop token to the token contract
 pub const AIRDROP_REGISTRY: Map<String, AirdropRegistryInfo> = Map::new("airdrop_registry");
-

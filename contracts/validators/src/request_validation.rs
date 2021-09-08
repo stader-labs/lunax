@@ -20,7 +20,9 @@ pub enum Verify {
 }
 
 pub fn validate(
-    config: &Config, info: &MessageInfo, checks: Vec<Verify>,
+    config: &Config,
+    info: &MessageInfo,
+    checks: Vec<Verify>,
 ) -> Result<(), ContractError> {
     for check in checks {
         match check {
@@ -28,17 +30,17 @@ pub fn validate(
                 if info.sender != config.manager {
                     return Err(ContractError::Unauthorized {});
                 }
-            },
+            }
             Verify::SenderPoolsContract => {
                 if info.sender != config.pools_contract_addr {
                     return Err(ContractError::Unauthorized {});
                 }
-            },
+            }
             Verify::SenderManagerOrPoolsContract => {
                 if info.sender != config.manager && info.sender != config.pools_contract_addr {
                     return Err(ContractError::Unauthorized {});
                 }
-            },
+            }
             Verify::NonZeroSingleInfoFund => {
                 if info.funds.is_empty() || info.funds[0].amount.is_zero() {
                     return Err(ContractError::NoFunds {});
@@ -49,7 +51,7 @@ pub fn validate(
                 if info.funds[0].denom != config.vault_denom {
                     return Err(ContractError::InvalidDenom {});
                 }
-            },
+            }
         }
     }
 

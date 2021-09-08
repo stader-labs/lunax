@@ -1,6 +1,5 @@
-use crate::state::{BatchUndelegationRecord, State};
-use cosmwasm_std::{Addr, Uint128};
-use cw_storage_plus::U64Key;
+use crate::state::State;
+use cosmwasm_std::{Addr, Binary, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -11,8 +10,6 @@ pub struct InstantiateMsg {
     pub vault_denom: String,
     // initial set of validators who make up the validator pool
     pub initial_validators: Vec<Addr>,
-    // unbonding period in seconds (defaults to 21 days + 3600s)
-    pub unbonding_period: Option<u64>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -22,26 +19,30 @@ pub enum ExecuteMsg {
     UndelegateRewards {
         amount: Uint128,
     },
-    WithdrawRewards {
-        user: Addr,
+    TransferUndelegatedRewards {
         amount: Uint128,
-        undelegation_batch_id: u64,
-    },
-    ReconcileUndelegationBatch {
-        undelegation_batch_id: u64,
     },
     Swap {},
     Reinvest {},
     RedeemRewards {},
+    // Called by the manager to claim airdrops from different protocols. Airdrop token contract fed from SCC.
+    // The ownership of the airdrops is transferred back to the SCC.
+    ClaimAirdrops {
+        airdrop_token_contract: Addr,
+        // used to transfer ownership from SIC to SCC
+        cw20_token_contract: Addr,
+        airdrop_token: String,
+        amount: Uint128,
+        claim_msg: Binary,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     GetTotalTokens {},
-    GetCurrentUndelegationBatchId {},
-    GetUndelegationBatchInfo { undelegation_batch_id: u64 },
     GetState {},
+    GetFulfillableUndelegatedFunds { amount: Uint128 },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -55,11 +56,6 @@ pub struct GetTotalTokensResponse {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct GetCurrentUndelegationBatchIdResponse {
-    pub current_undelegation_batch_id: u64,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct GetUndelegationBatchInfoResponse {
-    pub undelegation_batch_info: Option<BatchUndelegationRecord>,
+pub struct GetFulfillableUndelegatedFundsResponse {
+    pub undelegated_funds: Option<Uint128>,
 }
