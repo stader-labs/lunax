@@ -3,13 +3,6 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::collections::HashMap;
 
-#[cfg(feature = "stargate")]
-use crate::ibc::{
-    IbcAcknowledgement, IbcChannel, IbcChannelCloseMsg, IbcChannelConnectMsg, IbcChannelOpenMsg,
-    IbcEndpoint, IbcOrder, IbcPacket, IbcPacketAckMsg, IbcPacketReceiveMsg, IbcPacketTimeoutMsg,
-    IbcTimeoutBlock,
-};
-
 use cosmwasm_std::{
     from_binary, from_slice, to_binary, Addr, AllBalanceResponse, AllDelegationsResponse,
     AllValidatorsResponse, Api, Attribute, BalanceResponse, BankQuery, Binary, BlockInfo,
@@ -19,8 +12,7 @@ use cosmwasm_std::{
     SystemError, SystemResult, Timestamp, Uint128, Validator, ValidatorResponse, VerificationError,
     WasmQuery,
 };
-use sic_base::msg::QueryMsg::GetTotalTokens;
-use sic_base::msg::{GetTotalTokensResponse, QueryMsg};
+use sic_base::msg::{GetFulfillableUndelegatedFundsResponse, GetTotalTokensResponse, QueryMsg};
 
 pub const MOCK_CONTRACT_ADDR: &str = "cosmos2contract";
 
@@ -201,160 +193,6 @@ pub fn mock_info(sender: &str, funds: &[Coin]) -> MessageInfo {
     }
 }
 
-/// Creates an IbcChannel for testing. You set a few key parameters for handshaking,
-/// If you want to set more, use this as a default and mutate other fields
-#[cfg(feature = "stargate")]
-pub fn mock_ibc_channel(my_channel_id: &str, order: IbcOrder, version: &str) -> IbcChannel {
-    IbcChannel {
-        endpoint: IbcEndpoint {
-            port_id: "my_port".to_string(),
-            channel_id: my_channel_id.to_string(),
-        },
-        counterparty_endpoint: IbcEndpoint {
-            port_id: "their_port".to_string(),
-            channel_id: "channel-7".to_string(),
-        },
-        order,
-        version: version.to_string(),
-        connection_id: "connection-2".to_string(),
-    }
-}
-
-/// Creates a IbcChannelOpenMsg::OpenInit for testing ibc_channel_open.
-#[cfg(feature = "stargate")]
-pub fn mock_ibc_channel_open_init(
-    my_channel_id: &str,
-    order: IbcOrder,
-    version: &str,
-) -> IbcChannelOpenMsg {
-    IbcChannelOpenMsg::new_init(mock_ibc_channel(my_channel_id, order, version))
-}
-
-/// Creates a IbcChannelOpenMsg::OpenTry for testing ibc_channel_open.
-#[cfg(feature = "stargate")]
-pub fn mock_ibc_channel_open_try(
-    my_channel_id: &str,
-    order: IbcOrder,
-    version: &str,
-) -> IbcChannelOpenMsg {
-    IbcChannelOpenMsg::new_try(mock_ibc_channel(my_channel_id, order, version), version)
-}
-
-/// Creates a IbcChannelConnectMsg::ConnectAck for testing ibc_channel_connect.
-#[cfg(feature = "stargate")]
-pub fn mock_ibc_channel_connect_ack(
-    my_channel_id: &str,
-    order: IbcOrder,
-    version: &str,
-) -> IbcChannelConnectMsg {
-    IbcChannelConnectMsg::new_ack(mock_ibc_channel(my_channel_id, order, version), version)
-}
-
-/// Creates a IbcChannelConnectMsg::ConnectConfirm for testing ibc_channel_connect.
-#[cfg(feature = "stargate")]
-pub fn mock_ibc_channel_connect_confirm(
-    my_channel_id: &str,
-    order: IbcOrder,
-    version: &str,
-) -> IbcChannelConnectMsg {
-    IbcChannelConnectMsg::new_confirm(mock_ibc_channel(my_channel_id, order, version))
-}
-
-/// Creates a IbcChannelCloseMsg::CloseInit for testing ibc_channel_close.
-#[cfg(feature = "stargate")]
-pub fn mock_ibc_channel_close_init(
-    my_channel_id: &str,
-    order: IbcOrder,
-    version: &str,
-) -> IbcChannelCloseMsg {
-    IbcChannelCloseMsg::new_init(mock_ibc_channel(my_channel_id, order, version))
-}
-
-/// Creates a IbcChannelCloseMsg::CloseConfirm for testing ibc_channel_close.
-#[cfg(feature = "stargate")]
-pub fn mock_ibc_channel_close_confirm(
-    my_channel_id: &str,
-    order: IbcOrder,
-    version: &str,
-) -> IbcChannelCloseMsg {
-    IbcChannelCloseMsg::new_confirm(mock_ibc_channel(my_channel_id, order, version))
-}
-
-/// Creates a IbcPacketReceiveMsg for testing ibc_packet_receive. You set a few key parameters that are
-/// often parsed. If you want to set more, use this as a default and mutate other fields
-#[cfg(feature = "stargate")]
-pub fn mock_ibc_packet_recv(
-    my_channel_id: &str,
-    data: &impl Serialize,
-) -> StdResult<IbcPacketReceiveMsg> {
-    Ok(IbcPacketReceiveMsg::new(IbcPacket {
-        data: to_binary(data)?,
-        src: IbcEndpoint {
-            port_id: "their-port".to_string(),
-            channel_id: "channel-1234".to_string(),
-        },
-        dest: IbcEndpoint {
-            port_id: "our-port".to_string(),
-            channel_id: my_channel_id.into(),
-        },
-        sequence: 27,
-        timeout: IbcTimeoutBlock {
-            revision: 1,
-            height: 12345678,
-        }
-        .into(),
-    }))
-}
-
-/// Creates a IbcPacket for testing ibc_packet_{ack,timeout}. You set a few key parameters that are
-/// often parsed. If you want to set more, use this as a default and mutate other fields.
-/// The difference from mock_ibc_packet_recv is if `my_channel_id` is src or dest.
-#[cfg(feature = "stargate")]
-fn mock_ibc_packet(my_channel_id: &str, data: &impl Serialize) -> StdResult<IbcPacket> {
-    Ok(IbcPacket {
-        data: to_binary(data)?,
-        src: IbcEndpoint {
-            port_id: "their-port".to_string(),
-            channel_id: my_channel_id.into(),
-        },
-        dest: IbcEndpoint {
-            port_id: "our-port".to_string(),
-            channel_id: "channel-1234".to_string(),
-        },
-        sequence: 29,
-        timeout: IbcTimeoutBlock {
-            revision: 1,
-            height: 432332552,
-        }
-        .into(),
-    })
-}
-
-/// Creates a IbcPacketAckMsg for testing ibc_packet_ack. You set a few key parameters that are
-/// often parsed. If you want to set more, use this as a default and mutate other fields.
-/// The difference from mock_ibc_packet_recv is if `my_channel_id` is src or dest.
-#[cfg(feature = "stargate")]
-pub fn mock_ibc_packet_ack(
-    my_channel_id: &str,
-    data: &impl Serialize,
-    ack: IbcAcknowledgement,
-) -> StdResult<IbcPacketAckMsg> {
-    let packet = mock_ibc_packet(my_channel_id, data)?;
-
-    Ok(IbcPacketAckMsg::new(ack, packet))
-}
-
-/// Creates a IbcPacketTimeoutMsg for testing ibc_packet_timeout. You set a few key parameters that are
-/// often parsed. If you want to set more, use this as a default and mutate other fields.
-/// The difference from mock_ibc_packet_recv is if `my_channel_id` is src or dest./
-#[cfg(feature = "stargate")]
-pub fn mock_ibc_packet_timeout(
-    my_channel_id: &str,
-    data: &impl Serialize,
-) -> StdResult<IbcPacketTimeoutMsg> {
-    mock_ibc_packet(my_channel_id, data).map(IbcPacketTimeoutMsg::new)
-}
-
 /// The same type as cosmwasm-std's QuerierResult, but easier to reuse in
 /// cosmwasm-vm. It might diverge from QuerierResult at some point.
 pub type MockQuerierCustomHandlerResult = SystemResult<ContractResult<Binary>>;
@@ -406,8 +244,15 @@ impl<C: DeserializeOwned> MockQuerier<C> {
         self.staking = StakingQuerier::new(denom, validators, delegations);
     }
 
-    pub fn update_wasm(&mut self, contract_to_tokens: HashMap<Addr, Uint128>) {
-        self.wasm = NoWasmQuerier::new(contract_to_tokens);
+    pub fn update_wasm(
+        &mut self,
+        contract_to_tokens: HashMap<Addr, Uint128>,
+        contract_to_fulfillable_undelegation: HashMap<Addr, Uint128>,
+    ) {
+        self.wasm = NoWasmQuerier::new(
+            Some(contract_to_tokens),
+            Some(contract_to_fulfillable_undelegation),
+        );
     }
 
     pub fn with_custom_handler<CH: 'static>(mut self, handler: CH) -> Self
@@ -458,43 +303,58 @@ impl<C: CustomQuery + DeserializeOwned> MockQuerier<C> {
 struct NoWasmQuerier {
     // FIXME: actually provide a way to call out
     pub contract_to_tokens: HashMap<Addr, Uint128>,
+    pub contract_to_fulfillable_undelegations: HashMap<Addr, Uint128>,
 }
 
 impl NoWasmQuerier {
     fn default() -> Self {
         NoWasmQuerier {
             contract_to_tokens: HashMap::new(),
+            contract_to_fulfillable_undelegations: HashMap::new(),
         }
     }
-    fn new(contract_to_tokens: HashMap<Addr, Uint128>) -> Self {
-        NoWasmQuerier { contract_to_tokens }
+    fn new(
+        contract_to_tokens: Option<HashMap<Addr, Uint128>>,
+        contract_to_fulfillable_undelegations: Option<HashMap<Addr, Uint128>>,
+    ) -> Self {
+        NoWasmQuerier {
+            contract_to_tokens: contract_to_tokens.unwrap_or(HashMap::new()),
+            contract_to_fulfillable_undelegations: contract_to_fulfillable_undelegations
+                .unwrap_or(HashMap::new()),
+        }
     }
     fn query(&self, request: &WasmQuery) -> QuerierResult {
-        let mut default_output = Binary::default();
-        let mut output: Binary = match request {
+        let default_output = Binary::default();
+        let output: Binary = match request {
             WasmQuery::Smart { contract_addr, msg } => {
                 let msg_unpacked: QueryMsg = from_binary(msg).unwrap();
                 match msg_unpacked {
                     QueryMsg::GetTotalTokens { .. } => {
-                        let contract_tokens = self
+                        let contract_tokens = *self
                             .contract_to_tokens
                             .get(&Addr::unchecked(contract_addr))
-                            .unwrap()
-                            .clone();
+                            .unwrap();
                         let res = GetTotalTokensResponse {
                             total_tokens: Some(contract_tokens),
                         };
                         to_binary(&res).unwrap()
                     }
-                    QueryMsg::GetCurrentUndelegationBatchId { .. } => default_output,
-                    QueryMsg::GetUndelegationBatchInfo { .. } => default_output,
                     QueryMsg::GetState { .. } => default_output,
+                    QueryMsg::GetFulfillableUndelegatedFunds { amount } => {
+                        let contract_fulfillable_undelegation = *self
+                            .contract_to_fulfillable_undelegations
+                            .get(&Addr::unchecked(contract_addr))
+                            .unwrap();
+                        let res = GetFulfillableUndelegatedFundsResponse {
+                            undelegated_funds: Some(contract_fulfillable_undelegation),
+                        };
+                        to_binary(&res).unwrap()
+                    }
                 }
             }
-            WasmQuery::Raw { contract_addr, .. } => default_output,
+            WasmQuery::Raw { .. } => default_output,
             _ => default_output,
-        }
-        .clone();
+        };
         QuerierResult::Ok(ContractResult::Ok(output))
         // SystemResult::Err(SystemError::NoSuchContract { addr: "testing".to_string() })
     }

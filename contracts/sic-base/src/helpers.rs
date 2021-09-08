@@ -1,14 +1,10 @@
+#![allow(dead_code)]
+
 use cosmwasm_bignumber::Decimal256;
-use cosmwasm_std::{
-    Addr, BankMsg, Coin, Decimal, Env, Fraction, MessageInfo, Order, StdResult, Storage, Timestamp,
-    Uint128,
-};
+use cosmwasm_std::{Coin, Decimal, Fraction, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
-use std::fmt;
-use std::fmt::Display;
-use std::ops::Add;
 
 // TODO: bchain99 - There are some cyclic dependencies when I add stader-utils to sic-base. Fix them in the future.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -166,13 +162,13 @@ pub fn subtract_coin_vector_from_map(
 fn add_coin_vectors(coins1: &Vec<Coin>, coins2: &Vec<Coin>) -> Vec<Coin> {
     let mut coin_map = add_coin_vector_to_map(&mut HashMap::new(), coins1);
     coin_map = add_coin_vector_to_map(&mut coin_map, coins2);
-    return map_to_coin_vec(coin_map);
+    map_to_coin_vec(coin_map)
 }
 
 fn subtract_coin_vectors(coins1: &Vec<Coin>, coins2: &Vec<Coin>) -> Vec<Coin> {
     let mut coin_map = add_coin_vector_to_map(&mut HashMap::new(), coins1);
     coin_map = subtract_coin_vector_from_map(&mut coin_map, coins2);
-    return map_to_coin_vec(coin_map);
+    map_to_coin_vec(coin_map)
 }
 
 pub fn multiply_coin_with_decimal(coin: &Coin, ratio: Decimal) -> Coin {
@@ -196,17 +192,10 @@ pub fn map_to_coin_vec(coin_map: HashMap<String, Uint128>) -> Vec<Coin> {
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
-    use crate::contract::instantiate;
-    use crate::msg::InstantiateMsg;
-    use cosmwasm_std::testing::{
-        mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
-    };
-    use cosmwasm_std::{Empty, OwnedDeps, Response, Timestamp};
 
     #[test]
-    fn test__add_coin_vector_to_map() {
+    fn test_add_coin_vector_to_map() {
         let coin1 = Coin {
             amount: Uint128::new(35),
             denom: "token1".to_string(),
@@ -253,7 +242,7 @@ mod tests {
     }
 
     #[test]
-    fn test__subtract_coin_vector_from_map() {
+    fn test_subtract_coin_vector_from_map() {
         let coin1 = Coin {
             amount: Uint128::new(35),
             denom: "token1".to_string(),

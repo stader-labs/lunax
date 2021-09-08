@@ -1,8 +1,5 @@
 use cosmwasm_bignumber::Decimal256;
-use cosmwasm_std::{
-    Addr, BankMsg, Coin, Decimal, Env, Fraction, MessageInfo, Order, StdResult, Storage, Timestamp,
-    Uint128,
-};
+use cosmwasm_std::{Coin, Decimal, Fraction, Storage, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -365,25 +362,25 @@ pub fn filter_by_other_denom(coin_vector: &Vec<Coin>, denoms: Vec<String>) -> Ve
 fn add_coin_vectors(coins1: &Vec<Coin>, coins2: &Vec<Coin>) -> Vec<Coin> {
     let mut coin_map = add_coin_vector_to_map(&mut HashMap::new(), coins1);
     coin_map = add_coin_vector_to_map(&mut coin_map, coins2);
-    return map_to_coin_vec(coin_map);
+    map_to_coin_vec(coin_map)
 }
 
 fn subtract_coin_vectors(coins1: &Vec<Coin>, coins2: &Vec<Coin>) -> Vec<Coin> {
     let mut coin_map = add_coin_vector_to_map(&mut HashMap::new(), coins1);
     coin_map = subtract_coin_vector_from_map(&mut coin_map, coins2);
-    return map_to_coin_vec(coin_map);
+    map_to_coin_vec(coin_map)
 }
 
 fn add_deccoin_vectors(deccoin1: &Vec<DecCoin>, deccoin2: &Vec<DecCoin>) -> Vec<DecCoin> {
     let mut deccoin_map = add_deccoin_vector_to_map(&mut HashMap::new(), deccoin1);
     deccoin_map = add_deccoin_vector_to_map(&mut deccoin_map, deccoin2);
-    return map_to_deccoin_vec(deccoin_map);
+    map_to_deccoin_vec(deccoin_map)
 }
 
 fn subtract_deccoin_vectors(deccoin1: &Vec<DecCoin>, deccoin2: &Vec<DecCoin>) -> Vec<DecCoin> {
     let mut deccoin_map = add_deccoin_vector_to_map(&mut HashMap::new(), deccoin1);
     deccoin_map = subtract_deccoin_vector_from_map(&mut deccoin_map, deccoin2);
-    return map_to_deccoin_vec(deccoin_map);
+    map_to_deccoin_vec(deccoin_map)
 }
 
 pub fn multiply_deccoin_vector_with_decimal(coins: &Vec<DecCoin>, ratio: Decimal) -> Vec<DecCoin> {
