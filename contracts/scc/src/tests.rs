@@ -8,8 +8,8 @@ mod tests {
         UpdateUserRewardsRequest,
     };
     use crate::state::{
-        State, StrategyInfo, UserRewardInfo, UserStrategyInfo, STATE, STRATEGY_MAP,
-        USER_REWARD_INFO_MAP,
+        State, StrategyInfo, UserRewardInfo, UserStrategyInfo, UserStrategyPortfolio, STATE,
+        STRATEGY_MAP, USER_REWARD_INFO_MAP,
     };
     use crate::test_helpers::{check_equal_reward_info, check_equal_user_strategies};
     use crate::ContractError;
@@ -73,6 +73,137 @@ mod tests {
                 total_accumulated_airdrops: vec![]
             }
         );
+    }
+
+    #[test]
+    fn test__try_update_user_portfolio_fail() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &coins(1000, "earth"));
+        let env = mock_env();
+
+        let res = instantiate_contract(
+            &mut deps,
+            &info,
+            &env,
+            Some(String::from("uluna")),
+            Some(String::from("pools_contract")),
+        );
+
+        /*
+            Test - 1. Strategy does not exist
+        */
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("not-creator", &[]),
+            ExecuteMsg::UpdateUserPortfolio {
+                strategy_name: "sid1".to_string(),
+                deposit_fraction: Decimal::one(),
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(
+            err,
+            ContractError::StrategyInfoDoesNotExist(String { .. })
+        ));
+    }
+
+    #[test]
+    fn test__try_update_user_portfolio_success() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &coins(1000, "earth"));
+        let env = mock_env();
+
+        let res = instantiate_contract(
+            &mut deps,
+            &info,
+            &env,
+            Some(String::from("uluna")),
+            Some(String::from("pools_contract")),
+        );
+
+        let user1 = Addr::unchecked("user1");
+
+        /*
+           Test - 1. User doesn't have the portfolio and is new
+        */
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            "sid1",
+            &StrategyInfo::default("sid1".to_string()),
+        );
+
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info(user1.as_str(), &[]),
+            ExecuteMsg::UpdateUserPortfolio {
+                strategy_name: "sid1".to_string(),
+                deposit_fraction: Decimal::from_ratio(3_u128, 4_u128),
+            },
+        )
+        .unwrap();
+
+        let user_reward_info_opt = USER_REWARD_INFO_MAP
+            .may_load(deps.as_mut().storage, &user1)
+            .unwrap();
+        assert_ne!(user_reward_info_opt, None);
+        let user_reward_info = user_reward_info_opt.unwrap();
+        assert_eq!(user_reward_info.user_portfolio.len(), 1);
+        assert!(check_equal_vec(
+            user_reward_info.user_portfolio,
+            vec![UserStrategyPortfolio {
+                strategy_name: "sid1".to_string(),
+                deposit_fraction: Decimal::from_ratio(3_u128, 4_u128)
+            }]
+        ));
+
+        /*
+           Test - 2. User updates the deposit fraction of an existing portfolio
+        */
+
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            "sid1",
+            &StrategyInfo::default("sid1".to_string()),
+        );
+        USER_REWARD_INFO_MAP.save(
+            deps.as_mut().storage,
+            &user1,
+            &UserRewardInfo {
+                user_portfolio: vec![UserStrategyPortfolio {
+                    strategy_name: "sid1".to_string(),
+                    deposit_fraction: Decimal::from_ratio(1_u128, 2_u128),
+                }],
+                strategies: vec![],
+                pending_airdrops: vec![],
+            },
+        );
+
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info(user1.as_str(), &[]),
+            ExecuteMsg::UpdateUserPortfolio {
+                strategy_name: "sid1".to_string(),
+                deposit_fraction: Decimal::from_ratio(3_u128, 4_u128),
+            },
+        )
+        .unwrap();
+
+        let user_reward_info_opt = USER_REWARD_INFO_MAP
+            .may_load(deps.as_mut().storage, &user1)
+            .unwrap();
+        assert_ne!(user_reward_info_opt, None);
+        let user_reward_info = user_reward_info_opt.unwrap();
+        assert_eq!(user_reward_info.user_portfolio.len(), 1);
+        assert!(check_equal_vec(
+            user_reward_info.user_portfolio,
+            vec![UserStrategyPortfolio {
+                strategy_name: "sid1".to_string(),
+                deposit_fraction: Decimal::from_ratio(3_u128, 4_u128)
+            }]
+        ));
     }
 
     #[test]
@@ -148,6 +279,7 @@ mod tests {
             deps.as_mut().storage,
             &user1.clone(),
             &UserRewardInfo {
+                user_portfolio: vec![],
                 strategies: vec![UserStrategyInfo {
                     strategy_name: "sid1".to_string(),
                     shares: Decimal::from_ratio(5000_u128, 1_u128),
@@ -165,7 +297,7 @@ mod tests {
                 update_user_rewards_requests: vec![UpdateUserRewardsRequest {
                     user: user1.clone(),
                     rewards: Uint128::new(300_u128),
-                    strategy_id: "sid1".to_string(),
+                    strategy_name: "sid1".to_string(),
                 }],
             },
         )
@@ -175,10 +307,11 @@ mod tests {
         assert_eq!(res.attributes.len(), 3);
         assert!(check_equal_vec(
             res.attributes,
-            vec![Attribute {
-                key: "inactive_strategies".to_string(),
-                value: "sid1".to_string()
-            },
+            vec![
+                Attribute {
+                    key: "inactive_strategies".to_string(),
+                    value: "sid1".to_string()
+                },
                 Attribute {
                     key: "zero_amount_users".to_string(),
                     value: "".to_string()
@@ -201,6 +334,7 @@ mod tests {
             deps.as_mut().storage,
             &user1.clone(),
             &UserRewardInfo {
+                user_portfolio: vec![],
                 strategies: vec![UserStrategyInfo {
                     strategy_name: "sid1".to_string(),
                     shares: Decimal::from_ratio(5000_u128, 1_u128),
@@ -210,7 +344,6 @@ mod tests {
             },
         );
 
-
         let res = execute(
             deps.as_mut(),
             env.clone(),
@@ -219,20 +352,21 @@ mod tests {
                 update_user_rewards_requests: vec![UpdateUserRewardsRequest {
                     user: user1.clone(),
                     rewards: Uint128::new(100_u128),
-                    strategy_id: "sid4".to_string(),
+                    strategy_name: "sid4".to_string(),
                 }],
             },
         )
-            .unwrap();
+        .unwrap();
 
         assert_eq!(res.messages.len(), 0);
         assert_eq!(res.attributes.len(), 3);
         assert!(check_equal_vec(
             res.attributes,
-            vec![Attribute {
-                key: "inactive_strategies".to_string(),
-                value: "".to_string()
-            },
+            vec![
+                Attribute {
+                    key: "inactive_strategies".to_string(),
+                    value: "".to_string()
+                },
                 Attribute {
                     key: "zero_amount_users".to_string(),
                     value: "".to_string()
@@ -243,7 +377,6 @@ mod tests {
                 }
             ]
         ));
-
     }
 
     #[test]
@@ -280,6 +413,7 @@ mod tests {
             deps.as_mut().storage,
             &user1.clone(),
             &UserRewardInfo {
+                user_portfolio: vec![],
                 strategies: vec![],
                 pending_airdrops: vec![],
             },
@@ -307,7 +441,7 @@ mod tests {
                 update_user_rewards_requests: vec![UpdateUserRewardsRequest {
                     user: user1.clone(),
                     rewards: Uint128::new(500_u128),
-                    strategy_id: "sid1".to_string(),
+                    strategy_name: "sid1".to_string(),
                 }],
             },
         )
@@ -388,6 +522,7 @@ mod tests {
             deps.as_mut().storage,
             &user1.clone(),
             &UserRewardInfo {
+                user_portfolio: vec![],
                 strategies: vec![UserStrategyInfo {
                     strategy_name: "sid1".to_string(),
                     shares: Decimal::from_ratio(5000_u128, 1_u128),
@@ -405,7 +540,7 @@ mod tests {
                 update_user_rewards_requests: vec![UpdateUserRewardsRequest {
                     user: user1.clone(),
                     rewards: Uint128::new(500_u128),
-                    strategy_id: "sid1".to_string(),
+                    strategy_name: "sid1".to_string(),
                 }],
             },
         )
@@ -487,6 +622,7 @@ mod tests {
             deps.as_mut().storage,
             &user1.clone(),
             &UserRewardInfo {
+                user_portfolio: vec![],
                 strategies: vec![UserStrategyInfo {
                     strategy_name: "sid1".to_string(),
                     shares: Decimal::from_ratio(5000_u128, 1_u128),
@@ -504,7 +640,7 @@ mod tests {
                 update_user_rewards_requests: vec![UpdateUserRewardsRequest {
                     user: user1.clone(),
                     rewards: Uint128::new(500_u128),
-                    strategy_id: "sid1".to_string(),
+                    strategy_name: "sid1".to_string(),
                 }],
             },
         )
@@ -586,6 +722,7 @@ mod tests {
             deps.as_mut().storage,
             &user1.clone(),
             &UserRewardInfo {
+                user_portfolio: vec![],
                 strategies: vec![UserStrategyInfo {
                     strategy_name: "sid1".to_string(),
                     shares: Decimal::from_ratio(5000_u128, 1_u128),
@@ -603,7 +740,7 @@ mod tests {
                 update_user_rewards_requests: vec![UpdateUserRewardsRequest {
                     user: user1.clone(),
                     rewards: Uint128::new(500_u128),
-                    strategy_id: "sid1".to_string(),
+                    strategy_name: "sid1".to_string(),
                 }],
             },
         )
@@ -685,6 +822,7 @@ mod tests {
             deps.as_mut().storage,
             &user1.clone(),
             &UserRewardInfo {
+                user_portfolio: vec![],
                 strategies: vec![UserStrategyInfo {
                     strategy_name: "sid1".to_string(),
                     shares: Decimal::from_ratio(5000_u128, 1_u128),
@@ -703,12 +841,12 @@ mod tests {
                     UpdateUserRewardsRequest {
                         user: user1.clone(),
                         rewards: Uint128::new(500_u128),
-                        strategy_id: "sid1".to_string(),
+                        strategy_name: "sid1".to_string(),
                     },
                     UpdateUserRewardsRequest {
                         user: user2.clone(),
                         rewards: Uint128::new(500_u128),
-                        strategy_id: "sid1".to_string(),
+                        strategy_name: "sid1".to_string(),
                     },
                 ],
             },
@@ -820,6 +958,7 @@ mod tests {
             deps.as_mut().storage,
             &user1.clone(),
             &UserRewardInfo {
+                user_portfolio: vec![],
                 strategies: vec![],
                 pending_airdrops: vec![],
             },
@@ -834,12 +973,12 @@ mod tests {
                     UpdateUserRewardsRequest {
                         user: user1.clone(),
                         rewards: Uint128::new(500_u128),
-                        strategy_id: "sid1".to_string(),
+                        strategy_name: "sid1".to_string(),
                     },
                     UpdateUserRewardsRequest {
                         user: user1.clone(),
                         rewards: Uint128::new(500_u128),
-                        strategy_id: "sid2".to_string(),
+                        strategy_name: "sid2".to_string(),
                     },
                 ],
             },
@@ -933,6 +1072,7 @@ mod tests {
             deps.as_mut().storage,
             &user1.clone(),
             &UserRewardInfo {
+                user_portfolio: vec![],
                 strategies: vec![UserStrategyInfo {
                     strategy_name: "sid1".to_string(),
                     shares: Decimal::from_ratio(5000_u128, 1_u128),
@@ -969,7 +1109,7 @@ mod tests {
                 update_user_rewards_requests: vec![UpdateUserRewardsRequest {
                     user: user1.clone(),
                     rewards: Uint128::new(500_u128),
-                    strategy_id: "sid1".to_string(),
+                    strategy_name: "sid1".to_string(),
                 }],
             },
         )
@@ -1048,6 +1188,7 @@ mod tests {
             deps.as_mut().storage,
             &user1.clone(),
             &UserRewardInfo {
+                user_portfolio: vec![],
                 strategies: vec![
                     UserStrategyInfo {
                         strategy_name: "sid1".to_string(),
@@ -1140,17 +1281,17 @@ mod tests {
                     UpdateUserRewardsRequest {
                         user: user1.clone(),
                         rewards: Uint128::new(500_u128),
-                        strategy_id: "sid1".to_string(),
+                        strategy_name: "sid1".to_string(),
                     },
                     UpdateUserRewardsRequest {
                         user: user1.clone(),
                         rewards: Uint128::new(500_u128),
-                        strategy_id: "sid2".to_string(),
+                        strategy_name: "sid2".to_string(),
                     },
                     UpdateUserRewardsRequest {
                         user: user1.clone(),
                         rewards: Uint128::new(500_u128),
-                        strategy_id: "sid3".to_string(),
+                        strategy_name: "sid3".to_string(),
                     },
                 ],
             },
@@ -1291,7 +1432,7 @@ mod tests {
             env.clone(),
             mock_info("not-creator", &[]),
             ExecuteMsg::RemoveStrategy {
-                strategy_id: "sid".to_string(),
+                strategy_name: "sid".to_string(),
             },
         )
         .unwrap_err();
@@ -1325,7 +1466,7 @@ mod tests {
             env.clone(),
             mock_info("creator", &[]),
             ExecuteMsg::RemoveStrategy {
-                strategy_id: "sid".to_string(),
+                strategy_name: "sid".to_string(),
             },
         )
         .unwrap();
@@ -1357,7 +1498,7 @@ mod tests {
             env.clone(),
             mock_info("not-creator", &[]),
             ExecuteMsg::DeactivateStrategy {
-                strategy_id: strategy_name.clone(),
+                strategy_name: strategy_name.clone(),
             },
         )
         .unwrap_err();
@@ -1371,7 +1512,7 @@ mod tests {
             env.clone(),
             mock_info("creator", &[]),
             ExecuteMsg::DeactivateStrategy {
-                strategy_id: strategy_name.clone(),
+                strategy_name: strategy_name.clone(),
             },
         )
         .unwrap_err();
@@ -1408,7 +1549,7 @@ mod tests {
             env.clone(),
             mock_info("creator", &[]),
             ExecuteMsg::DeactivateStrategy {
-                strategy_id: "sid".to_string(),
+                strategy_name: "sid".to_string(),
             },
         )
         .unwrap();
@@ -1441,7 +1582,7 @@ mod tests {
             env.clone(),
             mock_info("not-creator", &[]),
             ExecuteMsg::ActivateStrategy {
-                strategy_id: "sid".to_string(),
+                strategy_name: "sid".to_string(),
             },
         )
         .unwrap_err();
@@ -1455,7 +1596,7 @@ mod tests {
             env.clone(),
             mock_info("creator", &[]),
             ExecuteMsg::ActivateStrategy {
-                strategy_id: "sid".to_string(),
+                strategy_name: "sid".to_string(),
             },
         )
         .unwrap_err();
@@ -1492,7 +1633,7 @@ mod tests {
             env.clone(),
             mock_info("creator", &[]),
             ExecuteMsg::ActivateStrategy {
-                strategy_id: "sid".to_string(),
+                strategy_name: "sid".to_string(),
             },
         )
         .unwrap();
@@ -1525,7 +1666,7 @@ mod tests {
             env.clone(),
             mock_info("not-creator", &[]),
             ExecuteMsg::RegisterStrategy {
-                strategy_id: "sid".to_string(),
+                strategy_name: "sid".to_string(),
                 sic_contract_address: Addr::unchecked("abc"),
                 unbonding_period: None,
             },
@@ -1547,7 +1688,7 @@ mod tests {
             env.clone(),
             mock_info("creator", &[]),
             ExecuteMsg::RegisterStrategy {
-                strategy_id: "sid".to_string(),
+                strategy_name: "sid".to_string(),
                 sic_contract_address: Addr::unchecked("abc"),
                 unbonding_period: None,
             },
@@ -1575,7 +1716,7 @@ mod tests {
             env.clone(),
             mock_info("creator", &[]),
             ExecuteMsg::RegisterStrategy {
-                strategy_id: "sid".to_string(),
+                strategy_name: "sid".to_string(),
                 sic_contract_address: Addr::unchecked("abc"),
                 unbonding_period: Some(100u64),
             },
@@ -1757,6 +1898,7 @@ mod tests {
             deps.as_mut().storage,
             &user1,
             &UserRewardInfo {
+                user_portfolio: vec![],
                 strategies: vec![],
                 pending_airdrops: vec![Coin::new(10_u128, "abc"), Coin::new(200_u128, "def")],
             },
@@ -1765,6 +1907,7 @@ mod tests {
             deps.as_mut().storage,
             &user2,
             &UserRewardInfo {
+                user_portfolio: vec![],
                 strategies: vec![],
                 pending_airdrops: vec![Coin::new(20_u128, "abc"), Coin::new(100_u128, "def")],
             },
@@ -1773,6 +1916,7 @@ mod tests {
             deps.as_mut().storage,
             &user3,
             &UserRewardInfo {
+                user_portfolio: vec![],
                 strategies: vec![],
                 pending_airdrops: vec![Coin::new(30_u128, "abc"), Coin::new(50_u128, "def")],
             },
@@ -1781,6 +1925,7 @@ mod tests {
             deps.as_mut().storage,
             &user4,
             &UserRewardInfo {
+                user_portfolio: vec![],
                 strategies: vec![],
                 pending_airdrops: vec![Coin::new(40_u128, "abc"), Coin::new(80_u128, "def")],
             },

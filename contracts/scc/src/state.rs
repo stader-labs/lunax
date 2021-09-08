@@ -97,6 +97,7 @@ impl UserStrategyInfo {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct UserRewardInfo {
+    pub user_portfolio: Vec<UserStrategyPortfolio>,
     pub strategies: Vec<UserStrategyInfo>,
     // pending_airdrops is the airdrops accumulated from the validator_contract and all the strategy contracts
     pub pending_airdrops: Vec<Coin>,
@@ -105,6 +106,7 @@ pub struct UserRewardInfo {
 impl UserRewardInfo {
     pub fn default() -> Self {
         UserRewardInfo {
+            user_portfolio: vec![],
             strategies: vec![],
             pending_airdrops: vec![],
         }
@@ -112,8 +114,24 @@ impl UserRewardInfo {
 
     pub fn new() -> Self {
         UserRewardInfo {
+            user_portfolio: vec![],
             strategies: vec![],
             pending_airdrops: vec![],
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct UserStrategyPortfolio {
+    pub strategy_name: String,
+    pub deposit_fraction: Decimal,
+}
+
+impl UserStrategyPortfolio {
+    pub fn new(strategy_name: String, deposit_fraction: Decimal) -> Self {
+        UserStrategyPortfolio {
+            strategy_name,
+            deposit_fraction,
         }
     }
 }

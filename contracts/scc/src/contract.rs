@@ -12,10 +12,11 @@ use crate::msg::{
     QueryMsg, UpdateUserAirdropsRequest, UpdateUserRewardsRequest,
 };
 use crate::state::{
-    State, StrategyInfo, UserRewardInfo, UserStrategyInfo, STATE, STRATEGY_MAP,
-    USER_REWARD_INFO_MAP,
+    State, StrategyInfo, UserRewardInfo, UserStrategyInfo, UserStrategyPortfolio, STATE,
+    STRATEGY_MAP, USER_REWARD_INFO_MAP,
 };
 use crate::user::get_user_airdrops;
+use schemars::_serde_json::ser::CharEscape::ReverseSolidus;
 use sic_base::msg::{ExecuteMsg as sic_execute_msg, QueryMsg as sic_query_msg};
 use stader_utils::coin_utils::{
     decimal_division_in_256, decimal_multiplication_in_256, decimal_summation_in_256,
@@ -57,26 +58,30 @@ pub fn execute(
 ) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::RegisterStrategy {
-            strategy_id,
+            strategy_name,
             unbonding_period,
             sic_contract_address,
         } => try_register_strategy(
             deps,
             _env,
             info,
-            strategy_id,
+            strategy_name,
             unbonding_period,
             sic_contract_address,
         ),
-        ExecuteMsg::DeactivateStrategy { strategy_id } => {
-            try_deactivate_strategy(deps, _env, info, strategy_id)
+        ExecuteMsg::DeactivateStrategy { strategy_name } => {
+            try_deactivate_strategy(deps, _env, info, strategy_name)
         }
-        ExecuteMsg::ActivateStrategy { strategy_id } => {
-            try_activate_strategy(deps, _env, info, strategy_id)
+        ExecuteMsg::ActivateStrategy { strategy_name } => {
+            try_activate_strategy(deps, _env, info, strategy_name)
         }
-        ExecuteMsg::RemoveStrategy { strategy_id } => {
-            try_remove_strategy(deps, _env, info, strategy_id)
+        ExecuteMsg::RemoveStrategy { strategy_name } => {
+            try_remove_strategy(deps, _env, info, strategy_name)
         }
+        ExecuteMsg::UpdateUserPortfolio {
+            strategy_name,
+            deposit_fraction,
+        } => try_update_user_portfolio(deps, _env, info, strategy_name, deposit_fraction),
         ExecuteMsg::UpdateUserRewards {
             update_user_rewards_requests,
         } => try_update_user_rewards(deps, _env, info, update_user_rewards_requests),
@@ -85,15 +90,15 @@ pub fn execute(
         } => try_update_user_airdrops(deps, _env, info, update_user_airdrops_requests),
         ExecuteMsg::UndelegateRewards {
             amount,
-            strategy_id,
-        } => try_undelegate_rewards(deps, _env, info, amount, strategy_id),
-        ExecuteMsg::ClaimAirdrops { strategy_id } => {
-            try_claim_airdrops(deps, _env, info, strategy_id)
+            strategy_name,
+        } => try_undelegate_rewards(deps, _env, info, amount, strategy_name),
+        ExecuteMsg::ClaimAirdrops { strategy_name } => {
+            try_claim_airdrops(deps, _env, info, strategy_name)
         }
         ExecuteMsg::WithdrawRewards {
             undelegation_timestamp,
-            strategy_id,
-        } => try_withdraw_rewards(deps, _env, info, undelegation_timestamp, strategy_id),
+            strategy_name,
+        } => try_withdraw_rewards(deps, _env, info, undelegation_timestamp, strategy_name),
         ExecuteMsg::WithdrawAirdrops {} => try_withdraw_airdrops(deps, _env, info),
     }
 }
@@ -103,7 +108,7 @@ pub fn try_undelegate_rewards(
     _env: Env,
     info: MessageInfo,
     amount: Uint128,
-    strategy_id: String,
+    strategy_name: String,
 ) -> Result<Response, ContractError> {
     Ok(Response::default())
 }
@@ -112,7 +117,7 @@ pub fn try_claim_airdrops(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    strategy_id: String,
+    strategy_name: String,
 ) -> Result<Response, ContractError> {
     Ok(Response::default())
 }
@@ -122,7 +127,7 @@ pub fn try_withdraw_rewards(
     _env: Env,
     info: MessageInfo,
     undelegation_timestamp: Timestamp,
-    strategy_id: String,
+    strategy_name: String,
 ) -> Result<Response, ContractError> {
     Ok(Response::default())
 }
@@ -139,7 +144,7 @@ pub fn try_register_strategy(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    strategy_id: String,
+    strategy_name: String,
     unbonding_period: Option<u64>,
     sic_contract_address: Addr,
 ) -> Result<Response, ContractError> {
@@ -149,7 +154,7 @@ pub fn try_register_strategy(
     }
 
     if STRATEGY_MAP
-        .may_load(deps.storage, &*strategy_id)
+        .may_load(deps.storage, &*strategy_name)
         .unwrap()
         .is_some()
     {
@@ -158,8 +163,8 @@ pub fn try_register_strategy(
 
     STRATEGY_MAP.save(
         deps.storage,
-        &*strategy_id.clone(),
-        &StrategyInfo::new(strategy_id, sic_contract_address, unbonding_period),
+        &*strategy_name.clone(),
+        &StrategyInfo::new(strategy_name, sic_contract_address, unbonding_period),
     )?;
 
     Ok(Response::default())
@@ -169,7 +174,7 @@ pub fn try_deactivate_strategy(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    strategy_id: String,
+    strategy_name: String,
 ) -> Result<Response, ContractError> {
     let state = STATE.load(deps.storage).unwrap();
     if info.sender != state.manager {
@@ -178,10 +183,10 @@ pub fn try_deactivate_strategy(
 
     STRATEGY_MAP.update(
         deps.storage,
-        &*strategy_id.clone(),
+        &*strategy_name.clone(),
         |strategy_info_opt| -> Result<_, ContractError> {
             if strategy_info_opt.is_none() {
-                return Err(ContractError::StrategyInfoDoesNotExist(strategy_id));
+                return Err(ContractError::StrategyInfoDoesNotExist(strategy_name));
             }
 
             let mut strategy_info = strategy_info_opt.unwrap();
@@ -197,7 +202,7 @@ pub fn try_activate_strategy(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    strategy_id: String,
+    strategy_name: String,
 ) -> Result<Response, ContractError> {
     let state = STATE.load(deps.storage).unwrap();
     if info.sender != state.manager {
@@ -206,10 +211,10 @@ pub fn try_activate_strategy(
 
     STRATEGY_MAP.update(
         deps.storage,
-        &*strategy_id.clone(),
+        &*strategy_name.clone(),
         |strategy_info_option| -> Result<_, ContractError> {
             if strategy_info_option.is_none() {
-                return Err(ContractError::StrategyInfoDoesNotExist(strategy_id));
+                return Err(ContractError::StrategyInfoDoesNotExist(strategy_name));
             }
 
             let mut strategy_info = strategy_info_option.unwrap();
@@ -225,14 +230,62 @@ pub fn try_remove_strategy(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    strategy_id: String,
+    strategy_name: String,
 ) -> Result<Response, ContractError> {
     let state = STATE.load(deps.storage).unwrap();
     if info.sender != state.manager {
         return Err(ContractError::Unauthorized {});
     }
 
-    STRATEGY_MAP.remove(deps.storage, &*strategy_id);
+    STRATEGY_MAP.remove(deps.storage, &*strategy_name);
+
+    Ok(Response::default())
+}
+
+pub fn try_update_user_portfolio(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    strategy_name: String,
+    deposit_fraction: Decimal,
+) -> Result<Response, ContractError> {
+    let user_addr = info.sender;
+
+    if let None = STRATEGY_MAP
+        .may_load(deps.storage, &*strategy_name)
+        .unwrap()
+    {
+        return Err(ContractError::StrategyInfoDoesNotExist(
+            strategy_name.clone(),
+        ));
+    }
+
+    let mut user_reward_info: UserRewardInfo = UserRewardInfo::new();
+    if let Some(user_reward_info_map) = USER_REWARD_INFO_MAP
+        .may_load(deps.storage, &user_addr)
+        .unwrap()
+    {
+        user_reward_info = user_reward_info_map;
+    }
+
+    // find existing portfolio and get a mutable reference to it
+    let mut user_portfolio: &mut UserStrategyPortfolio;
+    if let Some(i) = (0..user_reward_info.user_portfolio.len()).find(|&i| {
+        user_reward_info.user_portfolio[i]
+            .strategy_name
+            .eq(&strategy_name)
+    }) {
+        user_portfolio = &mut user_reward_info.user_portfolio[i];
+    } else {
+        let new_user_portfolio = UserStrategyPortfolio::new(strategy_name, deposit_fraction);
+        user_reward_info.user_portfolio.push(new_user_portfolio);
+        user_portfolio = user_reward_info.user_portfolio.last_mut().unwrap();
+    }
+
+    // redundant if the portfolio was newly created
+    user_portfolio.deposit_fraction = deposit_fraction;
+
+    USER_REWARD_INFO_MAP.save(deps.storage, &user_addr, &user_reward_info);
 
     Ok(Response::default())
 }
@@ -263,7 +316,7 @@ pub fn try_update_user_rewards(
     let mut strategy_to_s_t_ratio: HashMap<String, Decimal> = HashMap::new();
     // iterate thru all requests. This is technically a paginated batch job running
     for user_request in update_user_rewards_requests {
-        let user_strategy = user_request.strategy_id;
+        let user_strategy = user_request.strategy_name;
         let user_amount = user_request.rewards;
         let user_addr = user_request.user;
 
