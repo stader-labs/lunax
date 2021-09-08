@@ -1,6 +1,5 @@
 use crate::state::State;
 use cosmwasm_std::{Addr, Binary, Uint128};
-use cw_storage_plus::U64Key;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 

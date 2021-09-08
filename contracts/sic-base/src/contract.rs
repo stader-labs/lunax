@@ -10,13 +10,8 @@ use crate::msg::{
     ExecuteMsg, GetFulfillableUndelegatedFundsResponse, GetStateResponse, GetTotalTokensResponse,
     InstantiateMsg, QueryMsg,
 };
-<<<<<<< HEAD
-use crate::state::{BatchUndelegationRecord, State, STATE, UNDELEGATION_INFO_LEDGER};
-use cw_storage_plus::U64Key;
-=======
 use crate::state::{State, STATE};
 use std::cmp::min;
->>>>>>> 0cf8d90b63f37f0bf1b412b7926699a1ff1877a0
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
