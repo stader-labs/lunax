@@ -16,25 +16,6 @@ pub fn check_equal_bnk_send_msgs(msg1: CosmosMsg, msg2: CosmosMsg) -> bool {
         }
     }
 
-    // match msg1 {
-    //     CosmosMsg::Bank(BankMsg::Send {
-    //         to_address: _,
-    //         amount,
-    //     }) => {
-    //         let msg1_amount = amount;
-    //         match msg2 {
-    //             CosmosMsg::Bank(BankMsg::Send {
-    //                 to_address: _,
-    //                 amount,
-    //             }) => {
-    //                 response = check_equal_vec(msg1_amount, amount);
-    //             }
-    //             _ => {}
-    //         }
-    //     }
-    //     _ => {}
-    // }
-
     response
 }
 
