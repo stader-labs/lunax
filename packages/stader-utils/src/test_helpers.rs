@@ -8,24 +8,32 @@ pub fn check_equal_vec<S: PartialEq>(v1: Vec<S>, v2: Vec<S>) -> bool {
 pub fn check_equal_bnk_send_msgs(msg1: CosmosMsg, msg2: CosmosMsg) -> bool {
     let mut response: bool = false;
 
-    match msg1 {
-        CosmosMsg::Bank(BankMsg::Send {
-            to_address: _,
-            amount,
-        }) => {
-            let msg1_amount = amount;
-            match msg2 {
-                CosmosMsg::Bank(BankMsg::Send {
-                    to_address: _,
-                    amount,
-                }) => {
-                    response = check_equal_vec(msg1_amount, amount);
-                }
-                _ => {}
-            }
+    if let CosmosMsg::Bank(BankMsg::Send { to_address, amount }) = msg1 {
+        let msg1_amount = amount;
+        let msg1_to_address = to_address;
+        if let CosmosMsg::Bank(BankMsg::Send { to_address, amount }) = msg2 {
+            response = check_equal_vec(msg1_amount, amount) && (msg1_to_address == to_address);
         }
-        _ => {}
     }
+
+    // match msg1 {
+    //     CosmosMsg::Bank(BankMsg::Send {
+    //         to_address: _,
+    //         amount,
+    //     }) => {
+    //         let msg1_amount = amount;
+    //         match msg2 {
+    //             CosmosMsg::Bank(BankMsg::Send {
+    //                 to_address: _,
+    //                 amount,
+    //             }) => {
+    //                 response = check_equal_vec(msg1_amount, amount);
+    //             }
+    //             _ => {}
+    //         }
+    //     }
+    //     _ => {}
+    // }
 
     response
 }
@@ -33,9 +41,28 @@ pub fn check_equal_bnk_send_msgs(msg1: CosmosMsg, msg2: CosmosMsg) -> bool {
 #[cfg(test)]
 mod tests {
     use crate::coin_utils::DecCoin;
-    use crate::state::DecCoin;
-    use crate::test_helpers::check_equal_vec;
-    use cosmwasm_std::Decimal;
+    use crate::test_helpers::{check_equal_bnk_send_msgs, check_equal_vec};
+    use cosmwasm_std::{BankMsg, Coin, Decimal, SubMsg};
+
+    #[test]
+    fn test__check_equal_bank_msg() {
+        let msg1 = BankMsg::Send {
+            to_address: "user1".to_string(),
+            amount: vec![
+                Coin::new(100_u128, "abc".to_string()),
+                Coin::new(200_u128, "def".to_string()),
+            ],
+        };
+        let msg2 = BankMsg::Send {
+            to_address: "user1".to_string(),
+            amount: vec![
+                Coin::new(200_u128, "def".to_string()),
+                Coin::new(100_u128, "abc".to_string()),
+            ],
+        };
+
+        assert!(check_equal_bnk_send_msgs(msg1.into(), msg2.into()));
+    }
 
     #[test]
     fn test__check_equal_vec() {
