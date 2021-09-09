@@ -16,7 +16,7 @@ use crate::state::{
     Cw20TokenContractsInfo, State, StrategyInfo, UserRewardInfo, UserStrategyInfo,
     CW20_TOKEN_CONTRACTS_REGISTRY, STATE, STRATEGY_MAP, USER_REWARD_INFO_MAP,
 };
-use crate::user::get_user_airdrops;
+use crate::user::{allocate_user_airdrops_across_strategies, get_user_airdrops};
 use sic_base::msg::{ExecuteMsg as sic_execute_msg, QueryMsg as sic_query_msg};
 use stader_utils::coin_utils::{
     decimal_division_in_256, decimal_multiplication_in_256, decimal_summation_in_256,
@@ -243,63 +243,21 @@ pub fn try_withdraw_airdrops(
     let user_addr = info.sender;
 
     let mut user_reward_info: UserRewardInfo;
-    match USER_REWARD_INFO_MAP
+    if let Some(user_reward_info_map) = USER_REWARD_INFO_MAP
         .may_load(deps.storage, &user_addr)
         .unwrap()
     {
-        None => return Err(ContractError::UserRewardInfoDoesNotExist {}),
-        Some(user_reward_info_mapping) => {
-            user_reward_info = user_reward_info_mapping;
-        }
+        user_reward_info = user_reward_info_map;
+    } else {
+        return Err(ContractError::UserRewardInfoDoesNotExist {});
     }
 
-    // allocate user airdrops across strategies
-    let mut failed_strategies: Vec<String> = vec![];
-    let mut total_allocated_user_airdrops: Vec<Coin> = vec![];
-    for user_strategy in &mut user_reward_info.strategies {
-        let strategy_name = user_strategy.strategy_name.clone();
-        let user_airdrop_pointer = &user_strategy.airdrop_pointer;
-        let user_shares = user_strategy.shares;
+    allocate_user_airdrops_across_strategies(&user_addr, deps.storage, &mut user_reward_info);
 
-        let strategy_info: StrategyInfo;
-        if let Some(strategy_info_mapping) = STRATEGY_MAP
-            .may_load(deps.storage, &*strategy_name)
-            .unwrap()
-        {
-            strategy_info = strategy_info_mapping;
-        } else {
-            failed_strategies.push(strategy_name);
-            continue;
-        }
-
-        let strategy_global_airdrop_pointer = strategy_info.global_airdrop_pointer;
-        let user_airdrops_for_strategy = get_user_airdrops(
-            &strategy_global_airdrop_pointer,
-            user_airdrop_pointer,
-            user_shares,
-        );
-        if user_airdrops_for_strategy.is_some() {
-            total_allocated_user_airdrops = merge_coin_vector(
-                total_allocated_user_airdrops,
-                CoinVecOp {
-                    fund: user_airdrops_for_strategy.unwrap(),
-                    operation: Operation::Add,
-                },
-            );
-        }
-        user_strategy.airdrop_pointer = strategy_global_airdrop_pointer;
-    }
-
+    println!("user_reward_info is {:?}", user_reward_info);
     let mut messages: Vec<WasmMsg> = vec![];
     let mut failed_airdrops: Vec<String> = vec![];
-    let mut successful_airdrops: Vec<Coin> = vec![];
-    let total_airdrops = merge_coin_vector(
-        user_reward_info.pending_airdrops,
-        CoinVecOp {
-            fund: total_allocated_user_airdrops,
-            operation: Operation::Add,
-        },
-    );
+    let total_airdrops = user_reward_info.pending_airdrops;
     // iterate thru all airdrops and transfer ownership to them to the user
     for user_airdrop in total_airdrops.iter() {
         let airdrop_denom = user_airdrop.denom.clone();
@@ -336,10 +294,6 @@ pub fn try_withdraw_airdrops(
     USER_REWARD_INFO_MAP.save(deps.storage, &user_addr, &user_reward_info)?;
 
     Ok(Response::new()
-        .add_attribute(
-            "strategies_failed_airdrop_allocation",
-            failed_strategies.join(","),
-        )
         .add_attribute("airdrops_failed_to_transfer", failed_airdrops.join(","))
         .add_messages(messages))
 }
