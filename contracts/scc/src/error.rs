@@ -18,4 +18,7 @@ pub enum ContractError {
 
     #[error("User reward info does not exist")]
     UserRewardInfoDoesNotExist {},
+
+    #[error("User portfolio fraction is greater than one")]
+    InvalidPortfolioDepositFraction {},
 }

@@ -319,6 +319,17 @@ pub fn try_update_user_portfolio(
     // redundant if the portfolio was newly created
     user_portfolio.deposit_fraction = deposit_fraction;
 
+    // check if the entire portfolio deposit fraction is less than 1. else abort the tx
+    let mut total_deposit_fraction = Decimal::zero();
+    user_reward_info.user_portfolio.iter().for_each(|x| {
+        total_deposit_fraction =
+            decimal_summation_in_256(total_deposit_fraction, x.deposit_fraction);
+    });
+
+    if total_deposit_fraction > Decimal::one() {
+        return Err(ContractError::InvalidPortfolioDepositFraction {});
+    }
+
     USER_REWARD_INFO_MAP.save(deps.storage, &user_addr, &user_reward_info)?;
 
     Ok(Response::default())

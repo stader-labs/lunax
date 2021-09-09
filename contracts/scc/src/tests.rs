@@ -196,6 +196,7 @@ mod tests {
             Some(String::from("pools_contract")),
         );
 
+        let user1 = Addr::unchecked("user1");
         /*
             Test - 1. Strategy does not exist
         */
@@ -212,6 +213,90 @@ mod tests {
         assert!(matches!(
             err,
             ContractError::StrategyInfoDoesNotExist(String { .. })
+        ));
+
+        /*
+           Test - 2. Adding an invalid portfolio which causes the entire deposit fraction to go beyond 1
+        */
+        USER_REWARD_INFO_MAP.save(
+            deps.as_mut().storage,
+            &user1,
+            &UserRewardInfo {
+                user_portfolio: vec![
+                    UserStrategyPortfolio {
+                        strategy_name: "sid1".to_string(),
+                        deposit_fraction: Decimal::from_ratio(1_u128, 2_u128),
+                    },
+                    UserStrategyPortfolio {
+                        strategy_name: "sid2".to_string(),
+                        deposit_fraction: Decimal::from_ratio(1_u128, 4_u128),
+                    },
+                ],
+                strategies: vec![],
+                pending_airdrops: vec![],
+                pending_rewards: Default::default(),
+            },
+        );
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            "sid3",
+            &StrategyInfo::default("sid3".parse().unwrap()),
+        );
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("user1", &[]),
+            ExecuteMsg::UpdateUserPortfolio {
+                strategy_name: "sid3".to_string(),
+                deposit_fraction: Decimal::from_ratio(3_u128, 4_u128),
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(
+            err,
+            ContractError::InvalidPortfolioDepositFraction {}
+        ));
+
+        /*
+            Test - 3. Updating an existing portfolio which causes the entire deposit fraction to go beyond 1
+        */
+        USER_REWARD_INFO_MAP.save(
+            deps.as_mut().storage,
+            &user1,
+            &UserRewardInfo {
+                user_portfolio: vec![
+                    UserStrategyPortfolio {
+                        strategy_name: "sid1".to_string(),
+                        deposit_fraction: Decimal::from_ratio(1_u128, 2_u128),
+                    },
+                    UserStrategyPortfolio {
+                        strategy_name: "sid2".to_string(),
+                        deposit_fraction: Decimal::from_ratio(1_u128, 4_u128),
+                    },
+                ],
+                strategies: vec![],
+                pending_airdrops: vec![],
+                pending_rewards: Default::default(),
+            },
+        );
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            "sid2",
+            &StrategyInfo::default("sid2".parse().unwrap()),
+        );
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("user1", &[]),
+            ExecuteMsg::UpdateUserPortfolio {
+                strategy_name: "sid2".to_string(),
+                deposit_fraction: Decimal::from_ratio(3_u128, 4_u128),
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(
+            err,
+            ContractError::InvalidPortfolioDepositFraction {}
         ));
     }
 
