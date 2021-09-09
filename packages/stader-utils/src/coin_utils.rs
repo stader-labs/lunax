@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::fmt::Display;
+use std::ops::Add;
 
 #[derive(Serialize, Deserialize, Clone, Default, Debug, PartialEq, JsonSchema)]
 pub struct DecCoin {
@@ -155,6 +156,14 @@ pub fn merge_coin_vector(coins: Vec<Coin>, coin_vec_op: CoinVecOp) -> Vec<Coin> 
 }
 
 /// return a * b
+pub fn decimal_division_in_256(a: Decimal, b: Decimal) -> Decimal {
+    let a_u256: Decimal256 = a.into();
+    let b_u256: Decimal256 = b.into();
+    let c_u256: Decimal = (a_u256 / b_u256).into();
+    c_u256
+}
+
+/// return a * b
 pub fn decimal_multiplication_in_256(a: Decimal, b: Decimal) -> Decimal {
     let a_u256: Decimal256 = a.into();
     let b_u256: Decimal256 = b.into();
@@ -176,6 +185,10 @@ pub fn decimal_subtraction_in_256(a: Decimal, b: Decimal) -> Decimal {
     let b_u256: Decimal256 = b.into();
     let c_u256: Decimal = (a_u256 - b_u256).into();
     c_u256
+}
+
+pub fn get_decimal_from_uint128(a: Uint128) -> Decimal {
+    Decimal::from_ratio(a, 1_u128)
 }
 
 pub fn merge_decimal(decimal1: Decimal, decimal_op: DecimalOp) -> Decimal {
@@ -437,15 +450,15 @@ pub fn deccoin_vec_to_coin_vec(deccoins: &Vec<DecCoin>) -> Vec<Coin> {
 
 #[cfg(test)]
 mod tests {
-
-    use super::*;
-    use crate::contract::instantiate;
-    use crate::msg::InstantiateMsg;
-    use crate::test_helpers::check_equal_user_info;
+    use crate::coin_utils::{
+        add_coin_vector_to_map, add_deccoin_vector_to_map, subtract_coin_vector_from_map,
+        subtract_deccoin_vector_from_map, DecCoin,
+    };
     use cosmwasm_std::testing::{
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
     };
-    use cosmwasm_std::{Empty, OwnedDeps, Response, Timestamp};
+    use cosmwasm_std::{Coin, Decimal, Empty, Fraction, OwnedDeps, Response, Timestamp, Uint128};
+    use std::collections::HashMap;
 
     #[test]
     fn test__add_coin_vector_to_map() {
