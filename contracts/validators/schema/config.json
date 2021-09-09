@@ -5,6 +5,7 @@
   "required": [
     "manager",
     "pools_contract_addr",
+    "scc_contract_addr",
     "vault_denom"
   ],
   "properties": {
@@ -12,6 +13,9 @@
       "$ref": "#/definitions/Addr"
     },
     "pools_contract_addr": {
+      "$ref": "#/definitions/Addr"
+    },
+    "scc_contract_addr": {
       "$ref": "#/definitions/Addr"
     },
     "vault_denom": {
