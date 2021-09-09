@@ -9,7 +9,6 @@ use stader_utils::coin_utils::{
 };
 
 pub fn allocate_user_airdrops_across_strategies(
-    user: &Addr,
     storage: &mut dyn Storage,
     user_reward_info: &mut UserRewardInfo,
 ) {

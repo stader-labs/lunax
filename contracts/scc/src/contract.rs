@@ -252,9 +252,8 @@ pub fn try_withdraw_airdrops(
         return Err(ContractError::UserRewardInfoDoesNotExist {});
     }
 
-    allocate_user_airdrops_across_strategies(&user_addr, deps.storage, &mut user_reward_info);
+    allocate_user_airdrops_across_strategies(deps.storage, &mut user_reward_info);
 
-    println!("user_reward_info is {:?}", user_reward_info);
     let mut messages: Vec<WasmMsg> = vec![];
     let mut failed_airdrops: Vec<String> = vec![];
     let total_airdrops = user_reward_info.pending_airdrops;
