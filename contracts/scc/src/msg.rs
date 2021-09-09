@@ -13,11 +13,12 @@ pub struct InstantiateMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct UpdateUserRewardsRequest {
     pub user: Addr,
-    // rewards will be in native chain token
-    pub rewards: Uint128,
+    // funds will be in native chain token
+    pub funds: Uint128,
     // one of the registered strategies
     // if the strategy is provided then that means the user is depositing only to that strategy
-    pub strategy_name: String,
+    // if no strategy is provided then we iterate over the user portfolio
+    pub strategy_name: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

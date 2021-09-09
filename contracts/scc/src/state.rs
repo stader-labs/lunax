@@ -33,7 +33,7 @@ pub struct StrategyInfo {
     pub total_shares: Decimal,
     pub global_airdrop_pointer: Vec<DecCoin>,
     pub total_airdrops_accumulated: Vec<Coin>,
-    // TODO: bchain99 - i want this for strategy APR calc but cross check if we actually need this.
+    // TODO: bchain99 - i want this for strategy APR calc but cross check if we actually need this:
     pub shares_per_token_ratio: Decimal,
 }
 
@@ -101,6 +101,9 @@ pub struct UserRewardInfo {
     pub strategies: Vec<UserStrategyInfo>,
     // pending_airdrops is the airdrops accumulated from the validator_contract and all the strategy contracts
     pub pending_airdrops: Vec<Coin>,
+    // rewards which are not put into any strategy. they are just sitting in the SCC.
+    // this is the "retain rewards" strategy
+    pub pending_rewards: Uint128,
 }
 
 impl UserRewardInfo {
@@ -109,6 +112,7 @@ impl UserRewardInfo {
             user_portfolio: vec![],
             strategies: vec![],
             pending_airdrops: vec![],
+            pending_rewards: Default::default(),
         }
     }
 
@@ -117,6 +121,7 @@ impl UserRewardInfo {
             user_portfolio: vec![],
             strategies: vec![],
             pending_airdrops: vec![],
+            pending_rewards: Default::default(),
         }
     }
 }
