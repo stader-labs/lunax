@@ -1,4 +1,4 @@
-use cosmwasm_std::{Addr, Coin, Decimal, Env, Storage};
+use cosmwasm_std::{Coin, Decimal};
 use stader_utils::coin_utils::{
     check_equal_deccoin_vector, deccoin_vec_to_coin_vec, merge_dec_coin_vector,
     multiply_deccoin_vector_with_decimal, DecCoin, DecCoinVecOp, Operation,

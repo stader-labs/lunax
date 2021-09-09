@@ -1,15 +1,11 @@
-use crate::state::{StrategyInfo, UserRewardInfo, UserStrategyInfo, USER_REWARD_INFO_MAP};
-use cosmwasm_std::{
-    Addr, Decimal, Fraction, QuerierWrapper, Response, Storage, Timestamp, Uint128,
-};
+use crate::state::{StrategyInfo, UserRewardInfo};
+use cosmwasm_std::{Addr, Decimal, Fraction, QuerierWrapper, Timestamp, Uint128};
 use sic_base::msg::{GetTotalTokensResponse, QueryMsg as sic_msg};
 use stader_utils::coin_utils::{
     decimal_division_in_256, decimal_multiplication_in_256, decimal_subtraction_in_256,
     get_decimal_from_uint128,
 };
 use stader_utils::helpers::uint128_from_decimal;
-use std::fmt::Error;
-use std::ops::Div;
 
 pub fn get_vault_apr(
     current_shares_per_token_ratio: Decimal,

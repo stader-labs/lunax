@@ -4,9 +4,6 @@ use serde::{Deserialize, Serialize};
 use cosmwasm_std::{Addr, Coin, Decimal, Timestamp, Uint128};
 use cw_storage_plus::{Item, Map};
 use stader_utils::coin_utils::DecCoin;
-use std::collections::HashMap;
-use std::fmt;
-use std::fmt::Display;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct State {

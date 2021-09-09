@@ -1,8 +1,8 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, Addr, Attribute, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo,
-    QuerierResult, Response, StdError, StdResult, Timestamp, Uint128, WasmMsg,
+    to_binary, Addr, Binary, Coin, Decimal, Deps, DepsMut, Env, MessageInfo, Response, StdResult,
+    Timestamp, Uint128, WasmMsg,
 };
 
 use crate::error::ContractError;
@@ -16,17 +16,13 @@ use crate::state::{
     STRATEGY_MAP, USER_REWARD_INFO_MAP,
 };
 use crate::user::get_user_airdrops;
-use schemars::_serde_json::ser::CharEscape::ReverseSolidus;
-use sic_base::msg::{ExecuteMsg as sic_execute_msg, QueryMsg as sic_query_msg};
+use sic_base::msg::ExecuteMsg as sic_execute_msg;
 use stader_utils::coin_utils::{
-    decimal_division_in_256, decimal_multiplication_in_256, decimal_summation_in_256,
-    get_decimal_from_uint128, merge_coin_vector, CoinVecOp, Operation,
+    decimal_multiplication_in_256, decimal_summation_in_256, get_decimal_from_uint128,
+    merge_coin_vector, CoinVecOp, Operation,
 };
 use stader_utils::helpers::send_funds_msg;
-use std::borrow::Borrow;
 use std::collections::HashMap;
-use std::mem::forget;
-use std::ops::Deref;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -285,9 +281,10 @@ pub fn try_update_user_portfolio(
 ) -> Result<Response, ContractError> {
     let user_addr = info.sender;
 
-    if let None = STRATEGY_MAP
+    if STRATEGY_MAP
         .may_load(deps.storage, &*strategy_name)
         .unwrap()
+        .is_none()
     {
         return Err(ContractError::StrategyInfoDoesNotExist(
             strategy_name.clone(),
@@ -370,20 +367,22 @@ pub fn try_update_user_rewards(
         let mut user_reward_info = USER_REWARD_INFO_MAP
             .may_load(deps.storage, &user_addr)
             .unwrap()
-            .unwrap_or(UserRewardInfo::new());
+            .unwrap_or_else(UserRewardInfo::new);
 
         // this is the amount to be split per strategy
-        let mut strategy_split: Vec<(String, Uint128)> = vec![];
+        let strategy_split: Vec<(String, Uint128)>;
         // surplus is the amount of rewards which does not go into any strategy and just sits in SCC.
         let mut surplus: Uint128 = Uint128::zero();
 
-        if strategy_opt.is_none() {
-            let strategy_split_with_surplus = get_strategy_split(&user_reward_info, funds);
-            strategy_split = strategy_split_with_surplus.0;
-            surplus = strategy_split_with_surplus.1;
-        } else {
-            let strategy_name = strategy_opt.unwrap();
-            strategy_split = vec![(strategy_name, funds)];
+        match strategy_opt {
+            None => {
+                let strategy_split_with_surplus = get_strategy_split(&user_reward_info, funds);
+                strategy_split = strategy_split_with_surplus.0;
+                surplus = strategy_split_with_surplus.1;
+            }
+            Some(strategy_name) => {
+                strategy_split = vec![(strategy_name, funds)];
+            }
         }
 
         // add the surplus to the pending rewards
