@@ -656,13 +656,7 @@ mod tests {
             }]
         ));
         assert_eq!(user1_reward_info.pending_rewards, Uint128::zero());
-        assert!(check_equal_vec(
-            user1_reward_info.user_portfolio,
-            vec![UserStrategyPortfolio {
-                strategy_name: "sid1".to_string(),
-                deposit_fraction: Decimal::one()
-            }]
-        ));
+        assert_eq!(user1_reward_info.user_portfolio.len(), 0);
         let state_response: GetStateResponse =
             from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::GetState {}).unwrap())
                 .unwrap();

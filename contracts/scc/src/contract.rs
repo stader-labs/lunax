@@ -367,39 +367,25 @@ pub fn try_update_user_rewards(
 
         total_rewards = total_rewards.checked_add(funds).unwrap();
 
-        let mut user_reward_info_opt = USER_REWARD_INFO_MAP
+        let mut user_reward_info = USER_REWARD_INFO_MAP
             .may_load(deps.storage, &user_addr)
-            .unwrap();
-        if user_reward_info_opt.is_none() {
-            let mut new_user_reward_info: UserRewardInfo = UserRewardInfo::new();
-            if strategy_opt.is_some() {
-                let strategy_name = strategy_opt.unwrap();
+            .unwrap()
+            .unwrap_or(UserRewardInfo::new());
 
-                // strategy not found. Don't update the user strategy portfolio with an invalid strategy
-                if let None = STRATEGY_MAP
-                    .may_load(deps.storage, &*strategy_name)
-                    .unwrap()
-                {
-                    failed_strategies.push(strategy_name.clone());
-                    continue;
-                }
+        // this is the amount to be split per strategy
+        let mut strategy_split: Vec<(String, Uint128)> = vec![];
+        // surplus is the amount of rewards which does not go into any strategy and just sits in SCC.
+        let mut surplus: Uint128 = Uint128::zero();
 
-                new_user_reward_info
-                    .user_portfolio
-                    .push(UserStrategyPortfolio {
-                        strategy_name,
-                        deposit_fraction: Decimal::one(),
-                    });
-            }
-
-            user_reward_info_opt = Some(new_user_reward_info)
+        if strategy_opt.is_none() {
+            let strategy_split_with_surplus = get_strategy_split(&user_reward_info, funds);
+            strategy_split = strategy_split_with_surplus.0;
+            surplus = strategy_split_with_surplus.1;
+        } else {
+            let strategy_name = strategy_opt.unwrap();
+            strategy_split = vec![(strategy_name, funds)];
         }
 
-        let mut user_reward_info = user_reward_info_opt.unwrap();
-        let strategy_split_with_surplus = get_strategy_split(&user_reward_info, funds);
-        let strategy_split = strategy_split_with_surplus.0;
-        // surplus is the amount of rewards which does not go into any strategy and just sits in SCC.
-        let surplus = strategy_split_with_surplus.1;
         // add the surplus to the pending rewards
         user_reward_info.pending_rewards = user_reward_info
             .pending_rewards
