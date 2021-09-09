@@ -450,15 +450,15 @@ pub fn deccoin_vec_to_coin_vec(deccoins: &Vec<DecCoin>) -> Vec<Coin> {
 
 #[cfg(test)]
 mod tests {
-
-    use super::*;
-    use crate::contract::instantiate;
-    use crate::msg::InstantiateMsg;
-    use crate::test_helpers::check_equal_user_info;
+    use crate::coin_utils::{
+        add_coin_vector_to_map, add_deccoin_vector_to_map, subtract_coin_vector_from_map,
+        subtract_deccoin_vector_from_map, DecCoin,
+    };
     use cosmwasm_std::testing::{
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
     };
-    use cosmwasm_std::{Empty, OwnedDeps, Response, Timestamp};
+    use cosmwasm_std::{Coin, Decimal, Empty, Fraction, OwnedDeps, Response, Timestamp, Uint128};
+    use std::collections::HashMap;
 
     #[test]
     fn test__add_coin_vector_to_map() {
