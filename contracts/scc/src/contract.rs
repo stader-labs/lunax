@@ -112,7 +112,7 @@ pub fn try_withdraw_pending_rewards(
 
     let user_addr = info.sender;
 
-    let user_reward_info: UserRewardInfo;
+    let mut user_reward_info: UserRewardInfo;
     if let Some(user_reward_info_map) = USER_REWARD_INFO_MAP
         .may_load(deps.storage, &user_addr)
         .unwrap()
@@ -126,6 +126,10 @@ pub fn try_withdraw_pending_rewards(
     if user_pending_rewards.is_zero() {
         return Ok(Response::new().add_attribute("zero_pending_rewards", "1"));
     }
+
+    user_reward_info.pending_rewards = Uint128::zero();
+
+    USER_REWARD_INFO_MAP.save(deps.storage, &user_addr, &user_reward_info);
 
     Ok(Response::new().add_message(send_funds_msg(
         &user_addr,

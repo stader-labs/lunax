@@ -150,6 +150,12 @@ mod tests {
                 amount: vec![Coin::new(1000_u128, "uluna".to_string())]
             })]
         ));
+        let user1_reward_info_opt = USER_REWARD_INFO_MAP
+            .may_load(deps.as_mut().storage, &user1)
+            .unwrap();
+        assert_ne!(user1_reward_info_opt, None);
+        let user1_reward_info = user1_reward_info_opt.unwrap();
+        assert_eq!(user1_reward_info.pending_rewards, Uint128::zero());
 
         /*
             Test - 2. User reward info with zero pending rewards
@@ -179,7 +185,13 @@ mod tests {
                 key: "zero_pending_rewards".to_string(),
                 value: "1".to_string()
             }]
-        ))
+        ));
+        let user1_reward_info_opt = USER_REWARD_INFO_MAP
+            .may_load(deps.as_mut().storage, &user1)
+            .unwrap();
+        assert_ne!(user1_reward_info_opt, None);
+        let user1_reward_info = user1_reward_info_opt.unwrap();
+        assert_eq!(user1_reward_info.pending_rewards, Uint128::zero());
     }
 
     #[test]
