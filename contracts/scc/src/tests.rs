@@ -14,8 +14,8 @@ mod tests {
     use crate::test_helpers::{check_equal_reward_info, check_equal_user_strategies};
     use crate::ContractError;
     use cosmwasm_std::{
-        coins, from_binary, to_binary, Addr, Attribute, Coin, Decimal, Empty, Env, MessageInfo,
-        OwnedDeps, QuerierWrapper, Response, StdResult, SubMsg, Uint128, WasmMsg,
+        coins, from_binary, to_binary, Addr, Attribute, BankMsg, Coin, Decimal, Empty, Env,
+        MessageInfo, OwnedDeps, QuerierWrapper, Response, StdResult, SubMsg, Uint128, WasmMsg,
     };
     use sic_base::msg::{ExecuteMsg as sic_execute_msg, QueryMsg as sic_query_msg};
     use stader_utils::coin_utils::DecCoin;
@@ -77,6 +77,109 @@ mod tests {
                 total_accumulated_airdrops: vec![]
             }
         );
+    }
+
+    #[test]
+    fn test__try_withdraw_pending_rewards_fail() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &coins(1000, "earth"));
+        let env = mock_env();
+
+        let res = instantiate_contract(
+            &mut deps,
+            &info,
+            &env,
+            Some(String::from("uluna")),
+            Some(String::from("pools_contract")),
+        );
+
+        /*
+           Test - 1. User reward info not present
+        */
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("user1", &[]),
+            ExecuteMsg::WithdrawPendingRewards {},
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::UserRewardInfoDoesNotExist {}))
+    }
+
+    #[test]
+    fn test__try_withdraw_pending_rewards_success() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &coins(1000, "earth"));
+        let env = mock_env();
+
+        let res = instantiate_contract(
+            &mut deps,
+            &info,
+            &env,
+            Some(String::from("uluna")),
+            Some(String::from("pools_contract")),
+        );
+
+        let user1 = Addr::unchecked("user1");
+
+        /*
+           Test - 1. User reward info with non-zero pending rewards
+        */
+        USER_REWARD_INFO_MAP.save(
+            deps.as_mut().storage,
+            &user1,
+            &UserRewardInfo {
+                user_portfolio: vec![],
+                strategies: vec![],
+                pending_airdrops: vec![],
+                pending_rewards: Uint128::new(1000_u128),
+            },
+        );
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("user1", &[]),
+            ExecuteMsg::WithdrawPendingRewards {},
+        )
+        .unwrap();
+        assert_eq!(res.messages.len(), 1);
+        assert!(check_equal_vec(
+            res.messages,
+            vec![SubMsg::new(BankMsg::Send {
+                to_address: "user1".to_string(),
+                amount: vec![Coin::new(1000_u128, "uluna".to_string())]
+            })]
+        ));
+
+        /*
+            Test - 2. User reward info with zero pending rewards
+        */
+        USER_REWARD_INFO_MAP.save(
+            deps.as_mut().storage,
+            &user1,
+            &UserRewardInfo {
+                user_portfolio: vec![],
+                strategies: vec![],
+                pending_airdrops: vec![],
+                pending_rewards: Uint128::new(0_u128),
+            },
+        );
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("user1", &[]),
+            ExecuteMsg::WithdrawPendingRewards {},
+        )
+        .unwrap();
+        assert_eq!(res.messages.len(), 0);
+        assert_eq!(res.attributes.len(), 1);
+        assert!(check_equal_vec(
+            res.attributes,
+            vec![Attribute {
+                key: "zero_pending_rewards".to_string(),
+                value: "1".to_string()
+            }]
+        ))
     }
 
     #[test]

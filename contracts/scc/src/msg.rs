@@ -75,6 +75,8 @@ pub enum ExecuteMsg {
         undelegation_timestamp: Timestamp,
         strategy_name: String,
     },
+    // called by the user to withdraw pending rewards i.e rewards which are not in any strategy
+    WithdrawPendingRewards {},
     WithdrawAirdrops {},
 }
 

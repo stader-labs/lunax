@@ -22,6 +22,7 @@ use stader_utils::coin_utils::{
     decimal_division_in_256, decimal_multiplication_in_256, decimal_summation_in_256,
     get_decimal_from_uint128, merge_coin_vector, CoinVecOp, Operation,
 };
+use stader_utils::helpers::send_funds_msg;
 use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::mem::forget;
@@ -102,7 +103,38 @@ pub fn execute(
             strategy_name,
         } => try_withdraw_rewards(deps, _env, info, undelegation_timestamp, strategy_name),
         ExecuteMsg::WithdrawAirdrops {} => try_withdraw_airdrops(deps, _env, info),
+        ExecuteMsg::WithdrawPendingRewards {} => try_withdraw_pending_rewards(deps, _env, info),
     }
+}
+
+pub fn try_withdraw_pending_rewards(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+) -> Result<Response, ContractError> {
+    let state = STATE.load(deps.storage)?;
+
+    let user_addr = info.sender;
+
+    let user_reward_info: UserRewardInfo;
+    if let Some(user_reward_info_map) = USER_REWARD_INFO_MAP
+        .may_load(deps.storage, &user_addr)
+        .unwrap()
+    {
+        user_reward_info = user_reward_info_map;
+    } else {
+        return Err(ContractError::UserRewardInfoDoesNotExist {});
+    }
+
+    let user_pending_rewards = user_reward_info.pending_rewards;
+    if user_pending_rewards.is_zero() {
+        return Ok(Response::new().add_attribute("zero_pending_rewards", "1"));
+    }
+
+    Ok(Response::new().add_message(send_funds_msg(
+        &user_addr,
+        &vec![Coin::new(user_pending_rewards.u128(), state.scc_denom)],
+    )))
 }
 
 pub fn try_undelegate_rewards(
