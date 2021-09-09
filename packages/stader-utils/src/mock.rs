@@ -316,9 +316,9 @@ impl NoWasmQuerier {
         contract_to_fulfillable_undelegations: Option<HashMap<Addr, Uint128>>,
     ) -> Self {
         NoWasmQuerier {
-            contract_to_tokens: contract_to_tokens.unwrap_or(HashMap::new()),
+            contract_to_tokens: contract_to_tokens.unwrap_or_default(),
             contract_to_fulfillable_undelegations: contract_to_fulfillable_undelegations
-                .unwrap_or(HashMap::new()),
+                .unwrap_or_default(),
         }
     }
     fn query(&self, request: &WasmQuery) -> QuerierResult {
