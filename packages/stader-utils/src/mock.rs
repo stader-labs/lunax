@@ -250,10 +250,7 @@ impl<C: DeserializeOwned> MockQuerier<C> {
         contract_to_tokens: Option<HashMap<Addr, Uint128>>,
         contract_to_fulfillable_undelegation: Option<HashMap<Addr, Uint128>>,
     ) {
-        self.wasm = NoWasmQuerier::new(
-            contract_to_tokens,
-            contract_to_fulfillable_undelegation,
-        );
+        self.wasm = NoWasmQuerier::new(contract_to_tokens, contract_to_fulfillable_undelegation);
     }
 
     pub fn with_custom_handler<CH: 'static>(mut self, handler: CH) -> Self
