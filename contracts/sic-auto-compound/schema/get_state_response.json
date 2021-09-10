@@ -1,61 +1,17 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "State",
+  "title": "GetStateResponse",
   "type": "object",
-  "required": [
-    "contract_genesis_block_height",
-    "contract_genesis_timestamp",
-    "manager",
-    "manager_seed_funds",
-    "scc_address",
-    "total_slashed_amount",
-    "total_staked_tokens",
-    "uninvested_rewards",
-    "unswapped_rewards",
-    "validator_pool",
-    "vault_denom"
-  ],
   "properties": {
-    "contract_genesis_block_height": {
-      "type": "integer",
-      "format": "uint64",
-      "minimum": 0.0
-    },
-    "contract_genesis_timestamp": {
-      "$ref": "#/definitions/Timestamp"
-    },
-    "manager": {
-      "$ref": "#/definitions/Addr"
-    },
-    "manager_seed_funds": {
-      "$ref": "#/definitions/Uint128"
-    },
-    "scc_address": {
-      "$ref": "#/definitions/Addr"
-    },
-    "total_slashed_amount": {
-      "$ref": "#/definitions/Uint128"
-    },
-    "total_staked_tokens": {
-      "$ref": "#/definitions/Uint128"
-    },
-    "uninvested_rewards": {
-      "$ref": "#/definitions/Coin"
-    },
-    "unswapped_rewards": {
-      "type": "array",
-      "items": {
-        "$ref": "#/definitions/Coin"
-      }
-    },
-    "validator_pool": {
-      "type": "array",
-      "items": {
-        "$ref": "#/definitions/Addr"
-      }
-    },
-    "vault_denom": {
-      "type": "string"
+    "state": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/State"
+        },
+        {
+          "type": "null"
+        }
+      ]
     }
   },
   "definitions": {
@@ -74,6 +30,65 @@
           "$ref": "#/definitions/Uint128"
         },
         "denom": {
+          "type": "string"
+        }
+      }
+    },
+    "State": {
+      "type": "object",
+      "required": [
+        "contract_genesis_block_height",
+        "contract_genesis_timestamp",
+        "manager",
+        "manager_seed_funds",
+        "scc_address",
+        "total_slashed_amount",
+        "total_staked_tokens",
+        "uninvested_rewards",
+        "unswapped_rewards",
+        "validator_pool",
+        "vault_denom"
+      ],
+      "properties": {
+        "contract_genesis_block_height": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "contract_genesis_timestamp": {
+          "$ref": "#/definitions/Timestamp"
+        },
+        "manager": {
+          "$ref": "#/definitions/Addr"
+        },
+        "manager_seed_funds": {
+          "$ref": "#/definitions/Uint128"
+        },
+        "scc_address": {
+          "$ref": "#/definitions/Addr"
+        },
+        "total_slashed_amount": {
+          "$ref": "#/definitions/Uint128"
+        },
+        "total_staked_tokens": {
+          "$ref": "#/definitions/Uint128"
+        },
+        "uninvested_rewards": {
+          "$ref": "#/definitions/Coin"
+        },
+        "unswapped_rewards": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Coin"
+          }
+        },
+        "validator_pool": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Addr"
+          }
+        },
+        "vault_denom": {
           "type": "string"
         }
       }
