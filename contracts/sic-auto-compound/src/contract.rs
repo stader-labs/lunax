@@ -146,23 +146,22 @@ pub fn try_swap(
     for reward_coin in state.unswapped_rewards {
         let mut swapped_out_coin = reward_coin.clone();
 
-        if swapped_out_coin.denom.eq(&vault_denom) {
-            continue;
+        if swapped_out_coin.denom.ne(&vault_denom) {
+            let coin_swap_wrapped =
+                terra_querier.query_swap(reward_coin.clone(), vault_denom.clone());
+            // TODO: bchain99 - I think this could mean that there is no swap possible for the pair.
+            if coin_swap_wrapped.is_err() {
+                // TODO: bchain99 - Check if this is needed. Check the cases when the query_swap can fail.
+                logs.push(attr("failed_to_swap", reward_coin.to_string()));
+                failed_coins.push(reward_coin);
+                continue;
+            }
+
+            messages.push(create_swap_msg(reward_coin, vault_denom.clone()));
+
+            let coin_swap: SwapResponse = coin_swap_wrapped.unwrap();
+            swapped_out_coin = coin_swap.receive;
         }
-
-        let coin_swap_wrapped = terra_querier.query_swap(reward_coin.clone(), vault_denom.clone());
-        // TODO: bchain99 - I think this could mean that there is no swap possible for the pair.
-        if coin_swap_wrapped.is_err() {
-            // TODO: bchain99 - Check if this is needed. Check the cases when the query_swap can fail.
-            logs.push(attr("failed_to_swap", reward_coin.to_string()));
-            failed_coins.push(reward_coin);
-            continue;
-        }
-
-        messages.push(create_swap_msg(reward_coin, vault_denom.clone()));
-
-        let coin_swap: SwapResponse = coin_swap_wrapped.unwrap();
-        swapped_out_coin = coin_swap.receive;
 
         swapped_coin = merge_coin(
             swapped_coin,
