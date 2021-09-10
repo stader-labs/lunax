@@ -6,7 +6,7 @@
     "initial_validators",
     "manager_seed_funds",
     "scc_address",
-    "vault_denom"
+    "strategy_denom"
   ],
   "properties": {
     "initial_validators": {
@@ -21,7 +21,7 @@
     "scc_address": {
       "$ref": "#/definitions/Addr"
     },
-    "vault_denom": {
+    "strategy_denom": {
       "type": "string"
     }
   },

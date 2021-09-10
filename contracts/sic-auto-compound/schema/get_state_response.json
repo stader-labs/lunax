@@ -42,12 +42,12 @@
         "manager",
         "manager_seed_funds",
         "scc_address",
+        "strategy_denom",
         "total_slashed_amount",
         "total_staked_tokens",
         "uninvested_rewards",
         "unswapped_rewards",
-        "validator_pool",
-        "vault_denom"
+        "validator_pool"
       ],
       "properties": {
         "contract_genesis_block_height": {
@@ -66,6 +66,9 @@
         },
         "scc_address": {
           "$ref": "#/definitions/Addr"
+        },
+        "strategy_denom": {
+          "type": "string"
         },
         "total_slashed_amount": {
           "$ref": "#/definitions/Uint128"
@@ -87,9 +90,6 @@
           "items": {
             "$ref": "#/definitions/Addr"
           }
-        },
-        "vault_denom": {
-          "type": "string"
         }
       }
     },
