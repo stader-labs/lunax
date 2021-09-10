@@ -293,34 +293,49 @@ pub fn try_withdraw_airdrops(
     allocate_user_airdrops_across_strategies(deps.storage, &mut user_reward_info);
 
     let mut messages: Vec<WasmMsg> = vec![];
-    let total_airdrops = user_reward_info.pending_airdrops;
+    let mut transfered_airdrops: Vec<Coin> = vec![];
     // iterate thru all airdrops and transfer ownership to them to the user
-    for user_airdrop in total_airdrops.iter() {
-        let airdrop_denom = user_airdrop.denom.clone();
-        let airdrop_amount = user_airdrop.amount;
+    user_reward_info
+        .pending_airdrops
+        .iter()
+        .for_each(|user_airdrop| {
+            let airdrop_denom = user_airdrop.denom.clone();
+            let airdrop_amount = user_airdrop.amount;
 
-        let cw20_token_contracts = CW20_TOKEN_CONTRACTS_REGISTRY
-            .may_load(deps.storage, airdrop_denom.clone())
-            .unwrap();
+            let cw20_token_contracts = CW20_TOKEN_CONTRACTS_REGISTRY
+                .may_load(deps.storage, airdrop_denom.clone())
+                .unwrap();
 
-        messages.push(WasmMsg::Execute {
-            contract_addr: String::from(cw20_token_contracts.unwrap().cw20_token_contract),
-            msg: to_binary(&cw20::Cw20ExecuteMsg::Transfer {
-                recipient: String::from(user_addr.clone()),
-                amount: airdrop_amount,
-            })
-            .unwrap(),
-            funds: vec![],
+            if cw20_token_contracts.is_none() || airdrop_amount.is_zero() {
+                return;
+            }
+
+            messages.push(WasmMsg::Execute {
+                contract_addr: String::from(cw20_token_contracts.unwrap().cw20_token_contract),
+                msg: to_binary(&cw20::Cw20ExecuteMsg::Transfer {
+                    recipient: String::from(user_addr.clone()),
+                    amount: airdrop_amount,
+                })
+                .unwrap(),
+                funds: vec![],
+            });
+
+            transfered_airdrops.push(Coin::new(airdrop_amount.u128(), airdrop_denom));
         });
-    }
 
-    user_reward_info.pending_airdrops = vec![];
+    user_reward_info.pending_airdrops = merge_coin_vector(
+        user_reward_info.pending_airdrops,
+        CoinVecOp {
+            fund: transfered_airdrops.clone(),
+            operation: Operation::Sub,
+        },
+    );
 
     STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
         state.total_accumulated_airdrops = merge_coin_vector(
             state.total_accumulated_airdrops,
             CoinVecOp {
-                fund: total_airdrops,
+                fund: transfered_airdrops,
                 operation: Operation::Sub,
             },
         );

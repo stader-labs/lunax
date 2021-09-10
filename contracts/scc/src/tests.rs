@@ -432,7 +432,7 @@ mod tests {
             "sid1",
             &StrategyInfo {
                 name: "sid1".to_string(),
-                sic_contract_address: sic1_address,
+                sic_contract_address: sic1_address.clone(),
                 unbonding_period: None,
                 is_active: true,
                 total_shares: Decimal::from_ratio(5000_u128, 1_u128),
@@ -521,7 +521,140 @@ mod tests {
             .unwrap();
         assert_ne!(user_reward_info_opt, None);
         let user_reward_info = user_reward_info_opt.unwrap();
-        assert_eq!(user_reward_info.pending_airdrops, vec![]);
+        assert!(check_equal_vec(
+            user_reward_info.pending_airdrops,
+            vec![
+                Coin::new(0_u128, "anc".to_string()),
+                Coin::new(0_u128, "mir".to_string())
+            ]
+        ));
+
+        /*
+           Test - 2. Not all airdrops are transferred
+        */
+        CW20_TOKEN_CONTRACTS_REGISTRY.save(
+            deps.as_mut().storage,
+            "anc".to_string(),
+            &Cw20TokenContractsInfo {
+                airdrop_contract: anc_airdrop_contract.clone(),
+                cw20_token_contract: anc_token_contract.clone(),
+            },
+        );
+        CW20_TOKEN_CONTRACTS_REGISTRY.save(
+            deps.as_mut().storage,
+            "mir".to_string(),
+            &Cw20TokenContractsInfo {
+                airdrop_contract: mir_airdrop_contract.clone(),
+                cw20_token_contract: mir_token_contract.clone(),
+            },
+        );
+
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            "sid1",
+            &StrategyInfo {
+                name: "sid1".to_string(),
+                sic_contract_address: sic1_address,
+                unbonding_period: None,
+                is_active: true,
+                total_shares: Decimal::from_ratio(5000_u128, 1_u128),
+                global_airdrop_pointer: vec![
+                    DecCoin::new(Decimal::from_ratio(500_u128, 5000_u128), "anc".to_string()),
+                    DecCoin::new(Decimal::from_ratio(200_u128, 5000_u128), "mir".to_string()),
+                    DecCoin::new(Decimal::from_ratio(400_u128, 5000_u128), "pyl".to_string()),
+                ],
+                total_airdrops_accumulated: vec![
+                    Coin::new(500_u128, "anc".to_string()),
+                    Coin::new(200_u128, "mir".to_string()),
+                    Coin::new(400_u128, "pyl".to_string()),
+                ],
+                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+            },
+        );
+
+        USER_REWARD_INFO_MAP.save(
+            deps.as_mut().storage,
+            &user1,
+            &UserRewardInfo {
+                user_portfolio: vec![],
+                strategies: vec![UserStrategyInfo {
+                    strategy_name: "sid1".to_string(),
+                    shares: Decimal::from_ratio(5000_u128, 1_u128),
+                    airdrop_pointer: vec![],
+                }],
+                pending_airdrops: vec![],
+                pending_rewards: Default::default(),
+            },
+        );
+        STATE.update(deps.as_mut().storage, |mut state| -> StdResult<_> {
+            state.total_accumulated_airdrops = vec![
+                Coin::new(500_u128, "anc".to_string()),
+                Coin::new(700_u128, "mir".to_string()),
+                Coin::new(400_u128, "pyl".to_string()),
+            ];
+            Ok(state)
+        });
+
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("user1", &[]),
+            ExecuteMsg::WithdrawAirdrops {},
+        )
+        .unwrap();
+
+        assert_eq!(res.messages.len(), 2);
+        assert!(check_equal_vec(
+            res.messages,
+            vec![
+                SubMsg::new(WasmMsg::Execute {
+                    contract_addr: String::from(anc_token_contract.clone()),
+                    msg: to_binary(&cw20::Cw20ExecuteMsg::Transfer {
+                        recipient: String::from(user1.clone()),
+                        amount: Uint128::new(500),
+                    })
+                    .unwrap(),
+                    funds: vec![]
+                }),
+                SubMsg::new(WasmMsg::Execute {
+                    contract_addr: String::from(mir_token_contract.clone()),
+                    msg: to_binary(&cw20::Cw20ExecuteMsg::Transfer {
+                        recipient: String::from(user1.clone()),
+                        amount: Uint128::new(200),
+                    })
+                    .unwrap(),
+                    funds: vec![]
+                }),
+            ]
+        ));
+
+        let state_response: GetStateResponse =
+            from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::GetState {}).unwrap())
+                .unwrap();
+        assert_ne!(state_response.state, None);
+        let state = state_response.state.unwrap();
+        assert!(check_equal_vec(
+            state.total_accumulated_airdrops,
+            vec![
+                Coin::new(0_u128, "anc".to_string()),
+                Coin::new(500_u128, "mir".to_string()),
+                Coin::new(400_u128, "pyl".to_string())
+            ]
+        ));
+
+        let user_reward_info_opt = USER_REWARD_INFO_MAP
+            .may_load(deps.as_mut().storage, &user1.clone())
+            .unwrap();
+        assert_ne!(user_reward_info_opt, None);
+        let user_reward_info = user_reward_info_opt.unwrap();
+        assert!(check_equal_vec(
+            user_reward_info.pending_airdrops,
+            vec![
+                Coin::new(0_u128, "anc".to_string()),
+                Coin::new(0_u128, "mir".to_string()),
+                Coin::new(400_u128, "pyl".to_string())
+            ]
+        ));
     }
 
     #[test]
