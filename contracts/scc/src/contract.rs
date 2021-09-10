@@ -732,7 +732,7 @@ pub fn try_withdraw_rewards(
         return Err(ContractError::StrategyInfoDoesNotExist(strategy_name));
     }
 
-    let user_reward_info: UserRewardInfo;
+    let mut user_reward_info: UserRewardInfo;
     if let Some(user_reward_info_mapping) = USER_REWARD_INFO_MAP
         .may_load(deps.storage, &user_addr)
         .unwrap()
@@ -745,14 +745,18 @@ pub fn try_withdraw_rewards(
     let undelegation_timestamp = Timestamp::from_nanos(undelegation_id.parse::<u64>().unwrap());
 
     let user_undelegation_record: &UserUndelegationRecord;
-    if let Some(user_undelegation_record_mappings) =
-        user_reward_info.undelegation_records.iter().find(|x| {
-            x.id.eq(&undelegation_timestamp)
-                && x.strategy_name.eq(&strategy_name)
-                && x.amount.eq(&amount)
-        })
-    {
-        user_undelegation_record = user_undelegation_record_mappings;
+    let undelegation_record_index: usize;
+    if let Some(i) = (0..user_reward_info.undelegation_records.len()).find(|&i| {
+        user_reward_info.undelegation_records[i]
+            .id
+            .eq(&undelegation_timestamp)
+            && user_reward_info.undelegation_records[i]
+                .strategy_name
+                .eq(&strategy_name)
+            && user_reward_info.undelegation_records[i].amount.eq(&amount)
+    }) {
+        user_undelegation_record = &user_reward_info.undelegation_records[i];
+        undelegation_record_index = i;
     } else {
         return Err(ContractError::UndelegationRecordNotFound {});
     }
@@ -780,6 +784,13 @@ pub fn try_withdraw_rewards(
         Decimal::from_ratio(amount, 1_u128),
         undelegation_batch.unbonding_slashing_ratio,
     ));
+
+    // remove undelegation record
+    user_reward_info
+        .undelegation_records
+        .remove(undelegation_record_index);
+
+    USER_REWARD_INFO_MAP.save(deps.storage, &user_addr, &user_reward_info)?;
 
     let mut failed_message: Vec<Attribute> = vec![];
     STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {

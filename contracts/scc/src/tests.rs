@@ -1899,6 +1899,10 @@ mod tests {
         let user1 = Addr::unchecked("user1");
         let sic1_address = Addr::unchecked("sic1_address");
 
+        /*
+           Test - 1. User has only 1 undelegation record
+        */
+
         STATE.update(
             deps.as_mut().storage,
             |mut state| -> Result<_, ContractError> {
@@ -1967,7 +1971,116 @@ mod tests {
                 .unwrap();
         assert_ne!(state_response.state, None);
         let state = state_response.state.unwrap();
-        assert_eq!(state.current_rewards_in_scc, Uint128::new(325_u128))
+        assert_eq!(state.current_rewards_in_scc, Uint128::new(325_u128));
+        let user1_reward_info_opt = USER_REWARD_INFO_MAP
+            .may_load(deps.as_mut().storage, &user1)
+            .unwrap();
+        assert_ne!(user1_reward_info_opt, None);
+        let user1_reward_info = user1_reward_info_opt.unwrap();
+        assert_eq!(user1_reward_info.undelegation_records.len(), 0);
+
+        /*
+           Test - 2. User has multiple undelegation records.
+        */
+        STATE.update(
+            deps.as_mut().storage,
+            |mut state| -> Result<_, ContractError> {
+                state.current_rewards_in_scc = Uint128::new(400_u128);
+                Ok(state)
+            },
+        );
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            "sid1",
+            &StrategyInfo::new("sid1".to_string(), sic1_address.clone(), None, None),
+        );
+        USER_REWARD_INFO_MAP.save(
+            deps.as_mut().storage,
+            &user1,
+            &UserRewardInfo {
+                user_portfolio: vec![],
+                strategies: vec![
+                    UserStrategyInfo {
+                        strategy_name: "sid1".to_string(),
+                        shares: Decimal::from_ratio(5000_u128, 1_u128),
+                        airdrop_pointer: vec![],
+                    },
+                    UserStrategyInfo {
+                        strategy_name: "sid2".to_string(),
+                        shares: Decimal::from_ratio(5000_u128, 1_u128),
+                        airdrop_pointer: vec![],
+                    },
+                ],
+                pending_airdrops: vec![],
+                undelegation_records: vec![
+                    UserUndelegationRecord {
+                        id: Timestamp::from_seconds(123),
+                        amount: Uint128::new(100_u128),
+                        strategy_name: "sid1".to_string(),
+                        undelegation_batch_id: 5,
+                    },
+                    UserUndelegationRecord {
+                        id: Timestamp::from_seconds(126),
+                        amount: Uint128::new(100_u128),
+                        strategy_name: "sid2".to_string(),
+                        undelegation_batch_id: 6,
+                    },
+                ],
+                pending_rewards: Uint128::zero(),
+            },
+        );
+        UNDELEGATION_BATCH_MAP.save(
+            deps.as_mut().storage,
+            (U64Key::new(5), "sid1"),
+            &BatchUndelegationRecord {
+                amount: Uint128::new(400_u128),
+                unbonding_slashing_ratio: Decimal::from_ratio(3_u128, 4_u128),
+                create_time: Timestamp::from_seconds(150),
+                est_release_time: Timestamp::from_seconds(150 + 7200),
+                slashing_checked: true,
+            },
+        );
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info(user1.as_str(), &[]),
+            ExecuteMsg::WithdrawRewards {
+                undelegation_id: "123000000000".to_string(),
+                strategy_name: "sid1".to_string(),
+                amount: Uint128::new(100_u128),
+            },
+        )
+        .unwrap();
+
+        assert_eq!(res.messages.len(), 1);
+        assert!(check_equal_vec(
+            res.messages,
+            vec![SubMsg::new(BankMsg::Send {
+                to_address: String::from(user1.clone()),
+                amount: vec![Coin::new(75_u128, "uluna".to_string())]
+            })]
+        ));
+        let state_response: GetStateResponse =
+            from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::GetState {}).unwrap())
+                .unwrap();
+        assert_ne!(state_response.state, None);
+        let state = state_response.state.unwrap();
+        assert_eq!(state.current_rewards_in_scc, Uint128::new(325_u128));
+        let user1_reward_info_opt = USER_REWARD_INFO_MAP
+            .may_load(deps.as_mut().storage, &user1)
+            .unwrap();
+        assert_ne!(user1_reward_info_opt, None);
+        let user1_reward_info = user1_reward_info_opt.unwrap();
+        assert_eq!(user1_reward_info.undelegation_records.len(), 1);
+        assert!(check_equal_vec(
+            user1_reward_info.undelegation_records,
+            vec![UserUndelegationRecord {
+                id: Timestamp::from_seconds(126),
+                amount: Uint128::new(100_u128),
+                strategy_name: "sid2".to_string(),
+                undelegation_batch_id: 6,
+            }]
+        ));
     }
 
     #[test]
