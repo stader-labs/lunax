@@ -266,8 +266,7 @@ pub fn try_fetch_undelegated_rewards_from_strategies(
             undelegation_batch.slashing_checked = true;
 
             total_funds_transferred_to_scc = total_funds_transferred_to_scc
-                .checked_add(fulfillable_amount)
-                .unwrap_or(Uint128::zero());
+                .checked_add(fulfillable_amount).unwrap();
 
             messages.push(WasmMsg::Execute {
                 contract_addr: strategy_info.sic_contract_address.to_string(),
