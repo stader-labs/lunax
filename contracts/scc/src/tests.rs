@@ -17,9 +17,9 @@ mod tests {
     use crate::test_helpers::{check_equal_reward_info, check_equal_user_strategies};
     use crate::ContractError;
     use cosmwasm_std::{
-        coins, from_binary, to_binary, Addr, Attribute, BankMsg, Binary, Coin, Decimal, Empty, Env,
-        MessageInfo, OwnedDeps, QuerierWrapper, Response, StdResult, SubMsg, Timestamp, Uint128,
-        WasmMsg,
+        coins, from_binary, to_binary, Addr, Attribute, BankMsg, Binary, Coin, Decimal, DepsMut,
+        Empty, Env, MessageInfo, OwnedDeps, QuerierWrapper, Response, StdResult, SubMsg, Timestamp,
+        Uint128, WasmMsg,
     };
     use cw_storage_plus::U64Key;
     use sic_base::msg::{ExecuteMsg as sic_execute_msg, QueryMsg as sic_query_msg};
@@ -86,6 +86,72 @@ mod tests {
                 current_undelegated_strategies: vec![]
             }
         );
+    }
+
+    #[test]
+    fn test__try_update_cw20_contracts_registry_fail() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &[]);
+        let env = mock_env();
+
+        let res = instantiate_contract(
+            &mut deps,
+            &info,
+            &env,
+            Some(String::from("uluna")),
+            Some(String::from("pools_contract")),
+        );
+
+        /*
+           Test - 1. Unauthorized
+        */
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("not-creator", &[]),
+            ExecuteMsg::RegisterCw20Contracts {
+                denom: "anc".to_string(),
+                cw20_contract: Addr::unchecked("abc"),
+                airdrop_contract: Addr::unchecked("def"),
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::Unauthorized {}));
+    }
+
+    #[test]
+    fn test__try_update_cw20_contracts_registry_success() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &[]);
+        let env = mock_env();
+
+        let res = instantiate_contract(
+            &mut deps,
+            &info,
+            &env,
+            Some(String::from("uluna")),
+            Some(String::from("pools_contract")),
+        );
+
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::RegisterCw20Contracts {
+                denom: "anc".to_string(),
+                cw20_contract: Addr::unchecked("abc"),
+                airdrop_contract: Addr::unchecked("def"),
+            },
+        )
+        .unwrap();
+
+        let anc_contracts_opt = CW20_TOKEN_CONTRACTS_REGISTRY
+            .may_load(deps.as_mut().storage, "anc".to_string())
+            .unwrap();
+        assert_ne!(anc_contracts_opt, None);
+        let anc_contracts = anc_contracts_opt.unwrap();
+        assert_eq!(anc_contracts.cw20_token_contract, Addr::unchecked("abc"));
+        assert_eq!(anc_contracts.airdrop_contract, Addr::unchecked("def"));
     }
 
     #[test]
