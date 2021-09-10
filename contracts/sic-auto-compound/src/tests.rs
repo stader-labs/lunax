@@ -65,7 +65,7 @@ mod tests {
         info: &MessageInfo,
         env: &Env,
         validators: Option<Vec<Addr>>,
-        vault_denom: Option<String>,
+        strategy_denom: Option<String>,
     ) -> Response<Empty> {
         let default_validator1: Addr = Addr::unchecked("valid0001");
         let default_validator2: Addr = Addr::unchecked("valid0002");
@@ -73,7 +73,7 @@ mod tests {
 
         let instantiate_msg = InstantiateMsg {
             scc_address,
-            vault_denom: "uluna".to_string(),
+            strategy_denom: "uluna".to_string(),
             initial_validators: validators
                 .unwrap_or_else(|| vec![default_validator1, default_validator2]),
             manager_seed_funds: Uint128::new(1000_u128),
@@ -110,7 +110,7 @@ mod tests {
                 manager: info.sender,
                 scc_address,
                 manager_seed_funds: Uint128::new(1000_u128),
-                vault_denom: "uluna".to_string(),
+                strategy_denom: "uluna".to_string(),
                 contract_genesis_block_height: env.block.height,
                 contract_genesis_timestamp: env.block.time,
                 validator_pool: vec![default_validator1, default_validator2],
@@ -585,7 +585,7 @@ mod tests {
             &valid1,
             &StakeQuota {
                 amount: Coin::new(500_u128, "uluna"),
-                vault_stake_fraction: Decimal::from_ratio(1_u128, 2_u128),
+                stake_fraction: Decimal::from_ratio(1_u128, 2_u128),
             },
         );
 
@@ -594,7 +594,7 @@ mod tests {
             &valid2,
             &StakeQuota {
                 amount: Coin::new(500_u128, "uluna"),
-                vault_stake_fraction: Decimal::from_ratio(1_u128, 2_u128),
+                stake_fraction: Decimal::from_ratio(1_u128, 2_u128),
             },
         );
 
@@ -649,11 +649,11 @@ mod tests {
         assert_eq!(valid1_staked_quota.amount, Coin::new(250_u128, "uluna"));
         assert_eq!(valid2_staked_quota.amount, Coin::new(250_u128, "uluna"));
         assert_eq!(
-            valid1_staked_quota.vault_stake_fraction,
+            valid1_staked_quota.stake_fraction,
             Decimal::from_ratio(1_u128, 2_u128)
         );
         assert_eq!(
-            valid2_staked_quota.vault_stake_fraction,
+            valid2_staked_quota.stake_fraction,
             Decimal::from_ratio(1_u128, 2_u128)
         );
     }
@@ -817,13 +817,13 @@ mod tests {
         let valid1_staked_quota = valid1_staked_quota_option.unwrap();
         assert_eq!(valid1_staked_quota.amount, Coin::new(500_u128, "uluna"));
         assert_eq!(
-            valid1_staked_quota.vault_stake_fraction,
+            valid1_staked_quota.stake_fraction,
             Decimal::from_ratio(1_u128, 2_u128)
         );
         let valid2_staked_quota = valid2_staked_quota_option.unwrap();
         assert_eq!(valid2_staked_quota.amount, Coin::new(500_u128, "uluna"));
         assert_eq!(
-            valid2_staked_quota.vault_stake_fraction,
+            valid2_staked_quota.stake_fraction,
             Decimal::from_ratio(1_u128, 2_u128)
         );
 
@@ -844,7 +844,7 @@ mod tests {
             &valid1,
             &StakeQuota {
                 amount: Coin::new(2000_u128, "uluna"),
-                vault_stake_fraction: Decimal::from_ratio(1_u128, 2_u128),
+                stake_fraction: Decimal::from_ratio(1_u128, 2_u128),
             },
         );
         VALIDATORS_TO_STAKED_QUOTA.save(
@@ -852,7 +852,7 @@ mod tests {
             &valid1,
             &StakeQuota {
                 amount: Coin::new(2000_u128, "uluna"),
-                vault_stake_fraction: Decimal::from_ratio(1_u128, 2_u128),
+                stake_fraction: Decimal::from_ratio(1_u128, 2_u128),
             },
         );
 
@@ -909,13 +909,13 @@ mod tests {
         let valid1_staked_quota = valid1_staked_quota_option.unwrap();
         assert_eq!(valid1_staked_quota.amount, Coin::new(2500_u128, "uluna"));
         assert_eq!(
-            valid1_staked_quota.vault_stake_fraction,
+            valid1_staked_quota.stake_fraction,
             Decimal::from_ratio(1_u128, 2_u128)
         );
         let valid2_staked_quota = valid2_staked_quota_option.unwrap();
         assert_eq!(valid2_staked_quota.amount, Coin::new(2500_u128, "uluna"));
         assert_eq!(
-            valid2_staked_quota.vault_stake_fraction,
+            valid2_staked_quota.stake_fraction,
             Decimal::from_ratio(1_u128, 2_u128)
         );
 
@@ -935,7 +935,7 @@ mod tests {
             &valid1,
             &StakeQuota {
                 amount: Coin::new(2500_u128, "uluna"),
-                vault_stake_fraction: Decimal::from_ratio(1_u128, 2_u128),
+                stake_fraction: Decimal::from_ratio(1_u128, 2_u128),
             },
         );
         VALIDATORS_TO_STAKED_QUOTA.save(
@@ -943,7 +943,7 @@ mod tests {
             &valid1,
             &StakeQuota {
                 amount: Coin::new(2500_u128, "uluna"),
-                vault_stake_fraction: Decimal::from_ratio(1_u128, 2_u128),
+                stake_fraction: Decimal::from_ratio(1_u128, 2_u128),
             },
         );
         let mut res = execute(
@@ -999,13 +999,13 @@ mod tests {
         let valid1_staked_quota = valid1_staked_quota_option.unwrap();
         assert_eq!(valid1_staked_quota.amount, Coin::new(2500_u128, "uluna"));
         assert_eq!(
-            valid1_staked_quota.vault_stake_fraction,
+            valid1_staked_quota.stake_fraction,
             Decimal::from_ratio(1_u128, 2_u128)
         );
         let valid2_staked_quota = valid2_staked_quota_option.unwrap();
         assert_eq!(valid2_staked_quota.amount, Coin::new(2500_u128, "uluna"));
         assert_eq!(
-            valid2_staked_quota.vault_stake_fraction,
+            valid2_staked_quota.stake_fraction,
             Decimal::from_ratio(1_u128, 2_u128)
         );
     }
