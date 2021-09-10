@@ -297,7 +297,7 @@ pub fn try_withdraw_airdrops(
     // iterate thru all airdrops and transfer ownership to them to the user
     user_reward_info
         .pending_airdrops
-        .iter()
+        .iter_mut()
         .for_each(|user_airdrop| {
             let airdrop_denom = user_airdrop.denom.clone();
             let airdrop_amount = user_airdrop.amount;
@@ -320,16 +320,11 @@ pub fn try_withdraw_airdrops(
                 funds: vec![],
             });
 
+            // the airdrop is completely transferred back to the user
+            user_airdrop.amount = Uint128::zero();
+
             transfered_airdrops.push(Coin::new(airdrop_amount.u128(), airdrop_denom));
         });
-
-    user_reward_info.pending_airdrops = merge_coin_vector(
-        user_reward_info.pending_airdrops,
-        CoinVecOp {
-            fund: transfered_airdrops.clone(),
-            operation: Operation::Sub,
-        },
-    );
 
     STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
         state.total_accumulated_airdrops = merge_coin_vector(
