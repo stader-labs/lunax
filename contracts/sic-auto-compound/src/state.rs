@@ -16,6 +16,7 @@ pub struct StakeQuota {
 pub struct State {
     pub manager: Addr,
     pub scc_address: Addr,
+    pub manager_seed_funds: Uint128,
 
     // TODO: bchain99 - change this to strategy_denom
     pub vault_denom: String,

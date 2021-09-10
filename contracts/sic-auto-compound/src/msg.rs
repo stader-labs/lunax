@@ -10,6 +10,8 @@ pub struct InstantiateMsg {
     pub vault_denom: String,
     // initial set of validators who make up the validator pool
     pub initial_validators: Vec<Addr>,
+    // amount of funds sic-manager has seeded the sic with
+    pub manager_seed_funds: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

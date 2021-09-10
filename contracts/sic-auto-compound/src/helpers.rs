@@ -22,9 +22,12 @@ pub fn get_unaccounted_funds(
         .cloned()
         .unwrap_or_else(|| Coin::new(0, vault_denom))
         .amount;
+    let manager_seed_funds = state.manager_seed_funds;
 
     total_base_funds_in_strategy
         .checked_sub(current_uninvested_rewards)
+        .unwrap()
+        .checked_sub(manager_seed_funds)
         .unwrap()
         .checked_sub(base_funds_from_rewards)
         .unwrap()

@@ -28,6 +28,7 @@ pub fn instantiate(
     let state = State {
         manager: info.sender.clone(),
         scc_address: msg.scc_address,
+        manager_seed_funds: msg.manager_seed_funds,
         vault_denom: msg.vault_denom.clone(),
         contract_genesis_block_height: _env.block.height,
         contract_genesis_timestamp: _env.block.time,
@@ -264,6 +265,10 @@ pub fn try_undelegate_rewards(
 
     if amount.is_zero() {
         return Ok(Response::new().add_attribute("undelegated_zero_funds", "1"));
+    }
+
+    if amount.gt(&state.total_staked_tokens) {
+        return Ok(Response::new().add_attribute("amount_greater_than_total_tokens", "1"));
     }
 
     let new_total_staked_tokens = state.total_staked_tokens.checked_sub(amount).unwrap();

@@ -76,6 +76,7 @@ mod tests {
             vault_denom: "uluna".to_string(),
             initial_validators: validators
                 .unwrap_or_else(|| vec![default_validator1, default_validator2]),
+            manager_seed_funds: Uint128::new(1000_u128),
         };
 
         return instantiate(deps.as_mut(), env.clone(), info.clone(), instantiate_msg).unwrap();
@@ -108,6 +109,7 @@ mod tests {
             State {
                 manager: info.sender,
                 scc_address,
+                manager_seed_funds: Uint128::new(1000_u128),
                 vault_denom: "uluna".to_string(),
                 contract_genesis_block_height: env.block.height,
                 contract_genesis_timestamp: env.block.time,
@@ -191,10 +193,18 @@ mod tests {
         /*
            Test - 1. amount is equal to the unaccounted funds
         */
+        STATE.update(
+            deps.as_mut().storage,
+            |mut state| -> Result<_, ContractError> {
+                state.manager_seed_funds = Uint128::new(1000_u128);
+                Ok(state)
+            },
+        );
+
         deps.querier.update_balance(
             env.contract.address.clone(),
             vec![
-                Coin::new(1800_u128, "uluna".to_string()),
+                Coin::new(2800_u128, "uluna".to_string()),
                 Coin::new(200_u128, "uusd".to_string()),
             ],
         );
@@ -237,7 +247,7 @@ mod tests {
         deps.querier.update_balance(
             env.contract.address.clone(),
             vec![
-                Coin::new(1500_u128, "uluna".to_string()),
+                Coin::new(2500_u128, "uluna".to_string()),
                 Coin::new(200_u128, "uusd".to_string()),
             ],
         );
@@ -280,7 +290,7 @@ mod tests {
         deps.querier.update_balance(
             env.contract.address.clone(),
             vec![
-                Coin::new(1500_u128, "uluna".to_string()),
+                Coin::new(2500_u128, "uluna".to_string()),
                 Coin::new(200_u128, "uusd".to_string()),
             ],
         );
@@ -510,6 +520,36 @@ mod tests {
             res.attributes,
             vec![Attribute {
                 key: "undelegated_zero_funds".to_string(),
+                value: "1".to_string()
+            }]
+        ));
+
+        /*
+           requested amount is greater than total_staked_tokens
+        */
+        STATE.update(
+            deps.as_mut().storage,
+            |mut state| -> Result<_, ContractError> {
+                state.total_staked_tokens = Uint128::new(1000_u128);
+                Ok(state)
+            },
+        );
+
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info(&*get_scc_contract_address(), &[]),
+            ExecuteMsg::UndelegateRewards {
+                amount: Uint128::new(2000_u128),
+            },
+        )
+        .unwrap();
+        assert_eq!(res.messages.len(), 0);
+        assert_eq!(res.attributes.len(), 1);
+        assert!(check_equal_vec(
+            res.attributes,
+            vec![Attribute {
+                key: "amount_greater_than_total_tokens".to_string(),
                 value: "1".to_string()
             }]
         ));
