@@ -4,9 +4,6 @@ use serde::{Deserialize, Serialize};
 use cosmwasm_std::{Addr, Coin, Decimal, Timestamp, Uint128};
 use cw_storage_plus::{Item, Map};
 use stader_utils::coin_utils::DecCoin;
-use std::collections::HashMap;
-use std::fmt;
-use std::fmt::Display;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct State {
@@ -33,9 +30,8 @@ pub struct StrategyInfo {
     pub total_shares: Decimal,
     pub global_airdrop_pointer: Vec<DecCoin>,
     pub total_airdrops_accumulated: Vec<Coin>,
-    // TODO: bchain99 - i want this for strategy APR calc but cross check if we actually need this.
+    // TODO: bchain99 - i want this for strategy APR calc but cross check if we actually need this:
     pub shares_per_token_ratio: Decimal,
-    pub current_unprocessed_undelegations: Uint128,
 }
 
 impl StrategyInfo {
@@ -52,8 +48,7 @@ impl StrategyInfo {
             total_shares: Decimal::zero(),
             global_airdrop_pointer: vec![],
             total_airdrops_accumulated: vec![],
-            shares_per_token_ratio: Decimal::from_ratio(100_000_000_u128, 1_u128),
-            current_unprocessed_undelegations: Uint128::zero(),
+            shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
         }
     }
 
@@ -67,7 +62,6 @@ impl StrategyInfo {
             global_airdrop_pointer: vec![],
             total_airdrops_accumulated: vec![],
             shares_per_token_ratio: Default::default(),
-            current_unprocessed_undelegations: Default::default(),
         }
     }
 }
@@ -100,23 +94,46 @@ impl UserStrategyInfo {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct UserRewardInfo {
+    pub user_portfolio: Vec<UserStrategyPortfolio>,
     pub strategies: Vec<UserStrategyInfo>,
     // pending_airdrops is the airdrops accumulated from the validator_contract and all the strategy contracts
     pub pending_airdrops: Vec<Coin>,
+    // rewards which are not put into any strategy. they are just sitting in the SCC.
+    // this is the "retain rewards" strategy
+    pub pending_rewards: Uint128,
 }
 
 impl UserRewardInfo {
     pub fn default() -> Self {
         UserRewardInfo {
+            user_portfolio: vec![],
             strategies: vec![],
             pending_airdrops: vec![],
+            pending_rewards: Default::default(),
         }
     }
 
     pub fn new() -> Self {
         UserRewardInfo {
+            user_portfolio: vec![],
             strategies: vec![],
             pending_airdrops: vec![],
+            pending_rewards: Default::default(),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct UserStrategyPortfolio {
+    pub strategy_name: String,
+    pub deposit_fraction: Decimal,
+}
+
+impl UserStrategyPortfolio {
+    pub fn new(strategy_name: String, deposit_fraction: Decimal) -> Self {
+        UserStrategyPortfolio {
+            strategy_name,
+            deposit_fraction,
         }
     }
 }

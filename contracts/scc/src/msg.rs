@@ -1,5 +1,5 @@
 use crate::state::{State, StrategyInfo, UserRewardInfo};
-use cosmwasm_std::{Addr, Binary, Coin, Timestamp, Uint128};
+use cosmwasm_std::{Addr, Binary, Coin, Decimal, Timestamp, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -12,10 +12,12 @@ pub struct InstantiateMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct UpdateUserRewardsRequest {
     pub user: Addr,
-    // rewards will be in native chain token
-    pub rewards: Uint128,
+    // funds will be in native chain token
+    pub funds: Uint128,
     // one of the registered strategies
-    pub strategy_id: String,
+    // if the strategy is provided then that means the user is depositing only to that strategy
+    // if no strategy is provided then we iterate over the user portfolio
+    pub strategy_name: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -28,18 +30,24 @@ pub struct UpdateUserAirdropsRequest {
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
     RegisterStrategy {
-        strategy_id: String,
+        strategy_name: String,
         sic_contract_address: Addr,
         unbonding_period: Option<u64>,
     },
+    // TODO: bchain99 - Add an UpdateStrategy message rather than having different messages to activate/deactivate. Pick this up once SCC is merged
+    // as other PRs will introduce new strategy params
     ActivateStrategy {
-        strategy_id: String,
+        strategy_name: String,
     },
     DeactivateStrategy {
-        strategy_id: String,
+        strategy_name: String,
     },
     RemoveStrategy {
-        strategy_id: String,
+        strategy_name: String,
+    },
+    UpdateUserPortfolio {
+        strategy_name: String,
+        deposit_fraction: Decimal,
     },
     RegisterCw20Contracts {
         denom: String,
@@ -61,19 +69,21 @@ pub enum ExecuteMsg {
     // called by user to undelegate his rewards from a strategy
     UndelegateRewards {
         amount: Uint128,
-        strategy_id: String,
+        strategy_name: String,
     },
     // called by scc manager to periodically claim airdrops for a particular strategy if it supported
     ClaimAirdrops {
-        strategy_id: String,
         amount: Uint128,
         denom: String,
         claim_msg: Binary,
+        strategy_name: String,
     },
     WithdrawRewards {
         undelegation_timestamp: Timestamp,
-        strategy_id: String,
+        strategy_name: String,
     },
+    // called by the user to withdraw pending rewards i.e rewards which are not in any strategy
+    WithdrawPendingRewards {},
     WithdrawAirdrops {},
 }
 
