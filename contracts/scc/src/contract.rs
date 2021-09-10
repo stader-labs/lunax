@@ -140,7 +140,7 @@ pub fn try_update_cw20_contracts_registry(
             airdrop_contract,
             cw20_token_contract,
         },
-    );
+    )?;
 
     Ok(Response::default())
 }
@@ -171,7 +171,7 @@ pub fn try_withdraw_pending_rewards(
 
     user_reward_info.pending_rewards = Uint128::zero();
 
-    USER_REWARD_INFO_MAP.save(deps.storage, &user_addr, &user_reward_info);
+    USER_REWARD_INFO_MAP.save(deps.storage, &user_addr, &user_reward_info)?;
 
     Ok(Response::new().add_message(send_funds_msg(
         &user_addr,
@@ -203,7 +203,7 @@ pub fn try_claim_airdrops(
         return Err(ContractError::Unauthorized {});
     }
 
-    let mut cw20_token_contracts: Cw20TokenContractsInfo;
+    let cw20_token_contracts: Cw20TokenContractsInfo;
     if let Some(cw20_token_contracts_mapping) = CW20_TOKEN_CONTRACTS_REGISTRY
         .may_load(deps.storage, denom.clone())
         .unwrap()
@@ -293,7 +293,6 @@ pub fn try_withdraw_airdrops(
     allocate_user_airdrops_across_strategies(deps.storage, &mut user_reward_info);
 
     let mut messages: Vec<WasmMsg> = vec![];
-    let mut failed_airdrops: Vec<String> = vec![];
     let total_airdrops = user_reward_info.pending_airdrops;
     // iterate thru all airdrops and transfer ownership to them to the user
     for user_airdrop in total_airdrops.iter() {
@@ -330,9 +329,7 @@ pub fn try_withdraw_airdrops(
 
     USER_REWARD_INFO_MAP.save(deps.storage, &user_addr, &user_reward_info)?;
 
-    Ok(Response::new()
-        .add_attribute("airdrops_failed_to_transfer", failed_airdrops.join(","))
-        .add_messages(messages))
+    Ok(Response::new().add_messages(messages))
 }
 
 pub fn try_withdraw_rewards(

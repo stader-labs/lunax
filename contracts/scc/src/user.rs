@@ -32,11 +32,11 @@ pub fn allocate_user_airdrops_across_strategies(
             user_shares,
         );
 
-        if user_airdrops_for_strategy.is_some() {
+        if let Some(user_airdrops) = user_airdrops_for_strategy {
             total_allocated_airdrops = merge_coin_vector(
                 total_allocated_airdrops,
                 CoinVecOp {
-                    fund: user_airdrops_for_strategy.unwrap(),
+                    fund: user_airdrops,
                     operation: Operation::Add,
                 },
             );
