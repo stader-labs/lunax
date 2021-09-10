@@ -39,6 +39,7 @@ pub fn get_vault_apr(
 }
 
 pub fn get_sic_total_tokens(querier: QuerierWrapper, sic_address: &Addr) -> GetTotalTokensResponse {
+    // TODO: bchain99 - we should handle this gracefully. cannot assume anything about external SICs
     querier
         .query_wasm_smart(sic_address, &sic_msg::GetTotalTokens {})
         .unwrap()
@@ -90,12 +91,39 @@ pub fn get_user_staked_amount(shares_per_token_ratio: Decimal, total_shares: Dec
     ))
 }
 
+pub fn get_strategy_split(
+    user_reward_info: &UserRewardInfo,
+    amount: Uint128,
+) -> (Vec<(String, Uint128)>, Uint128) {
+    let user_portfolio = &user_reward_info.user_portfolio;
+
+    let mut strategy_split: Vec<(String, Uint128)> = vec![];
+    let mut surplus = amount;
+    for u in user_portfolio {
+        let strategy_name = u.strategy_name.clone();
+        let deposit_fraction = u.deposit_fraction;
+
+        let deposit_amount = uint128_from_decimal(decimal_multiplication_in_256(
+            deposit_fraction,
+            get_decimal_from_uint128(amount),
+        ));
+
+        strategy_split.push((strategy_name, deposit_amount));
+
+        surplus = surplus.checked_sub(deposit_amount).unwrap();
+    }
+
+    (strategy_split, surplus)
+}
+
 #[cfg(test)]
 mod tests {
     use crate::contract::instantiate;
-    use crate::helpers::get_vault_apr;
+    use crate::helpers::{get_strategy_split, get_vault_apr};
     use crate::msg::InstantiateMsg;
-    use crate::state::{UserRewardInfo, UserStrategyInfo, STATE, USER_REWARD_INFO_MAP};
+    use crate::state::{
+        UserRewardInfo, UserStrategyInfo, UserStrategyPortfolio, STATE, USER_REWARD_INFO_MAP,
+    };
     use cosmwasm_std::testing::{
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
         MOCK_CONTRACT_ADDR,
@@ -105,6 +133,7 @@ mod tests {
         Uint128,
     };
     use stader_utils::coin_utils::decimal_division_in_256;
+    use stader_utils::test_helpers::check_equal_vec;
     use std::ops::Div;
 
     pub fn instantiate_contract(
@@ -119,6 +148,100 @@ mod tests {
         };
 
         return instantiate(deps.as_mut(), env.clone(), info.clone(), instantiate_msg).unwrap();
+    }
+
+    #[test]
+    fn test__get_strategy_split() {
+        /*
+           Test - 1. 100% split in the portfolio. No surplus
+        */
+        let user_reward_info = UserRewardInfo {
+            user_portfolio: vec![
+                UserStrategyPortfolio {
+                    strategy_name: "sid1".to_string(),
+                    deposit_fraction: Decimal::from_ratio(1_u128, 4_u128),
+                },
+                UserStrategyPortfolio {
+                    strategy_name: "sid2".to_string(),
+                    deposit_fraction: Decimal::from_ratio(1_u128, 2_u128),
+                },
+                UserStrategyPortfolio {
+                    strategy_name: "sid3".to_string(),
+                    deposit_fraction: Decimal::from_ratio(1_u128, 4_u128),
+                },
+            ],
+            strategies: vec![],
+            pending_airdrops: vec![],
+            undelegation_records: vec![],
+            pending_rewards: Uint128::zero(),
+        };
+        let amount = Uint128::new(100_u128);
+
+        let res = get_strategy_split(&user_reward_info, amount);
+        let strategy_split = res.0;
+        let surplus = res.1;
+        assert_eq!(surplus, Uint128::zero());
+        assert!(check_equal_vec(
+            strategy_split,
+            vec![
+                ("sid1".to_string(), Uint128::new(25_u128)),
+                ("sid2".to_string(), Uint128::new(50_u128)),
+                ("sid3".to_string(), Uint128::new(25_u128))
+            ]
+        ));
+
+        /*
+           Test - 2. There is some surplus
+        */
+
+        let user_reward_info = UserRewardInfo {
+            user_portfolio: vec![
+                UserStrategyPortfolio {
+                    strategy_name: "sid1".to_string(),
+                    deposit_fraction: Decimal::from_ratio(1_u128, 4_u128),
+                },
+                UserStrategyPortfolio {
+                    strategy_name: "sid3".to_string(),
+                    deposit_fraction: Decimal::from_ratio(1_u128, 4_u128),
+                },
+            ],
+            strategies: vec![],
+            pending_airdrops: vec![],
+            undelegation_records: vec![],
+            pending_rewards: Uint128::zero(),
+        };
+        let amount = Uint128::new(100_u128);
+
+        let res = get_strategy_split(&user_reward_info, amount);
+        let strategy_split = res.0;
+        let surplus = res.1;
+        assert_eq!(surplus, Uint128::new(50_u128));
+        assert!(check_equal_vec(
+            strategy_split,
+            vec![
+                ("sid1".to_string(), Uint128::new(25_u128)),
+                ("sid3".to_string(), Uint128::new(25_u128))
+            ]
+        ));
+
+        /*
+           Test - 3. There is no portfolio
+        */
+
+        let user_reward_info = UserRewardInfo {
+            user_portfolio: vec![],
+            strategies: vec![],
+            pending_airdrops: vec![],
+            undelegation_records: vec![],
+            pending_rewards: Uint128::zero(),
+        };
+        let amount = Uint128::new(100_u128);
+
+        let res = get_strategy_split(&user_reward_info, amount);
+        let strategy_split = res.0;
+        let surplus = res.1;
+        assert_eq!(surplus, Uint128::new(100_u128));
+        assert!(check_equal_vec(strategy_split, vec![]));
     }
 
     #[test]

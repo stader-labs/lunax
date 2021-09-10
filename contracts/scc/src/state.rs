@@ -4,9 +4,6 @@ use serde::{Deserialize, Serialize};
 use cosmwasm_std::{Addr, Coin, Decimal, Timestamp, Uint128};
 use cw_storage_plus::{Item, Map, U64Key};
 use stader_utils::coin_utils::DecCoin;
-use std::collections::HashMap;
-use std::fmt;
-use std::fmt::Display;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct State {
@@ -39,7 +36,6 @@ pub struct StrategyInfo {
     pub total_shares: Decimal,
     pub global_airdrop_pointer: Vec<DecCoin>,
     pub total_airdrops_accumulated: Vec<Coin>,
-    // TODO: bchain99 - i want this for strategy APR calc but cross check if we actually need this.
     // TODO: bchain99 - remove this. not needed. We are computing the S/T ratio on demand when needed for a strategy
     pub shares_per_token_ratio: Decimal,
 }
@@ -111,26 +107,34 @@ impl UserStrategyInfo {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct UserRewardInfo {
+    pub user_portfolio: Vec<UserStrategyPortfolio>,
     pub strategies: Vec<UserStrategyInfo>,
     // pending_airdrops is the airdrops accumulated from the validator_contract and all the strategy contracts
     pub pending_airdrops: Vec<Coin>,
     pub undelegation_records: Vec<UserUndelegationRecord>,
+    // rewards which are not put into any strategy. they are just sitting in the SCC.
+    // this is the "retain rewards" strategy
+    pub pending_rewards: Uint128,
 }
 
 impl UserRewardInfo {
     pub fn default() -> Self {
         UserRewardInfo {
+            user_portfolio: vec![],
             strategies: vec![],
             pending_airdrops: vec![],
             undelegation_records: vec![],
+            pending_rewards: Default::default(),
         }
     }
 
     pub fn new() -> Self {
         UserRewardInfo {
+            user_portfolio: vec![],
             strategies: vec![],
             pending_airdrops: vec![],
             undelegation_records: vec![],
+            pending_rewards: Default::default(),
         }
     }
 }
@@ -144,23 +148,16 @@ pub struct UserUndelegationRecord {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct UserUnprocessedUndelegationInfo {
-    pub undelegation_amount: Uint128,
+pub struct UserStrategyPortfolio {
     pub strategy_name: String,
+    pub deposit_fraction: Decimal,
 }
 
-impl UserUnprocessedUndelegationInfo {
-    pub fn default() -> Self {
-        UserUnprocessedUndelegationInfo {
-            undelegation_amount: Uint128::zero(),
-            strategy_name: "".to_string(),
-        }
-    }
-
-    pub fn new(strategy_name: String) -> Self {
-        UserUnprocessedUndelegationInfo {
-            undelegation_amount: Uint128::zero(),
+impl UserStrategyPortfolio {
+    pub fn new(strategy_name: String, deposit_fraction: Decimal) -> Self {
+        UserStrategyPortfolio {
             strategy_name,
+            deposit_fraction,
         }
     }
 }
