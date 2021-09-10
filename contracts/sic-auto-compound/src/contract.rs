@@ -325,7 +325,13 @@ pub fn try_undelegate_rewards(
         )?;
     }
 
-    Ok(Response::new().add_messages(messages))
+    Ok(Response::new()
+        .add_message(WasmMsg::Execute {
+            contract_addr: _env.contract.address.to_string(),
+            msg: to_binary(&ExecuteMsg::RedeemRewards {}).unwrap(),
+            funds: vec![],
+        })
+        .add_messages(messages))
 }
 
 pub fn try_transfer_undelegated_rewards(
@@ -468,7 +474,18 @@ pub fn try_reinvest(
         Ok(state)
     })?;
 
-    Ok(Response::new().add_messages(messages))
+    Ok(Response::new()
+        .add_message(WasmMsg::Execute {
+            contract_addr: _env.contract.address.to_string(),
+            msg: to_binary(&ExecuteMsg::RedeemRewards {}).unwrap(),
+            funds: vec![],
+        })
+        .add_message(WasmMsg::Execute {
+            contract_addr: _env.contract.address.to_string(),
+            msg: to_binary(&ExecuteMsg::Swap {}).unwrap(),
+            funds: vec![],
+        })
+        .add_messages(messages))
 }
 
 pub fn try_redeem_rewards(

@@ -617,10 +617,15 @@ mod tests {
         assert_ne!(state_response.state, None);
         let state = state_response.state.unwrap();
         assert_eq!(state.total_staked_tokens, Uint128::new(500_u128));
-        assert_eq!(res.messages.len(), 2);
+        assert_eq!(res.messages.len(), 3);
         assert!(check_equal_vec(
             res.messages,
             vec![
+                SubMsg::new(WasmMsg::Execute {
+                    contract_addr: env.contract.address.to_string(),
+                    msg: to_binary(&ExecuteMsg::RedeemRewards {}).unwrap(),
+                    funds: vec![]
+                }),
                 SubMsg::new(StakingMsg::Undelegate {
                     validator: valid1.to_string(),
                     amount: Coin::new(250_u128, "uluna")
@@ -777,10 +782,20 @@ mod tests {
             state.uninvested_rewards,
             Coin::new(0_u128, "uluna".to_string())
         );
-        assert_eq!(res.messages.len(), 2);
+        assert_eq!(res.messages.len(), 4);
         assert!(check_equal_vec(
             res.messages,
             vec![
+                SubMsg::new(WasmMsg::Execute {
+                    contract_addr: env.contract.address.to_string(),
+                    msg: to_binary(&ExecuteMsg::RedeemRewards {}).unwrap(),
+                    funds: vec![]
+                }),
+                SubMsg::new(WasmMsg::Execute {
+                    contract_addr: env.contract.address.to_string(),
+                    msg: to_binary(&ExecuteMsg::Swap {}).unwrap(),
+                    funds: vec![]
+                }),
                 SubMsg::new(StakingMsg::Delegate {
                     validator: valid1.to_string(),
                     amount: Coin::new(500_u128, "uluna")
@@ -859,10 +874,20 @@ mod tests {
             state.uninvested_rewards,
             Coin::new(0_u128, "uluna".to_string())
         );
-        assert_eq!(res.messages.len(), 2);
+        assert_eq!(res.messages.len(), 4);
         assert!(check_equal_vec(
             res.messages,
             vec![
+                SubMsg::new(WasmMsg::Execute {
+                    contract_addr: env.contract.address.to_string(),
+                    msg: to_binary(&ExecuteMsg::RedeemRewards {}).unwrap(),
+                    funds: vec![]
+                }),
+                SubMsg::new(WasmMsg::Execute {
+                    contract_addr: env.contract.address.to_string(),
+                    msg: to_binary(&ExecuteMsg::Swap {}).unwrap(),
+                    funds: vec![]
+                }),
                 SubMsg::new(StakingMsg::Delegate {
                     validator: valid1.to_string(),
                     amount: Coin::new(500_u128, "uluna")
@@ -939,10 +964,20 @@ mod tests {
             state.uninvested_rewards,
             Coin::new(0_u128, "uluna".to_string())
         );
-        assert_eq!(res.messages.len(), 2);
+        assert_eq!(res.messages.len(), 4);
         assert!(check_equal_vec(
             res.messages,
             vec![
+                SubMsg::new(WasmMsg::Execute {
+                    contract_addr: env.contract.address.to_string(),
+                    msg: to_binary(&ExecuteMsg::RedeemRewards {}).unwrap(),
+                    funds: vec![]
+                }),
+                SubMsg::new(WasmMsg::Execute {
+                    contract_addr: env.contract.address.to_string(),
+                    msg: to_binary(&ExecuteMsg::Swap {}).unwrap(),
+                    funds: vec![]
+                }),
                 SubMsg::new(StakingMsg::Delegate {
                     validator: valid1.to_string(),
                     amount: Coin::new(500_u128, "uluna")
