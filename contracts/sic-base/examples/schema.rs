@@ -3,7 +3,10 @@ use std::fs::create_dir_all;
 
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 
-use sic_base::msg::{CountResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
+use sic_base::msg::{
+    ExecuteMsg, GetFulfillableUndelegatedFundsResponse, GetStateResponse, GetTotalTokensResponse,
+    InstantiateMsg, QueryMsg,
+};
 use sic_base::state::State;
 
 fn main() {
@@ -16,5 +19,10 @@ fn main() {
     export_schema(&schema_for!(ExecuteMsg), &out_dir);
     export_schema(&schema_for!(QueryMsg), &out_dir);
     export_schema(&schema_for!(State), &out_dir);
-    export_schema(&schema_for!(CountResponse), &out_dir);
+    export_schema(&schema_for!(GetTotalTokensResponse), &out_dir);
+    export_schema(&schema_for!(GetStateResponse), &out_dir);
+    export_schema(
+        &schema_for!(GetFulfillableUndelegatedFundsResponse),
+        &out_dir,
+    );
 }

@@ -9,16 +9,16 @@ use cw_storage_plus::{Item, Map};
 pub struct StakeQuota {
     pub amount: Coin,
     // Ratio of coin staked with this validator to the total coin staked through vault.
-    pub vault_stake_fraction: Decimal,
+    pub stake_fraction: Decimal,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct State {
     pub manager: Addr,
     pub scc_address: Addr,
+    pub manager_seed_funds: Uint128,
 
-    // TODO: bchain99 - change this to strategy_denom
-    pub vault_denom: String,
+    pub strategy_denom: String,
 
     pub contract_genesis_block_height: u64,
     pub contract_genesis_timestamp: Timestamp,
