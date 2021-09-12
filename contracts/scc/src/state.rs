@@ -22,6 +22,7 @@ pub struct State {
     // total historical rewards accumulated in the SCC
     pub total_accumulated_rewards: Uint128,
     // current rewards sitting in the SCC
+    // TODO: bchain99 - we may not need this
     pub current_rewards_in_scc: Uint128,
     pub total_accumulated_airdrops: Vec<Coin>,
 }
