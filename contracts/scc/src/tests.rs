@@ -4,8 +4,8 @@ mod tests {
     use crate::contract::{execute, instantiate, query};
     use crate::helpers::get_sic_total_tokens;
     use crate::msg::{
-        ExecuteMsg, GetConfigResponse, GetStateResponse, InstantiateMsg, QueryMsg,
-        UpdateUserAirdropsRequest, UpdateUserRewardsRequest,
+        ExecuteMsg, GetConfigResponse, GetStateResponse, GetStrategiesListResponse, InstantiateMsg,
+        QueryMsg, UpdateUserAirdropsRequest, UpdateUserRewardsRequest,
     };
     use crate::state::{
         Config, State, StrategyInfo, UserRewardInfo, UserStrategyInfo, UserStrategyPortfolio,
@@ -92,6 +92,79 @@ mod tests {
                 default_user_portfolio: vec![]
             }
         )
+    }
+
+    #[test]
+    fn test__query_strategies_list() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &coins(1000, "earth"));
+        let env = mock_env();
+
+        let res = instantiate_contract(
+            &mut deps,
+            &info,
+            &env,
+            Some(String::from("uluna")),
+            Some(String::from("pools_contract")),
+            None,
+        );
+
+        /*
+            Test - 1. No strategies
+        */
+        let strategies_list_response: GetStrategiesListResponse = from_binary(
+            &query(deps.as_ref(), env.clone(), QueryMsg::GetStrategiesList {}).unwrap(),
+        )
+        .unwrap();
+        assert_ne!(strategies_list_response.strategies_list, None);
+        let strategies_list = strategies_list_response.strategies_list.unwrap();
+        assert_eq!(strategies_list.len(), 0);
+
+        /*
+           Test - 2. 5 strategies
+        */
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            "sid1",
+            &StrategyInfo::default("sid1".to_string()),
+        );
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            "sid2",
+            &StrategyInfo::default("sid2".to_string()),
+        );
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            "sid3",
+            &StrategyInfo::default("sid3".to_string()),
+        );
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            "sid4",
+            &StrategyInfo::default("sid4".to_string()),
+        );
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            "sid5",
+            &StrategyInfo::default("sid5".to_string()),
+        );
+
+        let strategies_list_response: GetStrategiesListResponse = from_binary(
+            &query(deps.as_ref(), env.clone(), QueryMsg::GetStrategiesList {}).unwrap(),
+        )
+        .unwrap();
+        assert_ne!(strategies_list_response.strategies_list, None);
+        let strategies_list = strategies_list_response.strategies_list.unwrap();
+        assert_eq!(
+            strategies_list,
+            vec![
+                "sid1".to_string(),
+                "sid2".to_string(),
+                "sid3".to_string(),
+                "sid4".to_string(),
+                "sid5".to_string()
+            ]
+        );
     }
 
     #[test]

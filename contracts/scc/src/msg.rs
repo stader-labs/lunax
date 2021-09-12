@@ -87,6 +87,7 @@ pub enum ExecuteMsg {
 pub enum QueryMsg {
     GetState {},
     GetConfig {},
+    GetStrategiesList {},
     GetStrategyInfo { strategy_name: String },
     GetUserRewardInfo { user: Addr },
 }
@@ -109,4 +110,9 @@ pub struct GetStrategyInfoResponse {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct GetUserRewardInfo {
     pub user_reward_info: Option<UserRewardInfo>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct GetStrategiesListResponse {
+    pub strategies_list: Option<Vec<String>>,
 }

@@ -1,15 +1,16 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, Addr, Binary, Coin, Decimal, Deps, DepsMut, Env, MessageInfo, Response, StdResult,
-    Timestamp, Uint128, WasmMsg,
+    to_binary, Addr, Binary, Coin, Decimal, Deps, DepsMut, Env, MessageInfo, Order, Response,
+    StdResult, Timestamp, Uint128, WasmMsg,
 };
 
 use crate::error::ContractError;
 use crate::helpers::{get_strategy_shares_per_token_ratio, get_strategy_split};
 use crate::msg::{
-    ExecuteMsg, GetConfigResponse, GetStateResponse, GetStrategyInfoResponse, GetUserRewardInfo,
-    InstantiateMsg, QueryMsg, UpdateUserAirdropsRequest, UpdateUserRewardsRequest,
+    ExecuteMsg, GetConfigResponse, GetStateResponse, GetStrategiesListResponse,
+    GetStrategyInfoResponse, GetUserRewardInfo, InstantiateMsg, QueryMsg,
+    UpdateUserAirdropsRequest, UpdateUserRewardsRequest,
 };
 use crate::state::{
     Config, State, StrategyInfo, UserRewardInfo, UserStrategyInfo, UserStrategyPortfolio, CONFIG,
@@ -578,7 +579,21 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_binary(&query_strategy_info(deps, strategy_name)?)
         }
         QueryMsg::GetUserRewardInfo { user } => to_binary(&query_user_reward_info(deps, user)?),
+        QueryMsg::GetStrategiesList {} => to_binary(&query_strategies_list(deps)?),
     }
+}
+
+fn query_strategies_list(deps: Deps) -> StdResult<GetStrategiesListResponse> {
+    let mut strategies_list: Vec<String> = vec![];
+    STRATEGY_MAP
+        .keys(deps.storage, None, None, Order::Ascending)
+        .for_each(|x| {
+            strategies_list.push(String::from_utf8(x).unwrap_or("".to_string()));
+        });
+
+    Ok(GetStrategiesListResponse {
+        strategies_list: Some(strategies_list),
+    })
 }
 
 fn query_config(deps: Deps) -> StdResult<GetConfigResponse> {
