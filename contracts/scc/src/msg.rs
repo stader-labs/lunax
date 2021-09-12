@@ -1,4 +1,4 @@
-use crate::state::{State, StrategyInfo, UserRewardInfo};
+use crate::state::{Config, State, StrategyInfo, UserRewardInfo, UserStrategyPortfolio};
 use cosmwasm_std::{Addr, Coin, Decimal, Timestamp, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -8,6 +8,8 @@ pub struct InstantiateMsg {
     pub strategy_denom: String,
 
     pub pools_contract: Addr,
+
+    pub default_user_portfolio: Option<Vec<UserStrategyPortfolio>>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -46,9 +48,9 @@ pub enum ExecuteMsg {
     RemoveStrategy {
         strategy_name: String,
     },
+    // empty vector implies that user wants all his rewards to be retained
     UpdateUserPortfolio {
-        strategy_name: String,
-        deposit_fraction: Decimal,
+        user_portfolio: Vec<UserStrategyPortfolio>,
     },
     // called by validator contract to transfer rewards from validator contract to SCC
     // this message also moves rewards from SCC to the corresponding SIC. This message will
@@ -84,6 +86,7 @@ pub enum ExecuteMsg {
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     GetState {},
+    GetConfig {},
     GetStrategyInfo { strategy_name: String },
     GetUserRewardInfo { user: Addr },
 }
@@ -91,6 +94,11 @@ pub enum QueryMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct GetStateResponse {
     pub state: Option<State>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct GetConfigResponse {
+    pub config: Option<Config>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
