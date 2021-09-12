@@ -1,4 +1,4 @@
-use crate::state::{State, StrategyInfo, UserRewardInfo};
+use crate::state::{BatchUndelegationRecord, State, StrategyInfo, UserRewardInfo};
 use cosmwasm_std::{Addr, Binary, Coin, Decimal, Timestamp, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -49,6 +49,12 @@ pub enum ExecuteMsg {
     RemoveStrategy {
         strategy_name: String,
     },
+    UpdateStrategy {
+        strategy_name: String,
+        unbonding_period: u64,
+        unbonding_buffer: u64,
+        is_active: bool,
+    },
     UpdateUserPortfolio {
         strategy_name: String,
         deposit_fraction: Decimal,
@@ -63,11 +69,8 @@ pub enum ExecuteMsg {
     UndelegateFromStrategies {
         strategies: Vec<String>,
     },
-    // creates the undelegation records for the users.
-    // CreateUserUndelegationRecords {},
-    CreateUndelegationBatches {
-        strategies: Vec<String>,
-    },
+    // called by manager, this message goes to the SICs and fetches the undelegated rewards which are
+    // sitting in the SIC.
     FetchUndelegatedRewardsFromStrategies {
         strategies: Vec<String>,
     },
@@ -115,8 +118,16 @@ pub enum ExecuteMsg {
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     GetState {},
-    GetStrategyInfo { strategy_name: String },
-    GetUserRewardInfo { user: Addr },
+    GetStrategyInfo {
+        strategy_name: String,
+    },
+    GetUndelegationBatchInfo {
+        strategy_name: String,
+        batch_id: u64,
+    },
+    GetUserRewardInfo {
+        user: Addr,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -132,4 +143,9 @@ pub struct GetStrategyInfoResponse {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct GetUserRewardInfo {
     pub user_reward_info: Option<UserRewardInfo>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct GetUndelegationBatchInfoResponse {
+    pub undelegation_batch_info: Option<BatchUndelegationRecord>,
 }

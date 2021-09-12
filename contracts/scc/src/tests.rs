@@ -246,8 +246,8 @@ mod tests {
                 sic_contract_address: Addr::unchecked("abc"),
                 unbonding_period: 3600,
                 unbonding_buffer: 3600,
-                current_undelegation_batch_id: 2,
-                last_reconciled_batch_id: 1,
+                undelegation_batch_id_pointer: 2,
+                reconciled_batch_id_pointer: 1,
                 is_active: true,
                 total_shares: Decimal::from_ratio(5000_u128, 1_u128),
                 global_airdrop_pointer: vec![],
@@ -263,8 +263,8 @@ mod tests {
                 sic_contract_address: Addr::unchecked("def"),
                 unbonding_period: 3600,
                 unbonding_buffer: 3600,
-                current_undelegation_batch_id: 3,
-                last_reconciled_batch_id: 2,
+                undelegation_batch_id_pointer: 3,
+                reconciled_batch_id_pointer: 2,
                 is_active: true,
                 total_shares: Decimal::from_ratio(5000_u128, 1_u128),
                 global_airdrop_pointer: vec![],
@@ -292,7 +292,7 @@ mod tests {
                 },
                 Attribute {
                     key: "failed_undelegation_batches".to_string(),
-                    value: "sid1:2,sid2:3".to_string()
+                    value: "sid1:1,sid2:2".to_string()
                 },
                 Attribute {
                     key: "undelegation_batches_in_unbonding_period".to_string(),
@@ -316,8 +316,8 @@ mod tests {
                 sic_contract_address: Addr::unchecked("abc"),
                 unbonding_period: 3600,
                 unbonding_buffer: 3600,
-                current_undelegation_batch_id: 2,
-                last_reconciled_batch_id: 1,
+                undelegation_batch_id_pointer: 2,
+                reconciled_batch_id_pointer: 1,
                 is_active: true,
                 total_shares: Decimal::from_ratio(5000_u128, 1_u128),
                 global_airdrop_pointer: vec![],
@@ -333,8 +333,8 @@ mod tests {
                 sic_contract_address: Addr::unchecked("def"),
                 unbonding_period: 3600,
                 unbonding_buffer: 3600,
-                current_undelegation_batch_id: 3,
-                last_reconciled_batch_id: 2,
+                undelegation_batch_id_pointer: 3,
+                reconciled_batch_id_pointer: 2,
                 is_active: true,
                 total_shares: Decimal::from_ratio(5000_u128, 1_u128),
                 global_airdrop_pointer: vec![],
@@ -344,7 +344,7 @@ mod tests {
         );
         UNDELEGATION_BATCH_MAP.save(
             deps.as_mut().storage,
-            (U64Key::new(2), "sid1"),
+            (U64Key::new(1), "sid1"),
             &BatchUndelegationRecord {
                 amount: Uint128::new(100_u128),
                 unbonding_slashing_ratio: Decimal::one(),
@@ -355,7 +355,7 @@ mod tests {
         );
         UNDELEGATION_BATCH_MAP.save(
             deps.as_mut().storage,
-            (U64Key::new(3), "sid2"),
+            (U64Key::new(2), "sid2"),
             &BatchUndelegationRecord {
                 amount: Uint128::new(400_u128),
                 unbonding_slashing_ratio: Decimal::one(),
@@ -388,7 +388,7 @@ mod tests {
                 },
                 Attribute {
                     key: "undelegation_batches_in_unbonding_period".to_string(),
-                    value: "sid1:2,sid2:3".to_string()
+                    value: "sid1:1,sid2:2".to_string()
                 },
                 Attribute {
                     key: "undelegation_batches_slashing_checked".to_string(),
@@ -408,8 +408,8 @@ mod tests {
                 sic_contract_address: Addr::unchecked("abc"),
                 unbonding_period: 3600,
                 unbonding_buffer: 3600,
-                current_undelegation_batch_id: 2,
-                last_reconciled_batch_id: 1,
+                undelegation_batch_id_pointer: 2,
+                reconciled_batch_id_pointer: 1,
                 is_active: true,
                 total_shares: Decimal::from_ratio(5000_u128, 1_u128),
                 global_airdrop_pointer: vec![],
@@ -425,8 +425,8 @@ mod tests {
                 sic_contract_address: Addr::unchecked("def"),
                 unbonding_period: 3600,
                 unbonding_buffer: 3600,
-                current_undelegation_batch_id: 3,
-                last_reconciled_batch_id: 2,
+                undelegation_batch_id_pointer: 3,
+                reconciled_batch_id_pointer: 2,
                 is_active: true,
                 total_shares: Decimal::from_ratio(5000_u128, 1_u128),
                 global_airdrop_pointer: vec![],
@@ -436,7 +436,7 @@ mod tests {
         );
         UNDELEGATION_BATCH_MAP.save(
             deps.as_mut().storage,
-            (U64Key::new(2), "sid1"),
+            (U64Key::new(1), "sid1"),
             &BatchUndelegationRecord {
                 amount: Uint128::new(100_u128),
                 unbonding_slashing_ratio: Decimal::one(),
@@ -447,7 +447,7 @@ mod tests {
         );
         UNDELEGATION_BATCH_MAP.save(
             deps.as_mut().storage,
-            (U64Key::new(3), "sid2"),
+            (U64Key::new(2), "sid2"),
             &BatchUndelegationRecord {
                 amount: Uint128::new(400_u128),
                 unbonding_slashing_ratio: Decimal::one(),
@@ -484,7 +484,7 @@ mod tests {
                 },
                 Attribute {
                     key: "undelegation_batches_slashing_checked".to_string(),
-                    value: "sid1:2,sid2:3".to_string()
+                    value: "sid1:1,sid2:2".to_string()
                 }
             ]
         ));
@@ -524,8 +524,8 @@ mod tests {
                 sic_contract_address: sic1_address.clone(),
                 unbonding_period: 3600,
                 unbonding_buffer: 3600,
-                current_undelegation_batch_id: 2,
-                last_reconciled_batch_id: 1,
+                undelegation_batch_id_pointer: 2,
+                reconciled_batch_id_pointer: 1,
                 is_active: true,
                 total_shares: Decimal::from_ratio(5000_u128, 1_u128),
                 global_airdrop_pointer: vec![],
@@ -541,8 +541,8 @@ mod tests {
                 sic_contract_address: sic2_address.clone(),
                 unbonding_period: 3600,
                 unbonding_buffer: 3600,
-                current_undelegation_batch_id: 3,
-                last_reconciled_batch_id: 2,
+                undelegation_batch_id_pointer: 3,
+                reconciled_batch_id_pointer: 2,
                 is_active: true,
                 total_shares: Decimal::from_ratio(5000_u128, 1_u128),
                 global_airdrop_pointer: vec![],
@@ -552,7 +552,7 @@ mod tests {
         );
         UNDELEGATION_BATCH_MAP.save(
             deps.as_mut().storage,
-            (U64Key::new(2), "sid1"),
+            (U64Key::new(1), "sid1"),
             &BatchUndelegationRecord {
                 amount: Uint128::new(100_u128),
                 unbonding_slashing_ratio: Decimal::one(),
@@ -563,7 +563,7 @@ mod tests {
         );
         UNDELEGATION_BATCH_MAP.save(
             deps.as_mut().storage,
-            (U64Key::new(3), "sid2"),
+            (U64Key::new(2), "sid2"),
             &BatchUndelegationRecord {
                 amount: Uint128::new(400_u128),
                 unbonding_slashing_ratio: Decimal::one(),
@@ -637,15 +637,15 @@ mod tests {
         assert_ne!(sid2_strategy_info_opt, None);
         let sid1_strategy_info = sid1_strategy_info_opt.unwrap();
         let sid2_strategy_info = sid2_strategy_info_opt.unwrap();
-        assert_eq!(sid1_strategy_info.current_undelegation_batch_id, 2);
-        assert_eq!(sid1_strategy_info.last_reconciled_batch_id, 2);
-        assert_eq!(sid2_strategy_info.current_undelegation_batch_id, 3);
-        assert_eq!(sid2_strategy_info.last_reconciled_batch_id, 3);
+        assert_eq!(sid1_strategy_info.undelegation_batch_id_pointer, 2);
+        assert_eq!(sid1_strategy_info.reconciled_batch_id_pointer, 2);
+        assert_eq!(sid2_strategy_info.undelegation_batch_id_pointer, 3);
+        assert_eq!(sid2_strategy_info.reconciled_batch_id_pointer, 3);
         let sid1_undelegation_batch_opt = UNDELEGATION_BATCH_MAP
-            .may_load(deps.as_mut().storage, (U64Key::new(2), "sid1"))
+            .may_load(deps.as_mut().storage, (U64Key::new(1), "sid1"))
             .unwrap();
         let sid2_undelegation_batch_opt = UNDELEGATION_BATCH_MAP
-            .may_load(deps.as_mut().storage, (U64Key::new(3), "sid2"))
+            .may_load(deps.as_mut().storage, (U64Key::new(2), "sid2"))
             .unwrap();
         assert_ne!(sid1_undelegation_batch_opt, None);
         assert_ne!(sid2_undelegation_batch_opt, None);
@@ -693,8 +693,8 @@ mod tests {
                 sic_contract_address: sic1_address.clone(),
                 unbonding_period: 3600,
                 unbonding_buffer: 3600,
-                current_undelegation_batch_id: 2,
-                last_reconciled_batch_id: 1,
+                undelegation_batch_id_pointer: 2,
+                reconciled_batch_id_pointer: 1,
                 is_active: true,
                 total_shares: Decimal::from_ratio(5000_u128, 1_u128),
                 global_airdrop_pointer: vec![],
@@ -710,8 +710,8 @@ mod tests {
                 sic_contract_address: sic2_address.clone(),
                 unbonding_period: 3600,
                 unbonding_buffer: 3600,
-                current_undelegation_batch_id: 3,
-                last_reconciled_batch_id: 2,
+                undelegation_batch_id_pointer: 3,
+                reconciled_batch_id_pointer: 2,
                 is_active: true,
                 total_shares: Decimal::from_ratio(5000_u128, 1_u128),
                 global_airdrop_pointer: vec![],
@@ -721,7 +721,7 @@ mod tests {
         );
         UNDELEGATION_BATCH_MAP.save(
             deps.as_mut().storage,
-            (U64Key::new(2), "sid1"),
+            (U64Key::new(1), "sid1"),
             &BatchUndelegationRecord {
                 amount: Uint128::new(100_u128),
                 unbonding_slashing_ratio: Decimal::one(),
@@ -732,7 +732,7 @@ mod tests {
         );
         UNDELEGATION_BATCH_MAP.save(
             deps.as_mut().storage,
-            (U64Key::new(3), "sid2"),
+            (U64Key::new(2), "sid2"),
             &BatchUndelegationRecord {
                 amount: Uint128::new(400_u128),
                 unbonding_slashing_ratio: Decimal::one(),
@@ -806,15 +806,15 @@ mod tests {
         assert_ne!(sid2_strategy_info_opt, None);
         let sid1_strategy_info = sid1_strategy_info_opt.unwrap();
         let sid2_strategy_info = sid2_strategy_info_opt.unwrap();
-        assert_eq!(sid1_strategy_info.current_undelegation_batch_id, 2);
-        assert_eq!(sid1_strategy_info.last_reconciled_batch_id, 2);
-        assert_eq!(sid2_strategy_info.current_undelegation_batch_id, 3);
-        assert_eq!(sid2_strategy_info.last_reconciled_batch_id, 3);
+        assert_eq!(sid1_strategy_info.undelegation_batch_id_pointer, 2);
+        assert_eq!(sid1_strategy_info.reconciled_batch_id_pointer, 2);
+        assert_eq!(sid2_strategy_info.undelegation_batch_id_pointer, 3);
+        assert_eq!(sid2_strategy_info.reconciled_batch_id_pointer, 3);
         let sid1_undelegation_batch_opt = UNDELEGATION_BATCH_MAP
-            .may_load(deps.as_mut().storage, (U64Key::new(2), "sid1"))
+            .may_load(deps.as_mut().storage, (U64Key::new(1), "sid1"))
             .unwrap();
         let sid2_undelegation_batch_opt = UNDELEGATION_BATCH_MAP
-            .may_load(deps.as_mut().storage, (U64Key::new(3), "sid2"))
+            .may_load(deps.as_mut().storage, (U64Key::new(2), "sid2"))
             .unwrap();
         assert_ne!(sid1_undelegation_batch_opt, None);
         assert_ne!(sid2_undelegation_batch_opt, None);
@@ -862,8 +862,8 @@ mod tests {
                 sic_contract_address: sic1_address.clone(),
                 unbonding_period: 3600,
                 unbonding_buffer: 3600,
-                current_undelegation_batch_id: 2,
-                last_reconciled_batch_id: 1,
+                undelegation_batch_id_pointer: 2,
+                reconciled_batch_id_pointer: 1,
                 is_active: true,
                 total_shares: Decimal::from_ratio(5000_u128, 1_u128),
                 global_airdrop_pointer: vec![],
@@ -879,8 +879,8 @@ mod tests {
                 sic_contract_address: sic2_address.clone(),
                 unbonding_period: 3600,
                 unbonding_buffer: 3600,
-                current_undelegation_batch_id: 3,
-                last_reconciled_batch_id: 2,
+                undelegation_batch_id_pointer: 3,
+                reconciled_batch_id_pointer: 2,
                 is_active: true,
                 total_shares: Decimal::from_ratio(5000_u128, 1_u128),
                 global_airdrop_pointer: vec![],
@@ -890,7 +890,7 @@ mod tests {
         );
         UNDELEGATION_BATCH_MAP.save(
             deps.as_mut().storage,
-            (U64Key::new(2), "sid1"),
+            (U64Key::new(1), "sid1"),
             &BatchUndelegationRecord {
                 amount: Uint128::new(100_u128),
                 unbonding_slashing_ratio: Decimal::one(),
@@ -901,7 +901,7 @@ mod tests {
         );
         UNDELEGATION_BATCH_MAP.save(
             deps.as_mut().storage,
-            (U64Key::new(3), "sid2"),
+            (U64Key::new(2), "sid2"),
             &BatchUndelegationRecord {
                 amount: Uint128::new(400_u128),
                 unbonding_slashing_ratio: Decimal::one(),
@@ -975,15 +975,15 @@ mod tests {
         assert_ne!(sid2_strategy_info_opt, None);
         let sid1_strategy_info = sid1_strategy_info_opt.unwrap();
         let sid2_strategy_info = sid2_strategy_info_opt.unwrap();
-        assert_eq!(sid1_strategy_info.current_undelegation_batch_id, 2);
-        assert_eq!(sid1_strategy_info.last_reconciled_batch_id, 2);
-        assert_eq!(sid2_strategy_info.current_undelegation_batch_id, 3);
-        assert_eq!(sid2_strategy_info.last_reconciled_batch_id, 3);
+        assert_eq!(sid1_strategy_info.undelegation_batch_id_pointer, 2);
+        assert_eq!(sid1_strategy_info.reconciled_batch_id_pointer, 2);
+        assert_eq!(sid2_strategy_info.undelegation_batch_id_pointer, 3);
+        assert_eq!(sid2_strategy_info.reconciled_batch_id_pointer, 3);
         let sid1_undelegation_batch_opt = UNDELEGATION_BATCH_MAP
-            .may_load(deps.as_mut().storage, (U64Key::new(2), "sid1"))
+            .may_load(deps.as_mut().storage, (U64Key::new(1), "sid1"))
             .unwrap();
         let sid2_undelegation_batch_opt = UNDELEGATION_BATCH_MAP
-            .may_load(deps.as_mut().storage, (U64Key::new(3), "sid2"))
+            .may_load(deps.as_mut().storage, (U64Key::new(2), "sid2"))
             .unwrap();
         assert_ne!(sid1_undelegation_batch_opt, None);
         assert_ne!(sid2_undelegation_batch_opt, None);
@@ -1005,244 +1005,6 @@ mod tests {
         assert_ne!(state_response.state, None);
         let state = state_response.state.unwrap();
         assert_eq!(state.current_rewards_in_scc, Uint128::new(1000_u128));
-    }
-
-    #[test]
-    fn test__try_create_undelegation_batches_fail() {
-        let mut deps = mock_dependencies(&[]);
-        let info = mock_info("creator", &[]);
-        let env = mock_env();
-
-        let res = instantiate_contract(
-            &mut deps,
-            &info,
-            &env,
-            Some(String::from("uluna")),
-            Some(String::from("pools_contract")),
-        );
-
-        /*
-            Test - 1. Unauthorized
-        */
-        let err = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info("not-creator", &[]),
-            ExecuteMsg::CreateUndelegationBatches { strategies: vec![] },
-        )
-        .unwrap_err();
-        assert!(matches!(err, ContractError::Unauthorized {}));
-    }
-
-    #[test]
-    fn test__try_create_undelegation_batches_success() {
-        let mut deps = mock_dependencies(&[]);
-        let info = mock_info("creator", &[]);
-        let env = mock_env();
-
-        let res = instantiate_contract(
-            &mut deps,
-            &info,
-            &env,
-            Some(String::from("uluna")),
-            Some(String::from("pools_contract")),
-        );
-
-        /*
-           Test - 1. No strategies
-        */
-        let res = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info("creator", &[]),
-            ExecuteMsg::CreateUndelegationBatches { strategies: vec![] },
-        )
-        .unwrap();
-        assert_eq!(res.attributes.len(), 1);
-        assert!(check_equal_vec(
-            res.attributes,
-            vec![Attribute {
-                key: "no_strategies".to_string(),
-                value: "1".to_string()
-            }]
-        ));
-
-        /*
-           Test - 2. All strategies are successful
-        */
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            "sid1",
-            &StrategyInfo {
-                name: "sid1".to_string(),
-                sic_contract_address: Addr::unchecked("abc"),
-                unbonding_period: 3600,
-                unbonding_buffer: 3600,
-                current_undelegation_batch_id: 5,
-                last_reconciled_batch_id: 3,
-                is_active: false,
-                total_shares: Decimal::from_ratio(5000_u128, 1_u128),
-                global_airdrop_pointer: vec![],
-                total_airdrops_accumulated: vec![],
-                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-            },
-        );
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            "sid2",
-            &StrategyInfo {
-                name: "sid2".to_string(),
-                sic_contract_address: Addr::unchecked("abc"),
-                unbonding_period: 7200,
-                unbonding_buffer: 7200,
-                current_undelegation_batch_id: 7,
-                last_reconciled_batch_id: 3,
-                is_active: false,
-                total_shares: Decimal::from_ratio(5000_u128, 1_u128),
-                global_airdrop_pointer: vec![],
-                total_airdrops_accumulated: vec![],
-                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-            },
-        );
-
-        let sid1_undelegation_batch_opt = UNDELEGATION_BATCH_MAP
-            .may_load(deps.as_mut().storage, (U64Key::new(6), "sid1"))
-            .unwrap();
-        let sid2_undelegation_batch_opt = UNDELEGATION_BATCH_MAP
-            .may_load(deps.as_mut().storage, (U64Key::new(8), "sid2"))
-            .unwrap();
-        assert_eq!(sid1_undelegation_batch_opt, None);
-        assert_eq!(sid2_undelegation_batch_opt, None);
-
-        let res = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info("creator", &[]),
-            ExecuteMsg::CreateUndelegationBatches {
-                strategies: vec!["sid1".to_string(), "sid2".to_string()],
-            },
-        )
-        .unwrap();
-
-        assert_eq!(res.attributes.len(), 1);
-        assert!(check_equal_vec(
-            res.attributes,
-            vec![Attribute {
-                key: "failed_strategies".to_string(),
-                value: "".to_string()
-            }]
-        ));
-
-        let sid1_info_opt = STRATEGY_MAP
-            .may_load(deps.as_mut().storage, "sid1")
-            .unwrap();
-        let sid2_info_opt = STRATEGY_MAP
-            .may_load(deps.as_mut().storage, "sid2")
-            .unwrap();
-        assert_ne!(sid1_info_opt, None);
-        assert_ne!(sid2_info_opt, None);
-        let sid1_info = sid1_info_opt.unwrap();
-        let sid2_info = sid2_info_opt.unwrap();
-        assert_eq!(sid1_info.current_undelegation_batch_id, 6);
-        assert_eq!(sid2_info.current_undelegation_batch_id, 8);
-
-        let undelegation_batch_sid1_opt = UNDELEGATION_BATCH_MAP
-            .may_load(deps.as_mut().storage, (U64Key::new(6), "sid1"))
-            .unwrap();
-        let undelegation_batch_sid2_opt = UNDELEGATION_BATCH_MAP
-            .may_load(deps.as_mut().storage, (U64Key::new(8), "sid2"))
-            .unwrap();
-        assert_ne!(undelegation_batch_sid1_opt, None);
-        assert_ne!(undelegation_batch_sid2_opt, None);
-        let undelegation_batch_sid1 = undelegation_batch_sid1_opt.unwrap();
-        let undelegation_batch_sid2 = undelegation_batch_sid2_opt.unwrap();
-        assert_eq!(
-            undelegation_batch_sid1,
-            BatchUndelegationRecord {
-                amount: Uint128::zero(),
-                unbonding_slashing_ratio: Decimal::one(),
-                create_time: env.block.time,
-                est_release_time: env.block.time.plus_seconds(7200),
-                slashing_checked: false
-            }
-        );
-        assert_eq!(
-            undelegation_batch_sid2,
-            BatchUndelegationRecord {
-                amount: Uint128::zero(),
-                unbonding_slashing_ratio: Decimal::one(),
-                create_time: env.block.time,
-                est_release_time: env.block.time.plus_seconds(14400),
-                slashing_checked: false
-            }
-        );
-
-        /*
-            Test - 3. One strategy failed
-        */
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            "sid1",
-            &StrategyInfo {
-                name: "sid1".to_string(),
-                sic_contract_address: Addr::unchecked("abc"),
-                unbonding_period: 3600,
-                unbonding_buffer: 3600,
-                current_undelegation_batch_id: 8,
-                last_reconciled_batch_id: 3,
-                is_active: false,
-                total_shares: Decimal::from_ratio(5000_u128, 1_u128),
-                global_airdrop_pointer: vec![],
-                total_airdrops_accumulated: vec![],
-                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-            },
-        );
-
-        let sid1_undelegation_batch_opt = UNDELEGATION_BATCH_MAP
-            .may_load(deps.as_mut().storage, (U64Key::new(9), "sid1"))
-            .unwrap();
-        assert_eq!(sid1_undelegation_batch_opt, None);
-
-        let res = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info("creator", &[]),
-            ExecuteMsg::CreateUndelegationBatches {
-                strategies: vec!["sid1".to_string(), "sid3".to_string()],
-            },
-        )
-        .unwrap();
-        assert_eq!(res.attributes.len(), 1);
-        assert!(check_equal_vec(
-            res.attributes,
-            vec![Attribute {
-                key: "failed_strategies".to_string(),
-                value: "sid3".to_string()
-            }]
-        ));
-
-        let sid1_info_opt = STRATEGY_MAP
-            .may_load(deps.as_mut().storage, "sid1")
-            .unwrap();
-        assert_ne!(sid1_info_opt, None);
-        let sid1_info = sid1_info_opt.unwrap();
-        assert_eq!(sid1_info.current_undelegation_batch_id, 9);
-
-        let undelegation_batch_sid1_opt = UNDELEGATION_BATCH_MAP
-            .may_load(deps.as_mut().storage, (U64Key::new(9), "sid1"))
-            .unwrap();
-        assert_ne!(undelegation_batch_sid1_opt, None);
-        let undelegation_batch_sid1 = undelegation_batch_sid1_opt.unwrap();
-        assert_eq!(
-            undelegation_batch_sid1,
-            BatchUndelegationRecord {
-                amount: Uint128::zero(),
-                unbonding_slashing_ratio: Decimal::one(),
-                create_time: env.block.time,
-                est_release_time: env.block.time.plus_seconds(7200),
-                slashing_checked: false
-            }
-        );
     }
 
     #[test]
@@ -1322,8 +1084,8 @@ mod tests {
                 sic_contract_address: sic1_address.clone(),
                 unbonding_period: 3600,
                 unbonding_buffer: 3600,
-                current_undelegation_batch_id: 4,
-                last_reconciled_batch_id: 1,
+                undelegation_batch_id_pointer: 4,
+                reconciled_batch_id_pointer: 1,
                 is_active: false,
                 total_shares: Decimal::from_ratio(5000_u128, 1_u128),
                 global_airdrop_pointer: vec![],
@@ -1339,8 +1101,8 @@ mod tests {
                 sic_contract_address: sic2_address.clone(),
                 unbonding_period: 3600,
                 unbonding_buffer: 3600,
-                current_undelegation_batch_id: 4,
-                last_reconciled_batch_id: 1,
+                undelegation_batch_id_pointer: 4,
+                reconciled_batch_id_pointer: 1,
                 is_active: false,
                 total_shares: Decimal::from_ratio(5000_u128, 1_u128),
                 global_airdrop_pointer: vec![],
@@ -1356,8 +1118,8 @@ mod tests {
                 sic_contract_address: sic3_address.clone(),
                 unbonding_period: 3600,
                 unbonding_buffer: 3600,
-                current_undelegation_batch_id: 4,
-                last_reconciled_batch_id: 1,
+                undelegation_batch_id_pointer: 4,
+                reconciled_batch_id_pointer: 1,
                 is_active: false,
                 total_shares: Decimal::from_ratio(5000_u128, 1_u128),
                 global_airdrop_pointer: vec![],
@@ -1380,6 +1142,18 @@ mod tests {
             "sid3",
             &Uint128::new(300_u128),
         );
+        let undelegation_batch_sid1_opt = UNDELEGATION_BATCH_MAP
+            .may_load(deps.as_mut().storage, (U64Key::new(4), "sid1"))
+            .unwrap();
+        let undelegation_batch_sid2_opt = UNDELEGATION_BATCH_MAP
+            .may_load(deps.as_mut().storage, (U64Key::new(4), "sid2"))
+            .unwrap();
+        let undelegation_batch_sid3_opt = UNDELEGATION_BATCH_MAP
+            .may_load(deps.as_mut().storage, (U64Key::new(4), "sid3"))
+            .unwrap();
+        assert_eq!(undelegation_batch_sid1_opt, None);
+        assert_eq!(undelegation_batch_sid2_opt, None);
+        assert_eq!(undelegation_batch_sid3_opt, None);
         let res = execute(
             deps.as_mut(),
             env.clone(),
@@ -1433,6 +1207,76 @@ mod tests {
                 }),
             ]
         ));
+        let sid1_strategy_info_opt = STRATEGY_MAP
+            .may_load(deps.as_mut().storage, "sid1")
+            .unwrap();
+        assert_ne!(sid1_strategy_info_opt, None);
+        let sid1_strategy_info = sid1_strategy_info_opt.unwrap();
+        assert_eq!(sid1_strategy_info.undelegation_batch_id_pointer, 5);
+        let sid2_strategy_info_opt = STRATEGY_MAP
+            .may_load(deps.as_mut().storage, "sid2")
+            .unwrap();
+        assert_ne!(sid2_strategy_info_opt, None);
+        let sid2_strategy_info = sid2_strategy_info_opt.unwrap();
+        assert_eq!(sid2_strategy_info.undelegation_batch_id_pointer, 5);
+        let sid3_strategy_info_opt = STRATEGY_MAP
+            .may_load(deps.as_mut().storage, "sid3")
+            .unwrap();
+        assert_ne!(sid3_strategy_info_opt, None);
+        let sid3_strategy_info = sid3_strategy_info_opt.unwrap();
+        assert_eq!(sid3_strategy_info.undelegation_batch_id_pointer, 5);
+
+        let undelegation_batch_sid1_opt = UNDELEGATION_BATCH_MAP
+            .may_load(deps.as_mut().storage, (U64Key::new(4), "sid1"))
+            .unwrap();
+        let undelegation_batch_sid2_opt = UNDELEGATION_BATCH_MAP
+            .may_load(deps.as_mut().storage, (U64Key::new(4), "sid2"))
+            .unwrap();
+        let undelegation_batch_sid3_opt = UNDELEGATION_BATCH_MAP
+            .may_load(deps.as_mut().storage, (U64Key::new(4), "sid3"))
+            .unwrap();
+        assert_ne!(undelegation_batch_sid1_opt, None);
+        assert_ne!(undelegation_batch_sid2_opt, None);
+        assert_ne!(undelegation_batch_sid3_opt, None);
+        let undelegation_batch_sid1 = undelegation_batch_sid1_opt.unwrap();
+        let undelegation_batch_sid2 = undelegation_batch_sid2_opt.unwrap();
+        let undelegation_batch_sid3 = undelegation_batch_sid3_opt.unwrap();
+        assert_eq!(
+            undelegation_batch_sid1,
+            BatchUndelegationRecord {
+                amount: Uint128::new(100_u128),
+                unbonding_slashing_ratio: Decimal::one(),
+                create_time: env.block.time,
+                est_release_time: env.block.time.plus_seconds(
+                    sid1_strategy_info.unbonding_period + sid1_strategy_info.unbonding_buffer
+                ),
+                slashing_checked: false
+            }
+        );
+        assert_eq!(
+            undelegation_batch_sid2,
+            BatchUndelegationRecord {
+                amount: Uint128::new(200_u128),
+                unbonding_slashing_ratio: Decimal::one(),
+                create_time: env.block.time,
+                est_release_time: env.block.time.plus_seconds(
+                    sid2_strategy_info.unbonding_period + sid2_strategy_info.unbonding_buffer
+                ),
+                slashing_checked: false
+            }
+        );
+        assert_eq!(
+            undelegation_batch_sid3,
+            BatchUndelegationRecord {
+                amount: Uint128::new(300_u128),
+                unbonding_slashing_ratio: Decimal::one(),
+                create_time: env.block.time,
+                est_release_time: env.block.time.plus_seconds(
+                    sid3_strategy_info.unbonding_period + sid3_strategy_info.unbonding_buffer
+                ),
+                slashing_checked: false
+            }
+        );
         assert_eq!(
             STRATEGY_UNPROCESSED_UNDELEGATIONS
                 .may_load(deps.as_mut().storage, "sid1")
@@ -1463,8 +1307,8 @@ mod tests {
                 sic_contract_address: sic1_address.clone(),
                 unbonding_period: 3600,
                 unbonding_buffer: 3600,
-                current_undelegation_batch_id: 4,
-                last_reconciled_batch_id: 1,
+                undelegation_batch_id_pointer: 4,
+                reconciled_batch_id_pointer: 1,
                 is_active: false,
                 total_shares: Decimal::from_ratio(5000_u128, 1_u128),
                 global_airdrop_pointer: vec![],
@@ -1480,8 +1324,8 @@ mod tests {
                 sic_contract_address: sic2_address.clone(),
                 unbonding_period: 3600,
                 unbonding_buffer: 3600,
-                current_undelegation_batch_id: 4,
-                last_reconciled_batch_id: 1,
+                undelegation_batch_id_pointer: 4,
+                reconciled_batch_id_pointer: 1,
                 is_active: false,
                 total_shares: Decimal::from_ratio(5000_u128, 1_u128),
                 global_airdrop_pointer: vec![],
@@ -1497,8 +1341,8 @@ mod tests {
                 sic_contract_address: sic3_address.clone(),
                 unbonding_period: 3600,
                 unbonding_buffer: 3600,
-                current_undelegation_batch_id: 4,
-                last_reconciled_batch_id: 1,
+                undelegation_batch_id_pointer: 4,
+                reconciled_batch_id_pointer: 1,
                 is_active: false,
                 total_shares: Decimal::from_ratio(5000_u128, 1_u128),
                 global_airdrop_pointer: vec![],
@@ -1609,8 +1453,8 @@ mod tests {
                 sic_contract_address: sic1_address.clone(),
                 unbonding_period: 3600,
                 unbonding_buffer: 3600,
-                current_undelegation_batch_id: 4,
-                last_reconciled_batch_id: 1,
+                undelegation_batch_id_pointer: 4,
+                reconciled_batch_id_pointer: 1,
                 is_active: false,
                 total_shares: Decimal::from_ratio(5000_u128, 1_u128),
                 global_airdrop_pointer: vec![],
@@ -1626,8 +1470,8 @@ mod tests {
                 sic_contract_address: sic2_address.clone(),
                 unbonding_period: 3600,
                 unbonding_buffer: 3600,
-                current_undelegation_batch_id: 4,
-                last_reconciled_batch_id: 1,
+                undelegation_batch_id_pointer: 4,
+                reconciled_batch_id_pointer: 1,
                 is_active: false,
                 total_shares: Decimal::from_ratio(5000_u128, 1_u128),
                 global_airdrop_pointer: vec![],
@@ -1643,8 +1487,8 @@ mod tests {
                 sic_contract_address: sic3_address.clone(),
                 unbonding_period: 3600,
                 unbonding_buffer: 3600,
-                current_undelegation_batch_id: 4,
-                last_reconciled_batch_id: 1,
+                undelegation_batch_id_pointer: 4,
+                reconciled_batch_id_pointer: 1,
                 is_active: false,
                 total_shares: Decimal::from_ratio(5000_u128, 1_u128),
                 global_airdrop_pointer: vec![],
@@ -2255,8 +2099,8 @@ mod tests {
                 sic_contract_address: sic1_address.clone(),
                 unbonding_period: 3600,
                 unbonding_buffer: 3600,
-                current_undelegation_batch_id: 0,
-                last_reconciled_batch_id: 0,
+                undelegation_batch_id_pointer: 0,
+                reconciled_batch_id_pointer: 0,
                 is_active: true,
                 total_shares: Decimal::from_ratio(5000_u128, 1_u128),
                 global_airdrop_pointer: vec![],
@@ -2336,8 +2180,8 @@ mod tests {
                 sic_contract_address: sic1_address.clone(),
                 unbonding_period: 3600,
                 unbonding_buffer: 3600,
-                current_undelegation_batch_id: 0,
-                last_reconciled_batch_id: 0,
+                undelegation_batch_id_pointer: 0,
+                reconciled_batch_id_pointer: 0,
                 is_active: true,
                 total_shares: Decimal::from_ratio(5000_u128, 1_u128),
                 global_airdrop_pointer: vec![
@@ -2448,8 +2292,8 @@ mod tests {
                 sic_contract_address: sic1_address.clone(),
                 unbonding_period: 3600,
                 unbonding_buffer: 3600,
-                current_undelegation_batch_id: 0,
-                last_reconciled_batch_id: 0,
+                undelegation_batch_id_pointer: 0,
+                reconciled_batch_id_pointer: 0,
                 is_active: true,
                 total_shares: Decimal::from_ratio(3000_u128, 1_u128),
                 global_airdrop_pointer: vec![
@@ -2918,8 +2762,8 @@ mod tests {
                 sic_contract_address: sic1_address.clone(),
                 unbonding_period: (21 * 24 * 3600),
                 unbonding_buffer: 3600,
-                current_undelegation_batch_id: 0,
-                last_reconciled_batch_id: 0,
+                undelegation_batch_id_pointer: 0,
+                reconciled_batch_id_pointer: 0,
                 is_active: true,
                 total_shares: Decimal::from_ratio(5000_u128, 1_u128),
                 global_airdrop_pointer: vec![
@@ -3044,8 +2888,8 @@ mod tests {
                 sic_contract_address: sic1_address,
                 unbonding_period: 3600,
                 unbonding_buffer: 0,
-                current_undelegation_batch_id: 0,
-                last_reconciled_batch_id: 0,
+                undelegation_batch_id_pointer: 0,
+                reconciled_batch_id_pointer: 0,
                 is_active: true,
                 total_shares: Decimal::from_ratio(5000_u128, 1_u128),
                 global_airdrop_pointer: vec![
@@ -3612,8 +3456,8 @@ mod tests {
                 sic_contract_address: sic1_address,
                 unbonding_period: 3600,
                 unbonding_buffer: 0,
-                current_undelegation_batch_id: 0,
-                last_reconciled_batch_id: 0,
+                undelegation_batch_id_pointer: 0,
+                reconciled_batch_id_pointer: 0,
                 is_active: false,
                 total_shares: Default::default(),
                 global_airdrop_pointer: vec![],
@@ -3692,8 +3536,8 @@ mod tests {
                 sic_contract_address: sic1_address.clone(),
                 unbonding_period: 3600,
                 unbonding_buffer: 0,
-                current_undelegation_batch_id: 0,
-                last_reconciled_batch_id: 0,
+                undelegation_batch_id_pointer: 0,
+                reconciled_batch_id_pointer: 0,
                 is_active: true,
                 total_shares: Decimal::from_ratio(1000_u128, 1_u128),
                 global_airdrop_pointer: vec![],
@@ -3781,8 +3625,8 @@ mod tests {
                 sic_contract_address: sic1_address.clone(),
                 unbonding_period: (21 * 24 * 3600),
                 unbonding_buffer: 3600,
-                current_undelegation_batch_id: 0,
-                last_reconciled_batch_id: 0,
+                undelegation_batch_id_pointer: 0,
+                reconciled_batch_id_pointer: 0,
                 is_active: true,
                 total_shares: Decimal::from_ratio(5000_u128, 1_u128),
                 global_airdrop_pointer: vec![
@@ -3804,8 +3648,8 @@ mod tests {
                 sic_contract_address: sic2_address.clone(),
                 unbonding_period: 3600,
                 unbonding_buffer: 0,
-                current_undelegation_batch_id: 0,
-                last_reconciled_batch_id: 0,
+                undelegation_batch_id_pointer: 0,
+                reconciled_batch_id_pointer: 0,
                 is_active: true,
                 total_shares: Decimal::from_ratio(7000_u128, 1_u128),
                 global_airdrop_pointer: vec![],
@@ -3821,8 +3665,8 @@ mod tests {
                 sic_contract_address: sic3_address.clone(),
                 unbonding_period: 3600,
                 unbonding_buffer: 0,
-                current_undelegation_batch_id: 0,
-                last_reconciled_batch_id: 0,
+                undelegation_batch_id_pointer: 0,
+                reconciled_batch_id_pointer: 0,
                 is_active: true,
                 total_shares: Decimal::from_ratio(3000_u128, 1_u128),
                 global_airdrop_pointer: vec![
@@ -3996,8 +3840,8 @@ mod tests {
                 sic_contract_address: sic1_address.clone(),
                 unbonding_period: (21 * 24 * 3600),
                 unbonding_buffer: 3600,
-                current_undelegation_batch_id: 0,
-                last_reconciled_batch_id: 0,
+                undelegation_batch_id_pointer: 0,
+                reconciled_batch_id_pointer: 0,
                 is_active: true,
                 total_shares: Decimal::from_ratio(1000_u128, 1_u128),
                 global_airdrop_pointer: vec![
@@ -4019,8 +3863,8 @@ mod tests {
                 sic_contract_address: sic2_address.clone(),
                 unbonding_period: 3600,
                 unbonding_buffer: 0,
-                current_undelegation_batch_id: 0,
-                last_reconciled_batch_id: 0,
+                undelegation_batch_id_pointer: 0,
+                reconciled_batch_id_pointer: 0,
                 is_active: true,
                 total_shares: Decimal::from_ratio(1000_u128, 1_u128),
                 global_airdrop_pointer: vec![
@@ -4174,8 +4018,8 @@ mod tests {
                 sic_contract_address: sic1_address.clone(),
                 unbonding_period: (21 * 24 * 3600),
                 unbonding_buffer: 3600,
-                current_undelegation_batch_id: 0,
-                last_reconciled_batch_id: 0,
+                undelegation_batch_id_pointer: 0,
+                reconciled_batch_id_pointer: 0,
                 is_active: true,
                 total_shares: Decimal::from_ratio(1000_u128, 1_u128),
                 global_airdrop_pointer: vec![
@@ -4197,8 +4041,8 @@ mod tests {
                 sic_contract_address: sic2_address.clone(),
                 unbonding_period: 3600,
                 unbonding_buffer: 0,
-                current_undelegation_batch_id: 0,
-                last_reconciled_batch_id: 0,
+                undelegation_batch_id_pointer: 0,
+                reconciled_batch_id_pointer: 0,
                 is_active: true,
                 total_shares: Decimal::from_ratio(1000_u128, 1_u128),
                 global_airdrop_pointer: vec![
@@ -4301,8 +4145,8 @@ mod tests {
                 sic_contract_address: sic1_address.clone(),
                 unbonding_period: (21 * 24 * 3600),
                 unbonding_buffer: 3600,
-                current_undelegation_batch_id: 0,
-                last_reconciled_batch_id: 0,
+                undelegation_batch_id_pointer: 0,
+                reconciled_batch_id_pointer: 0,
                 is_active: true,
                 total_shares: Decimal::from_ratio(1000_u128, 1_u128),
                 global_airdrop_pointer: vec![],
@@ -4318,8 +4162,8 @@ mod tests {
                 sic_contract_address: sic2_address.clone(),
                 unbonding_period: (21 * 24 * 3600),
                 unbonding_buffer: 3600,
-                current_undelegation_batch_id: 0,
-                last_reconciled_batch_id: 0,
+                undelegation_batch_id_pointer: 0,
+                reconciled_batch_id_pointer: 0,
                 is_active: true,
                 total_shares: Decimal::from_ratio(1000_u128, 1_u128),
                 global_airdrop_pointer: vec![],
@@ -4419,8 +4263,8 @@ mod tests {
                 sic_contract_address: sic1_address.clone(),
                 unbonding_period: (21 * 24 * 3600),
                 unbonding_buffer: 3600,
-                current_undelegation_batch_id: 0,
-                last_reconciled_batch_id: 0,
+                undelegation_batch_id_pointer: 0,
+                reconciled_batch_id_pointer: 0,
                 is_active: true,
                 total_shares: Decimal::from_ratio(1000_u128, 1_u128),
                 global_airdrop_pointer: vec![
@@ -4442,8 +4286,8 @@ mod tests {
                 sic_contract_address: sic2_address.clone(),
                 unbonding_period: 3600,
                 unbonding_buffer: 0,
-                current_undelegation_batch_id: 0,
-                last_reconciled_batch_id: 0,
+                undelegation_batch_id_pointer: 0,
+                reconciled_batch_id_pointer: 0,
                 is_active: true,
                 total_shares: Decimal::from_ratio(1000_u128, 1_u128),
                 global_airdrop_pointer: vec![
@@ -4609,8 +4453,8 @@ mod tests {
                 sic_contract_address: sic1_address.clone(),
                 unbonding_period: (21 * 24 * 3600),
                 unbonding_buffer: 3600,
-                current_undelegation_batch_id: 0,
-                last_reconciled_batch_id: 0,
+                undelegation_batch_id_pointer: 0,
+                reconciled_batch_id_pointer: 0,
                 is_active: true,
                 total_shares: Decimal::from_ratio(8000_u128, 1_u128),
                 global_airdrop_pointer: vec![
@@ -4632,8 +4476,8 @@ mod tests {
                 sic_contract_address: sic2_address.clone(),
                 unbonding_period: (21 * 24 * 3600),
                 unbonding_buffer: 3600,
-                current_undelegation_batch_id: 0,
-                last_reconciled_batch_id: 0,
+                undelegation_batch_id_pointer: 0,
+                reconciled_batch_id_pointer: 0,
                 is_active: true,
                 total_shares: Decimal::from_ratio(7000_u128, 1_u128),
                 global_airdrop_pointer: vec![
@@ -4655,8 +4499,8 @@ mod tests {
                 sic_contract_address: sic3_address.clone(),
                 unbonding_period: (21 * 24 * 3600),
                 unbonding_buffer: 3600,
-                current_undelegation_batch_id: 0,
-                last_reconciled_batch_id: 0,
+                undelegation_batch_id_pointer: 0,
+                reconciled_batch_id_pointer: 0,
                 is_active: true,
                 total_shares: Decimal::from_ratio(5000_u128, 1_u128),
                 global_airdrop_pointer: vec![
@@ -5313,8 +5157,8 @@ mod tests {
                 sic_contract_address: Addr::unchecked("abc"),
                 unbonding_period: 100u64,
                 unbonding_buffer: 100,
-                current_undelegation_batch_id: 0,
-                last_reconciled_batch_id: 0,
+                undelegation_batch_id_pointer: 0,
+                reconciled_batch_id_pointer: 0,
                 is_active: false,
                 total_shares: Default::default(),
                 global_airdrop_pointer: vec![],
