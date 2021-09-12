@@ -304,6 +304,12 @@ mod tests {
                 }
             ]
         ));
+        let sid1_strategy_info = STRATEGY_MAP.load(deps.as_mut().storage, "sid1").unwrap();
+        let sid2_strategy_info = STRATEGY_MAP.load(deps.as_mut().storage, "sid2").unwrap();
+        assert_eq!(sid1_strategy_info.reconciled_batch_id_pointer, 2);
+        assert_eq!(sid1_strategy_info.undelegation_batch_id_pointer, 2);
+        assert_eq!(sid2_strategy_info.reconciled_batch_id_pointer, 3);
+        assert_eq!(sid2_strategy_info.undelegation_batch_id_pointer, 3);
 
         /*
             Test - 5. Undelegation batches in unbonding period
@@ -396,6 +402,12 @@ mod tests {
                 }
             ]
         ));
+        let sid1_strategy_info = STRATEGY_MAP.load(deps.as_mut().storage, "sid1").unwrap();
+        let sid2_strategy_info = STRATEGY_MAP.load(deps.as_mut().storage, "sid2").unwrap();
+        assert_eq!(sid1_strategy_info.reconciled_batch_id_pointer, 1);
+        assert_eq!(sid1_strategy_info.undelegation_batch_id_pointer, 2);
+        assert_eq!(sid2_strategy_info.reconciled_batch_id_pointer, 2);
+        assert_eq!(sid2_strategy_info.undelegation_batch_id_pointer, 3);
 
         /*
             Test - 6. Undelegation batches have already been accounted for slashing
@@ -488,6 +500,12 @@ mod tests {
                 }
             ]
         ));
+        let sid1_strategy_info = STRATEGY_MAP.load(deps.as_mut().storage, "sid1").unwrap();
+        let sid2_strategy_info = STRATEGY_MAP.load(deps.as_mut().storage, "sid2").unwrap();
+        assert_eq!(sid1_strategy_info.reconciled_batch_id_pointer, 2);
+        assert_eq!(sid1_strategy_info.undelegation_batch_id_pointer, 2);
+        assert_eq!(sid2_strategy_info.reconciled_batch_id_pointer, 3);
+        assert_eq!(sid2_strategy_info.undelegation_batch_id_pointer, 3);
     }
 
     #[test]

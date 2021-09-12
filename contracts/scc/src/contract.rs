@@ -256,7 +256,7 @@ pub fn try_fetch_undelegated_rewards_from_strategies(
         }
 
         let last_reconciled_batch_id = strategy_info.reconciled_batch_id_pointer;
-        let current_undelegation_batch_id = strategy_info.undelegation_batch_id_pointer;
+        let mut current_batch_being_reconciled = last_reconciled_batch_id;
         let strategy_name = strategy_info.name.clone();
         for i in (last_reconciled_batch_id)..(strategy_info.undelegation_batch_id_pointer) {
             let mut undelegation_batch: BatchUndelegationRecord;
@@ -266,32 +266,37 @@ pub fn try_fetch_undelegated_rewards_from_strategies(
             {
                 undelegation_batch = undelegation_batch_map;
             } else {
+                // move the pointer if there is no undelegation batch has been found.
                 failed_undelegation_batches.push(format!(
                     "{}:{}",
                     strategy_name.as_str(),
                     i.to_string(),
                 ));
+                current_batch_being_reconciled += 1;
                 continue;
             }
 
-            // undelegation batch is still in unbonding period
-            if undelegation_batch.est_release_time.gt(&env.block.time) {
-                undelegation_batches_in_unbonding_period.push(format!(
-                    "{}:{}",
-                    strategy_name.as_str(),
-                    i.to_string(),
-                ));
-                continue;
-            }
-
-            // undelegation batch has been checked for slashing
+            // undelegation batch has been checked for slashing. we can move the pointer, if the
+            // batch has been slashed
             if undelegation_batch.slashing_checked {
                 undelegation_batches_slashing_checked.push(format!(
                     "{}:{}",
                     strategy_name.as_str(),
                     i.to_string(),
                 ));
+                current_batch_being_reconciled += 1;
                 continue;
+            }
+
+            // undelegation batch is still in unbonding period
+            // break out when we encounter a batch still in undelegation. we need to wait for it and not pass by it
+            if undelegation_batch.est_release_time.gt(&env.block.time) {
+                undelegation_batches_in_unbonding_period.push(format!(
+                    "{}:{}",
+                    strategy_name.as_str(),
+                    i.to_string(),
+                ));
+                break;
             }
 
             let undelegation_batch_amount = undelegation_batch.amount;
@@ -329,9 +334,11 @@ pub fn try_fetch_undelegated_rewards_from_strategies(
                 (U64Key::new(i), &*strategy_name),
                 &undelegation_batch,
             )?;
+
+            current_batch_being_reconciled += 1;
         }
 
-        strategy_info.reconciled_batch_id_pointer = current_undelegation_batch_id;
+        strategy_info.reconciled_batch_id_pointer = current_batch_being_reconciled;
         STRATEGY_MAP.save(deps.storage, &*strategy_name, &strategy_info)?;
     }
 
