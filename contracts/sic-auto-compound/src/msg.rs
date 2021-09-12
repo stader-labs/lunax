@@ -7,9 +7,11 @@ use serde::{Deserialize, Serialize};
 pub struct InstantiateMsg {
     pub scc_address: Addr,
     // denomination of the staking coin
-    pub vault_denom: String,
+    pub strategy_denom: String,
     // initial set of validators who make up the validator pool
     pub initial_validators: Vec<Addr>,
+    // amount of funds sic-manager has seeded the sic with
+    pub manager_seed_funds: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
