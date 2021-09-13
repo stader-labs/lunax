@@ -17,8 +17,6 @@ pub struct State {
 
     // total historical rewards accumulated in the SCC
     pub total_accumulated_rewards: Uint128,
-    // current rewards sitting in the SCC
-    pub current_rewards_in_scc: Uint128,
     pub total_accumulated_airdrops: Vec<Coin>,
 
     pub current_undelegated_strategies: Vec<String>,
@@ -34,6 +32,7 @@ pub struct StrategyInfo {
     pub reconciled_batch_id_pointer: u64,
     pub is_active: bool,
     pub total_shares: Decimal,
+    pub current_undelegated_shares: Decimal,
     pub global_airdrop_pointer: Vec<DecCoin>,
     pub total_airdrops_accumulated: Vec<Coin>,
     // TODO: bchain99 - remove this. not needed. We are computing the S/T ratio on demand when needed for a strategy
@@ -56,6 +55,7 @@ impl StrategyInfo {
             reconciled_batch_id_pointer: 0,
             is_active: false,
             total_shares: Decimal::zero(),
+            current_undelegated_shares: Decimal::zero(),
             global_airdrop_pointer: vec![],
             total_airdrops_accumulated: vec![],
             shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
@@ -71,10 +71,11 @@ impl StrategyInfo {
             undelegation_batch_id_pointer: 0,
             reconciled_batch_id_pointer: 0,
             is_active: false,
-            total_shares: Default::default(),
+            total_shares: Decimal::zero(),
+            current_undelegated_shares: Decimal::zero(),
             global_airdrop_pointer: vec![],
             total_airdrops_accumulated: vec![],
-            shares_per_token_ratio: Default::default(),
+            shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
         }
     }
 }
@@ -143,6 +144,7 @@ impl UserRewardInfo {
 pub struct UserUndelegationRecord {
     pub id: Timestamp,
     pub amount: Uint128,
+    pub shares: Decimal,
     pub strategy_name: String,
     pub undelegation_batch_id: u64,
 }
@@ -171,7 +173,9 @@ pub struct Cw20TokenContractsInfo {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct BatchUndelegationRecord {
     pub amount: Uint128,
+    pub shares: Decimal,
     pub unbonding_slashing_ratio: Decimal,
+    pub undelegation_s_t_ratio: Decimal,
     pub create_time: Timestamp,
     pub est_release_time: Timestamp,
     pub slashing_checked: bool,
@@ -183,7 +187,5 @@ pub const STRATEGY_MAP: Map<&str, StrategyInfo> = Map::new("strategy_map");
 pub const USER_REWARD_INFO_MAP: Map<&Addr, UserRewardInfo> = Map::new("user_reward_info_map");
 pub const CW20_TOKEN_CONTRACTS_REGISTRY: Map<String, Cw20TokenContractsInfo> =
     Map::new("cw20_token_contracts_registry");
-pub const STRATEGY_UNPROCESSED_UNDELEGATIONS: Map<&str, Uint128> =
-    Map::new("strategy_unprocessed_undelegations");
 pub const UNDELEGATION_BATCH_MAP: Map<(U64Key, &str), BatchUndelegationRecord> =
     Map::new("undelegation_batch_map");

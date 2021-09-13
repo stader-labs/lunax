@@ -19,8 +19,7 @@ use crate::msg::{
 use crate::state::{
     BatchUndelegationRecord, Cw20TokenContractsInfo, State, StrategyInfo, UserRewardInfo,
     UserStrategyInfo, UserStrategyPortfolio, UserUndelegationRecord, CW20_TOKEN_CONTRACTS_REGISTRY,
-    STATE, STRATEGY_MAP, STRATEGY_UNPROCESSED_UNDELEGATIONS, UNDELEGATION_BATCH_MAP,
-    USER_REWARD_INFO_MAP,
+    STATE, STRATEGY_MAP, UNDELEGATION_BATCH_MAP, USER_REWARD_INFO_MAP,
 };
 use crate::user::{allocate_user_airdrops_across_strategies, get_user_airdrops};
 use cw_storage_plus::U64Key;
@@ -32,6 +31,7 @@ use stader_utils::coin_utils::{
     u128_from_decimal, uint128_from_decimal, CoinVecOp, DecCoin, DecCoinVecOp, Operation,
 };
 use stader_utils::helpers::send_funds_msg;
+use std::cmp::min;
 use std::collections::HashMap;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -49,7 +49,6 @@ pub fn instantiate(
         contract_genesis_timestamp: _env.block.time,
         event_loop_size: 20,
         total_accumulated_rewards: Uint128::zero(),
-        current_rewards_in_scc: Uint128::zero(),
         total_accumulated_airdrops: vec![],
         current_undelegated_strategies: vec![],
     };
@@ -342,14 +341,6 @@ pub fn try_fetch_undelegated_rewards_from_strategies(
         STRATEGY_MAP.save(deps.storage, &*strategy_name, &strategy_info)?;
     }
 
-    STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
-        state.current_rewards_in_scc = state
-            .current_rewards_in_scc
-            .checked_add(total_funds_transferred_to_scc)
-            .unwrap_or(state.current_rewards_in_scc);
-        Ok(state)
-    })?;
-
     Ok(Response::new()
         .add_messages(messages)
         .add_attribute("failed_strategies", failed_strategies.join(","))
@@ -396,16 +387,17 @@ pub fn try_undelegate_from_strategies(
             continue;
         }
 
-        let strategy_undelegation: Uint128;
-        if let Some(undelegation) = STRATEGY_UNPROCESSED_UNDELEGATIONS
-            .may_load(deps.storage, &*strategy)
-            .unwrap()
-        {
-            strategy_undelegation = undelegation;
-        } else {
-            strategies_with_no_undelegations.push(strategy);
+        let strategy_undelegation_shares: Decimal = strategy_info.current_undelegated_shares;
+        if strategy_undelegation_shares.is_zero() {
+            strategies_with_no_undelegations.push(strategy.clone());
             continue;
         }
+
+        let strategy_s_t_ratio = get_strategy_shares_per_token_ratio(deps.querier, &strategy_info);
+        let undelegation_amount = uint128_from_decimal(decimal_division_in_256(
+            strategy_undelegation_shares,
+            strategy_s_t_ratio,
+        ));
 
         let current_undelegation_batch_id = strategy_info.undelegation_batch_id_pointer;
         let new_undelegation_batch_id = current_undelegation_batch_id + 1;
@@ -415,8 +407,12 @@ pub fn try_undelegate_from_strategies(
             (U64Key::new(current_undelegation_batch_id), &*strategy),
             |wrapped_batch| -> Result<_, ContractError> {
                 Ok(BatchUndelegationRecord {
-                    amount: strategy_undelegation,
+                    amount: undelegation_amount,
+                    shares: strategy_undelegation_shares,
+                    // we get to know this when we fetch the undelegated amount from sic
                     unbonding_slashing_ratio: Decimal::one(),
+                    // this is the S/T ratio when the amount is undelegated.
+                    undelegation_s_t_ratio: strategy_s_t_ratio,
                     create_time: _env.block.time,
                     est_release_time: _env.block.time.plus_seconds(
                         strategy_info.unbonding_period + strategy_info.unbonding_buffer,
@@ -427,18 +423,22 @@ pub fn try_undelegate_from_strategies(
         );
 
         strategy_info.undelegation_batch_id_pointer = new_undelegation_batch_id;
+        strategy_info.total_shares = decimal_subtraction_in_256(
+            strategy_info.total_shares,
+            strategy_info.current_undelegated_shares,
+        );
+        strategy_info.current_undelegated_shares = Decimal::zero();
 
         messages.push(WasmMsg::Execute {
             contract_addr: String::from(strategy_info.sic_contract_address.clone()),
             msg: to_binary(&sic_execute_msg::UndelegateRewards {
-                amount: strategy_undelegation,
+                amount: undelegation_amount,
             })
             .unwrap(),
             funds: vec![],
         });
 
         STRATEGY_MAP.save(deps.storage, &*strategy, &strategy_info);
-        STRATEGY_UNPROCESSED_UNDELEGATIONS.remove(deps.storage, &*strategy);
     }
 
     Ok(Response::new()
@@ -550,8 +550,10 @@ pub fn try_undelegate_user_rewards(
 
     user_strategy_info.shares =
         decimal_subtraction_in_256(user_total_shares, user_undelegated_shares);
-    strategy_info.total_shares =
-        decimal_subtraction_in_256(strategy_info.total_shares, user_undelegated_shares);
+    strategy_info.current_undelegated_shares = decimal_summation_in_256(
+        strategy_info.current_undelegated_shares,
+        user_undelegated_shares,
+    );
 
     user_reward_info
         .undelegation_records
@@ -559,26 +561,13 @@ pub fn try_undelegate_user_rewards(
             // there may multiple records with the same id. when withdrawing, use amount as the tie-breaker in such a case.
             id: _env.block.time,
             amount,
+            shares: user_undelegated_shares,
             strategy_name: strategy_name.clone(),
             undelegation_batch_id: strategy_info.undelegation_batch_id_pointer,
         });
 
     STRATEGY_MAP.save(deps.storage, &*strategy_name, &strategy_info)?;
     USER_REWARD_INFO_MAP.save(deps.storage, &user_addr, &user_reward_info)?;
-
-    STRATEGY_UNPROCESSED_UNDELEGATIONS.update(
-        deps.storage,
-        &*strategy_name,
-        |suu| -> Result<_, ContractError> {
-            Ok(suu.unwrap_or(Uint128::zero()).checked_add(amount).unwrap())
-        },
-    )?;
-
-    STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
-        state.total_accumulated_rewards =
-            state.total_accumulated_rewards.checked_sub(amount).unwrap();
-        Ok(state)
-    })?;
 
     Ok(Response::default())
 }
@@ -805,8 +794,13 @@ pub fn try_withdraw_rewards(
         return Err(ContractError::SlashingNotChecked {});
     }
 
-    let effective_user_withdrawable_amount = u128_from_decimal(decimal_multiplication_in_256(
-        Decimal::from_ratio(amount, 1_u128),
+    let withdrawable_amount = uint128_from_decimal(decimal_division_in_256(
+        user_undelegation_record.shares,
+        undelegation_batch.undelegation_s_t_ratio,
+    ));
+    // now apply unbonding slashing to the withdrawable amount
+    let effective_withdrawable_amount = uint128_from_decimal(decimal_multiplication_in_256(
+        Decimal::from_ratio(withdrawable_amount, 1_u128),
         undelegation_batch.unbonding_slashing_ratio,
     ));
 
@@ -817,27 +811,13 @@ pub fn try_withdraw_rewards(
 
     USER_REWARD_INFO_MAP.save(deps.storage, &user_addr, &user_reward_info)?;
 
-    let mut failed_message: Vec<Attribute> = vec![];
-    STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
-        state.current_rewards_in_scc = state
-            .current_rewards_in_scc
-            .checked_sub(Uint128::new(effective_user_withdrawable_amount))
-            .unwrap_or_else(|_| {
-                failed_message.push(attr("current_rewards_in_scc_overflow_error", "1"));
-                state.current_rewards_in_scc
-            });
-        Ok(state)
-    })?;
-
-    Ok(Response::new()
-        .add_message(BankMsg::Send {
-            to_address: String::from(user_addr),
-            amount: vec![Coin::new(
-                effective_user_withdrawable_amount,
-                state.scc_denom,
-            )],
-        })
-        .add_attributes(failed_message))
+    Ok(Response::new().add_message(BankMsg::Send {
+        to_address: String::from(user_addr),
+        amount: vec![Coin::new(
+            effective_withdrawable_amount.u128(),
+            state.scc_denom,
+        )],
+    }))
 }
 
 pub fn try_register_strategy(
