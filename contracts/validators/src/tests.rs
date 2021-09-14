@@ -1193,20 +1193,33 @@ mod tests {
                 accrued_rewards: vec![Coin::new(100, "utest"), Coin::new(100, "urew1")],
             },
         );
-        let res = reply(
-            deps.as_mut(),
-            env,
-            Reply {
-                id: OPERATION_ZERO_ID,
-                result: ContractResult::Ok(SubMsgExecutionResponse {
-                    events: vec![Event::new(OPERATION_ZERO_TAG)
-                        .add_attribute(OPERATION_ZERO_SRC_ADDR, valid1.to_string())
-                        .add_attribute(OPERATION_ZERO_DST_ADDR, valid2.to_string())],
-                    data: None,
-                }),
-            },
-        )
-        .unwrap();
+        let res =
+            reply(
+                deps.as_mut(),
+                env,
+                Reply {
+                    id: OPERATION_ZERO_ID,
+                    result:
+                        ContractResult::Ok(
+                            SubMsgExecutionResponse {
+                                events:
+                                    vec![
+                                        Event::new(format!("wasm-{}", OPERATION_ZERO_TAG)) // Events are automatically prepended with a `wasm-`
+                                            .add_attribute(
+                                                OPERATION_ZERO_SRC_ADDR,
+                                                valid1.to_string(),
+                                            )
+                                            .add_attribute(
+                                                OPERATION_ZERO_DST_ADDR,
+                                                valid2.to_string(),
+                                            ),
+                                    ],
+                                data: None,
+                            },
+                        ),
+                },
+            )
+            .unwrap();
 
         assert!(VALIDATOR_REGISTRY
             .may_load(deps.as_mut().storage, &valid1)
@@ -1215,7 +1228,6 @@ mod tests {
         let valid2_meta = VALIDATOR_REGISTRY
             .load(deps.as_mut().storage, &valid2)
             .unwrap();
-        println!("Vliad2Meta{:?}", valid2_meta.accrued_rewards);
         assert!(check_equal_coin_vector(
             &valid2_meta.accrued_rewards,
             &vec![Coin::new(200, "utest"), Coin::new(150, "urew1")]

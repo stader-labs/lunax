@@ -4,10 +4,14 @@
   "type": "object",
   "required": [
     "pools_contract_addr",
+    "scc_contract_addr",
     "vault_denom"
   ],
   "properties": {
     "pools_contract_addr": {
+      "$ref": "#/definitions/Addr"
+    },
+    "scc_contract_addr": {
       "$ref": "#/definitions/Addr"
     },
     "vault_denom": {
