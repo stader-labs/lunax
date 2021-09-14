@@ -1,4 +1,6 @@
-use crate::state::{BatchUndelegationRecord, State, StrategyInfo, UserRewardInfo};
+use crate::state::{
+    BatchUndelegationRecord, Config, State, StrategyInfo, UserRewardInfo, UserStrategyPortfolio,
+};
 use cosmwasm_std::{Addr, Binary, Coin, Decimal, Timestamp, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -7,6 +9,8 @@ use serde::{Deserialize, Serialize};
 pub struct InstantiateMsg {
     pub strategy_denom: String,
     pub pools_contract: Addr,
+
+    pub default_user_portfolio: Option<Vec<UserStrategyPortfolio>>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -56,8 +60,7 @@ pub enum ExecuteMsg {
         is_active: bool,
     },
     UpdateUserPortfolio {
-        strategy_name: String,
-        deposit_fraction: Decimal,
+        user_portfolio: Vec<UserStrategyPortfolio>,
     },
     RegisterCw20Contracts {
         denom: String,
@@ -128,11 +131,18 @@ pub enum QueryMsg {
     GetUserRewardInfo {
         user: Addr,
     },
+    GetConfig {},
+    GetStrategiesList {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct GetStateResponse {
     pub state: Option<State>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct GetConfigResponse {
+    pub config: Option<Config>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -148,4 +158,9 @@ pub struct GetUserRewardInfo {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct GetUndelegationBatchInfoResponse {
     pub undelegation_batch_info: Option<BatchUndelegationRecord>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct GetStrategiesListResponse {
+    pub strategies_list: Option<Vec<String>>,
 }

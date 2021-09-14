@@ -1,4 +1,4 @@
-use crate::state::Config;
+use crate::state::{AirdropRegistryInfo, Config, State, VMeta};
 use cosmwasm_std::{Addr, Binary, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -62,9 +62,27 @@ pub enum ExecuteMsg {
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     GetConfig {},
+    GetState {},
+    GetValidatorMeta { val_addr: Addr },
+    GetAirdropMeta { token: String },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct GetConfigResponse {
     pub config: Config,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct GetStateResponse {
+    pub state: State,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct GetValidatorMetaResponse {
+    pub val_meta: Option<VMeta>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct GetAirdropMetaResponse {
+    pub airdrop_meta: Option<AirdropRegistryInfo>,
 }

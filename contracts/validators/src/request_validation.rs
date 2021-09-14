@@ -1,6 +1,6 @@
 use crate::state::Config;
 use crate::ContractError;
-use cosmwasm_std::MessageInfo;
+use cosmwasm_std::{Env, MessageInfo};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -13,6 +13,8 @@ pub enum Verify {
 
     SenderManagerOrPoolsContract,
 
+    SenderManagerOrPoolsContractOrSelf,
+
     //Info.funds is expected to be one
     NonZeroSingleInfoFund,
     // If info.funds are empty or zero
@@ -22,6 +24,7 @@ pub enum Verify {
 pub fn validate(
     config: &Config,
     info: &MessageInfo,
+    env: &Env,
     checks: Vec<Verify>,
 ) -> Result<(), ContractError> {
     for check in checks {
@@ -38,6 +41,14 @@ pub fn validate(
             }
             Verify::SenderManagerOrPoolsContract => {
                 if info.sender != config.manager && info.sender != config.pools_contract_addr {
+                    return Err(ContractError::Unauthorized {});
+                }
+            }
+            Verify::SenderManagerOrPoolsContractOrSelf => {
+                if info.sender != config.manager
+                    && info.sender != config.pools_contract_addr
+                    && info.sender != env.contract.address
+                {
                     return Err(ContractError::Unauthorized {});
                 }
             }
