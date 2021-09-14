@@ -1970,6 +1970,7 @@ mod tests {
                 pending_airdrops: vec![],
                 undelegation_records: vec![UserUndelegationRecord {
                     id: Timestamp::from_seconds(123),
+                    est_release_time: Default::default(),
                     amount: Uint128::new(100_u128),
                     shares: Default::default(),
                     strategy_name: "sid1".to_string(),
@@ -2012,6 +2013,7 @@ mod tests {
                 pending_airdrops: vec![],
                 undelegation_records: vec![UserUndelegationRecord {
                     id: Timestamp::from_seconds(123),
+                    est_release_time: env.block.time.plus_seconds(5000),
                     amount: Uint128::new(100_u128),
                     shares: Default::default(),
                     strategy_name: "sid1".to_string(),
@@ -2070,6 +2072,7 @@ mod tests {
                 pending_airdrops: vec![],
                 undelegation_records: vec![UserUndelegationRecord {
                     id: Timestamp::from_seconds(123),
+                    est_release_time: Timestamp::from_seconds(126),
                     amount: Uint128::new(100_u128),
                     shares: Default::default(),
                     strategy_name: "sid1".to_string(),
@@ -2144,6 +2147,7 @@ mod tests {
                 pending_airdrops: vec![],
                 undelegation_records: vec![UserUndelegationRecord {
                     id: Timestamp::from_seconds(123),
+                    est_release_time: Timestamp::from_seconds(126),
                     amount: Uint128::new(100_u128),
                     shares: Decimal::from_ratio(1000_u128, 1_u128),
                     strategy_name: "sid1".to_string(),
@@ -2224,6 +2228,7 @@ mod tests {
                 undelegation_records: vec![
                     UserUndelegationRecord {
                         id: Timestamp::from_seconds(123),
+                        est_release_time: Default::default(),
                         amount: Uint128::new(100_u128),
                         shares: Decimal::from_ratio(1000_u128, 1_u128),
                         strategy_name: "sid1".to_string(),
@@ -2231,6 +2236,7 @@ mod tests {
                     },
                     UserUndelegationRecord {
                         id: Timestamp::from_seconds(126),
+                        est_release_time: Timestamp::from_seconds(130),
                         amount: Uint128::new(100_u128),
                         shares: Decimal::from_ratio(1000_u128, 1_u128),
                         strategy_name: "sid2".to_string(),
@@ -2286,6 +2292,7 @@ mod tests {
             user1_reward_info.undelegation_records,
             vec![UserUndelegationRecord {
                 id: Timestamp::from_seconds(126),
+                est_release_time: Timestamp::from_seconds(130),
                 amount: Uint128::new(100_u128),
                 shares: Decimal::from_ratio(1000_u128, 1_u128),
                 strategy_name: "sid2".to_string(),
@@ -2553,6 +2560,7 @@ mod tests {
             user1_reward_info.undelegation_records,
             vec![UserUndelegationRecord {
                 id: env.block.time,
+                est_release_time: env.block.time.plus_seconds(3600 + 3600),
                 amount: Uint128::new(200_u128),
                 shares: Decimal::from_ratio(2000_u128, 1_u128),
                 strategy_name: "sid1".to_string(),
@@ -2603,6 +2611,7 @@ mod tests {
                 ],
                 undelegation_records: vec![UserUndelegationRecord {
                     id: env.block.time,
+                    est_release_time: env.block.time.plus_seconds(3600 + 3600),
                     amount: Uint128::new(200_u128),
                     shares: Decimal::from_ratio(2000_u128, 1_u128),
                     strategy_name: "sid1".to_string(),
@@ -2660,6 +2669,7 @@ mod tests {
             vec![
                 UserUndelegationRecord {
                     id: env.block.time,
+                    est_release_time: env.block.time.plus_seconds(3600 + 3600),
                     amount: Uint128::new(200_u128),
                     shares: Decimal::from_ratio(2000_u128, 1_u128),
                     strategy_name: "sid1".to_string(),
@@ -2667,6 +2677,7 @@ mod tests {
                 },
                 UserUndelegationRecord {
                     id: env.block.time,
+                    est_release_time: env.block.time.plus_seconds(3600 + 3600),
                     amount: Uint128::new(50_u128),
                     shares: Decimal::from_ratio(500_u128, 1_u128),
                     strategy_name: "sid1".to_string(),

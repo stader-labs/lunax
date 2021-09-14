@@ -565,6 +565,10 @@ pub fn try_undelegate_user_rewards(
         .push(UserUndelegationRecord {
             // there may multiple records with the same id. when withdrawing, use amount as the tie-breaker in such a case.
             id: _env.block.time,
+            est_release_time: _env
+                .block
+                .time
+                .plus_seconds(strategy_info.unbonding_period + strategy_info.unbonding_buffer),
             amount,
             shares: user_undelegated_shares,
             strategy_name: strategy_name.clone(),
@@ -780,6 +784,13 @@ pub fn try_withdraw_rewards(
         return Err(ContractError::UndelegationRecordNotFound {});
     }
 
+    if user_undelegation_record
+        .est_release_time
+        .gt(&env.block.time)
+    {
+        return Err(ContractError::UndelegationInUnbondingPeriod {});
+    }
+
     let undelegation_batch_id = U64Key::new(user_undelegation_record.undelegation_batch_id);
     let undelegation_batch: BatchUndelegationRecord;
     if let Some(undelegation_batch_map) = UNDELEGATION_BATCH_MAP
@@ -789,10 +800,6 @@ pub fn try_withdraw_rewards(
         undelegation_batch = undelegation_batch_map;
     } else {
         return Err(ContractError::UndelegationBatchNotFound {});
-    }
-
-    if undelegation_batch.est_release_time.gt(&env.block.time) {
-        return Err(ContractError::UndelegationInUnbondingPeriod {});
     }
 
     if !undelegation_batch.slashing_checked {

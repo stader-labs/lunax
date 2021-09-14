@@ -147,6 +147,7 @@ impl UserRewardInfo {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct UserUndelegationRecord {
     pub id: Timestamp,
+    pub est_release_time: Timestamp,
     pub amount: Uint128,
     pub shares: Decimal,
     pub strategy_name: String,
