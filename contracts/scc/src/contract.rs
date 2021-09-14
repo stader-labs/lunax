@@ -47,7 +47,6 @@ pub fn instantiate(
         scc_denom: msg.strategy_denom,
         contract_genesis_block_height: _env.block.height,
         contract_genesis_timestamp: _env.block.time,
-        event_loop_size: 20,
         total_accumulated_rewards: Uint128::zero(),
         total_accumulated_airdrops: vec![],
         current_undelegated_strategies: vec![],
@@ -81,6 +80,7 @@ pub fn execute(
             unbonding_period,
             unbonding_buffer,
         ),
+        // TODO: bchain99 - deactivate/activate can come under update_strategy
         ExecuteMsg::DeactivateStrategy { strategy_name } => {
             try_deactivate_strategy(deps, _env, info, strategy_name)
         }

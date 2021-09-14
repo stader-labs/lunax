@@ -13,7 +13,6 @@ pub struct State {
     pub scc_denom: String,
     pub contract_genesis_block_height: u64,
     pub contract_genesis_timestamp: Timestamp,
-    pub event_loop_size: u64,
 
     // total historical rewards accumulated in the SCC
     pub total_accumulated_rewards: Uint128,

@@ -79,12 +79,99 @@ mod tests {
                 scc_denom: "uluna".to_string(),
                 contract_genesis_block_height: env.block.height,
                 contract_genesis_timestamp: env.block.time,
-                event_loop_size: 20,
                 total_accumulated_rewards: Uint128::zero(),
                 total_accumulated_airdrops: vec![],
                 current_undelegated_strategies: vec![]
             }
         );
+    }
+
+    #[test]
+    fn test__try_update_strategy_fail() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &[]);
+        let env = mock_env();
+
+        let res = instantiate_contract(
+            &mut deps,
+            &info,
+            &env,
+            Some(String::from("uluna")),
+            Some(String::from("pools_contract")),
+        );
+
+        /*
+           Test - 1. Unauthorized
+        */
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("not-creator", &[]),
+            ExecuteMsg::UpdateStrategy {
+                strategy_name: "".to_string(),
+                unbonding_period: 0,
+                unbonding_buffer: 0,
+                is_active: false,
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::Unauthorized {}));
+    }
+
+    #[test]
+    fn test__try_update_strategy_success() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &[]);
+        let env = mock_env();
+
+        let res = instantiate_contract(
+            &mut deps,
+            &info,
+            &env,
+            Some(String::from("uluna")),
+            Some(String::from("pools_contract")),
+        );
+
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            "sid1",
+            &StrategyInfo {
+                name: "sid1".to_string(),
+                sic_contract_address: Addr::unchecked("abc"),
+                unbonding_period: 3600,
+                unbonding_buffer: 3600,
+                undelegation_batch_id_pointer: 0,
+                reconciled_batch_id_pointer: 0,
+                is_active: false,
+                total_shares: Default::default(),
+                current_undelegated_shares: Default::default(),
+                global_airdrop_pointer: vec![],
+                total_airdrops_accumulated: vec![],
+                shares_per_token_ratio: Default::default(),
+            },
+        );
+
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::UpdateStrategy {
+                strategy_name: "sid1".to_string(),
+                unbonding_period: 10000,
+                unbonding_buffer: 15000,
+                is_active: true,
+            },
+        )
+        .unwrap();
+
+        let sid1_strategy_info_opt = STRATEGY_MAP
+            .may_load(deps.as_mut().storage, "sid1")
+            .unwrap();
+        assert_ne!(sid1_strategy_info_opt, None);
+        let sid1_strategy_info = sid1_strategy_info_opt.unwrap();
+        assert_eq!(sid1_strategy_info.unbonding_period, 10000);
+        assert_eq!(sid1_strategy_info.unbonding_buffer, 15000);
+        assert!(sid1_strategy_info.is_active);
     }
 
     #[test]
