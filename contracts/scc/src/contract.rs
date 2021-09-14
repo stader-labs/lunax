@@ -212,7 +212,7 @@ pub fn try_withdraw_pending_rewards(
 
     user_reward_info.pending_rewards = Uint128::zero();
 
-    USER_REWARD_INFO_MAP.save(deps.storage, &user_addr, &user_reward_info);
+    USER_REWARD_INFO_MAP.save(deps.storage, &user_addr, &user_reward_info)?;
 
     Ok(Response::new().add_message(send_funds_msg(
         &user_addr,
@@ -420,7 +420,7 @@ pub fn try_undelegate_from_strategies(
                     slashing_checked: false,
                 })
             },
-        );
+        )?;
 
         strategy_info.undelegation_batch_id_pointer = new_undelegation_batch_id;
         strategy_info.total_shares = decimal_subtraction_in_256(
@@ -438,7 +438,7 @@ pub fn try_undelegate_from_strategies(
             funds: vec![],
         });
 
-        STRATEGY_MAP.save(deps.storage, &*strategy, &strategy_info);
+        STRATEGY_MAP.save(deps.storage, &*strategy, &strategy_info)?;
     }
 
     Ok(Response::new()
