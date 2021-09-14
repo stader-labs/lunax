@@ -4119,7 +4119,7 @@ mod tests {
         let mut contracts_to_token: HashMap<Addr, Uint128> = HashMap::new();
         contracts_to_token.insert(sic1_address.clone(), Uint128::new(0_u128));
         contracts_to_token.insert(sic2_address.clone(), Uint128::new(0_u128));
-        contracts_to_token.insert(sic3_address.clone(), Uint128::new(200_u128));
+        contracts_to_token.insert(sic3_address.clone(), Uint128::new(100_u128));
         deps.querier.update_wasm(Some(contracts_to_token), None);
         STATE.update(
             deps.as_mut().storage,
@@ -4256,82 +4256,82 @@ mod tests {
                 funds: vec![Coin::new(500_u128, "uluna".to_string())]
             })]
         ));
-        // let sid3_strategy_opt = STRATEGY_MAP
-        //     .may_load(deps.as_mut().storage, "sid3")
-        //     .unwrap();
-        // assert_ne!(sid3_strategy_opt, None);
-        // let sid3_strategy = sid3_strategy_opt.unwrap();
-        // assert_eq!(
-        //     sid3_strategy.total_shares,
-        //     Decimal::from_ratio(8000_u128, 1_u128)
-        // );
-        // assert_eq!(
-        //     sid3_strategy.shares_per_token_ratio,
-        //     Decimal::from_ratio(10_u128, 1_u128)
-        // );
-        // let user1_reward_info_opt = USER_REWARD_INFO_MAP
-        //     .may_load(deps.as_mut().storage, &user1)
-        //     .unwrap();
-        // assert_ne!(user1_reward_info_opt, None);
-        // let user1_reward_info = user1_reward_info_opt.unwrap();
-        // assert!(check_equal_user_strategies(
-        //     user1_reward_info.strategies,
-        //     vec![
-        //         UserStrategyInfo {
-        //             strategy_name: "sid1".to_string(),
-        //             shares: Decimal::from_ratio(2000_u128, 1_u128),
-        //             airdrop_pointer: vec![]
-        //         },
-        //         UserStrategyInfo {
-        //             strategy_name: "sid2".to_string(),
-        //             shares: Decimal::from_ratio(3000_u128, 1_u128),
-        //             airdrop_pointer: vec![]
-        //         },
-        //         UserStrategyInfo {
-        //             strategy_name: "sid3".to_string(),
-        //             shares: Decimal::from_ratio(5500_u128, 1_u128),
-        //             airdrop_pointer: vec![
-        //                 DecCoin::new(Decimal::from_ratio(200_u128, 3000_u128), "anc".to_string()),
-        //                 DecCoin::new(Decimal::from_ratio(600_u128, 3000_u128), "mir".to_string()),
-        //             ]
-        //         },
-        //     ]
-        // ));
-        // assert_eq!(user1_reward_info.pending_rewards, Uint128::new(200_u128));
-        // assert_eq!(user1_reward_info.user_portfolio.len(), 3);
-        // assert!(check_equal_vec(
-        //     user1_reward_info.user_portfolio,
-        //     vec![
-        //         UserStrategyPortfolio {
-        //             strategy_name: "sid1".to_string(),
-        //             deposit_fraction: Decimal::from_ratio(1_u128, 2_u128)
-        //         },
-        //         UserStrategyPortfolio {
-        //             strategy_name: "sid2".to_string(),
-        //             deposit_fraction: Decimal::from_ratio(1_u128, 4_u128)
-        //         },
-        //         UserStrategyPortfolio {
-        //             strategy_name: "sid3".to_string(),
-        //             deposit_fraction: Decimal::from_ratio(1_u128, 4_u128)
-        //         },
-        //     ]
-        // ));
-        // assert!(check_equal_vec(
-        //     user1_reward_info.pending_airdrops,
-        //     vec![
-        //         Coin::new(133_u128, "anc".to_string()),
-        //         Coin::new(150_u128, "mir".to_string())
-        //     ]
-        // ));
-        // let state_response: GetStateResponse =
-        //     from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::GetState {}).unwrap())
-        //         .unwrap();
-        // assert_ne!(state_response.state, None);
-        // let state = state_response.state.unwrap();
-        // assert_eq!(state.total_accumulated_rewards, Uint128::new(700_u128));
+        let sid3_strategy_opt = STRATEGY_MAP
+            .may_load(deps.as_mut().storage, "sid3")
+            .unwrap();
+        assert_ne!(sid3_strategy_opt, None);
+        let sid3_strategy = sid3_strategy_opt.unwrap();
+        assert_eq!(
+            sid3_strategy.total_shares,
+            Decimal::from_ratio(18000_u128, 1_u128)
+        );
+        assert_eq!(
+            sid3_strategy.shares_per_token_ratio,
+            Decimal::from_ratio(30_u128, 1_u128)
+        );
+        let user1_reward_info_opt = USER_REWARD_INFO_MAP
+            .may_load(deps.as_mut().storage, &user1)
+            .unwrap();
+        assert_ne!(user1_reward_info_opt, None);
+        let user1_reward_info = user1_reward_info_opt.unwrap();
+        assert!(check_equal_user_strategies(
+            user1_reward_info.strategies,
+            vec![
+                UserStrategyInfo {
+                    strategy_name: "sid1".to_string(),
+                    shares: Decimal::from_ratio(2000_u128, 1_u128),
+                    airdrop_pointer: vec![]
+                },
+                UserStrategyInfo {
+                    strategy_name: "sid2".to_string(),
+                    shares: Decimal::from_ratio(3000_u128, 1_u128),
+                    airdrop_pointer: vec![]
+                },
+                UserStrategyInfo {
+                    strategy_name: "sid3".to_string(),
+                    shares: Decimal::from_ratio(15500_u128, 1_u128),
+                    airdrop_pointer: vec![
+                        DecCoin::new(Decimal::from_ratio(200_u128, 3000_u128), "anc".to_string()),
+                        DecCoin::new(Decimal::from_ratio(600_u128, 3000_u128), "mir".to_string()),
+                    ]
+                },
+            ]
+        ));
+        assert_eq!(user1_reward_info.pending_rewards, Uint128::new(200_u128));
+        assert_eq!(user1_reward_info.user_portfolio.len(), 3);
+        assert!(check_equal_vec(
+            user1_reward_info.user_portfolio,
+            vec![
+                UserStrategyPortfolio {
+                    strategy_name: "sid1".to_string(),
+                    deposit_fraction: Decimal::from_ratio(1_u128, 2_u128)
+                },
+                UserStrategyPortfolio {
+                    strategy_name: "sid2".to_string(),
+                    deposit_fraction: Decimal::from_ratio(1_u128, 4_u128)
+                },
+                UserStrategyPortfolio {
+                    strategy_name: "sid3".to_string(),
+                    deposit_fraction: Decimal::from_ratio(1_u128, 4_u128)
+                },
+            ]
+        ));
+        assert!(check_equal_vec(
+            user1_reward_info.pending_airdrops,
+            vec![
+                Coin::new(133_u128, "anc".to_string()),
+                Coin::new(150_u128, "mir".to_string())
+            ]
+        ));
+        let state_response: GetStateResponse =
+            from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::GetState {}).unwrap())
+                .unwrap();
+        assert_ne!(state_response.state, None);
+        let state = state_response.state.unwrap();
+        assert_eq!(state.total_accumulated_rewards, Uint128::new(700_u128));
 
         /*
-            Test - 2. User deposits to money and splits it across his portfolio
+            Test - 3. User deposits to money and splits it across his portfolio
         */
         let mut contracts_to_token: HashMap<Addr, Uint128> = HashMap::new();
         contracts_to_token.insert(sic1_address.clone(), Uint128::new(0_u128));
