@@ -1,12 +1,11 @@
 use crate::state::{Config, State, StrategyInfo, UserRewardInfo, UserStrategyPortfolio};
-use cosmwasm_std::{Addr, Coin, Decimal, Timestamp, Uint128};
+use cosmwasm_std::{Addr, Binary, Coin, Decimal, Timestamp, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
     pub strategy_denom: String,
-
     pub pools_contract: Addr,
 
     pub default_user_portfolio: Option<Vec<UserStrategyPortfolio>>,
@@ -52,6 +51,11 @@ pub enum ExecuteMsg {
     UpdateUserPortfolio {
         user_portfolio: Vec<UserStrategyPortfolio>,
     },
+    RegisterCw20Contracts {
+        denom: String,
+        cw20_contract: Addr,
+        airdrop_contract: Addr,
+    },
     // called by validator contract to transfer rewards from validator contract to SCC
     // this message also moves rewards from SCC to the corresponding SIC. This message will
     // transfer the rewards to the SIC per user. this is because the batching is already being done
@@ -71,6 +75,9 @@ pub enum ExecuteMsg {
     },
     // called by scc manager to periodically claim airdrops for a particular strategy if it supported
     ClaimAirdrops {
+        amount: Uint128,
+        denom: String,
+        claim_msg: Binary,
         strategy_name: String,
     },
     WithdrawRewards {
