@@ -4,11 +4,11 @@ mod tests {
     use crate::contract::{execute, instantiate, query};
     use crate::helpers::get_sic_total_tokens;
     use crate::msg::{
-        ExecuteMsg, GetStateResponse, InstantiateMsg, QueryMsg, UpdateUserAirdropsRequest,
-        UpdateUserRewardsRequest,
+        ExecuteMsg, GetConfigResponse, GetStateResponse, GetStrategiesListResponse, InstantiateMsg,
+        QueryMsg, UpdateUserAirdropsRequest, UpdateUserRewardsRequest,
     };
     use crate::state::{
-        Cw20TokenContractsInfo, State, StrategyInfo, UserRewardInfo, UserStrategyInfo,
+        Config, Cw20TokenContractsInfo, State, StrategyInfo, UserRewardInfo, UserStrategyInfo,
         UserStrategyPortfolio, CW20_TOKEN_CONTRACTS_REGISTRY, STATE, STRATEGY_MAP,
         USER_REWARD_INFO_MAP,
     };
@@ -32,10 +32,12 @@ mod tests {
         env: &Env,
         strategy_denom: Option<String>,
         pools_contract: Option<String>,
+        default_user_portfolio: Option<Vec<UserStrategyPortfolio>>,
     ) -> Response<Empty> {
         let msg = InstantiateMsg {
             strategy_denom: strategy_denom.unwrap_or("uluna".to_string()),
             pools_contract: Addr::unchecked(pools_contract.unwrap_or("pools_contract".to_string())),
+            default_user_portfolio,
         };
 
         return instantiate(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
@@ -58,6 +60,7 @@ mod tests {
             &env,
             Some(String::from("uluna")),
             Some(String::from("pools_contract")),
+            None,
         );
 
         // it worked, let's query the state
@@ -79,6 +82,91 @@ mod tests {
                 total_accumulated_airdrops: vec![]
             }
         );
+        // query the config
+        let config_response: GetConfigResponse =
+            from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::GetConfig {}).unwrap())
+                .unwrap();
+        assert_ne!(config_response.config, None);
+        let config = config_response.config.unwrap();
+        assert_eq!(
+            config,
+            Config {
+                default_user_portfolio: vec![]
+            }
+        )
+    }
+
+    #[test]
+    fn test__query_strategies_list() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &coins(1000, "earth"));
+        let env = mock_env();
+
+        let res = instantiate_contract(
+            &mut deps,
+            &info,
+            &env,
+            Some(String::from("uluna")),
+            Some(String::from("pools_contract")),
+            None,
+        );
+
+        /*
+            Test - 1. No strategies
+        */
+        let strategies_list_response: GetStrategiesListResponse = from_binary(
+            &query(deps.as_ref(), env.clone(), QueryMsg::GetStrategiesList {}).unwrap(),
+        )
+        .unwrap();
+        assert_ne!(strategies_list_response.strategies_list, None);
+        let strategies_list = strategies_list_response.strategies_list.unwrap();
+        assert_eq!(strategies_list.len(), 0);
+
+        /*
+           Test - 2. 5 strategies
+        */
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            "sid1",
+            &StrategyInfo::default("sid1".to_string()),
+        );
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            "sid2",
+            &StrategyInfo::default("sid2".to_string()),
+        );
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            "sid3",
+            &StrategyInfo::default("sid3".to_string()),
+        );
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            "sid4",
+            &StrategyInfo::default("sid4".to_string()),
+        );
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            "sid5",
+            &StrategyInfo::default("sid5".to_string()),
+        );
+
+        let strategies_list_response: GetStrategiesListResponse = from_binary(
+            &query(deps.as_ref(), env.clone(), QueryMsg::GetStrategiesList {}).unwrap(),
+        )
+        .unwrap();
+        assert_ne!(strategies_list_response.strategies_list, None);
+        let strategies_list = strategies_list_response.strategies_list.unwrap();
+        assert_eq!(
+            strategies_list,
+            vec![
+                "sid1".to_string(),
+                "sid2".to_string(),
+                "sid3".to_string(),
+                "sid4".to_string(),
+                "sid5".to_string()
+            ]
+        );
     }
 
     #[test]
@@ -93,6 +181,7 @@ mod tests {
             &env,
             Some(String::from("uluna")),
             Some(String::from("pools_contract")),
+            None,
         );
 
         fn get_airdrop_claim_msg() -> Binary {
@@ -175,6 +264,7 @@ mod tests {
             &env,
             Some(String::from("uluna")),
             Some(String::from("pools_contract")),
+            None,
         );
 
         let anc_cw20_contract: Addr = Addr::unchecked("anc-cw20-contract");
@@ -371,6 +461,7 @@ mod tests {
             &env,
             Some(String::from("uluna")),
             Some(String::from("pools_contract")),
+            None,
         );
 
         /*
@@ -398,6 +489,7 @@ mod tests {
             &env,
             Some(String::from("uluna")),
             Some(String::from("pools_contract")),
+            None,
         );
 
         let user1 = Addr::unchecked("user1");
@@ -669,6 +761,7 @@ mod tests {
             &env,
             Some(String::from("uluna")),
             Some(String::from("pools_contract")),
+            None,
         );
 
         fn get_airdrop_claim_msg() -> Binary {
@@ -700,6 +793,7 @@ mod tests {
             &env,
             Some(String::from("uluna")),
             Some(String::from("pools_contract")),
+            None,
         );
         let user1 = Addr::unchecked("user1");
 
@@ -787,6 +881,7 @@ mod tests {
             &env,
             Some(String::from("uluna")),
             Some(String::from("pools_contract")),
+            None,
         );
 
         let user1 = Addr::unchecked("user1");
@@ -798,8 +893,10 @@ mod tests {
             env.clone(),
             mock_info("not-creator", &[]),
             ExecuteMsg::UpdateUserPortfolio {
-                strategy_name: "sid1".to_string(),
-                deposit_fraction: Decimal::one(),
+                user_portfolio: vec![UserStrategyPortfolio {
+                    strategy_name: "sid".to_string(),
+                    deposit_fraction: Decimal::one(),
+                }],
             },
         )
         .unwrap_err();
@@ -840,8 +937,10 @@ mod tests {
             env.clone(),
             mock_info("user1", &[]),
             ExecuteMsg::UpdateUserPortfolio {
-                strategy_name: "sid3".to_string(),
-                deposit_fraction: Decimal::from_ratio(3_u128, 4_u128),
+                user_portfolio: vec![UserStrategyPortfolio {
+                    strategy_name: "sid3".to_string(),
+                    deposit_fraction: Decimal::from_ratio(4_u128, 3_u128),
+                }],
             },
         )
         .unwrap_err();
@@ -874,6 +973,11 @@ mod tests {
         );
         STRATEGY_MAP.save(
             deps.as_mut().storage,
+            "sid1",
+            &StrategyInfo::default("sid2".parse().unwrap()),
+        );
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
             "sid2",
             &StrategyInfo::default("sid2".parse().unwrap()),
         );
@@ -882,8 +986,16 @@ mod tests {
             env.clone(),
             mock_info("user1", &[]),
             ExecuteMsg::UpdateUserPortfolio {
-                strategy_name: "sid2".to_string(),
-                deposit_fraction: Decimal::from_ratio(3_u128, 4_u128),
+                user_portfolio: vec![
+                    UserStrategyPortfolio {
+                        strategy_name: "sid1".to_string(),
+                        deposit_fraction: Decimal::from_ratio(1_u128, 2_u128),
+                    },
+                    UserStrategyPortfolio {
+                        strategy_name: "sid2".to_string(),
+                        deposit_fraction: Decimal::from_ratio(3_u128, 4_u128),
+                    },
+                ],
             },
         )
         .unwrap_err();
@@ -905,89 +1017,59 @@ mod tests {
             &env,
             Some(String::from("uluna")),
             Some(String::from("pools_contract")),
+            None,
         );
 
         let user1 = Addr::unchecked("user1");
 
         /*
-           Test - 1. User doesn't have the portfolio and is new
+           Test - 1. New user
         */
         STRATEGY_MAP.save(
             deps.as_mut().storage,
             "sid1",
-            &StrategyInfo::default("sid1".to_string()),
+            &StrategyInfo::default("sid1".parse().unwrap()),
         );
-
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            "sid2",
+            &StrategyInfo::default("sid2".parse().unwrap()),
+        );
         let res = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info(user1.as_str(), &[]),
+            mock_info("user1", &[]),
             ExecuteMsg::UpdateUserPortfolio {
-                strategy_name: "sid1".to_string(),
-                deposit_fraction: Decimal::from_ratio(3_u128, 4_u128),
+                user_portfolio: vec![
+                    UserStrategyPortfolio {
+                        strategy_name: "sid1".to_string(),
+                        deposit_fraction: Decimal::from_ratio(1_u128, 2_u128),
+                    },
+                    UserStrategyPortfolio {
+                        strategy_name: "sid2".to_string(),
+                        deposit_fraction: Decimal::from_ratio(1_u128, 4_u128),
+                    },
+                ],
             },
         )
         .unwrap();
-
         let user_reward_info_opt = USER_REWARD_INFO_MAP
             .may_load(deps.as_mut().storage, &user1)
             .unwrap();
         assert_ne!(user_reward_info_opt, None);
         let user_reward_info = user_reward_info_opt.unwrap();
-        assert_eq!(user_reward_info.user_portfolio.len(), 1);
         assert!(check_equal_vec(
             user_reward_info.user_portfolio,
-            vec![UserStrategyPortfolio {
-                strategy_name: "sid1".to_string(),
-                deposit_fraction: Decimal::from_ratio(3_u128, 4_u128)
-            }]
-        ));
-
-        /*
-           Test - 2. User updates the deposit fraction of an existing portfolio
-        */
-
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            "sid1",
-            &StrategyInfo::default("sid1".to_string()),
-        );
-        USER_REWARD_INFO_MAP.save(
-            deps.as_mut().storage,
-            &user1,
-            &UserRewardInfo {
-                user_portfolio: vec![UserStrategyPortfolio {
+            vec![
+                UserStrategyPortfolio {
                     strategy_name: "sid1".to_string(),
                     deposit_fraction: Decimal::from_ratio(1_u128, 2_u128),
-                }],
-                strategies: vec![],
-                pending_airdrops: vec![],
-                pending_rewards: Default::default(),
-            },
-        );
-
-        let res = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info(user1.as_str(), &[]),
-            ExecuteMsg::UpdateUserPortfolio {
-                strategy_name: "sid1".to_string(),
-                deposit_fraction: Decimal::from_ratio(3_u128, 4_u128),
-            },
-        )
-        .unwrap();
-        let user_reward_info_opt = USER_REWARD_INFO_MAP
-            .may_load(deps.as_mut().storage, &user1)
-            .unwrap();
-        assert_ne!(user_reward_info_opt, None);
-        let user_reward_info = user_reward_info_opt.unwrap();
-        assert_eq!(user_reward_info.user_portfolio.len(), 1);
-        assert!(check_equal_vec(
-            user_reward_info.user_portfolio,
-            vec![UserStrategyPortfolio {
-                strategy_name: "sid1".to_string(),
-                deposit_fraction: Decimal::from_ratio(3_u128, 4_u128)
-            }]
+                },
+                UserStrategyPortfolio {
+                    strategy_name: "sid2".to_string(),
+                    deposit_fraction: Decimal::from_ratio(1_u128, 4_u128),
+                },
+            ]
         ));
     }
 
@@ -1003,6 +1085,7 @@ mod tests {
             &env,
             Some(String::from("uluna")),
             Some(String::from("pools_contract")),
+            None,
         );
 
         let user1 = Addr::unchecked("user1");
@@ -1169,6 +1252,7 @@ mod tests {
             &env,
             Some(String::from("uluna")),
             Some(String::from("pools_contract")),
+            None,
         );
 
         let user1 = Addr::unchecked("user1");
@@ -2436,6 +2520,7 @@ mod tests {
             &env,
             Some(String::from("uluna")),
             Some(String::from("pools_contract")),
+            None,
         );
 
         /*
@@ -2465,6 +2550,7 @@ mod tests {
             &env,
             Some(String::from("uluna")),
             Some(String::from("pools_contract")),
+            None,
         );
 
         STRATEGY_MAP.save(
@@ -2500,6 +2586,7 @@ mod tests {
             &env,
             Some(String::from("uluna")),
             Some(String::from("pools_contract")),
+            None,
         );
 
         let strategy_name: String = String::from("sid");
@@ -2548,6 +2635,7 @@ mod tests {
             &env,
             Some(String::from("uluna")),
             Some(String::from("pools_contract")),
+            None,
         );
 
         let mut sid_strategy_info = StrategyInfo::default("sid".to_string());
@@ -2586,6 +2674,7 @@ mod tests {
             &env,
             Some(String::from("uluna")),
             Some(String::from("pools_contract")),
+            None,
         );
 
         /*
@@ -2632,6 +2721,7 @@ mod tests {
             &env,
             Some(String::from("uluna")),
             Some(String::from("pools_contract")),
+            None,
         );
 
         let mut sid_strategy_info = StrategyInfo::default("sid".to_string());
@@ -2670,6 +2760,7 @@ mod tests {
             &env,
             Some(String::from("uluna")),
             Some(String::from("pools_contract")),
+            None,
         );
 
         /*
@@ -2723,6 +2814,7 @@ mod tests {
             &env,
             Some(String::from("uluna")),
             Some(String::from("pools_contract")),
+            None,
         );
 
         let res = execute(
@@ -2767,6 +2859,7 @@ mod tests {
             &env,
             Some(String::from("uluna")),
             Some(String::from("pools_contract")),
+            None,
         );
 
         /*
@@ -2817,6 +2910,7 @@ mod tests {
             &env,
             Some(String::from("uluna")),
             Some(String::from("pools_contract")),
+            None,
         );
 
         let user1 = Addr::unchecked("user-1");

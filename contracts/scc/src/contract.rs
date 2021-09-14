@@ -1,19 +1,20 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, Addr, Binary, Coin, Decimal, Deps, DepsMut, Env, MessageInfo, Response, StdResult,
-    Timestamp, Uint128, WasmMsg,
+    to_binary, Addr, Binary, Coin, Decimal, Deps, DepsMut, Env, MessageInfo, Order, Response,
+    StdResult, Timestamp, Uint128, WasmMsg,
 };
 
 use crate::error::ContractError;
 use crate::helpers::{get_strategy_shares_per_token_ratio, get_strategy_split};
 use crate::msg::{
-    ExecuteMsg, GetStateResponse, GetStrategyInfoResponse, GetUserRewardInfo, InstantiateMsg,
-    QueryMsg, UpdateUserAirdropsRequest, UpdateUserRewardsRequest,
+    ExecuteMsg, GetConfigResponse, GetStateResponse, GetStrategiesListResponse,
+    GetStrategyInfoResponse, GetUserRewardInfo, InstantiateMsg, QueryMsg,
+    UpdateUserAirdropsRequest, UpdateUserRewardsRequest,
 };
 use crate::state::{
-    Cw20TokenContractsInfo, State, StrategyInfo, UserRewardInfo, UserStrategyInfo,
-    UserStrategyPortfolio, CW20_TOKEN_CONTRACTS_REGISTRY, STATE, STRATEGY_MAP,
+    Config, Cw20TokenContractsInfo, State, StrategyInfo, UserRewardInfo, UserStrategyInfo,
+    UserStrategyPortfolio, CONFIG, CW20_TOKEN_CONTRACTS_REGISTRY, STATE, STRATEGY_MAP,
     USER_REWARD_INFO_MAP,
 };
 use crate::user::{allocate_user_airdrops_across_strategies, get_user_airdrops};
@@ -33,6 +34,10 @@ pub fn instantiate(
     info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
+    let config = Config {
+        default_user_portfolio: msg.default_user_portfolio.unwrap_or(vec![]),
+    };
+
     let state = State {
         manager: info.sender.clone(),
         pool_contract: msg.pools_contract,
@@ -44,6 +49,7 @@ pub fn instantiate(
         total_accumulated_airdrops: vec![],
     };
     STATE.save(deps.storage, &state)?;
+    CONFIG.save(deps.storage, &config)?;
 
     Ok(Response::new()
         .add_attribute("method", "instantiate")
@@ -79,10 +85,9 @@ pub fn execute(
         ExecuteMsg::RemoveStrategy { strategy_name } => {
             try_remove_strategy(deps, _env, info, strategy_name)
         }
-        ExecuteMsg::UpdateUserPortfolio {
-            strategy_name,
-            deposit_fraction,
-        } => try_update_user_portfolio(deps, _env, info, strategy_name, deposit_fraction),
+        ExecuteMsg::UpdateUserPortfolio { user_portfolio } => {
+            try_update_user_portfolio(deps, _env, info, user_portfolio)
+        }
         ExecuteMsg::UpdateUserRewards {
             update_user_rewards_requests,
         } => try_update_user_rewards(deps, _env, info, update_user_rewards_requests),
@@ -458,58 +463,41 @@ pub fn try_update_user_portfolio(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    strategy_name: String,
-    deposit_fraction: Decimal,
+    user_portfolio: Vec<UserStrategyPortfolio>,
 ) -> Result<Response, ContractError> {
     let user_addr = info.sender;
 
-    if STRATEGY_MAP
-        .may_load(deps.storage, &*strategy_name)
-        .unwrap()
-        .is_none()
-    {
-        return Err(ContractError::StrategyInfoDoesNotExist(
-            strategy_name.clone(),
-        ));
-    }
-
-    let mut user_reward_info: UserRewardInfo = UserRewardInfo::new();
-    if let Some(user_reward_info_map) = USER_REWARD_INFO_MAP
-        .may_load(deps.storage, &user_addr)
-        .unwrap()
-    {
-        user_reward_info = user_reward_info_map;
-    }
-
-    // find existing portfolio and get a mutable reference to it
-    let mut user_portfolio: &mut UserStrategyPortfolio;
-    if let Some(i) = (0..user_reward_info.user_portfolio.len()).find(|&i| {
-        user_reward_info.user_portfolio[i]
-            .strategy_name
-            .eq(&strategy_name)
-    }) {
-        user_portfolio = &mut user_reward_info.user_portfolio[i];
-    } else {
-        let new_user_portfolio = UserStrategyPortfolio::new(strategy_name, deposit_fraction);
-        user_reward_info.user_portfolio.push(new_user_portfolio);
-        user_portfolio = user_reward_info.user_portfolio.last_mut().unwrap();
-    }
-
-    // redundant if the portfolio was newly created
-    user_portfolio.deposit_fraction = deposit_fraction;
-
     // check if the entire portfolio deposit fraction is less than 1. else abort the tx
+    // do bunch of sanity checks
     let mut total_deposit_fraction = Decimal::zero();
-    user_reward_info.user_portfolio.iter().for_each(|x| {
+    for portfolio in &user_portfolio {
+        let strategy_name = portfolio.strategy_name.clone();
+
+        if STRATEGY_MAP
+            .may_load(deps.storage, &*strategy_name)
+            .unwrap()
+            .is_none()
+        {
+            return Err(ContractError::StrategyInfoDoesNotExist(strategy_name));
+        }
+
         total_deposit_fraction =
-            decimal_summation_in_256(total_deposit_fraction, x.deposit_fraction);
-    });
+            decimal_summation_in_256(total_deposit_fraction, portfolio.deposit_fraction);
+    }
 
     if total_deposit_fraction > Decimal::one() {
         return Err(ContractError::InvalidPortfolioDepositFraction {});
     }
 
-    USER_REWARD_INFO_MAP.save(deps.storage, &user_addr, &user_reward_info)?;
+    USER_REWARD_INFO_MAP.update(
+        deps.storage,
+        &user_addr,
+        |reward_info_opt| -> Result<_, ContractError> {
+            let mut user_reward_info = reward_info_opt.unwrap_or(UserRewardInfo::default());
+            user_reward_info.user_portfolio = user_portfolio;
+            Ok(user_reward_info)
+        },
+    )?;
 
     Ok(Response::default())
 }
@@ -520,7 +508,8 @@ pub fn try_update_user_rewards(
     _info: MessageInfo,
     update_user_rewards_requests: Vec<UpdateUserRewardsRequest>,
 ) -> Result<Response, ContractError> {
-    let state = STATE.load(deps.storage).unwrap();
+    let state = STATE.load(deps.storage)?;
+    let config = CONFIG.load(deps.storage)?;
 
     if update_user_rewards_requests.is_empty() {
         return Ok(Response::new().add_attribute("zero_update_user_rewards_requests", "1"));
@@ -549,7 +538,7 @@ pub fn try_update_user_rewards(
         let mut user_reward_info = USER_REWARD_INFO_MAP
             .may_load(deps.storage, &user_addr)
             .unwrap()
-            .unwrap_or_else(UserRewardInfo::new);
+            .unwrap_or(UserRewardInfo::new(config.default_user_portfolio.clone()));
 
         // this is the amount to be split per strategy
         let strategy_split: Vec<(String, Uint128)>;
@@ -706,8 +695,9 @@ pub fn try_update_user_airdrops(
     info: MessageInfo,
     update_user_airdrops_requests: Vec<UpdateUserAirdropsRequest>,
 ) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
     // check for manager?
-    let state = STATE.load(deps.storage).unwrap();
+    let state = STATE.load(deps.storage)?;
     if info.sender != state.pool_contract {
         return Err(ContractError::Unauthorized {});
     }
@@ -732,7 +722,7 @@ pub fn try_update_user_airdrops(
         );
 
         // fetch the user rewards info
-        let mut user_reward_info = UserRewardInfo::new();
+        let mut user_reward_info = UserRewardInfo::new(config.default_user_portfolio.clone());
         if let Some(user_reward_info_mapping) =
             USER_REWARD_INFO_MAP.may_load(deps.storage, &user).unwrap()
         {
@@ -762,11 +752,33 @@ pub fn try_update_user_airdrops(
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetState {} => to_binary(&query_state(deps)?),
+        QueryMsg::GetConfig {} => to_binary(&query_config(deps)?),
         QueryMsg::GetStrategyInfo { strategy_name } => {
             to_binary(&query_strategy_info(deps, strategy_name)?)
         }
         QueryMsg::GetUserRewardInfo { user } => to_binary(&query_user_reward_info(deps, user)?),
+        QueryMsg::GetStrategiesList {} => to_binary(&query_strategies_list(deps)?),
     }
+}
+
+fn query_strategies_list(deps: Deps) -> StdResult<GetStrategiesListResponse> {
+    let mut strategies_list: Vec<String> = vec![];
+    STRATEGY_MAP
+        .keys(deps.storage, None, None, Order::Ascending)
+        .for_each(|x| {
+            strategies_list.push(String::from_utf8(x).unwrap_or("".to_string()));
+        });
+
+    Ok(GetStrategiesListResponse {
+        strategies_list: Some(strategies_list),
+    })
+}
+
+fn query_config(deps: Deps) -> StdResult<GetConfigResponse> {
+    let config = CONFIG.load(deps.storage)?;
+    Ok(GetConfigResponse {
+        config: Some(config),
+    })
 }
 
 fn query_user_reward_info(deps: Deps, user: Addr) -> StdResult<GetUserRewardInfo> {

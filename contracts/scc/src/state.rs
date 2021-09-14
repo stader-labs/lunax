@@ -6,6 +6,11 @@ use cw_storage_plus::{Item, Map};
 use stader_utils::coin_utils::DecCoin;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct Config {
+    pub default_user_portfolio: Vec<UserStrategyPortfolio>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct State {
     pub manager: Addr,
 
@@ -17,6 +22,7 @@ pub struct State {
     // total historical rewards accumulated in the SCC
     pub total_accumulated_rewards: Uint128,
     // current rewards sitting in the SCC
+    // TODO: bchain99 - we may not need this
     pub current_rewards_in_scc: Uint128,
     pub total_accumulated_airdrops: Vec<Coin>,
 }
@@ -113,9 +119,9 @@ impl UserRewardInfo {
         }
     }
 
-    pub fn new() -> Self {
+    pub fn new(default_user_portfolio: Vec<UserStrategyPortfolio>) -> Self {
         UserRewardInfo {
-            user_portfolio: vec![],
+            user_portfolio: default_user_portfolio,
             strategies: vec![],
             pending_airdrops: vec![],
             pending_rewards: Default::default(),
@@ -145,6 +151,7 @@ pub struct Cw20TokenContractsInfo {
 }
 
 pub const STATE: Item<State> = Item::new("state");
+pub const CONFIG: Item<Config> = Item::new("config");
 
 pub const STRATEGY_MAP: Map<&str, StrategyInfo> = Map::new("strategy_map");
 pub const USER_REWARD_INFO_MAP: Map<&Addr, UserRewardInfo> = Map::new("user_reward_info_map");

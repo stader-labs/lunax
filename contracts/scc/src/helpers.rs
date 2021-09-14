@@ -112,11 +112,12 @@ mod tests {
         deps: &mut OwnedDeps<MockStorage, MockApi, MockQuerier>,
         info: &MessageInfo,
         env: &Env,
-        vault_denom: Option<String>,
+        strategy_denom: Option<String>,
     ) -> Response<Empty> {
         let instantiate_msg = InstantiateMsg {
-            strategy_denom: vault_denom.unwrap_or_else(|| "uluna".to_string()),
+            strategy_denom: strategy_denom.unwrap_or_else(|| "uluna".to_string()),
             pools_contract: Addr::unchecked("abc"),
+            default_user_portfolio: None,
         };
 
         return instantiate(deps.as_mut(), env.clone(), info.clone(), instantiate_msg).unwrap();
