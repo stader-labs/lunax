@@ -119,21 +119,22 @@ pub fn get_strategy_split(
 #[cfg(test)]
 mod tests {
     use crate::contract::instantiate;
-    use crate::helpers::{get_strategy_split, get_vault_apr};
+    use crate::helpers::{get_strategy_shares_per_token_ratio, get_strategy_split, get_vault_apr};
     use crate::msg::InstantiateMsg;
     use crate::state::{
-        UserRewardInfo, UserStrategyInfo, UserStrategyPortfolio, STATE, USER_REWARD_INFO_MAP,
-    };
-    use cosmwasm_std::testing::{
-        mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
-        MOCK_CONTRACT_ADDR,
+        StrategyInfo, UserRewardInfo, UserStrategyInfo, UserStrategyPortfolio, STATE, STRATEGY_MAP,
+        USER_REWARD_INFO_MAP,
     };
     use cosmwasm_std::{
         Addr, Coin, Decimal, Empty, Env, Fraction, MessageInfo, OwnedDeps, Response, StdResult,
         Uint128,
     };
-    use stader_utils::coin_utils::decimal_division_in_256;
+    use stader_utils::coin_utils::{decimal_division_in_256, decimal_subtraction_in_256};
+    use stader_utils::mock::{
+        mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
+    };
     use stader_utils::test_helpers::check_equal_vec;
+    use std::collections::HashMap;
     use std::ops::Div;
 
     pub fn instantiate_contract(
@@ -148,6 +149,85 @@ mod tests {
         };
 
         return instantiate(deps.as_mut(), env.clone(), info.clone(), instantiate_msg).unwrap();
+    }
+
+    #[test]
+    fn test__get_strategy_shares_per_token_ratio() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &[]);
+        let env = mock_env();
+
+        let res = instantiate_contract(&mut deps, &info, &env, None);
+
+        let sic1_address = Addr::unchecked("sic1_address");
+
+        /*
+           Test - 1. S_T ratio is less than 10
+        */
+        let mut contracts_to_tokens: HashMap<Addr, Uint128> = HashMap::new();
+        contracts_to_tokens.insert(sic1_address.clone(), Uint128::new(500_u128));
+        deps.querier.update_wasm(Some(contracts_to_tokens), None);
+
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            "sid1",
+            &StrategyInfo {
+                name: "sid1".to_string(),
+                sic_contract_address: sic1_address.clone(),
+                unbonding_period: 3600,
+                unbonding_buffer: 3600,
+                undelegation_batch_id_pointer: 0,
+                reconciled_batch_id_pointer: 0,
+                is_active: false,
+                total_shares: Decimal::from_ratio(1000_u128, 1_u128),
+                current_undelegated_shares: Default::default(),
+                global_airdrop_pointer: vec![],
+                total_airdrops_accumulated: vec![],
+                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+            },
+        );
+
+        let strategy_info = STRATEGY_MAP
+            .may_load(deps.as_mut().storage, "sid1")
+            .unwrap()
+            .unwrap();
+        let s_t_ratio = get_strategy_shares_per_token_ratio(deps.as_ref().querier, &strategy_info);
+
+        assert_eq!(s_t_ratio, Decimal::from_ratio(2_u128, 1_u128));
+
+        /*
+           Test - 2. S_T ratio is greater than 10
+        */
+        let mut contracts_to_tokens: HashMap<Addr, Uint128> = HashMap::new();
+        contracts_to_tokens.insert(sic1_address.clone(), Uint128::new(50_u128));
+        deps.querier.update_wasm(Some(contracts_to_tokens), None);
+
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            "sid1",
+            &StrategyInfo {
+                name: "sid1".to_string(),
+                sic_contract_address: sic1_address.clone(),
+                unbonding_period: 3600,
+                unbonding_buffer: 3600,
+                undelegation_batch_id_pointer: 0,
+                reconciled_batch_id_pointer: 0,
+                is_active: false,
+                total_shares: Decimal::from_ratio(1000_u128, 1_u128),
+                current_undelegated_shares: Default::default(),
+                global_airdrop_pointer: vec![],
+                total_airdrops_accumulated: vec![],
+                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+            },
+        );
+
+        let strategy_info = STRATEGY_MAP
+            .may_load(deps.as_mut().storage, "sid1")
+            .unwrap()
+            .unwrap();
+        let s_t_ratio = get_strategy_shares_per_token_ratio(deps.as_ref().querier, &strategy_info);
+
+        assert_eq!(s_t_ratio, Decimal::from_ratio(20_u128, 1_u128));
     }
 
     #[test]

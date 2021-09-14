@@ -1089,6 +1089,7 @@ pub fn try_update_user_rewards(
                     *strategy_to_s_t_ratio.get(&strategy_name).unwrap();
             }
 
+            // println!("shares_per_token_ratio is {:?}", current_strategy_shares_per_token_ratio);
             let mut user_strategy_info: &mut UserStrategyInfo;
             if let Some(i) = (0..user_reward_info.strategies.len()).find(|&i| {
                 user_reward_info.strategies[i].strategy_name == strategy_info.name.clone()
