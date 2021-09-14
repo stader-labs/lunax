@@ -8,13 +8,14 @@ mod tests {
         UpdateUserRewardsRequest,
     };
     use crate::state::{
-        State, StrategyInfo, UserRewardInfo, UserStrategyInfo, UserStrategyPortfolio, STATE,
-        STRATEGY_MAP, USER_REWARD_INFO_MAP,
+        Cw20TokenContractsInfo, State, StrategyInfo, UserRewardInfo, UserStrategyInfo,
+        UserStrategyPortfolio, CW20_TOKEN_CONTRACTS_REGISTRY, STATE, STRATEGY_MAP,
+        USER_REWARD_INFO_MAP,
     };
     use crate::test_helpers::{check_equal_reward_info, check_equal_user_strategies};
     use crate::ContractError;
     use cosmwasm_std::{
-        coins, from_binary, to_binary, Addr, Attribute, BankMsg, Coin, Decimal, Empty, Env,
+        coins, from_binary, to_binary, Addr, Attribute, BankMsg, Binary, Coin, Decimal, Empty, Env,
         MessageInfo, OwnedDeps, QuerierWrapper, Response, StdResult, SubMsg, Uint128, WasmMsg,
     };
     use sic_base::msg::{ExecuteMsg as sic_execute_msg, QueryMsg as sic_query_msg};
@@ -47,6 +48,7 @@ mod tests {
     #[test]
     fn proper_initialization() {
         let mut deps = mock_dependencies(&[]);
+
         let info = mock_info("creator", &coins(1000, "earth"));
         let env = mock_env();
 
@@ -80,6 +82,582 @@ mod tests {
     }
 
     #[test]
+    fn test__try_claim_airdrops_fail() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &coins(1000, "earth"));
+        let env = mock_env();
+
+        let res = instantiate_contract(
+            &mut deps,
+            &info,
+            &env,
+            Some(String::from("uluna")),
+            Some(String::from("pools_contract")),
+        );
+
+        fn get_airdrop_claim_msg() -> Binary {
+            Binary::from(vec![1, 2, 3, 4, 5, 6, 7, 8, 9])
+        }
+
+        /*
+           Test - 1. Unauthorized
+        */
+        let mut err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("not-creator", &[]),
+            ExecuteMsg::ClaimAirdrops {
+                strategy_name: "sid".to_string(),
+                amount: Uint128::new(100_u128),
+                denom: "anc".to_string(),
+                claim_msg: get_airdrop_claim_msg(),
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::Unauthorized {}));
+
+        /*
+           Test - 2. Unregistered airdrop
+        */
+        let mut err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::ClaimAirdrops {
+                strategy_name: "sid".to_string(),
+                amount: Uint128::new(100_u128),
+                denom: "anc".to_string(),
+                claim_msg: get_airdrop_claim_msg(),
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::AirdropNotRegistered {}));
+
+        /*
+           Test - 3. Non-existent strategy
+        */
+        CW20_TOKEN_CONTRACTS_REGISTRY.save(
+            deps.as_mut().storage,
+            "anc".to_string(),
+            &Cw20TokenContractsInfo {
+                airdrop_contract: Addr::unchecked("abc"),
+                cw20_token_contract: Addr::unchecked("def"),
+            },
+        );
+
+        let mut err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::ClaimAirdrops {
+                strategy_name: "sid".to_string(),
+                amount: Uint128::new(100_u128),
+                denom: "anc".to_string(),
+                claim_msg: get_airdrop_claim_msg(),
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(
+            err,
+            ContractError::StrategyInfoDoesNotExist(String { .. })
+        ));
+    }
+
+    #[test]
+    fn test__try_claim_airdrops_success() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &coins(1000, "earth"));
+        let env = mock_env();
+
+        let res = instantiate_contract(
+            &mut deps,
+            &info,
+            &env,
+            Some(String::from("uluna")),
+            Some(String::from("pools_contract")),
+        );
+
+        let anc_cw20_contract: Addr = Addr::unchecked("anc-cw20-contract");
+        let mir_cw20_contract: Addr = Addr::unchecked("mir-cw20-contract");
+        let anc_airdrop_contract: Addr = Addr::unchecked("anc-airdrop-contract");
+        let mir_airdrop_contract: Addr = Addr::unchecked("mir-airdrop-contract");
+
+        let sic_contract: Addr = Addr::unchecked("sic-contract");
+
+        fn get_airdrop_claim_msg() -> Binary {
+            Binary::from(vec![1, 2, 3, 4, 5, 6, 7, 8, 9])
+        }
+
+        CW20_TOKEN_CONTRACTS_REGISTRY.save(
+            deps.as_mut().storage,
+            "anc".to_string(),
+            &Cw20TokenContractsInfo {
+                airdrop_contract: anc_airdrop_contract.clone(),
+                cw20_token_contract: anc_cw20_contract.clone(),
+            },
+        );
+        CW20_TOKEN_CONTRACTS_REGISTRY.save(
+            deps.as_mut().storage,
+            "mir".to_string(),
+            &Cw20TokenContractsInfo {
+                airdrop_contract: mir_airdrop_contract.clone(),
+                cw20_token_contract: mir_cw20_contract.clone(),
+            },
+        );
+
+        /*
+           Test - 1. Claiming airdrops from the sic for the first time
+        */
+        let mut strategy_info = StrategyInfo::new("sid".to_string(), sic_contract.clone(), None);
+        strategy_info.total_shares = Decimal::from_ratio(100_000_000_u128, 1_u128);
+        STRATEGY_MAP.save(deps.as_mut().storage, "sid", &strategy_info);
+
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::ClaimAirdrops {
+                strategy_name: "sid".to_string(),
+                amount: Uint128::new(100_u128),
+                denom: "anc".to_string(),
+                claim_msg: get_airdrop_claim_msg(),
+            },
+        )
+        .unwrap();
+
+        assert_eq!(res.messages.len(), 1);
+        assert_eq!(
+            res.messages,
+            vec![SubMsg::new(WasmMsg::Execute {
+                contract_addr: String::from(sic_contract.clone()),
+                msg: to_binary(&sic_execute_msg::ClaimAirdrops {
+                    airdrop_token_contract: anc_airdrop_contract.clone(),
+                    cw20_token_contract: anc_cw20_contract.clone(),
+                    airdrop_token: "anc".to_string(),
+                    amount: Uint128::new(100_u128),
+                    claim_msg: get_airdrop_claim_msg(),
+                })
+                .unwrap(),
+                funds: vec![]
+            })]
+        );
+
+        let state_response: GetStateResponse =
+            from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::GetState {}).unwrap())
+                .unwrap();
+        assert_ne!(state_response.state, None);
+        let state = state_response.state.unwrap();
+        assert_eq!(
+            state.total_accumulated_airdrops,
+            vec![Coin::new(100_u128, "anc".to_string())]
+        );
+
+        let strategy_info_opt = STRATEGY_MAP.may_load(deps.as_mut().storage, "sid").unwrap();
+        assert_ne!(strategy_info_opt, None);
+        let strategy_info = strategy_info_opt.unwrap();
+        assert_eq!(
+            strategy_info.total_airdrops_accumulated,
+            vec![Coin::new(100_u128, "anc".to_string())]
+        );
+        assert_eq!(
+            strategy_info.global_airdrop_pointer,
+            vec![DecCoin::new(
+                Decimal::from_ratio(100_u128, 100_000_000_u128),
+                "anc".to_string()
+            )]
+        );
+
+        /*
+            Test - 2. Claiming airdrops a mir airdrop with anc airdrop
+        */
+        let mut strategy_info = StrategyInfo::new("sid".to_string(), sic_contract.clone(), None);
+        strategy_info.total_shares = Decimal::from_ratio(100_000_000_u128, 1_u128);
+        strategy_info.global_airdrop_pointer = vec![DecCoin::new(
+            Decimal::from_ratio(100_u128, 100_000_000_u128),
+            "anc".to_string(),
+        )];
+        strategy_info.total_airdrops_accumulated = vec![Coin::new(100_u128, "anc".to_string())];
+
+        STRATEGY_MAP.save(deps.as_mut().storage, "sid", &strategy_info);
+
+        STATE.update(
+            deps.as_mut().storage,
+            |mut state| -> Result<_, ContractError> {
+                state.total_accumulated_airdrops = vec![
+                    Coin::new(200_u128, "anc".to_string()),
+                    Coin::new(500_u128, "mir".to_string()),
+                ];
+                Ok(state)
+            },
+        );
+
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::ClaimAirdrops {
+                strategy_name: "sid".to_string(),
+                amount: Uint128::new(100_u128),
+                denom: "mir".to_string(),
+                claim_msg: get_airdrop_claim_msg(),
+            },
+        )
+        .unwrap();
+
+        assert_eq!(res.messages.len(), 1);
+        assert_eq!(
+            res.messages,
+            vec![SubMsg::new(WasmMsg::Execute {
+                contract_addr: String::from(sic_contract.clone()),
+                msg: to_binary(&sic_execute_msg::ClaimAirdrops {
+                    airdrop_token_contract: mir_airdrop_contract.clone(),
+                    cw20_token_contract: mir_cw20_contract,
+                    airdrop_token: "mir".to_string(),
+                    amount: Uint128::new(100_u128),
+                    claim_msg: get_airdrop_claim_msg(),
+                })
+                .unwrap(),
+                funds: vec![]
+            })]
+        );
+
+        let state_response: GetStateResponse =
+            from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::GetState {}).unwrap())
+                .unwrap();
+        assert_ne!(state_response.state, None);
+        let state = state_response.state.unwrap();
+        assert!(check_equal_vec(
+            state.total_accumulated_airdrops,
+            vec![
+                Coin::new(200_u128, "anc".to_string()),
+                Coin::new(600_u128, "mir".to_string())
+            ]
+        ));
+
+        let strategy_info_opt = STRATEGY_MAP.may_load(deps.as_mut().storage, "sid").unwrap();
+        assert_ne!(strategy_info_opt, None);
+        let strategy_info = strategy_info_opt.unwrap();
+        assert!(check_equal_vec(
+            strategy_info.total_airdrops_accumulated,
+            vec![
+                Coin::new(100_u128, "anc".to_string()),
+                Coin::new(100_u128, "mir".to_string())
+            ]
+        ));
+        assert!(check_equal_vec(
+            strategy_info.global_airdrop_pointer,
+            vec![
+                DecCoin::new(
+                    Decimal::from_ratio(100_u128, 100_000_000_u128),
+                    "anc".to_string()
+                ),
+                DecCoin::new(
+                    Decimal::from_ratio(100_u128, 100_000_000_u128),
+                    "mir".to_string()
+                )
+            ]
+        ));
+    }
+
+    #[test]
+    fn test__try_withdraw_airdrops_fail() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &coins(1000, "earth"));
+        let env = mock_env();
+
+        let res = instantiate_contract(
+            &mut deps,
+            &info,
+            &env,
+            Some(String::from("uluna")),
+            Some(String::from("pools_contract")),
+        );
+
+        /*
+           Test - 1. User reward info does not exist
+        */
+        let mut err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("not-creator", &[]),
+            ExecuteMsg::WithdrawAirdrops {},
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::UserRewardInfoDoesNotExist {}));
+    }
+
+    #[test]
+    fn test__try_withdraw_airdrops_success() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &coins(1000, "earth"));
+        let env = mock_env();
+
+        let res = instantiate_contract(
+            &mut deps,
+            &info,
+            &env,
+            Some(String::from("uluna")),
+            Some(String::from("pools_contract")),
+        );
+
+        let user1 = Addr::unchecked("user1");
+        let anc_airdrop_contract = Addr::unchecked("anc_airdrop_contract");
+        let mir_airdrop_contract = Addr::unchecked("mir_airdrop_contract");
+        let anc_token_contract = Addr::unchecked("anc_token_contract");
+        let mir_token_contract = Addr::unchecked("mir_token_contract");
+
+        let sic1_address = Addr::unchecked("sic1_address");
+        /*
+           Test - 1. User has some pending airdrops
+        */
+        CW20_TOKEN_CONTRACTS_REGISTRY.save(
+            deps.as_mut().storage,
+            "anc".to_string(),
+            &Cw20TokenContractsInfo {
+                airdrop_contract: anc_airdrop_contract.clone(),
+                cw20_token_contract: anc_token_contract.clone(),
+            },
+        );
+        CW20_TOKEN_CONTRACTS_REGISTRY.save(
+            deps.as_mut().storage,
+            "mir".to_string(),
+            &Cw20TokenContractsInfo {
+                airdrop_contract: mir_airdrop_contract.clone(),
+                cw20_token_contract: mir_token_contract.clone(),
+            },
+        );
+
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            "sid1",
+            &StrategyInfo {
+                name: "sid1".to_string(),
+                sic_contract_address: sic1_address.clone(),
+                unbonding_period: None,
+                is_active: true,
+                total_shares: Decimal::from_ratio(5000_u128, 1_u128),
+                global_airdrop_pointer: vec![
+                    DecCoin::new(Decimal::from_ratio(500_u128, 5000_u128), "anc".to_string()),
+                    DecCoin::new(Decimal::from_ratio(200_u128, 5000_u128), "mir".to_string()),
+                ],
+                total_airdrops_accumulated: vec![
+                    Coin::new(500_u128, "anc".to_string()),
+                    Coin::new(200_u128, "mir".to_string()),
+                ],
+                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+            },
+        );
+
+        USER_REWARD_INFO_MAP.save(
+            deps.as_mut().storage,
+            &user1,
+            &UserRewardInfo {
+                user_portfolio: vec![],
+                strategies: vec![UserStrategyInfo {
+                    strategy_name: "sid1".to_string(),
+                    shares: Decimal::from_ratio(5000_u128, 1_u128),
+                    airdrop_pointer: vec![],
+                }],
+                pending_airdrops: vec![],
+                pending_rewards: Default::default(),
+            },
+        );
+        STATE.update(deps.as_mut().storage, |mut state| -> StdResult<_> {
+            state.total_accumulated_airdrops = vec![
+                Coin::new(500_u128, "anc".to_string()),
+                Coin::new(700_u128, "mir".to_string()),
+            ];
+            Ok(state)
+        });
+
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("user1", &[]),
+            ExecuteMsg::WithdrawAirdrops {},
+        )
+        .unwrap();
+
+        assert_eq!(res.messages.len(), 2);
+        assert!(check_equal_vec(
+            res.messages,
+            vec![
+                SubMsg::new(WasmMsg::Execute {
+                    contract_addr: String::from(anc_token_contract.clone()),
+                    msg: to_binary(&cw20::Cw20ExecuteMsg::Transfer {
+                        recipient: String::from(user1.clone()),
+                        amount: Uint128::new(500),
+                    })
+                    .unwrap(),
+                    funds: vec![]
+                }),
+                SubMsg::new(WasmMsg::Execute {
+                    contract_addr: String::from(mir_token_contract.clone()),
+                    msg: to_binary(&cw20::Cw20ExecuteMsg::Transfer {
+                        recipient: String::from(user1.clone()),
+                        amount: Uint128::new(200),
+                    })
+                    .unwrap(),
+                    funds: vec![]
+                }),
+            ]
+        ));
+
+        let state_response: GetStateResponse =
+            from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::GetState {}).unwrap())
+                .unwrap();
+        assert_ne!(state_response.state, None);
+        let state = state_response.state.unwrap();
+        assert!(check_equal_vec(
+            state.total_accumulated_airdrops,
+            vec![
+                Coin::new(0_u128, "anc".to_string()),
+                Coin::new(500_u128, "mir".to_string())
+            ]
+        ));
+
+        let user_reward_info_opt = USER_REWARD_INFO_MAP
+            .may_load(deps.as_mut().storage, &user1.clone())
+            .unwrap();
+        assert_ne!(user_reward_info_opt, None);
+        let user_reward_info = user_reward_info_opt.unwrap();
+        assert!(check_equal_vec(
+            user_reward_info.pending_airdrops,
+            vec![
+                Coin::new(0_u128, "anc".to_string()),
+                Coin::new(0_u128, "mir".to_string())
+            ]
+        ));
+
+        /*
+           Test - 2. Not all airdrops are transferred
+        */
+        CW20_TOKEN_CONTRACTS_REGISTRY.save(
+            deps.as_mut().storage,
+            "anc".to_string(),
+            &Cw20TokenContractsInfo {
+                airdrop_contract: anc_airdrop_contract.clone(),
+                cw20_token_contract: anc_token_contract.clone(),
+            },
+        );
+        CW20_TOKEN_CONTRACTS_REGISTRY.save(
+            deps.as_mut().storage,
+            "mir".to_string(),
+            &Cw20TokenContractsInfo {
+                airdrop_contract: mir_airdrop_contract.clone(),
+                cw20_token_contract: mir_token_contract.clone(),
+            },
+        );
+
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            "sid1",
+            &StrategyInfo {
+                name: "sid1".to_string(),
+                sic_contract_address: sic1_address,
+                unbonding_period: None,
+                is_active: true,
+                total_shares: Decimal::from_ratio(5000_u128, 1_u128),
+                global_airdrop_pointer: vec![
+                    DecCoin::new(Decimal::from_ratio(500_u128, 5000_u128), "anc".to_string()),
+                    DecCoin::new(Decimal::from_ratio(200_u128, 5000_u128), "mir".to_string()),
+                    DecCoin::new(Decimal::from_ratio(400_u128, 5000_u128), "pyl".to_string()),
+                ],
+                total_airdrops_accumulated: vec![
+                    Coin::new(500_u128, "anc".to_string()),
+                    Coin::new(200_u128, "mir".to_string()),
+                    Coin::new(400_u128, "pyl".to_string()),
+                ],
+                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+            },
+        );
+
+        USER_REWARD_INFO_MAP.save(
+            deps.as_mut().storage,
+            &user1,
+            &UserRewardInfo {
+                user_portfolio: vec![],
+                strategies: vec![UserStrategyInfo {
+                    strategy_name: "sid1".to_string(),
+                    shares: Decimal::from_ratio(5000_u128, 1_u128),
+                    airdrop_pointer: vec![],
+                }],
+                pending_airdrops: vec![],
+                pending_rewards: Default::default(),
+            },
+        );
+        STATE.update(deps.as_mut().storage, |mut state| -> StdResult<_> {
+            state.total_accumulated_airdrops = vec![
+                Coin::new(500_u128, "anc".to_string()),
+                Coin::new(700_u128, "mir".to_string()),
+                Coin::new(400_u128, "pyl".to_string()),
+            ];
+            Ok(state)
+        });
+
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("user1", &[]),
+            ExecuteMsg::WithdrawAirdrops {},
+        )
+        .unwrap();
+
+        assert_eq!(res.messages.len(), 2);
+        assert!(check_equal_vec(
+            res.messages,
+            vec![
+                SubMsg::new(WasmMsg::Execute {
+                    contract_addr: String::from(anc_token_contract.clone()),
+                    msg: to_binary(&cw20::Cw20ExecuteMsg::Transfer {
+                        recipient: String::from(user1.clone()),
+                        amount: Uint128::new(500),
+                    })
+                    .unwrap(),
+                    funds: vec![]
+                }),
+                SubMsg::new(WasmMsg::Execute {
+                    contract_addr: String::from(mir_token_contract.clone()),
+                    msg: to_binary(&cw20::Cw20ExecuteMsg::Transfer {
+                        recipient: String::from(user1.clone()),
+                        amount: Uint128::new(200),
+                    })
+                    .unwrap(),
+                    funds: vec![]
+                }),
+            ]
+        ));
+
+        let state_response: GetStateResponse =
+            from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::GetState {}).unwrap())
+                .unwrap();
+        assert_ne!(state_response.state, None);
+        let state = state_response.state.unwrap();
+        assert!(check_equal_vec(
+            state.total_accumulated_airdrops,
+            vec![
+                Coin::new(0_u128, "anc".to_string()),
+                Coin::new(500_u128, "mir".to_string()),
+                Coin::new(400_u128, "pyl".to_string())
+            ]
+        ));
+
+        let user_reward_info_opt = USER_REWARD_INFO_MAP
+            .may_load(deps.as_mut().storage, &user1.clone())
+            .unwrap();
+        assert_ne!(user_reward_info_opt, None);
+        let user_reward_info = user_reward_info_opt.unwrap();
+        assert!(check_equal_vec(
+            user_reward_info.pending_airdrops,
+            vec![
+                Coin::new(0_u128, "anc".to_string()),
+                Coin::new(0_u128, "mir".to_string()),
+                Coin::new(400_u128, "pyl".to_string())
+            ]
+        ));
+    }
+
+    #[test]
     fn test__try_withdraw_pending_rewards_fail() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &coins(1000, "earth"));
@@ -92,6 +670,10 @@ mod tests {
             Some(String::from("uluna")),
             Some(String::from("pools_contract")),
         );
+
+        fn get_airdrop_claim_msg() -> Binary {
+            Binary::from(vec![1, 2, 3, 4, 5, 6, 7, 8, 9])
+        }
 
         /*
            Test - 1. User reward info not present
@@ -119,7 +701,6 @@ mod tests {
             Some(String::from("uluna")),
             Some(String::from("pools_contract")),
         );
-
         let user1 = Addr::unchecked("user1");
 
         /*
@@ -395,7 +976,6 @@ mod tests {
             },
         )
         .unwrap();
-
         let user_reward_info_opt = USER_REWARD_INFO_MAP
             .may_load(deps.as_mut().storage, &user1)
             .unwrap();
@@ -700,8 +1280,14 @@ mod tests {
                 unbonding_period: None,
                 is_active: true,
                 total_shares: Decimal::from_ratio(5000_u128, 1_u128),
-                global_airdrop_pointer: vec![],
-                total_airdrops_accumulated: vec![],
+                global_airdrop_pointer: vec![
+                    DecCoin::new(Decimal::from_ratio(500_u128, 5000_u128), "anc".to_string()),
+                    DecCoin::new(Decimal::from_ratio(200_u128, 5000_u128), "mir".to_string()),
+                ],
+                total_airdrops_accumulated: vec![
+                    Coin::new(500_u128, "anc".to_string()),
+                    Coin::new(200_u128, "mir".to_string()),
+                ],
                 shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
             },
         );

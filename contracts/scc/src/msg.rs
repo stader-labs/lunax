@@ -1,12 +1,11 @@
 use crate::state::{State, StrategyInfo, UserRewardInfo};
-use cosmwasm_std::{Addr, Coin, Decimal, Timestamp, Uint128};
+use cosmwasm_std::{Addr, Binary, Coin, Decimal, Timestamp, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
     pub strategy_denom: String,
-
     pub pools_contract: Addr,
 }
 
@@ -50,6 +49,11 @@ pub enum ExecuteMsg {
         strategy_name: String,
         deposit_fraction: Decimal,
     },
+    RegisterCw20Contracts {
+        denom: String,
+        cw20_contract: Addr,
+        airdrop_contract: Addr,
+    },
     // called by validator contract to transfer rewards from validator contract to SCC
     // this message also moves rewards from SCC to the corresponding SIC. This message will
     // transfer the rewards to the SIC per user. this is because the batching is already being done
@@ -69,6 +73,9 @@ pub enum ExecuteMsg {
     },
     // called by scc manager to periodically claim airdrops for a particular strategy if it supported
     ClaimAirdrops {
+        amount: Uint128,
+        denom: String,
+        claim_msg: Binary,
         strategy_name: String,
     },
     WithdrawRewards {
