@@ -5,7 +5,7 @@ mod tests {
     use crate::error::ContractError;
     use crate::msg::{ExecuteMsg, GetConfigResponse, InstantiateMsg, QueryMsg};
     use crate::operations::{
-        OPERATION_ZERO_DST_ADDR, OPERATION_ZERO_ID, OPERATION_ZERO_SRC_ADDR, OPERATION_ZERO_TAG,
+        EVENT_REDELEGATE_KEY_DST_ADDR, EVENT_REDELEGATE_ID, EVENT_REDELEGATE_KEY_SRC_ADDR, EVENT_REDELEGATE_TYPE,
     };
     use crate::state::{
         AirdropRegistryInfo, Config, State, VMeta, AIRDROP_REGISTRY, CONFIG, STATE,
@@ -81,8 +81,9 @@ mod tests {
     ) -> Response<TerraMsgWrapper> {
         let instantiate_msg = InstantiateMsg {
             vault_denom: vault_denom.unwrap_or_else(|| "utest".to_string()),
-            pools_contract_addr: Addr::unchecked("pools_addr"),
-            scc_contract_addr: Addr::unchecked("scc_addr"),
+            pools_contract: Addr::unchecked("pools_addr"),
+            scc_contract: Addr::unchecked("scc_addr"),
+            delegator_contract: Addr::unchecked("delegator_addr"),
         };
 
         return instantiate(deps.as_mut(), env.clone(), info.clone(), instantiate_msg).unwrap();
@@ -94,16 +95,18 @@ mod tests {
 
         let msg = InstantiateMsg {
             vault_denom: "utest".to_string(),
-            pools_contract_addr: Addr::unchecked("pools_address"),
-            scc_contract_addr: Addr::unchecked("scc_addr"),
+            pools_contract: Addr::unchecked("pools_address"),
+            scc_contract: Addr::unchecked("scc_addr"),
+            delegator_contract: Addr::unchecked("delegator_addr"),
         };
         let expected_config = Config {
             manager: Addr::unchecked("creator"),
             vault_denom: "utest".to_string(),
-            pools_contract_addr: Addr::unchecked("pools_address"),
-            scc_contract_addr: Addr::unchecked("scc_addr"),
+            pools_contract: Addr::unchecked("pools_address"),
+            scc_contract: Addr::unchecked("scc_addr"),
+            delegator_contract: Addr::unchecked("delegator_addr"),
         };
-        let info = mock_info("creator", &coins(1000, "earth"));
+        let info = mock_info("creator", &[]);
 
         // we can just call .unwrap() to assert this was a success
         let res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -185,7 +188,7 @@ mod tests {
     #[test]
     fn test_stake() {
         let mut deps = mock_dependencies(&[]);
-        let info = mock_info("creator", &[Coin::new(1500, "utest")]);
+        let info = mock_info("creator", &[]);
         let env = mock_env();
 
         let valid1 = Addr::unchecked("valid0001");
@@ -194,6 +197,7 @@ mod tests {
 
         instantiate_contract(&mut deps, &info, &env, None);
 
+        let info = mock_info("creator", &[Coin::new(1500, "utest")]);
         deps.querier
             .update_staking("test", &*get_validators(), &*get_delegations());
 
@@ -265,6 +269,8 @@ mod tests {
                 amount: Coin::new(1200, "utest")
             })
         );
+        let state = STATE.load(deps.as_mut().storage).unwrap();
+        assert!(check_equal_coin_vector(&state.unswapped_rewards, &vec![Coin::new(20, "utest"), Coin::new(30, "urew1")]));
 
         let valid1_meta = VALIDATOR_REGISTRY
             .may_load(deps.as_mut().storage, &valid1)
@@ -296,12 +302,14 @@ mod tests {
             &vec![Coin::new(163, "utest"), Coin::new(60, "urew1")]
         )); // Accrued rewards remains unchanged
         assert_eq!(valid1_meta_unwrapped.staked, Uint128::new(2400)); // Adds to previous staked amount.
+        let state = STATE.load(deps.as_mut().storage).unwrap();
+        assert!(check_equal_coin_vector(&state.unswapped_rewards, &vec![Coin::new(40, "utest"), Coin::new(60, "urew1")]));
     }
 
     #[test]
     fn test_redeem_rewards() {
         let mut deps = mock_dependencies(&[]);
-        let info = mock_info("creator", &[Coin::new(1500, "utest")]);
+        let info = mock_info("creator", &[]);
         let env = mock_env();
 
         let valid1 = Addr::unchecked("valid0001");
@@ -317,8 +325,7 @@ mod tests {
             .save(
                 deps.as_mut().storage,
                 &State {
-                    airdrops: vec![],
-                    swapped_amount: Default::default(),
+                    unswapped_rewards: vec![],
                     slashing_funds: Uint128::new(200),
                 },
             )
@@ -418,12 +425,13 @@ mod tests {
 
         let state = STATE.load(deps.as_mut().storage).unwrap();
         assert_eq!(state.slashing_funds, Uint128::new(50));
+        assert!(check_equal_coin_vector(&state.unswapped_rewards, &vec![Coin::new(60, "utest"), Coin::new(90, "urew1")]));
     }
 
     #[test]
     fn test_redelegate() {
         let mut deps = mock_dependencies(&[]);
-        let info = mock_info("creator", &[Coin::new(1500, "utest")]);
+        let info = mock_info("creator", &[]);
         let env = mock_env();
 
         let valid1 = Addr::unchecked("valid0001");
@@ -518,6 +526,11 @@ mod tests {
         .unwrap_err();
         assert!(matches!(err, ContractError::InSufficientFunds {}));
 
+        STATE.save(deps.as_mut().storage, &State {
+            slashing_funds: Uint128::zero(),
+            unswapped_rewards: vec![Coin::new(10, "utest"), Coin::new(10, "urew1")]
+
+        }).unwrap();
         let res = execute(
             deps.as_mut(),
             env.clone(),
@@ -555,12 +568,15 @@ mod tests {
             &valid2_meta.accrued_rewards,
             &vec![Coin::new(50, "utest"), Coin::new(90, "urew1")]
         ));
+
+        let state = STATE.load(deps.as_mut().storage).unwrap();
+        assert!(check_equal_coin_vector(&state.unswapped_rewards, &vec![Coin::new(70, "utest"), Coin::new(100, "urew1")]));
     }
 
     #[test]
     fn test_undelegate() {
         let mut deps = mock_dependencies(&[]);
-        let info = mock_info("creator", &[Coin::new(1500, "utest")]);
+        let info = mock_info("creator", &[]);
         let env = mock_env();
 
         let valid1 = Addr::unchecked("valid0001");
@@ -588,7 +604,7 @@ mod tests {
             .may_load(deps.as_mut().storage, &valid1)
             .unwrap()
             .is_none());
-        let pools_info = mock_info(&pools_addr.to_string(), &[Coin::new(1200, "utest")]);
+        let pools_info = mock_info(&pools_addr.to_string(), &[]);
         let err = execute(
             deps.as_mut(),
             env.clone(),
@@ -611,7 +627,7 @@ mod tests {
                 },
             )
             .unwrap();
-        let pools_info = mock_info(&pools_addr.to_string(), &[Coin::new(1200, "utest")]);
+        let pools_info = mock_info(&pools_addr.to_string(), &[]);
         let err = execute(
             deps.as_mut(),
             env.clone(),
@@ -624,6 +640,10 @@ mod tests {
         .unwrap_err();
         assert!(matches!(err, ContractError::InSufficientFunds {}));
 
+        STATE.save(deps.as_mut().storage, &State {
+            slashing_funds: Uint128::new(127),
+            unswapped_rewards: vec![Coin::new(18, "utest"), Coin::new(26, "urew1")]
+        }).unwrap();
         let res = execute(
             deps.as_mut(),
             env.clone(),
@@ -651,6 +671,10 @@ mod tests {
             &valid1_meta.accrued_rewards,
             &vec![Coin::new(143, "utest"), Coin::new(197, "urew1")]
         ));
+
+        let state = STATE.load(deps.as_mut().storage).unwrap();
+        assert_eq!(state.slashing_funds, Uint128::new(127));
+        assert!(check_equal_coin_vector(&state.unswapped_rewards, &vec![Coin::new(38, "utest"), Coin::new(56, "urew1")]));
     }
 
     #[test]
@@ -729,7 +753,7 @@ mod tests {
             deps.as_mut(),
             env.clone(),
             mock_info("not-creator", &[]),
-            ExecuteMsg::RedeemAirdrop {
+            ExecuteMsg::RedeemAirdropAndTransfer {
                 airdrop_token: "anc".to_string(),
                 amount: Uint128::new(2000_u128),
                 claim_msg: get_airdrop_claim_msg(),
@@ -745,7 +769,7 @@ mod tests {
             deps.as_mut(),
             env.clone(),
             mock_info("creator", &[]),
-            ExecuteMsg::RedeemAirdrop {
+            ExecuteMsg::RedeemAirdropAndTransfer {
                 airdrop_token: "anc".to_string(),
                 amount: Uint128::new(2000_u128),
                 claim_msg: get_airdrop_claim_msg(),
@@ -779,24 +803,33 @@ mod tests {
             deps.as_mut(),
             env.clone(),
             mock_info("creator", &[]),
-            ExecuteMsg::RedeemAirdrop {
+            ExecuteMsg::RedeemAirdropAndTransfer {
                 airdrop_token: "anc".to_string(),
                 amount: Uint128::new(2000_u128),
                 claim_msg: get_airdrop_claim_msg(),
             },
         )
         .unwrap();
-        assert_eq!(res.messages.len(), 1);
+        assert_eq!(res.messages.len(), 2);
         assert_eq!(
-            res.messages,
-            vec![SubMsg::new(WasmMsg::Execute {
+            res.messages[0],
+            SubMsg::new(WasmMsg::Execute {
                 contract_addr: anc_airdrop_contract.clone().to_string(),
                 msg: get_airdrop_claim_msg(),
                 funds: vec![]
-            })]
+            })
         );
-        let state = STATE.load(deps.as_mut().storage).unwrap();
-        assert_eq!(state.airdrops, vec![Coin::new(2000_u128, "anc")]);
+        assert_eq!(
+            res.messages[1],
+            SubMsg::new(WasmMsg::Execute {
+                contract_addr: anc_token_contract.clone().to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                    recipient: Addr::unchecked("scc_addr").to_string(),
+                    amount: Uint128::new(2000_u128),
+                }).unwrap(),
+                funds: vec![]
+            })
+        );
 
         /*
             Test - 4. MIR claim with ANC in pool
@@ -805,30 +838,33 @@ mod tests {
             deps.as_mut(),
             env.clone(),
             mock_info("creator", &[]),
-            ExecuteMsg::RedeemAirdrop {
+            ExecuteMsg::RedeemAirdropAndTransfer {
                 airdrop_token: "mir".to_string(),
                 amount: Uint128::new(1000_u128),
                 claim_msg: get_airdrop_claim_msg(),
             },
         )
         .unwrap();
-        assert_eq!(res.messages.len(), 1);
+        assert_eq!(res.messages.len(), 2);
         assert_eq!(
-            res.messages,
-            vec![SubMsg::new(WasmMsg::Execute {
+            res.messages[0],
+            SubMsg::new(WasmMsg::Execute {
                 contract_addr: mir_airdrop_contract.clone().to_string(),
                 msg: get_airdrop_claim_msg(),
                 funds: vec![]
-            })]
+            })
         );
-        let state = STATE.load(deps.as_mut().storage).unwrap();
-        assert!(check_equal_coin_vector(
-            &state.airdrops,
-            &vec![
-                Coin::new(2000_u128, "anc".to_string()),
-                Coin::new(1000_u128, "mir".to_string())
-            ]
-        ));
+        assert_eq!(
+            res.messages[1],
+            SubMsg::new(WasmMsg::Execute {
+                contract_addr: mir_token_contract.clone().to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                    recipient: Addr::unchecked("scc_addr").to_string(),
+                    amount: Uint128::new(1000_u128),
+                }).unwrap(),
+                funds: vec![]
+            })
+        );
 
         /*
            Test - 5. ANC claim with existing ANC
@@ -837,34 +873,37 @@ mod tests {
             deps.as_mut(),
             env.clone(),
             mock_info("creator", &[]),
-            ExecuteMsg::RedeemAirdrop {
+            ExecuteMsg::RedeemAirdropAndTransfer {
                 airdrop_token: "anc".to_string(),
                 amount: Uint128::new(2000_u128),
                 claim_msg: get_airdrop_claim_msg(),
             },
         )
         .unwrap();
-        assert_eq!(res.messages.len(), 1);
+        assert_eq!(res.messages.len(), 2);
         assert_eq!(
-            res.messages,
-            vec![SubMsg::new(WasmMsg::Execute {
+            res.messages[0],
+            SubMsg::new(WasmMsg::Execute {
                 contract_addr: anc_airdrop_contract.clone().to_string(),
                 msg: get_airdrop_claim_msg(),
                 funds: vec![]
-            })]
+            })
         );
-        let state = STATE.load(deps.as_mut().storage).unwrap();
-        assert!(check_equal_coin_vector(
-            &state.airdrops,
-            &vec![
-                Coin::new(4000_u128, "anc".to_string()),
-                Coin::new(1000_u128, "mir".to_string())
-            ]
-        ));
+        assert_eq!(
+            res.messages[1],
+            SubMsg::new(WasmMsg::Execute {
+                contract_addr: anc_token_contract.clone().to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                    recipient: Addr::unchecked("scc_addr").to_string(),
+                    amount: Uint128::new(2000_u128),
+                }).unwrap(),
+                funds: vec![]
+            })
+        );
     }
 
     #[test]
-    fn test_update_slashing_funds() {
+    fn test_add_slashing_funds() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -874,7 +913,7 @@ mod tests {
             deps.as_mut(),
             env.clone(),
             mock_info("other", &[]),
-            ExecuteMsg::UpdateSlashingFunds { amount: 1000 },
+            ExecuteMsg::AddSlashingFunds { },
         )
         .unwrap_err();
         assert!(matches!(err, ContractError::Unauthorized {}));
@@ -882,192 +921,258 @@ mod tests {
         let state = STATE.load(deps.as_mut().storage).unwrap();
         assert!(state.slashing_funds.eq(&Uint128::zero()));
 
-        let res = execute(
+        let err = execute(
             deps.as_mut(),
             env.clone(),
             mock_info("creator", &[]),
-            ExecuteMsg::UpdateSlashingFunds { amount: 1000 },
+            ExecuteMsg::AddSlashingFunds { },
+        )
+            .unwrap_err();
+        assert!(matches!(err, ContractError::NoFunds {}));
+
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[Coin::new(1000, "utest")]),
+            ExecuteMsg::AddSlashingFunds { },
         )
         .unwrap();
         assert!(res.messages.is_empty());
         let state = STATE.load(deps.as_mut().storage).unwrap();
         assert!(state.slashing_funds.eq(&Uint128::new(1000_u128)));
+        //
+        // let res = execute(
+        //     deps.as_mut(),
+        //     env.clone(),
+        //     mock_info("creator", &[]),
+        //     ExecuteMsg::UpdateSlashingFunds { amount: -300 },
+        // )
+        // .unwrap();
+        // let state = STATE.load(deps.as_mut().storage).unwrap();
+        // assert!(state.slashing_funds.eq(&Uint128::new(700_u128)));
+        //
+        // let err = execute(
+        //     deps.as_mut(),
+        //     env.clone(),
+        //     mock_info("creator", &[]),
+        //     ExecuteMsg::UpdateSlashingFunds { amount: -701 },
+        // )
+        // .unwrap_err();
+        // assert!(matches!(err, ContractError::InSufficientFunds {}));
 
         let res = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info("creator", &[]),
-            ExecuteMsg::UpdateSlashingFunds { amount: -300 },
+            mock_info("creator", &[Coin::new(200, "utest")]),
+            ExecuteMsg::AddSlashingFunds {},
         )
         .unwrap();
         let state = STATE.load(deps.as_mut().storage).unwrap();
-        assert!(state.slashing_funds.eq(&Uint128::new(700_u128)));
+        assert!(state.slashing_funds.eq(&Uint128::new(1200_u128)));
+    }
+
+
+    #[test]
+    fn test_remove_slashing_funds() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &[]);
+        let env = mock_env();
+        instantiate_contract(&mut deps, &info, &env, None);
+
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("other", &[]),
+            ExecuteMsg::RemoveSlashingFunds { amount: Uint128::new(100) },
+        )
+            .unwrap_err();
+        assert!(matches!(err, ContractError::Unauthorized {}));
+
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[Coin::new(200, "utest")]),
+            ExecuteMsg::RemoveSlashingFunds { amount: Uint128::new(100) },
+        )
+            .unwrap_err();
+        assert!(matches!(err, ContractError::FundsNotExpected {}));
 
         let err = execute(
             deps.as_mut(),
             env.clone(),
             mock_info("creator", &[]),
-            ExecuteMsg::UpdateSlashingFunds { amount: -701 },
+            ExecuteMsg::RemoveSlashingFunds { amount: Uint128::new(100) },
         )
-        .unwrap_err();
+            .unwrap_err();
         assert!(matches!(err, ContractError::InSufficientFunds {}));
 
+        STATE.save(deps.as_mut().storage, &State {
+            slashing_funds: Uint128::new(500),
+            unswapped_rewards: vec![]
+        }).unwrap();
         let res = execute(
             deps.as_mut(),
             env.clone(),
             mock_info("creator", &[]),
-            ExecuteMsg::UpdateSlashingFunds { amount: 200 },
+            ExecuteMsg::RemoveSlashingFunds { amount: Uint128::new(100) },
         )
-        .unwrap();
-        let state = STATE.load(deps.as_mut().storage).unwrap();
-        assert!(state.slashing_funds.eq(&Uint128::new(900_u128)));
-    }
-
-    #[test]
-    fn test_transfer_rewards() {
-        let mut deps = mock_dependencies(&[]);
-        let info = mock_info("creator", &[Coin::new(1500, "utest")]);
-        let env = mock_env();
-        instantiate_contract(&mut deps, &info, &env, None);
-
-        let pools_addr = Addr::unchecked("pools_addr");
-
-        let err = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info("creator", &[]),
-            ExecuteMsg::TransferRewards {
-                amount: Uint128::new(200),
-            },
-        )
-        .unwrap_err();
-        assert!(matches!(err, ContractError::Unauthorized {})); // Expects pools to make the call
-        let config = CONFIG.load(deps.as_mut().storage).unwrap();
-        STATE
-            .save(
-                deps.as_mut().storage,
-                &State {
-                    airdrops: vec![],
-                    swapped_amount: Uint128::new(800),
-                    slashing_funds: Default::default(),
-                },
-            )
             .unwrap();
-        let pools_info = mock_info(&pools_addr.to_string(), &[Coin::new(1200, "utest")]);
-        let res = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info(&pools_addr.to_string(), &[]),
-            ExecuteMsg::TransferRewards {
-                amount: Uint128::new(200),
-            },
-        )
-        .unwrap();
 
         assert_eq!(res.messages.len(), 1);
-        assert_eq!(
-            res.messages[0],
-            SubMsg::new(BankMsg::Send {
-                to_address: config.scc_contract_addr.to_string(),
-                amount: vec![Coin::new(200, "utest")]
-            })
-        );
-        let state = STATE.load(deps.as_mut().storage).unwrap();
-        assert_eq!(state.swapped_amount, Uint128::new(600));
-    }
-
-    #[test]
-    fn test_transfer_airdrops() {
-        let mut deps = mock_dependencies(&[]);
-        let info = mock_info("creator", &[Coin::new(1500, "utest")]);
-        let env = mock_env();
-        instantiate_contract(&mut deps, &info, &env, None);
-
-        let pools_addr = Addr::unchecked("pools_addr");
-        let err = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info("creator", &[]),
-            ExecuteMsg::TransferAirdrops {},
-        )
-        .unwrap_err();
-        assert!(matches!(err, ContractError::Unauthorized {})); // Expects pools to make the call
-
-        let config = CONFIG.load(deps.as_mut().storage).unwrap();
-        STATE
-            .save(
-                deps.as_mut().storage,
-                &State {
-                    airdrops: vec![
-                        Coin::new(150, "air1"),
-                        Coin::new(200, "air2"),
-                        Coin::new(300, "air3"),
-                    ],
-                    swapped_amount: Uint128::new(800),
-                    slashing_funds: Default::default(),
-                },
-            )
-            .unwrap();
-        AIRDROP_REGISTRY.save(
-            deps.as_mut().storage,
-            "air1".to_string(),
-            &AirdropRegistryInfo {
-                airdrop_contract: Addr::unchecked("air1-airdrop-contract"),
-                token_contract: Addr::unchecked("air1-token-contract"),
-            },
-        );
-        AIRDROP_REGISTRY.save(
-            deps.as_mut().storage,
-            "air3".to_string(),
-            &AirdropRegistryInfo {
-                airdrop_contract: Addr::unchecked("air3-airdrop-contract"),
-                token_contract: Addr::unchecked("air3-token-contract"),
-            },
-        );
-        let pools_info = mock_info(&pools_addr.to_string(), &[Coin::new(1200, "utest")]);
-        let res = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info(&pools_addr.to_string(), &[]),
-            ExecuteMsg::TransferAirdrops {},
-        )
-        .unwrap();
-        assert_eq!(res.messages.len(), 2);
-        assert_eq!(
-            res.messages[0],
-            SubMsg::new(WasmMsg::Execute {
-                contract_addr: "air1-token-contract".to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                    recipient: config.scc_contract_addr.to_string(),
-                    amount: Uint128::new(150_u128),
-                })
-                .unwrap(),
-                funds: vec![]
-            })
-        );
-        assert_eq!(
-            res.messages[1],
-            SubMsg::new(WasmMsg::Execute {
-                contract_addr: "air3-token-contract".to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                    recipient: config.scc_contract_addr.to_string(),
-                    amount: Uint128::new(300_u128),
-                })
-                .unwrap(),
-                funds: vec![]
-            })
-        );
+        assert_eq!(res.messages[0], SubMsg::new(BankMsg::Send {
+            to_address: "creator".to_string(),
+            amount: vec![Coin::new(100, "utest")]
+        }));
 
         let state = STATE.load(deps.as_mut().storage).unwrap();
-        assert_eq!(state.airdrops, vec![Coin::new(200, "air2")]);
-        assert_eq!(res.attributes.len(), 1);
-        assert_eq!(res.attributes[0].value, "200air2");
+        assert!(state.slashing_funds.eq(&Uint128::new(400_u128)));
     }
+
+    // #[test]
+    // fn test_transfer_rewards() {
+    //     let mut deps = mock_dependencies(&[]);
+    //     let info = mock_info("creator", &[Coin::new(1500, "utest")]);
+    //     let env = mock_env();
+    //     instantiate_contract(&mut deps, &info, &env, None);
+    //
+    //     let pools_addr = Addr::unchecked("pools_addr");
+    //
+    //     let err = execute(
+    //         deps.as_mut(),
+    //         env.clone(),
+    //         mock_info("creator", &[]),
+    //         ExecuteMsg::TransferRewards {
+    //             amount: Uint128::new(200),
+    //         },
+    //     )
+    //     .unwrap_err();
+    //     assert!(matches!(err, ContractError::Unauthorized {})); // Expects pools to make the call
+    //     let config = CONFIG.load(deps.as_mut().storage).unwrap();
+    //     STATE
+    //         .save(
+    //             deps.as_mut().storage,
+    //             &State {
+    //                 airdrops: vec![],
+    //                 swapped_amount: Uint128::new(800),
+    //                 slashing_funds: Default::default(),
+    //             },
+    //         )
+    //         .unwrap();
+    //     let pools_info = mock_info(&pools_addr.to_string(), &[Coin::new(1200, "utest")]);
+    //     let res = execute(
+    //         deps.as_mut(),
+    //         env.clone(),
+    //         mock_info(&pools_addr.to_string(), &[]),
+    //         ExecuteMsg::TransferRewards {
+    //             amount: Uint128::new(200),
+    //         },
+    //     )
+    //     .unwrap();
+    //
+    //     assert_eq!(res.messages.len(), 1);
+    //     assert_eq!(
+    //         res.messages[0],
+    //         SubMsg::new(BankMsg::Send {
+    //             to_address: config.scc_contract.to_string(),
+    //             amount: vec![Coin::new(200, "utest")]
+    //         })
+    //     );
+    //     let state = STATE.load(deps.as_mut().storage).unwrap();
+    //     assert_eq!(state.swapped_amount, Uint128::new(600));
+    // }
+    //
+    // #[test]
+    // fn test_transfer_airdrops() {
+    //     let mut deps = mock_dependencies(&[]);
+    //     let info = mock_info("creator", &[Coin::new(1500, "utest")]);
+    //     let env = mock_env();
+    //     instantiate_contract(&mut deps, &info, &env, None);
+    //
+    //     let pools_addr = Addr::unchecked("pools_addr");
+    //     let err = execute(
+    //         deps.as_mut(),
+    //         env.clone(),
+    //         mock_info("creator", &[]),
+    //         ExecuteMsg::TransferAirdrops {},
+    //     )
+    //     .unwrap_err();
+    //     assert!(matches!(err, ContractError::Unauthorized {})); // Expects pools to make the call
+    //
+    //     let config = CONFIG.load(deps.as_mut().storage).unwrap();
+    //     STATE
+    //         .save(
+    //             deps.as_mut().storage,
+    //             &State {
+    //                 airdrops: vec![
+    //                     Coin::new(150, "air1"),
+    //                     Coin::new(200, "air2"),
+    //                     Coin::new(300, "air3"),
+    //                 ],
+    //                 swapped_amount: Uint128::new(800),
+    //                 slashing_funds: Default::default(),
+    //             },
+    //         )
+    //         .unwrap();
+    //     AIRDROP_REGISTRY.save(
+    //         deps.as_mut().storage,
+    //         "air1".to_string(),
+    //         &AirdropRegistryInfo {
+    //             airdrop_contract: Addr::unchecked("air1-airdrop-contract"),
+    //             token_contract: Addr::unchecked("air1-token-contract"),
+    //         },
+    //     );
+    //     AIRDROP_REGISTRY.save(
+    //         deps.as_mut().storage,
+    //         "air3".to_string(),
+    //         &AirdropRegistryInfo {
+    //             airdrop_contract: Addr::unchecked("air3-airdrop-contract"),
+    //             token_contract: Addr::unchecked("air3-token-contract"),
+    //         },
+    //     );
+    //     let pools_info = mock_info(&pools_addr.to_string(), &[Coin::new(1200, "utest")]);
+    //     let res = execute(
+    //         deps.as_mut(),
+    //         env.clone(),
+    //         mock_info(&pools_addr.to_string(), &[]),
+    //         ExecuteMsg::TransferAirdrops {},
+    //     )
+    //     .unwrap();
+    //     assert_eq!(res.messages.len(), 2);
+    //     assert_eq!(
+    //         res.messages[0],
+    //         SubMsg::new(WasmMsg::Execute {
+    //             contract_addr: "air1-token-contract".to_string(),
+    //             msg: to_binary(&Cw20ExecuteMsg::Transfer {
+    //                 recipient: config.scc_contract.to_string(),
+    //                 amount: Uint128::new(150_u128),
+    //             })
+    //             .unwrap(),
+    //             funds: vec![]
+    //         })
+    //     );
+    //     assert_eq!(
+    //         res.messages[1],
+    //         SubMsg::new(WasmMsg::Execute {
+    //             contract_addr: "air3-token-contract".to_string(),
+    //             msg: to_binary(&Cw20ExecuteMsg::Transfer {
+    //                 recipient: config.scc_contract.to_string(),
+    //                 amount: Uint128::new(300_u128),
+    //             })
+    //             .unwrap(),
+    //             funds: vec![]
+    //         })
+    //     );
+    //
+    //     let state = STATE.load(deps.as_mut().storage).unwrap();
+    //     assert_eq!(state.airdrops, vec![Coin::new(200, "air2")]);
+    //     assert_eq!(res.attributes.len(), 1);
+    //     assert_eq!(res.attributes[0].value, "200air2");
+    // }
 
     #[test]
     fn test_remove_validator() {
         let mut deps = mock_dependencies(&[]);
-        let info = mock_info("creator", &[Coin::new(1500, "utest")]);
+        let info = mock_info("creator", &[]);
         let env = mock_env();
         instantiate_contract(&mut deps, &info, &env, None);
 
@@ -1168,9 +1273,124 @@ mod tests {
     }
 
     #[test]
+    fn test_transfer_reconciled_funds() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &[]);
+        let env = mock_env();
+        instantiate_contract(&mut deps, &info, &env, None);
+
+        let valid1 = Addr::unchecked("valid0001");
+        let valid2 = Addr::unchecked("valid0002");
+
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("other", &[]),
+            ExecuteMsg::RemoveValidator {
+                val_addr: valid1.clone(),
+                redelegate_addr: valid2.clone(),
+            },
+        )
+            .unwrap_err();
+        assert!(matches!(err, ContractError::Unauthorized {})); // Expects manager to make the call
+
+        let pools_info = mock_info(&Addr::unchecked("pools_addr").to_string(), &[]);
+        deps.querier.update_balance(
+            env.contract.address.clone(),
+            vec![
+                Coin::new(4356, "utest"),
+                Coin::new(885, "urew1"),
+                Coin::new(228, "urew2"),
+                Coin::new(88876, "air1"),
+            ],
+        );
+
+        STATE.save(deps.as_mut().storage, &State {
+            slashing_funds: Uint128::new(1000_u128),
+            unswapped_rewards: vec![Coin::new(1500, "utest")]
+        });
+
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            pools_info.clone(),
+            ExecuteMsg::TransferReconciledFunds {
+                amount: Uint128::new(400),
+            },
+        )
+            .unwrap();
+        assert_eq!(res.messages.len(), 1);
+        assert_eq!(
+            res.messages[0],
+            SubMsg::new(BankMsg::Send {
+                to_address: Addr::unchecked("delegator_addr").to_string(),
+                amount: vec![Coin::new(400, "utest")]
+            })
+        );
+        let state = STATE.load(deps.as_mut().storage).unwrap();
+        assert_eq!(state.slashing_funds, Uint128::new(1000));
+        assert!(check_equal_coin_vector(&state.unswapped_rewards, &vec![Coin::new(1500, "utest")]));
+
+        // Remove 400 utest as simulation from previous iteration withdraw
+        deps.querier.update_balance(
+            env.contract.address.clone(),
+            vec![
+                Coin::new(3956, "utest"),
+                Coin::new(885, "urew1"),
+                Coin::new(228, "urew2"),
+                Coin::new(88876, "air1"),
+            ],
+        );
+
+        // Use slashing funds as well.
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            pools_info.clone(),
+            ExecuteMsg::TransferReconciledFunds {
+                amount: Uint128::new(1500),
+            },
+        )
+            .unwrap();
+        assert_eq!(res.messages.len(), 1);
+        assert_eq!(
+            res.messages[0],
+            SubMsg::new(BankMsg::Send {
+                to_address: Addr::unchecked("delegator_addr").to_string(),
+                amount: vec![Coin::new(1500, "utest")]
+            })
+        );
+        let state = STATE.load(deps.as_mut().storage).unwrap();
+        assert_eq!(state.slashing_funds, Uint128::new(956));
+        assert!(check_equal_coin_vector(&state.unswapped_rewards, &vec![Coin::new(1500, "utest")]));
+
+
+        deps.querier.update_balance(
+            env.contract.address.clone(),
+            vec![
+                Coin::new(2456, "utest"),
+                Coin::new(885, "urew1"),
+                Coin::new(228, "urew2"),
+                Coin::new(88876, "air1"),
+            ],
+        );
+        // Use slashing funds as well.
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            pools_info.clone(),
+            ExecuteMsg::TransferReconciledFunds {
+                amount: Uint128::new(1000),
+            },
+        )
+            .unwrap_err();
+        assert!(matches!(err, ContractError::NotEnoughSlashingFunds {}));
+    }
+
+    #[test]
     fn test_reply_remove_validator() {
         let mut deps = mock_dependencies(&[]);
-        let info = mock_info("creator", &[Coin::new(1500, "utest")]);
+        let info = mock_info("creator", &[]);
         let env = mock_env();
         instantiate_contract(&mut deps, &info, &env, None);
 
@@ -1198,19 +1418,19 @@ mod tests {
                 deps.as_mut(),
                 env,
                 Reply {
-                    id: OPERATION_ZERO_ID,
+                    id: EVENT_REDELEGATE_ID,
                     result:
                         ContractResult::Ok(
                             SubMsgExecutionResponse {
                                 events:
                                     vec![
-                                        Event::new(format!("wasm-{}", OPERATION_ZERO_TAG)) // Events are automatically prepended with a `wasm-`
+                                        Event::new(format!("wasm-{}", EVENT_REDELEGATE_TYPE)) // Events are automatically prepended with a `wasm-`
                                             .add_attribute(
-                                                OPERATION_ZERO_SRC_ADDR,
+                                                EVENT_REDELEGATE_KEY_SRC_ADDR,
                                                 valid1.to_string(),
                                             )
                                             .add_attribute(
-                                                OPERATION_ZERO_DST_ADDR,
+                                                EVENT_REDELEGATE_KEY_DST_ADDR,
                                                 valid2.to_string(),
                                             ),
                                     ],

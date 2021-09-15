@@ -2,21 +2,21 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{Addr, Coin, Uint128};
-use cw_storage_plus::{Item, Map};
+use cw_storage_plus::{Item, Map, U64Key};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
     pub manager: Addr,
     pub vault_denom: String,
-    pub pools_contract_addr: Addr,
-    pub scc_contract_addr: Addr,
+    pub pools_contract: Addr,
+    pub scc_contract: Addr,
+    pub delegator_contract: Addr,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct State {
-    pub airdrops: Vec<Coin>,
-    pub swapped_amount: Uint128,
     pub slashing_funds: Uint128, // Although can be changed by manager, state is a better fit
+    pub unswapped_rewards: Vec<Coin> // Total contract redeemed rewards that are yet to be swapped.
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -38,3 +38,6 @@ pub struct AirdropRegistryInfo {
 
 // Map of airdrop token to the token contract
 pub const AIRDROP_REGISTRY: Map<String, AirdropRegistryInfo> = Map::new("airdrop_registry");
+
+// Map of swap amounts stored to a pool
+pub const SWAP_REGISTRY: Map<U64Key, Uint128> = Map::new("swap_registry");

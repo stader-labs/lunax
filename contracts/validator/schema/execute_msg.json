@@ -144,10 +144,10 @@
     {
       "type": "object",
       "required": [
-        "redeem_airdrop"
+        "redeem_airdrop_and_transfer"
       ],
       "properties": {
-        "redeem_airdrop": {
+        "redeem_airdrop_and_transfer": {
           "type": "object",
           "required": [
             "airdrop_token",
@@ -172,15 +172,19 @@
     {
       "type": "object",
       "required": [
-        "swap"
+        "swap_and_transfer"
       ],
       "properties": {
-        "swap": {
+        "swap_and_transfer": {
           "type": "object",
           "required": [
+            "identifier",
             "validators"
           ],
           "properties": {
+            "identifier": {
+              "type": "string"
+            },
             "validators": {
               "type": "array",
               "items": {
@@ -195,10 +199,10 @@
     {
       "type": "object",
       "required": [
-        "transfer_rewards"
+        "transfer_reconciled_funds"
       ],
       "properties": {
-        "transfer_rewards": {
+        "transfer_reconciled_funds": {
           "type": "object",
           "required": [
             "amount"
@@ -208,18 +212,6 @@
               "$ref": "#/definitions/Uint128"
             }
           }
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "type": "object",
-      "required": [
-        "transfer_airdrops"
-      ],
-      "properties": {
-        "transfer_airdrops": {
-          "type": "object"
         }
       },
       "additionalProperties": false
