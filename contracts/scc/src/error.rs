@@ -16,6 +16,11 @@ pub enum ContractError {
     #[error("Strategy info does not exist `{0}`")]
     StrategyInfoDoesNotExist(String),
 
+    #[error("Strategy does not support airdrops")]
+    StrategyDoesNotSupportAirdrop {},
+
+    #[error("Airdrop not registered")]
+    AirdropNotRegistered {},
     #[error("User reward info does not exist")]
     UserRewardInfoDoesNotExist {},
 

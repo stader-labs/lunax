@@ -1,13 +1,14 @@
-use crate::state::{State, StrategyInfo, UserRewardInfo};
-use cosmwasm_std::{Addr, Coin, Decimal, Timestamp, Uint128};
+use crate::state::{Config, State, StrategyInfo, UserRewardInfo, UserStrategyPortfolio};
+use cosmwasm_std::{Addr, Binary, Coin, Decimal, Timestamp, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
     pub strategy_denom: String,
-
     pub pools_contract: Addr,
+
+    pub default_user_portfolio: Option<Vec<UserStrategyPortfolio>>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -46,9 +47,14 @@ pub enum ExecuteMsg {
     RemoveStrategy {
         strategy_name: String,
     },
+    // empty vector implies that user wants all his rewards to be retained
     UpdateUserPortfolio {
-        strategy_name: String,
-        deposit_fraction: Decimal,
+        user_portfolio: Vec<UserStrategyPortfolio>,
+    },
+    RegisterCw20Contracts {
+        denom: String,
+        cw20_contract: Addr,
+        airdrop_contract: Addr,
     },
     // called by validator contract to transfer rewards from validator contract to SCC
     // this message also moves rewards from SCC to the corresponding SIC. This message will
@@ -69,6 +75,9 @@ pub enum ExecuteMsg {
     },
     // called by scc manager to periodically claim airdrops for a particular strategy if it supported
     ClaimAirdrops {
+        amount: Uint128,
+        denom: String,
+        claim_msg: Binary,
         strategy_name: String,
     },
     WithdrawRewards {
@@ -84,6 +93,8 @@ pub enum ExecuteMsg {
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     GetState {},
+    GetConfig {},
+    GetStrategiesList {},
     GetStrategyInfo { strategy_name: String },
     GetUserRewardInfo { user: Addr },
 }
@@ -94,6 +105,11 @@ pub struct GetStateResponse {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct GetConfigResponse {
+    pub config: Option<Config>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct GetStrategyInfoResponse {
     pub strategy_info: Option<StrategyInfo>,
 }
@@ -101,4 +117,9 @@ pub struct GetStrategyInfoResponse {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct GetUserRewardInfo {
     pub user_reward_info: Option<UserRewardInfo>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct GetStrategiesListResponse {
+    pub strategies_list: Option<Vec<String>>,
 }

@@ -11,6 +11,4 @@ Cargo.lock
 
 artifacts/
 
-scripts/*
-
 .DS_Store

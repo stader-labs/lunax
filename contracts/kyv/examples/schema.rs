@@ -3,11 +3,8 @@ use std::fs::create_dir_all;
 
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 
-use sic_auto_compound::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use sic_auto_compound::msg::{
-    GetFulfillableUndelegatedFundsResponse, GetStateResponse, GetTotalTokensResponse,
-};
-use sic_auto_compound::state::State;
+use stader_terra_kyv::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, ValidatorAprResponse};
+use stader_terra_kyv::state::{Config, State, ValidatorMetrics};
 
 fn main() {
     let mut out_dir = current_dir().unwrap();
@@ -19,10 +16,8 @@ fn main() {
     export_schema(&schema_for!(ExecuteMsg), &out_dir);
     export_schema(&schema_for!(QueryMsg), &out_dir);
     export_schema(&schema_for!(State), &out_dir);
-    export_schema(&schema_for!(GetTotalTokensResponse), &out_dir);
-    export_schema(&schema_for!(GetStateResponse), &out_dir);
-    export_schema(
-        &schema_for!(GetFulfillableUndelegatedFundsResponse),
-        &out_dir,
-    );
+    export_schema(&schema_for!(Config), &out_dir);
+    export_schema(&schema_for!(ValidatorMetrics), &out_dir);
+    export_schema(&schema_for!(ValidatorAprResponse), &out_dir);
+    // TODO: Make sure to add Schemas Here
 }
