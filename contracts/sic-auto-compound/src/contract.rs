@@ -457,12 +457,10 @@ pub fn try_reinvest(
 
     STATE.update(deps.storage, |mut state| -> StdResult<_> {
         state.total_staked_tokens = new_current_staked_tokens;
-        if total_slashed_amount > Uint128::zero() {
-            state.total_slashed_amount = state
-                .total_slashed_amount
-                .checked_add(total_slashed_amount)
-                .unwrap();
-        }
+        state.total_slashed_amount = state
+            .total_slashed_amount
+            .checked_add(total_slashed_amount)
+            .unwrap();
         state.uninvested_rewards = Coin::new(0_u128, strategy_denom);
         Ok(state)
     })?;
