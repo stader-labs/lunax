@@ -12,9 +12,10 @@ use crate::helpers::{
     get_user_staked_amount,
 };
 use crate::msg::{
-    ExecuteMsg, GetConfigResponse, GetStateResponse, GetStrategiesListResponse,
-    GetStrategyInfoResponse, GetUndelegationBatchInfoResponse, GetUserRewardInfo, InstantiateMsg,
-    QueryMsg, UpdateUserAirdropsRequest, UpdateUserRewardsRequest,
+    ExecuteMsg, GetAllStrategiesResponse, GetConfigResponse, GetStateResponse,
+    GetStrategiesListResponse, GetStrategyInfoResponse, GetUndelegationBatchInfoResponse,
+    GetUserRewardInfo, InstantiateMsg, QueryMsg, StrategyInfoQuery, UpdateUserAirdropsRequest,
+    UpdateUserRewardsRequest,
 };
 use crate::state::{
     BatchUndelegationRecord, Config, Cw20TokenContractsInfo, State, StrategyInfo, UserRewardInfo,
@@ -52,7 +53,7 @@ pub fn instantiate(
         scc_denom: msg.strategy_denom,
         contract_genesis_block_height: _env.block.height,
         contract_genesis_timestamp: _env.block.time,
-        total_accumulated_rewards: Uint128::zero(),
+        rewards_in_scc: Uint128::zero(),
         total_accumulated_airdrops: vec![],
         current_undelegated_strategies: vec![],
     };
@@ -1002,7 +1003,7 @@ pub fn try_update_user_rewards(
     // cache for the S/T ratio per strategy. We fetch it once and cache it up.
     let mut strategy_to_s_t_ratio: HashMap<String, Decimal> = HashMap::new();
     let mut strategy_to_funds: HashMap<Addr, Uint128> = HashMap::new();
-    let mut total_rewards: Uint128 = Uint128::zero();
+    let mut total_surplus_rewards: Uint128 = Uint128::zero();
     let mut messages: Vec<WasmMsg> = vec![];
     for update_user_rewards_request in update_user_rewards_requests {
         let user_addr = update_user_rewards_request.user;
@@ -1014,8 +1015,6 @@ pub fn try_update_user_rewards(
             continue;
         }
 
-        total_rewards = total_rewards.checked_add(funds).unwrap();
-
         let mut user_reward_info = USER_REWARD_INFO_MAP
             .may_load(deps.storage, &user_addr)
             .unwrap()
@@ -1024,6 +1023,7 @@ pub fn try_update_user_rewards(
         // this is the amount to be split per strategy
         let strategy_split: Vec<(String, Uint128)>;
         // surplus is the amount of rewards which does not go into any strategy and just sits in SCC.
+        // surplus is basically retain rewards
         let mut surplus: Uint128 = Uint128::zero();
 
         match strategy_opt {
@@ -1042,6 +1042,7 @@ pub fn try_update_user_rewards(
             .pending_rewards
             .checked_add(surplus)
             .unwrap();
+        total_surplus_rewards = total_surplus_rewards.checked_add(surplus).unwrap();
 
         for split in strategy_split {
             let strategy_name = split.0;
@@ -1152,9 +1153,9 @@ pub fn try_update_user_rewards(
     });
 
     STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
-        state.total_accumulated_rewards = state
-            .total_accumulated_rewards
-            .checked_add(total_rewards)
+        state.rewards_in_scc = state
+            .rewards_in_scc
+            .checked_add(total_surplus_rewards)
             .unwrap();
         Ok(state)
     })?;
@@ -1248,7 +1249,61 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             batch_id,
         )?),
         QueryMsg::GetStrategiesList {} => to_binary(&query_strategies_list(deps)?),
+        QueryMsg::GetAllStrategies {} => to_binary(&query_get_all_strategies(deps)?),
     }
+}
+
+fn query_get_all_strategies(deps: Deps) -> StdResult<GetAllStrategiesResponse> {
+    let state = STATE.load(deps.storage)?;
+
+    // seed with retain-rewards
+    let mut all_strategies_info: Vec<StrategyInfoQuery> = vec![StrategyInfoQuery {
+        strategy_name: "retain-rewards".to_string(),
+        total_rewards: state.rewards_in_scc,
+        rewards_in_undelegation: Uint128::zero(),
+        is_active: true,
+        total_airdrops_accumulated: vec![],
+        unbonding_period: 0,
+        unbonding_buffer: 0,
+        // special case
+        sic_contract_address: Addr::unchecked(""),
+    }];
+
+    STRATEGY_MAP
+        .range(deps.storage, None, None, Order::Ascending)
+        .for_each(|x_wrapped| {
+            if x_wrapped.is_err() {
+                return;
+            }
+
+            let x = x_wrapped.unwrap();
+            let strategy_name = String::from_utf8(x.0).unwrap_or_default();
+            let strategy_info = x.1;
+
+            let strategy_s_t_ratio =
+                get_strategy_shares_per_token_ratio(deps.querier, &strategy_info);
+            let total_strategy_tokens =
+                get_user_staked_amount(strategy_s_t_ratio, strategy_info.total_shares);
+            let total_tokens_in_undelegation = get_user_staked_amount(
+                strategy_s_t_ratio,
+                strategy_info.current_undelegated_shares,
+            );
+
+            all_strategies_info.push(StrategyInfoQuery {
+                strategy_name,
+                total_rewards: total_strategy_tokens,
+                rewards_in_undelegation: total_tokens_in_undelegation,
+                is_active: strategy_info.is_active,
+                total_airdrops_accumulated: strategy_info.total_airdrops_accumulated,
+                unbonding_period: strategy_info.unbonding_period,
+                unbonding_buffer: strategy_info.unbonding_buffer,
+                sic_contract_address: strategy_info.sic_contract_address,
+            });
+        });
+
+    Ok(GetAllStrategiesResponse {
+        all_strategies: Some(all_strategies_info),
+    })
 }
 
 fn query_undelegation_batch_info(

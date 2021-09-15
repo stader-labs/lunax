@@ -5,8 +5,9 @@ mod tests {
     use crate::error::ContractError::{StrategyInfoDoesNotExist, UserNotInStrategy};
     use crate::helpers::get_sic_total_tokens;
     use crate::msg::{
-        ExecuteMsg, GetConfigResponse, GetStateResponse, GetStrategiesListResponse, InstantiateMsg,
-        QueryMsg, UpdateUserAirdropsRequest, UpdateUserRewardsRequest,
+        ExecuteMsg, GetAllStrategiesResponse, GetConfigResponse, GetStateResponse,
+        GetStrategiesListResponse, InstantiateMsg, QueryMsg, StrategyInfoQuery,
+        UpdateUserAirdropsRequest, UpdateUserRewardsRequest,
     };
     use crate::state::{
         BatchUndelegationRecord, Config, Cw20TokenContractsInfo, State, StrategyInfo,
@@ -82,7 +83,7 @@ mod tests {
                 scc_denom: "uluna".to_string(),
                 contract_genesis_block_height: env.block.height,
                 contract_genesis_timestamp: env.block.time,
-                total_accumulated_rewards: Uint128::zero(),
+                rewards_in_scc: Uint128::zero(),
                 total_accumulated_airdrops: vec![],
                 current_undelegated_strategies: vec![]
             }
@@ -99,6 +100,178 @@ mod tests {
                 default_user_portfolio: vec![]
             }
         )
+    }
+
+    #[test]
+    fn test__query_total_rewards_per_strategy() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &coins(1000, "earth"));
+        let env = mock_env();
+
+        let res = instantiate_contract(
+            &mut deps,
+            &info,
+            &env,
+            Some(String::from("uluna")),
+            Some(String::from("pools_contract")),
+            None,
+        );
+
+        let sic1_address: Addr = Addr::unchecked("sic1_address");
+        let sic2_address: Addr = Addr::unchecked("sic2_address");
+        let sic3_address: Addr = Addr::unchecked("sic3_address");
+
+        let mut contracts_to_token: HashMap<Addr, Uint128> = HashMap::new();
+        contracts_to_token.insert(sic1_address.clone(), Uint128::new(500_u128));
+        contracts_to_token.insert(sic2_address.clone(), Uint128::new(2000_u128));
+        contracts_to_token.insert(sic3_address.clone(), Uint128::new(0_u128));
+
+        deps.querier.update_wasm(Some(contracts_to_token), None);
+
+        STATE.update(
+            deps.as_mut().storage,
+            |mut state| -> Result<_, ContractError> {
+                state.rewards_in_scc = Uint128::new(1000_u128);
+                Ok(state)
+            },
+        );
+
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            "sid1",
+            &StrategyInfo {
+                name: "sid1".to_string(),
+                sic_contract_address: sic1_address.clone(),
+                unbonding_period: 3600,
+                unbonding_buffer: 3600,
+                undelegation_batch_id_pointer: 0,
+                reconciled_batch_id_pointer: 0,
+                is_active: true,
+                total_shares: Decimal::from_ratio(10000_u128, 1_u128),
+                current_undelegated_shares: Decimal::zero(),
+                global_airdrop_pointer: vec![
+                    DecCoin::new(
+                        Decimal::from_ratio(1000_u128, 10000_u128),
+                        "anc".to_string(),
+                    ),
+                    DecCoin::new(Decimal::from_ratio(500_u128, 10000_u128), "mir".to_string()),
+                ],
+                total_airdrops_accumulated: vec![
+                    Coin::new(1000_u128, "anc".to_string()),
+                    Coin::new(500_u128, "mir".to_string()),
+                ],
+                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+            },
+        );
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            "sid2",
+            &StrategyInfo {
+                name: "sid2".to_string(),
+                sic_contract_address: sic2_address.clone(),
+                unbonding_period: 7200,
+                unbonding_buffer: 7200,
+                undelegation_batch_id_pointer: 0,
+                reconciled_batch_id_pointer: 0,
+                is_active: true,
+                total_shares: Decimal::from_ratio(10000_u128, 1_u128),
+                current_undelegated_shares: Decimal::from_ratio(5000_u128, 1_u128),
+                global_airdrop_pointer: vec![
+                    DecCoin::new(Decimal::from_ratio(500_u128, 10000_u128), "anc".to_string()),
+                    DecCoin::new(Decimal::from_ratio(700_u128, 10000_u128), "mir".to_string()),
+                ],
+                total_airdrops_accumulated: vec![
+                    Coin::new(500_u128, "anc".to_string()),
+                    Coin::new(700_u128, "mir".to_string()),
+                ],
+                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+            },
+        );
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            "sid3",
+            &StrategyInfo {
+                name: "sid3".to_string(),
+                sic_contract_address: sic3_address.clone(),
+                unbonding_period: 14400,
+                unbonding_buffer: 14400,
+                undelegation_batch_id_pointer: 0,
+                reconciled_batch_id_pointer: 0,
+                is_active: true,
+                total_shares: Decimal::from_ratio(7000_u128, 1_u128),
+                current_undelegated_shares: Decimal::zero(),
+                global_airdrop_pointer: vec![
+                    DecCoin::new(Decimal::from_ratio(100_u128, 7000_u128), "anc".to_string()),
+                    DecCoin::new(Decimal::from_ratio(50_u128, 7000_u128), "mir".to_string()),
+                ],
+                total_airdrops_accumulated: vec![
+                    Coin::new(100_u128, "anc".to_string()),
+                    Coin::new(50_u128, "mir".to_string()),
+                ],
+                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+            },
+        );
+
+        let all_strategies_response: GetAllStrategiesResponse =
+            from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::GetAllStrategies {}).unwrap())
+                .unwrap();
+
+        assert_ne!(all_strategies_response.all_strategies, None);
+        let all_strategies = all_strategies_response.all_strategies.unwrap();
+        assert!(check_equal_vec(
+            all_strategies,
+            vec![
+                StrategyInfoQuery {
+                    strategy_name: "retain-rewards".to_string(),
+                    total_rewards: Uint128::new(1000_u128),
+                    rewards_in_undelegation: Uint128::zero(),
+                    is_active: true,
+                    total_airdrops_accumulated: vec![],
+                    unbonding_period: 0,
+                    unbonding_buffer: 0,
+                    sic_contract_address: Addr::unchecked("")
+                },
+                StrategyInfoQuery {
+                    strategy_name: "sid1".to_string(),
+                    total_rewards: Uint128::new(500_u128),
+                    rewards_in_undelegation: Uint128::zero(),
+                    is_active: true,
+                    total_airdrops_accumulated: vec![
+                        Coin::new(1000_u128, "anc".to_string()),
+                        Coin::new(500_u128, "mir".to_string())
+                    ],
+                    unbonding_period: 3600,
+                    unbonding_buffer: 3600,
+                    sic_contract_address: sic1_address.clone()
+                },
+                StrategyInfoQuery {
+                    strategy_name: "sid2".to_string(),
+                    total_rewards: Uint128::new(2000_u128),
+                    rewards_in_undelegation: Uint128::new(1000_u128),
+                    is_active: true,
+                    total_airdrops_accumulated: vec![
+                        Coin::new(500_u128, "anc".to_string()),
+                        Coin::new(700_u128, "mir".to_string())
+                    ],
+                    unbonding_period: 7200,
+                    unbonding_buffer: 7200,
+                    sic_contract_address: sic2_address.clone()
+                },
+                StrategyInfoQuery {
+                    strategy_name: "sid3".to_string(),
+                    total_rewards: Uint128::new(700_u128),
+                    rewards_in_undelegation: Uint128::zero(),
+                    is_active: true,
+                    total_airdrops_accumulated: vec![
+                        Coin::new(100_u128, "anc".to_string()),
+                        Coin::new(50_u128, "mir".to_string())
+                    ],
+                    unbonding_period: 14400,
+                    unbonding_buffer: 14400,
+                    sic_contract_address: sic3_address.clone()
+                }
+            ]
+        ));
     }
 
     #[test]
@@ -3894,7 +4067,7 @@ mod tests {
                 .unwrap();
         assert_ne!(state_response.state, None);
         let state = state_response.state.unwrap();
-        assert_eq!(state.total_accumulated_rewards, Uint128::new(100_u128));
+        assert_eq!(state.rewards_in_scc, Uint128::new(0_u128));
 
         /*
            Test - 2. User deposits to an already deposited strategy on-demand
@@ -3907,7 +4080,7 @@ mod tests {
         STATE.update(
             deps.as_mut().storage,
             |mut state| -> Result<_, ContractError> {
-                state.total_accumulated_rewards = Uint128::new(200_u128);
+                state.rewards_in_scc = Uint128::new(200_u128);
                 Ok(state)
             },
         );
@@ -4111,10 +4284,10 @@ mod tests {
                 .unwrap();
         assert_ne!(state_response.state, None);
         let state = state_response.state.unwrap();
-        assert_eq!(state.total_accumulated_rewards, Uint128::new(700_u128));
+        assert_eq!(state.rewards_in_scc, Uint128::new(200_u128));
 
         /*
-           Test - 2. User deposits to a strategy which has been slashed
+           Test - 3. User deposits to a strategy which has been slashed
         */
         let mut contracts_to_token: HashMap<Addr, Uint128> = HashMap::new();
         contracts_to_token.insert(sic1_address.clone(), Uint128::new(0_u128));
@@ -4124,7 +4297,7 @@ mod tests {
         STATE.update(
             deps.as_mut().storage,
             |mut state| -> Result<_, ContractError> {
-                state.total_accumulated_rewards = Uint128::new(200_u128);
+                state.rewards_in_scc = Uint128::new(200_u128);
                 Ok(state)
             },
         );
@@ -4328,10 +4501,10 @@ mod tests {
                 .unwrap();
         assert_ne!(state_response.state, None);
         let state = state_response.state.unwrap();
-        assert_eq!(state.total_accumulated_rewards, Uint128::new(700_u128));
+        assert_eq!(state.rewards_in_scc, Uint128::new(200_u128));
 
         /*
-            Test - 3. User deposits to money and splits it across his portfolio
+            Test - 4. User deposits to money and splits it across his portfolio
         */
         let mut contracts_to_token: HashMap<Addr, Uint128> = HashMap::new();
         contracts_to_token.insert(sic1_address.clone(), Uint128::new(0_u128));
@@ -4341,7 +4514,7 @@ mod tests {
         STATE.update(
             deps.as_mut().storage,
             |mut state| -> Result<_, ContractError> {
-                state.total_accumulated_rewards = Uint128::new(100_u128);
+                state.rewards_in_scc = Uint128::new(300_u128);
                 Ok(state)
             },
         );
@@ -4508,10 +4681,10 @@ mod tests {
                 .unwrap();
         assert_ne!(state_response.state, None);
         let state = state_response.state.unwrap();
-        assert_eq!(state.total_accumulated_rewards, Uint128::new(200_u128));
+        assert_eq!(state.rewards_in_scc, Uint128::new(325_u128));
 
         /*
-            Test - 3. User deposits to money but has an empty portfolio
+            Test - 5. User deposits to money but has an empty portfolio
         */
         let mut contracts_to_token: HashMap<Addr, Uint128> = HashMap::new();
         contracts_to_token.insert(sic1_address.clone(), Uint128::new(0_u128));
@@ -4521,7 +4694,7 @@ mod tests {
         STATE.update(
             deps.as_mut().storage,
             |mut state| -> Result<_, ContractError> {
-                state.total_accumulated_rewards = Uint128::new(100_u128);
+                state.rewards_in_scc = Uint128::new(300_u128);
                 Ok(state)
             },
         );
@@ -4637,10 +4810,10 @@ mod tests {
                 .unwrap();
         assert_ne!(state_response.state, None);
         let state = state_response.state.unwrap();
-        assert_eq!(state.total_accumulated_rewards, Uint128::new(200_u128));
+        assert_eq!(state.rewards_in_scc, Uint128::new(400_u128));
 
         /*
-           Test - 4. User newly deposits with no strategy portfolio and no strategy specified.
+           Test - 5. User newly deposits with no strategy portfolio and no strategy specified.
         */
         let mut contracts_to_token: HashMap<Addr, Uint128> = HashMap::new();
         contracts_to_token.insert(sic1_address.clone(), Uint128::new(0_u128));
@@ -4650,7 +4823,7 @@ mod tests {
         STATE.update(
             deps.as_mut().storage,
             |mut state| -> Result<_, ContractError> {
-                state.total_accumulated_rewards = Uint128::new(100_u128);
+                state.rewards_in_scc = Uint128::new(100_u128);
                 Ok(state)
             },
         );
@@ -4757,10 +4930,10 @@ mod tests {
                 .unwrap();
         assert_ne!(state_response.state, None);
         let state = state_response.state.unwrap();
-        assert_eq!(state.total_accumulated_rewards, Uint128::new(200_u128));
+        assert_eq!(state.rewards_in_scc, Uint128::new(200_u128));
 
         /*
-           Test - 4. User deposits across his portfolio with existing deposits
+           Test - 5. User deposits across his portfolio with existing deposits
         */
         let mut contracts_to_token: HashMap<Addr, Uint128> = HashMap::new();
         contracts_to_token.insert(sic1_address.clone(), Uint128::new(200_u128));
@@ -4770,7 +4943,7 @@ mod tests {
         STATE.update(
             deps.as_mut().storage,
             |mut state| -> Result<_, ContractError> {
-                state.total_accumulated_rewards = Uint128::new(100_u128);
+                state.rewards_in_scc = Uint128::new(300_u128);
                 Ok(state)
             },
         );
@@ -4948,10 +5121,10 @@ mod tests {
                 .unwrap();
         assert_ne!(state_response.state, None);
         let state = state_response.state.unwrap();
-        assert_eq!(state.total_accumulated_rewards, Uint128::new(200_u128));
+        assert_eq!(state.rewards_in_scc, Uint128::new(325_u128));
 
         /*
-            Test - 4. Multiple user deposits across their existing portfolios with existing deposits
+            Test - 5. Multiple user deposits across their existing portfolios with existing deposits
         */
         let mut contracts_to_token: HashMap<Addr, Uint128> = HashMap::new();
         contracts_to_token.insert(sic1_address.clone(), Uint128::new(0_u128));
@@ -4962,7 +5135,7 @@ mod tests {
         STATE.update(
             deps.as_mut().storage,
             |mut state| -> Result<_, ContractError> {
-                state.total_accumulated_rewards = Uint128::new(100_u128);
+                state.rewards_in_scc = Uint128::new(800_u128);
                 Ok(state)
             },
         );
@@ -5191,12 +5364,6 @@ mod tests {
                 }),
             ]
         ));
-        let state_response: GetStateResponse =
-            from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::GetState {}).unwrap())
-                .unwrap();
-        assert_ne!(state_response.state, None);
-        let state = state_response.state.unwrap();
-        assert_eq!(state.total_accumulated_rewards, Uint128::new(1200_u128));
         let sid1_strategy_opt = STRATEGY_MAP
             .may_load(deps.as_mut().storage, "sid1")
             .unwrap();
@@ -5354,6 +5521,12 @@ mod tests {
                 Coin::new(151_u128, "mir".to_string()),
             ]
         ));
+        let state_response: GetStateResponse =
+            from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::GetState {}).unwrap())
+                .unwrap();
+        assert_ne!(state_response.state, None);
+        let state = state_response.state.unwrap();
+        assert_eq!(state.rewards_in_scc, Uint128::new(875_u128));
     }
 
     #[test]

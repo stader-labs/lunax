@@ -19,8 +19,8 @@ pub struct State {
     pub contract_genesis_block_height: u64,
     pub contract_genesis_timestamp: Timestamp,
 
-    // total historical rewards accumulated in the SCC
-    pub total_accumulated_rewards: Uint128,
+    // sum of all the retained rewards in scc
+    pub rewards_in_scc: Uint128,
     pub total_accumulated_airdrops: Vec<Coin>,
 
     pub current_undelegated_strategies: Vec<String>,

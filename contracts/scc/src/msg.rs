@@ -31,6 +31,18 @@ pub struct UpdateUserAirdropsRequest {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct StrategyInfoQuery {
+    pub strategy_name: String,
+    pub total_rewards: Uint128,
+    pub rewards_in_undelegation: Uint128,
+    pub is_active: bool,
+    pub total_airdrops_accumulated: Vec<Coin>,
+    pub unbonding_period: u64,
+    pub unbonding_buffer: u64,
+    pub sic_contract_address: Addr,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
     /*
@@ -133,6 +145,8 @@ pub enum QueryMsg {
     },
     GetConfig {},
     GetStrategiesList {},
+    // rewards in SCC(retain rewards) + rewards in all strategies
+    GetAllStrategies {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -163,4 +177,9 @@ pub struct GetUndelegationBatchInfoResponse {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct GetStrategiesListResponse {
     pub strategies_list: Option<Vec<String>>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct GetAllStrategiesResponse {
+    pub all_strategies: Option<Vec<StrategyInfoQuery>>,
 }
