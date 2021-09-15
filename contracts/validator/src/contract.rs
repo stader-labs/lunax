@@ -705,56 +705,6 @@ pub fn transfer_reconciled_funds(
     )
 }
 
-// Meant to be called by pools contract all pools together.
-// pub fn transfer_airdrops(
-//     deps: DepsMut,
-//     info: MessageInfo,
-//     env: Env,
-// ) -> Result<Response<TerraMsgWrapper>, ContractError> {
-//     let config = CONFIG.load(deps.storage)?;
-//     validate(&config, &info, &env, vec![Verify::SenderPoolsContract])?;
-//
-//     let state = STATE.load(deps.storage)?;
-//     let mut failed_airdrops: Vec<String> = vec![];
-//     let mut failed_denoms: Vec<String> = vec![];
-//     let mut messages = vec![];
-//     for airdrop in state.airdrops {
-//         let airdrop_info_opt = AIRDROP_REGISTRY
-//             .may_load(deps.storage, airdrop.denom.clone())
-//             .unwrap();
-//         if airdrop_info_opt.is_none() {
-//             failed_airdrops.push(airdrop.to_string());
-//             failed_denoms.push(airdrop.denom);
-//             continue;
-//         }
-//         let airdrop_info = airdrop_info_opt.unwrap();
-//
-//         messages.push(WasmMsg::Execute {
-//             contract_addr: String::from(airdrop_info.token_contract),
-//             msg: to_binary(&Cw20ExecuteMsg::Transfer {
-//                 recipient: String::from(config.scc_contract.clone()),
-//                 amount: airdrop.amount,
-//             })
-//             .unwrap(),
-//             funds: vec![],
-//         });
-//     }
-//
-//     STATE.update(deps.storage, |mut state| -> StdResult<_> {
-//         state.airdrops = state
-//             .airdrops
-//             .into_iter()
-//             .filter(|airdrop| failed_denoms.contains(&airdrop.denom.to_string()))
-//             .collect();
-//         Ok(state)
-//     })?;
-//
-//     Ok(Response::new()
-//         .add_messages(messages)
-//         .add_attribute("failed-airdrops", failed_airdrops.join(",")))
-// }
-
-// Can be used to withdraw / add slashing funds
 pub fn add_slashing_funds(
     deps: DepsMut,
     info: MessageInfo,
