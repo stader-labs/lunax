@@ -9,7 +9,7 @@ use crate::error::ContractError;
 use crate::helpers::get_unaccounted_funds;
 use crate::msg::{
     ExecuteMsg, GetFulfillableUndelegatedFundsResponse, GetStateResponse, GetTotalTokensResponse,
-    InstantiateMsg, QueryMsg,
+    InstantiateMsg, MigrateMsg, QueryMsg,
 };
 use crate::state::{StakeQuota, State, STATE, VALIDATORS_TO_STAKED_QUOTA};
 use stader_utils::coin_utils::{merge_coin, merge_coin_vector, CoinOp, CoinVecOp, Operation};
@@ -18,7 +18,6 @@ use std::cmp::min;
 use std::collections::HashMap;
 use terra_cosmwasm::{create_swap_msg, SwapResponse, TerraMsgWrapper, TerraQuerier};
 
-#[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
     _env: Env,
@@ -47,7 +46,14 @@ pub fn instantiate(
         .add_attribute("owner", info.sender))
 }
 
-#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(
+    deps: DepsMut,
+    _env: Env,
+    msg: MigrateMsg,
+) -> Result<Response<TerraMsgWrapper>, ContractError> {
+    Ok(Response::default())
+}
+
 pub fn execute(
     deps: DepsMut,
     _env: Env,
@@ -525,7 +531,6 @@ pub fn try_redeem_rewards(
     Ok(Response::new().add_messages(messages))
 }
 
-#[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetTotalTokens {} => to_binary(&query_total_tokens(deps, _env)?),
