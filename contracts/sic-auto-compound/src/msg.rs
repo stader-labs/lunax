@@ -37,6 +37,14 @@ pub enum ExecuteMsg {
         amount: Uint128,
         claim_msg: Binary,
     },
+    // Called by manager to add a validator to the current pool
+    AddValidator {
+        validator: Addr,
+    },
+    RedelegateFromValidator {
+        src_validator: Addr,
+        dst_validator: Addr,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

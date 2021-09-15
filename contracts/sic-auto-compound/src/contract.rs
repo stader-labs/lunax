@@ -81,7 +81,55 @@ pub fn execute(
         ExecuteMsg::TransferUndelegatedRewards { amount } => {
             try_transfer_undelegated_rewards(deps, _env, info, amount)
         }
+        ExecuteMsg::AddValidator { validator } => try_add_validator(deps, _env, info, validator),
+        ExecuteMsg::RedelegateFromValidator {
+            src_validator,
+            dst_validator,
+        } => try_redelegate_from_validator(deps, _env, info, src_validator, dst_validator),
     }
+}
+
+pub fn try_redelegate_from_validator(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    src_validator: Addr,
+    dst_validator: Addr,
+) -> Result<Response<TerraMsgWrapper>, ContractError> {
+    Ok(Response::default())
+}
+
+pub fn try_add_validator(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    validator: Addr,
+) -> Result<Response<TerraMsgWrapper>, ContractError> {
+    let state = STATE.load(deps.storage)?;
+    if info.sender != state.manager {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    // check if validator is already in the pool
+    if state.validator_pool.contains(&validator) {
+        return Err(ContractError::ValidatorAlreadyExistsInPool {});
+    }
+
+    // check if validator is present in the blockchain
+    if let None = deps
+        .querier
+        .query_validator(validator.to_string())
+        .unwrap_or(None)
+    {
+        return Err(ContractError::ValidatorDoesNotExist {});
+    }
+
+    STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
+        state.validator_pool.push(validator);
+        Ok(state)
+    })?;
+
+    Ok(Response::default())
 }
 
 pub fn try_claim_airdrops(
@@ -94,7 +142,7 @@ pub fn try_claim_airdrops(
     amount: Uint128,
     claim_msg: Binary,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
-    let state = STATE.load(deps.storage).unwrap();
+    let state = STATE.load(deps.storage)?;
     if info.sender != state.scc_address {
         return Err(ContractError::Unauthorized {});
     }

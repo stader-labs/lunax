@@ -123,6 +123,142 @@ mod tests {
     }
 
     #[test]
+    fn test__try_add_validator_fail() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &[]);
+        let env = mock_env();
+
+        let res = instantiate_contract(
+            &mut deps,
+            &info,
+            &env,
+            Some(
+                get_validators()
+                    .iter()
+                    .map(|f| Addr::unchecked(&f.address))
+                    .collect(),
+            ),
+            Option::from("uluna".to_string()),
+        );
+
+        /*
+           Test - 1. Unauthorized
+        */
+        let mut err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("not-creator", &[]),
+            ExecuteMsg::AddValidator {
+                validator: Addr::unchecked("abc"),
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::Unauthorized {}));
+
+        /*
+           Test - 2. Validator already in pool
+        */
+        let mut err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::AddValidator {
+                validator: Addr::unchecked("valid0001"),
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(
+            err,
+            ContractError::ValidatorAlreadyExistsInPool {}
+        ));
+
+        /*
+           Test - 3. Validator does not exist in blockchain
+        */
+        let mut err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::AddValidator {
+                validator: Addr::unchecked("valid0003"),
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::ValidatorDoesNotExist {}));
+    }
+
+    #[test]
+    fn test__try_add_validator_success() {
+        fn get_some_validators() -> Vec<Validator> {
+            vec![
+                Validator {
+                    address: "valid0001".to_string(),
+                    commission: Decimal::zero(),
+                    max_commission: Decimal::zero(),
+                    max_change_rate: Decimal::zero(),
+                },
+                Validator {
+                    address: "valid0002".to_string(),
+                    commission: Decimal::zero(),
+                    max_commission: Decimal::zero(),
+                    max_change_rate: Decimal::zero(),
+                },
+                Validator {
+                    address: "valid0003".to_string(),
+                    commission: Decimal::zero(),
+                    max_commission: Decimal::zero(),
+                    max_change_rate: Decimal::zero(),
+                },
+            ]
+        }
+
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &[]);
+        let env = mock_env();
+
+        let res = instantiate_contract(
+            &mut deps,
+            &info,
+            &env,
+            Some(
+                get_validators()
+                    .iter()
+                    .filter(|x| x.address.ne("valid0003"))
+                    .map(|f| Addr::unchecked(&f.address))
+                    .collect(),
+            ),
+            Option::from("uluna".to_string()),
+        );
+
+        deps.querier
+            .update_staking("uluna", &*get_some_validators(), &[]);
+
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::AddValidator {
+                validator: Addr::unchecked("valid0003"),
+            },
+        )
+        .unwrap();
+
+        let state_response: GetStateResponse =
+            from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::GetState {}).unwrap())
+                .unwrap();
+        assert_ne!(state_response.state, None);
+        let state = state_response.state.unwrap();
+        assert!(check_equal_vec(
+            state.validator_pool,
+            vec![
+                Addr::unchecked("valid0001"),
+                Addr::unchecked("valid0002"),
+                Addr::unchecked("valid0003"),
+            ]
+        ))
+    }
+
+    #[test]
     fn test__try_transfer_undelegated_rewards_fail() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
