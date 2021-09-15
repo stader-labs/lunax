@@ -57,4 +57,7 @@ pub enum ContractError {
 
     #[error("sic-ac: validator does not exist in blockchain")]
     ValidatorDoesNotExist {},
+
+    #[error("sic-ac: validator does not exist in pool")]
+    ValidatorNotInPool {},
 }

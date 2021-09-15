@@ -41,7 +41,7 @@ pub enum ExecuteMsg {
     AddValidator {
         validator: Addr,
     },
-    RedelegateFromValidator {
+    ReplaceValidator {
         src_validator: Addr,
         dst_validator: Addr,
     },

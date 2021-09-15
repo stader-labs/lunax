@@ -2,20 +2,23 @@
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     attr, to_binary, Addr, Attribute, Binary, Coin, Decimal, Deps, DepsMut, DistributionMsg, Env,
-    Fraction, MessageInfo, Response, StakingMsg, StdResult, Uint128, WasmMsg,
+    Fraction, FullDelegation, MessageInfo, Response, StakingMsg, StdResult, Uint128, WasmMsg,
 };
 
 use crate::error::ContractError;
+use crate::error::ContractError::UndelegationBatchInUnbondingPeriod;
 use crate::helpers::get_unaccounted_funds;
 use crate::msg::{
     ExecuteMsg, GetFulfillableUndelegatedFundsResponse, GetStateResponse, GetTotalTokensResponse,
     InstantiateMsg, QueryMsg,
 };
 use crate::state::{StakeQuota, State, STATE, VALIDATORS_TO_STAKED_QUOTA};
+use schemars::visit::ReplaceBoolSchemas;
 use stader_utils::coin_utils::{merge_coin, merge_coin_vector, CoinOp, CoinVecOp, Operation};
 use stader_utils::helpers::send_funds_msg;
 use std::cmp::min;
 use std::collections::HashMap;
+use std::sync::mpsc::TrySendError::Full;
 use terra_cosmwasm::{create_swap_msg, SwapResponse, TerraMsgWrapper, TerraQuerier};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -82,21 +85,95 @@ pub fn execute(
             try_transfer_undelegated_rewards(deps, _env, info, amount)
         }
         ExecuteMsg::AddValidator { validator } => try_add_validator(deps, _env, info, validator),
-        ExecuteMsg::RedelegateFromValidator {
+        ExecuteMsg::ReplaceValidator {
             src_validator,
             dst_validator,
-        } => try_redelegate_from_validator(deps, _env, info, src_validator, dst_validator),
+        } => try_replace_validator(deps, _env, info, src_validator, dst_validator),
     }
 }
 
-pub fn try_redelegate_from_validator(
+pub fn try_replace_validator(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
     src_validator: Addr,
     dst_validator: Addr,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
-    Ok(Response::default())
+    let state = STATE.load(deps.storage)?;
+    if info.sender != state.manager {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    if src_validator.eq(&dst_validator) {
+        return Ok(Response::default());
+    }
+
+    if !state.validator_pool.contains(&src_validator) {
+        return Err(ContractError::ValidatorNotInPool {});
+    }
+
+    if state.validator_pool.contains(&dst_validator) {
+        return Err(ContractError::ValidatorAlreadyExistsInPool {});
+    }
+
+    // check if validator is present in the blockchain
+    if let None = deps
+        .querier
+        .query_validator(dst_validator.to_string())
+        .unwrap_or(None)
+    {
+        return Err(ContractError::ValidatorDoesNotExist {});
+    }
+
+    let src_validator_delegation_opt = deps.querier.query_delegation(
+        &_env.contract.address.to_string(),
+        src_validator.to_string(),
+    )?;
+
+    let mut redelegation_msgs: Vec<StakingMsg> = vec![];
+    let mut src_validator_staked_amount = Uint128::zero();
+    if src_validator_delegation_opt.is_some() {
+        let src_validator_delegation = src_validator_delegation_opt.unwrap();
+        src_validator_staked_amount = src_validator_staked_amount
+            .checked_add(src_validator_delegation.amount.amount)
+            .unwrap();
+
+        // send redelegation message only if src_validator has a redelegation
+        redelegation_msgs.push(StakingMsg::Redelegate {
+            src_validator: src_validator.to_string(),
+            dst_validator: dst_validator.to_string(),
+            amount: src_validator_delegation.can_redelegate,
+        });
+    }
+
+    VALIDATORS_TO_STAKED_QUOTA.save(
+        deps.storage,
+        &dst_validator,
+        &StakeQuota {
+            amount: Coin::new(
+                src_validator_staked_amount.u128(),
+                state.strategy_denom.clone(),
+            ),
+            stake_fraction: Decimal::from_ratio(
+                src_validator_staked_amount,
+                state.total_staked_tokens,
+            ),
+        },
+    )?;
+
+    VALIDATORS_TO_STAKED_QUOTA.remove(deps.storage, &src_validator);
+
+    STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
+        state.validator_pool = state
+            .validator_pool
+            .into_iter()
+            .filter(|x| x.ne(&src_validator))
+            .collect();
+        state.validator_pool.push(dst_validator);
+        Ok(state)
+    })?;
+
+    Ok(Response::new().add_messages(redelegation_msgs))
 }
 
 pub fn try_add_validator(
