@@ -56,7 +56,6 @@ pub fn instantiate(
         contract_genesis_timestamp: _env.block.time,
         rewards_in_scc: Uint128::zero(),
         total_accumulated_airdrops: vec![],
-        current_undelegated_strategies: vec![],
     };
     STATE.save(deps.storage, &state)?;
     CONFIG.save(deps.storage, &config)?;

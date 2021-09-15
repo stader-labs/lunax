@@ -87,7 +87,6 @@ mod tests {
                 contract_genesis_timestamp: env.block.time,
                 rewards_in_scc: Uint128::zero(),
                 total_accumulated_airdrops: vec![],
-                current_undelegated_strategies: vec![]
             }
         );
         // query the config

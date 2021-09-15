@@ -22,8 +22,6 @@ pub struct State {
     // sum of all the retained rewards in scc
     pub rewards_in_scc: Uint128,
     pub total_accumulated_airdrops: Vec<Coin>,
-
-    pub current_undelegated_strategies: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
