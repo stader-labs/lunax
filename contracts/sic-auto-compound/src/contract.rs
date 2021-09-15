@@ -200,9 +200,9 @@ pub fn try_transfer_rewards(
     info: MessageInfo,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let state = STATE.load(deps.storage).unwrap();
-    // if info.sender != state.scc_address {
-    //     return Err(ContractError::Unauthorized {});
-    // }
+    if info.sender != state.scc_address {
+        return Err(ContractError::Unauthorized {});
+    }
 
     // check if any money is being sent
     if info.funds.is_empty() {
@@ -308,7 +308,7 @@ pub fn try_undelegate_rewards(
 
         let new_validator_staked_amount = total_delegated_amount
             .checked_sub(unstake_amount)
-            .unwrap()
+            .unwrap_or(Uint128::zero()) // to avoid any overflows
             .u128();
         VALIDATORS_TO_STAKED_QUOTA.save(
             deps.storage,
@@ -383,13 +383,13 @@ pub fn try_reinvest(
     }
 
     let strategy_denom = state.strategy_denom;
-    let mut current_total_staked_tokens = Coin::new(0_u128, strategy_denom.clone());
+    let mut current_total_staked_tokens = Uint128::zero();
     let mut validator_to_delegation_map: HashMap<&Addr, Uint128> = HashMap::new();
     for validator in &state.validator_pool {
         let result = deps
             .querier
             .query_delegation(&_env.contract.address, validator)?;
-        // TODO: bchain99 - should not happen
+        // this will happen if there is no delegation to the validator
         if result.is_none() {
             continue;
         }
@@ -398,24 +398,19 @@ pub fn try_reinvest(
 
         validator_to_delegation_map.insert(validator, full_delegation.amount.amount);
 
-        current_total_staked_tokens = merge_coin(
-            current_total_staked_tokens,
-            CoinOp {
-                fund: full_delegation.amount,
-                operation: Operation::Add,
-            },
-        );
+        current_total_staked_tokens = current_total_staked_tokens
+            .checked_add(full_delegation.amount.amount)
+            .unwrap();
     }
 
     let total_slashed_amount = state
         .total_staked_tokens
-        .checked_sub(current_total_staked_tokens.amount)
-        .unwrap();
+        .checked_sub(current_total_staked_tokens)
+        .unwrap_or_else(|_| Uint128::zero());
 
     let rewards_to_invest = state.uninvested_rewards.amount;
 
     let new_current_staked_tokens = current_total_staked_tokens
-        .amount
         .checked_add(rewards_to_invest)
         .unwrap();
 
@@ -462,12 +457,10 @@ pub fn try_reinvest(
 
     STATE.update(deps.storage, |mut state| -> StdResult<_> {
         state.total_staked_tokens = new_current_staked_tokens;
-        if total_slashed_amount > Uint128::zero() {
-            state.total_slashed_amount = state
-                .total_slashed_amount
-                .checked_add(total_slashed_amount)
-                .unwrap();
-        }
+        state.total_slashed_amount = state
+            .total_slashed_amount
+            .checked_add(total_slashed_amount)
+            .unwrap();
         state.uninvested_rewards = Coin::new(0_u128, strategy_denom);
         Ok(state)
     })?;
