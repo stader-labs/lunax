@@ -9,7 +9,7 @@ use stader_utils::coin_utils::{
 };
 
 pub fn allocate_user_airdrops_across_strategies(
-    storage: &mut dyn Storage,
+    storage: &dyn Storage,
     user_reward_info: &mut UserRewardInfo,
 ) {
     let mut total_allocated_airdrops: Vec<Coin> = user_reward_info.pending_airdrops.clone();

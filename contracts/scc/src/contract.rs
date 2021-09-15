@@ -14,8 +14,9 @@ use crate::helpers::{
 use crate::msg::{
     ExecuteMsg, GetAllStrategiesResponse, GetConfigResponse, GetStateResponse,
     GetStrategiesListResponse, GetStrategyInfoResponse, GetUndelegationBatchInfoResponse,
-    GetUserRewardInfo, InstantiateMsg, QueryMsg, StrategyInfoQuery, UpdateUserAirdropsRequest,
-    UpdateUserRewardsRequest,
+    GetUserResponse, GetUserRewardInfo, InstantiateMsg, QueryMsg, StrategyInfoQuery,
+    UpdateUserAirdropsRequest, UpdateUserRewardsRequest, UserRewardInfoQuery,
+    UserStrategyQueryInfo,
 };
 use crate::state::{
     BatchUndelegationRecord, Config, Cw20TokenContractsInfo, State, StrategyInfo, UserRewardInfo,
@@ -1250,7 +1251,73 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         )?),
         QueryMsg::GetStrategiesList {} => to_binary(&query_strategies_list(deps)?),
         QueryMsg::GetAllStrategies {} => to_binary(&query_get_all_strategies(deps)?),
+        QueryMsg::GetUser { user } => to_binary(&query_user(deps, user)?),
     }
+}
+
+fn query_user(deps: Deps, user: Addr) -> StdResult<GetUserResponse> {
+    let user_reward_info_opt = USER_REWARD_INFO_MAP.may_load(deps.storage, &user).unwrap();
+    if user_reward_info_opt.is_none() {
+        return Ok(GetUserResponse { user: None });
+    }
+
+    let mut user_reward_info = user_reward_info_opt.unwrap();
+
+    let mut user_strategy_query: UserRewardInfoQuery = UserRewardInfoQuery {
+        total_airdrops: vec![],
+        retained_rewards: user_reward_info.pending_rewards,
+        undelegation_records: user_reward_info.undelegation_records,
+        user_strategy_info: vec![],
+        user_portfolio: user_reward_info.user_portfolio,
+    };
+
+    let mut user_strategy_info: Vec<UserStrategyQueryInfo> = vec![];
+    let mut total_airdrops: Vec<Coin> = vec![];
+    for user_strategy in user_reward_info.strategies {
+        let strategy_name = user_strategy.strategy_name.clone();
+
+        let strategy_info: StrategyInfo;
+        if let Some(si) = STRATEGY_MAP
+            .may_load(deps.storage, &*strategy_name)
+            .unwrap()
+        {
+            strategy_info = si;
+        } else {
+            continue;
+        }
+
+        let user_shares = user_strategy.shares;
+        let user_airdrop_pointer = &user_strategy.airdrop_pointer;
+        let strategy_s_t_ratio = get_strategy_shares_per_token_ratio(deps.querier, &strategy_info);
+        let user_rewards = get_user_staked_amount(strategy_s_t_ratio, user_shares);
+        let user_airdrops = get_user_airdrops(
+            &strategy_info.global_airdrop_pointer,
+            user_airdrop_pointer,
+            user_shares,
+        )
+        .unwrap_or_default();
+
+        user_strategy_info.push(UserStrategyQueryInfo {
+            strategy_name,
+            total_rewards: user_rewards,
+            total_airdrops: user_airdrops.clone(),
+        });
+
+        total_airdrops = merge_coin_vector(
+            total_airdrops,
+            CoinVecOp {
+                fund: user_airdrops,
+                operation: Operation::Add,
+            },
+        );
+    }
+
+    user_strategy_query.total_airdrops = total_airdrops;
+    user_strategy_query.user_strategy_info = user_strategy_info;
+
+    Ok(GetUserResponse {
+        user: Some(user_strategy_query),
+    })
 }
 
 fn query_get_all_strategies(deps: Deps) -> StdResult<GetAllStrategiesResponse> {

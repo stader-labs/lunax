@@ -1,5 +1,6 @@
 use crate::state::{
     BatchUndelegationRecord, Config, State, StrategyInfo, UserRewardInfo, UserStrategyPortfolio,
+    UserUndelegationRecord,
 };
 use cosmwasm_std::{Addr, Binary, Coin, Decimal, Timestamp, Uint128};
 use schemars::JsonSchema;
@@ -40,6 +41,22 @@ pub struct StrategyInfoQuery {
     pub unbonding_period: u64,
     pub unbonding_buffer: u64,
     pub sic_contract_address: Addr,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct UserStrategyQueryInfo {
+    pub strategy_name: String,
+    pub total_rewards: Uint128,
+    pub total_airdrops: Vec<Coin>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct UserRewardInfoQuery {
+    pub total_airdrops: Vec<Coin>,
+    pub retained_rewards: Uint128,
+    pub undelegation_records: Vec<UserUndelegationRecord>,
+    pub user_strategy_info: Vec<UserStrategyQueryInfo>,
+    pub user_portfolio: Vec<UserStrategyPortfolio>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -147,6 +164,9 @@ pub enum QueryMsg {
     GetStrategiesList {},
     // rewards in SCC(retain rewards) + rewards in all strategies
     GetAllStrategies {},
+    GetUser {
+        user: Addr,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -182,4 +202,9 @@ pub struct GetStrategiesListResponse {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct GetAllStrategiesResponse {
     pub all_strategies: Option<Vec<StrategyInfoQuery>>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct GetUserResponse {
+    pub user: Option<UserRewardInfoQuery>,
 }
