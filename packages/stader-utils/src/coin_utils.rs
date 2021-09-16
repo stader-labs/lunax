@@ -144,13 +144,13 @@ pub fn merge_dec_coin_vector(coins: &Vec<DecCoin>, deccoin_vec_op: DecCoinVecOp)
 
 // Jumbles the order of the vector
 // (Coins + CoinVecOp.fund) and (Coins - CoinVecOp.fund) [Element wise operation but Sub is stricter than set operation]
-pub fn merge_coin_vector(coins: Vec<Coin>, coin_vec_op: CoinVecOp) -> Vec<Coin> {
+pub fn merge_coin_vector(coins: &Vec<Coin>, coin_vec_op: CoinVecOp) -> Vec<Coin> {
     let fund = coin_vec_op.fund;
     let operation = coin_vec_op.operation;
 
     match operation {
-        Operation::Add => add_coin_vectors(&coins, &fund),
-        Operation::Sub => subtract_coin_vectors(&coins, &fund),
+        Operation::Add => add_coin_vectors(coins, &fund),
+        Operation::Sub => subtract_coin_vectors(coins, &fund),
         Operation::Replace => fund,
     }
 }
