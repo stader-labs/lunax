@@ -17,6 +17,8 @@ pub enum Verify {
 
     //Info.funds is expected to be one
     NonZeroSingleInfoFund,
+
+    NoFunds,
     // If info.funds are empty or zero
     // NonEmptyInfoFunds,
 }
@@ -35,18 +37,18 @@ pub fn validate(
                 }
             }
             Verify::SenderPoolsContract => {
-                if info.sender != config.pools_contract_addr {
+                if info.sender != config.pools_contract {
                     return Err(ContractError::Unauthorized {});
                 }
             }
             Verify::SenderManagerOrPoolsContract => {
-                if info.sender != config.manager && info.sender != config.pools_contract_addr {
+                if info.sender != config.manager && info.sender != config.pools_contract {
                     return Err(ContractError::Unauthorized {});
                 }
             }
             Verify::SenderManagerOrPoolsContractOrSelf => {
                 if info.sender != config.manager
-                    && info.sender != config.pools_contract_addr
+                    && info.sender != config.pools_contract
                     && info.sender != env.contract.address
                 {
                     return Err(ContractError::Unauthorized {});
@@ -61,6 +63,11 @@ pub fn validate(
                 }
                 if info.funds[0].denom != config.vault_denom {
                     return Err(ContractError::InvalidDenom {});
+                }
+            }
+            Verify::NoFunds => {
+                if !info.funds.is_empty() {
+                    return Err(ContractError::FundsNotExpected {});
                 }
             }
         }

@@ -12,6 +12,9 @@ pub enum ContractError {
     #[error("Funds not found")]
     NoFunds {},
 
+    #[error("Funds found but not expected")]
+    FundsNotExpected {},
+
     #[error("Multiple funds found instead of one")]
     MultipleFunds {},
 
@@ -40,6 +43,15 @@ pub enum ContractError {
     RedelegationFailed {},
 
     #[error("Redelegation event object not found")]
-    RedelegationEventNotFound {}, // Add any other custom errors you like here.
-                                  // Look at https://docs.rs/thiserror/1.0.21/thiserror/ for details.
+    RedelegationEventNotFound {},
+
+    #[error("Not enough slashing funds")]
+    NotEnoughSlashingFunds {},
+
+    #[error("No Delegation found")]
+    DelegationNotFound {},
+
+    #[error("Mismatching funds")]
+    MismatchingFunds {}, // Add any other custom errors you like here.
+                         // Look at https://docs.rs/thiserror/1.0.21/thiserror/ for details.
 }

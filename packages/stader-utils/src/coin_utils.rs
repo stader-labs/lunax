@@ -131,13 +131,13 @@ pub fn map_to_deccoin_vec(coin_map: HashMap<String, Decimal>) -> Vec<DecCoin> {
 
 // Jumbles the order of the vector
 // (Coins + CoinVecOp.fund) and (Coins - CoinVecOp.fund) [Element wise operation but Sub is stricter than set operation]
-pub fn merge_dec_coin_vector(coins: &Vec<DecCoin>, deccoin_vec_op: DecCoinVecOp) -> Vec<DecCoin> {
+pub fn merge_dec_coin_vector(deccoins: &Vec<DecCoin>, deccoin_vec_op: DecCoinVecOp) -> Vec<DecCoin> {
     let fund = deccoin_vec_op.fund;
     let operation = deccoin_vec_op.operation;
 
     match operation {
-        Operation::Add => add_deccoin_vectors(coins, &fund),
-        Operation::Sub => subtract_deccoin_vectors(coins, &fund),
+        Operation::Add => add_deccoin_vectors(deccoins, &fund),
+        Operation::Sub => subtract_deccoin_vectors(deccoins, &fund),
         Operation::Replace => fund,
     }
 }
@@ -400,7 +400,13 @@ pub fn multiply_deccoin_vector_with_uint128(
     amount: Uint128,
 ) -> Vec<DecCoin> {
     let mut result: Vec<DecCoin> = vec![];
+    if amount.is_zero() {
+        return vec![];
+    }
     for deccoin in deccoins {
+        if deccoin.amount.is_zero() {
+            continue;
+        }
         let decimal = decimal_multiplication_in_256(
             deccoin.amount,
             Decimal::from_ratio(amount.u128(), 1_u128),
@@ -418,6 +424,9 @@ pub fn multiply_coin_with_decimal(coin: &Coin, ratio: Decimal) -> Coin {
         coin.amount.u128() * ratio.numerator() / ratio.denominator(),
         coin.denom.clone(),
     )
+}
+pub fn multiply_u128_with_decimal(num: u128, dec: Decimal) -> u128 {
+    return (num * dec.numerator() / dec.denominator()) as u128;
 }
 
 pub fn coin_to_deccoin(coin: Coin) -> DecCoin {
@@ -447,6 +456,8 @@ pub fn deccoin_vec_to_coin_vec(deccoins: &Vec<DecCoin>) -> Vec<Coin> {
         .map(|deccoin| deccoin_to_coin(deccoin.clone()))
         .collect()
 }
+
+
 
 #[cfg(test)]
 mod tests {

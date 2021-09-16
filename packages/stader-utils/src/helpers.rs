@@ -35,14 +35,14 @@ pub fn query_exchange_rates(
             continue;
         }
         let result =
-            querier.query_exchange_rates(base_denom.clone(), vec![(*denom.clone()).to_string()]);
+            querier.query_exchange_rates(denom.clone(), vec![base_denom.to_string()]);
         if result.is_err() {
             continue;
         }
         let exchange_rate_response = result.unwrap();
         let exchange_rate_item = exchange_rate_response.exchange_rates.first().unwrap();
         er_map.insert(
-            exchange_rate_item.quote_denom.clone(),
+            denom.clone(),
             exchange_rate_item.exchange_rate,
         );
     }
