@@ -13,6 +13,8 @@ pub struct InstantiateMsg {
     pub strategy_denom: String,
     // initial set of validators who make up the validator pool
     pub initial_validators: Vec<Addr>,
+    // minimum number of validators in a pool
+    pub min_validator_pool_size: Option<u64>,
     // amount of funds sic-manager has seeded the sic with
     pub manager_seed_funds: Uint128,
 }
@@ -47,6 +49,9 @@ pub enum ExecuteMsg {
     ReplaceValidator {
         src_validator: Addr,
         dst_validator: Addr,
+    },
+    RemoveValidator {
+        validator: Addr,
     },
 }
 

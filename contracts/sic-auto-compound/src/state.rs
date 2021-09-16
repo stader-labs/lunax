@@ -17,6 +17,7 @@ pub struct State {
     pub manager: Addr,
     pub scc_address: Addr,
     pub manager_seed_funds: Uint128,
+    pub min_validator_pool_size: u64,
 
     pub strategy_denom: String,
 

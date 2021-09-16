@@ -1,8 +1,9 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, to_binary, Addr, Attribute, Binary, Coin, Decimal, Deps, DepsMut, DistributionMsg, Env,
-    Fraction, FullDelegation, MessageInfo, Response, StakingMsg, StdResult, Uint128, WasmMsg,
+    attr, to_binary, Addr, Attribute, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut,
+    DistributionMsg, Env, Fraction, FullDelegation, MessageInfo, Response, StakingMsg, StdResult,
+    SubMsg, Uint128, WasmMsg,
 };
 
 use crate::error::ContractError;
@@ -34,6 +35,7 @@ pub fn instantiate(
         manager: info.sender.clone(),
         scc_address: msg.scc_address,
         manager_seed_funds: msg.manager_seed_funds,
+        min_validator_pool_size: msg.min_validator_pool_size.unwrap_or(3),
         strategy_denom: msg.strategy_denom.clone(),
         contract_genesis_block_height: _env.block.height,
         contract_genesis_timestamp: _env.block.time,
@@ -100,7 +102,124 @@ pub fn execute(
             src_validator,
             dst_validator,
         } => try_replace_validator(deps, _env, info, src_validator, dst_validator),
+        ExecuteMsg::RemoveValidator { validator } => {
+            try_remove_validator(deps, _env, info, validator)
+        }
     }
+}
+
+pub fn try_remove_validator(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    validator: Addr,
+) -> Result<Response<TerraMsgWrapper>, ContractError> {
+    let state = STATE.load(deps.storage)?;
+    if info.sender != state.manager {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    if !state.validator_pool.contains(&validator) {
+        return Err(ContractError::ValidatorNotInPool {});
+    }
+
+    if state
+        .validator_pool
+        .len()
+        .eq(&(state.min_validator_pool_size as usize))
+    {
+        return Err(ContractError::CannotRemoveMoreValidators {});
+    }
+
+    let validator_delegation_opt = deps
+        .querier
+        .query_delegation(&_env.contract.address, validator.to_string())?;
+    // validator has no delegation just remove the validator from the pool
+    if validator_delegation_opt.is_none() {
+        STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
+            state.validator_pool = state
+                .validator_pool
+                .into_iter()
+                .filter(|x| x.ne(&validator))
+                .collect();
+            Ok(state)
+        })?;
+
+        VALIDATORS_TO_STAKED_QUOTA.remove(deps.storage, &validator);
+
+        return Ok(Response::default());
+    }
+
+    let mut rewards_messages: Vec<DistributionMsg> = vec![];
+    let mut redelegation_messages: Vec<StakingMsg> = vec![];
+    let validator_delegation = validator_delegation_opt.unwrap();
+
+    // 1. Drain the rewards of the validator being removed
+    let validator_rewards = validator_delegation.accumulated_rewards;
+
+    rewards_messages.push(DistributionMsg::WithdrawDelegatorReward {
+        validator: validator.to_string(),
+    });
+
+    // 2. Redelegate the stake to any one validator randomly
+    let validator_staked_coin = validator_delegation.amount;
+
+    let new_validator_pool: Vec<Addr> = state
+        .validator_pool
+        .into_iter()
+        .filter(|x| x.ne(&validator))
+        .collect();
+    let strategy_denom = state.strategy_denom;
+    let total_staked_tokens = state.total_staked_tokens;
+
+    let validator_to_redelegate = new_validator_pool
+        .get((_env.block.time.seconds() as usize) % (new_validator_pool.len()))
+        .unwrap();
+    redelegation_messages.push(StakingMsg::Redelegate {
+        src_validator: validator.to_string(),
+        dst_validator: validator_to_redelegate.to_string(),
+        amount: validator_staked_coin.clone(),
+    });
+
+    VALIDATORS_TO_STAKED_QUOTA.remove(deps.storage, &validator);
+    VALIDATORS_TO_STAKED_QUOTA.update(
+        deps.storage,
+        validator_to_redelegate,
+        |stake_quota_opt| -> Result<_, ContractError> {
+            let mut stake_quota = stake_quota_opt.unwrap_or(StakeQuota {
+                amount: Coin::new(0_u128, strategy_denom),
+                stake_fraction: Decimal::zero(),
+            });
+
+            stake_quota.amount = merge_coin(
+                stake_quota.amount,
+                CoinOp {
+                    fund: validator_staked_coin,
+                    operation: Operation::Add,
+                },
+            );
+            stake_quota.stake_fraction =
+                Decimal::from_ratio(stake_quota.amount.amount, total_staked_tokens);
+
+            Ok(stake_quota)
+        },
+    )?;
+
+    STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
+        state.unswapped_rewards = merge_coin_vector(
+            state.unswapped_rewards,
+            CoinVecOp {
+                fund: validator_rewards,
+                operation: Operation::Add,
+            },
+        );
+        state.validator_pool = new_validator_pool;
+        Ok(state)
+    })?;
+
+    Ok(Response::new()
+        .add_messages(rewards_messages)
+        .add_messages(redelegation_messages))
 }
 
 pub fn try_replace_validator(
@@ -128,10 +247,11 @@ pub fn try_replace_validator(
     }
 
     // check if validator is present in the blockchain
-    if let None = deps
+    if deps
         .querier
         .query_validator(dst_validator.to_string())
         .unwrap_or(None)
+        .is_none()
     {
         return Err(ContractError::ValidatorDoesNotExist {});
     }
@@ -204,10 +324,11 @@ pub fn try_add_validator(
     }
 
     // check if validator is present in the blockchain
-    if let None = deps
+    if deps
         .querier
         .query_validator(validator.to_string())
         .unwrap_or(None)
+        .is_none()
     {
         return Err(ContractError::ValidatorDoesNotExist {});
     }
@@ -444,7 +565,7 @@ pub fn try_undelegate_rewards(
 
         let new_validator_staked_amount = total_delegated_amount
             .checked_sub(unstake_amount)
-            .unwrap_or(Uint128::zero()) // to avoid any overflows
+            .unwrap_or_else(|_| Uint128::zero()) // to avoid any overflows
             .u128();
         VALIDATORS_TO_STAKED_QUOTA.save(
             deps.storage,
