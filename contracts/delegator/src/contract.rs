@@ -287,27 +287,3 @@ pub fn query_user(deps: Deps, user_addr: Addr) -> StdResult<UserResponse> {
     }
     Ok(UserResponse { info: res })
 }
-
-
-/**
-    SubMessage Signals
-*/
-
-#[entry_point]
-pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractError> {
-    match msg.id {
-        // Called for remove_validator clean up.
-        0 => reply_remove_validator(deps, env, msg.id.into(), msg.result),
-        _ => panic!("Cannot find operation id {:?}", msg.id),
-    }
-}
-
-// This is called with redelegate response originating from remove_validator.
-pub fn reply_remove_validator(
-    deps: DepsMut,
-    _env: Env,
-    msg_id: u64,
-    result: ContractResult<SubMsgExecutionResponse>,
-) -> Result<Response, ContractError> {
-    Ok(Response::default())
-}

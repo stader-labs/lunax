@@ -12,7 +12,20 @@
       <sourceFolder url="file://$MODULE_DIR$/contracts/validators/examples" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/contracts/validators/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/packages/stader-utils/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/contracts/delegator/examples" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/contracts/delegator/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/contracts/kyv/examples" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/contracts/kyv/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/contracts/pools/examples" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/contracts/pools/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/contracts/scc/examples" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/contracts/scc/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/contracts/validator/examples" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/contracts/validator/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
+      <excludeFolder url="file://$MODULE_DIR$/contracts/delegator/target" />
+      <excludeFolder url="file://$MODULE_DIR$/contracts/pools/target" />
+      <excludeFolder url="file://$MODULE_DIR$/contracts/validator/target" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
