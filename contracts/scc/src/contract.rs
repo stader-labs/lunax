@@ -9,7 +9,7 @@ use crate::error::ContractError;
 use crate::helpers::{get_strategy_shares_per_token_ratio, get_strategy_split};
 use crate::msg::{
     ExecuteMsg, GetConfigResponse, GetStateResponse, GetStrategiesListResponse,
-    GetStrategyInfoResponse, GetUserRewardInfo, InstantiateMsg, QueryMsg,
+    GetStrategyInfoResponse, GetUserRewardInfo, InstantiateMsg, MigrateMsg, QueryMsg,
     UpdateUserAirdropsRequest, UpdateUserRewardsRequest,
 };
 use crate::state::{
@@ -27,7 +27,6 @@ use stader_utils::coin_utils::{
 use stader_utils::helpers::send_funds_msg;
 use std::collections::HashMap;
 
-#[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
     _env: Env,
@@ -56,7 +55,10 @@ pub fn instantiate(
         .add_attribute("owner", info.sender))
 }
 
-#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
+    Ok(Response::default())
+}
+
 pub fn execute(
     deps: DepsMut,
     _env: Env,
@@ -748,7 +750,6 @@ pub fn try_update_user_airdrops(
     Ok(Response::default())
 }
 
-#[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetState {} => to_binary(&query_state(deps)?),
