@@ -24,7 +24,10 @@ use crate::state::{
     CW20_TOKEN_CONTRACTS_REGISTRY, STATE, STRATEGY_MAP, UNDELEGATION_BATCH_MAP,
     USER_REWARD_INFO_MAP,
 };
-use crate::user::{allocate_user_airdrops_across_strategies, get_user_airdrops};
+use crate::user::{
+    allocate_user_airdrops_across_strategies, allocate_user_airdrops_for_strategy,
+    get_user_airdrops,
+};
 use cw_storage_plus::U64Key;
 use serde::Serialize;
 use sic_base::msg::{ExecuteMsg as sic_execute_msg, QueryMsg as sic_query_msg};
@@ -554,7 +557,7 @@ pub fn try_undelegate_user_rewards(
     }
     user_strategy_info.airdrop_pointer = strategy_info.global_airdrop_pointer.clone();
     user_reward_info.pending_airdrops = merge_coin_vector(
-        user_reward_info.pending_airdrops,
+        &user_reward_info.pending_airdrops,
         CoinVecOp {
             fund: user_airdrops,
             operation: Operation::Add,
@@ -605,7 +608,7 @@ pub fn try_undelegate_user_rewards(
             undelegation_batch_id: strategy_info.undelegation_batch_id_pointer,
         });
 
-    STRATEGY_MAP.save(deps.storage, &*strategy_name, &strategy_info)?;
+    STRATEGY_MAP.save(deps.storage, strategy_name.as_str(), &strategy_info)?;
     USER_REWARD_INFO_MAP.save(deps.storage, &user_addr, &user_reward_info)?;
 
     Ok(Response::default())
@@ -649,7 +652,7 @@ pub fn try_claim_airdrops(
     let airdrop_coin = Coin::new(amount.u128(), denom.clone());
 
     strategy_info.total_airdrops_accumulated = merge_coin_vector(
-        strategy_info.total_airdrops_accumulated,
+        &strategy_info.total_airdrops_accumulated,
         CoinVecOp {
             fund: vec![airdrop_coin.clone()],
             operation: Operation::Add,
@@ -671,7 +674,7 @@ pub fn try_claim_airdrops(
 
     STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
         state.total_accumulated_airdrops = merge_coin_vector(
-            state.total_accumulated_airdrops,
+            &state.total_accumulated_airdrops,
             CoinVecOp {
                 fund: vec![airdrop_coin],
                 operation: Operation::Add,
@@ -721,11 +724,11 @@ pub fn try_withdraw_airdrops(
         .pending_airdrops
         .iter_mut()
         .for_each(|user_airdrop| {
-            let airdrop_denom = user_airdrop.denom.clone();
+            let airdrop_denom = &user_airdrop.denom;
             let airdrop_amount = user_airdrop.amount;
 
             let cw20_token_contracts = CW20_TOKEN_CONTRACTS_REGISTRY
-                .may_load(deps.storage, airdrop_denom.clone())
+                .may_load(deps.storage, airdrop_denom.to_string())
                 .unwrap();
 
             if cw20_token_contracts.is_none() || airdrop_amount.is_zero() {
@@ -735,7 +738,7 @@ pub fn try_withdraw_airdrops(
             messages.push(WasmMsg::Execute {
                 contract_addr: String::from(cw20_token_contracts.unwrap().cw20_token_contract),
                 msg: to_binary(&cw20::Cw20ExecuteMsg::Transfer {
-                    recipient: String::from(user_addr.clone()),
+                    recipient: user_addr.to_string(),
                     amount: airdrop_amount,
                 })
                 .unwrap(),
@@ -750,7 +753,7 @@ pub fn try_withdraw_airdrops(
 
     STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
         state.total_accumulated_airdrops = merge_coin_vector(
-            state.total_accumulated_airdrops,
+            &state.total_accumulated_airdrops,
             CoinVecOp {
                 fund: transfered_airdrops,
                 operation: Operation::Sub,
@@ -1010,7 +1013,6 @@ pub fn try_update_user_rewards(
     update_user_rewards_requests: Vec<UpdateUserRewardsRequest>,
 ) -> Result<Response, ContractError> {
     let state = STATE.load(deps.storage)?;
-    let config = CONFIG.load(deps.storage)?;
 
     if update_user_rewards_requests.is_empty() {
         return Ok(Response::new().add_attribute("zero_update_user_rewards_requests", "1"));
@@ -1035,10 +1037,11 @@ pub fn try_update_user_rewards(
             continue;
         }
 
+        let config = CONFIG.load(deps.storage)?;
         let mut user_reward_info = USER_REWARD_INFO_MAP
             .may_load(deps.storage, &user_addr)
             .unwrap()
-            .unwrap_or_else(|| UserRewardInfo::new(config.default_user_portfolio.clone()));
+            .unwrap_or_else(|| UserRewardInfo::new(config.default_user_portfolio));
 
         // this is the amount to be split per strategy
         let strategy_split: Vec<(String, Uint128)>;
@@ -1137,7 +1140,7 @@ pub fn try_update_user_rewards(
             }
             user_strategy_info.airdrop_pointer = strategy_info.global_airdrop_pointer.clone();
             user_reward_info.pending_airdrops = merge_coin_vector(
-                user_reward_info.pending_airdrops,
+                &user_reward_info.pending_airdrops,
                 CoinVecOp {
                     fund: user_airdrops,
                     operation: Operation::Add,
@@ -1206,7 +1209,6 @@ pub fn try_update_user_airdrops(
     info: MessageInfo,
     update_user_airdrops_requests: Vec<UpdateUserAirdropsRequest>,
 ) -> Result<Response, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
     // check for manager?
     let state = STATE.load(deps.storage)?;
     if info.sender != state.pool_contract {
@@ -1225,15 +1227,16 @@ pub fn try_update_user_airdrops(
         let user_airdrops = user_request.pool_airdrops;
 
         total_scc_airdrops = merge_coin_vector(
-            total_scc_airdrops.clone(),
+            &total_scc_airdrops,
             CoinVecOp {
                 fund: user_airdrops.clone(),
                 operation: Operation::Add,
             },
         );
 
+        let config = CONFIG.load(deps.storage)?;
         // fetch the user rewards info
-        let mut user_reward_info = UserRewardInfo::new(config.default_user_portfolio.clone());
+        let mut user_reward_info = UserRewardInfo::new(config.default_user_portfolio);
         if let Some(user_reward_info_mapping) =
             USER_REWARD_INFO_MAP.may_load(deps.storage, &user).unwrap()
         {
@@ -1241,7 +1244,7 @@ pub fn try_update_user_airdrops(
         }
 
         user_reward_info.pending_airdrops = merge_coin_vector(
-            user_reward_info.pending_airdrops,
+            &user_reward_info.pending_airdrops,
             CoinVecOp {
                 fund: user_airdrops,
                 operation: Operation::Add,
@@ -1336,7 +1339,7 @@ fn query_user(deps: Deps, user: Addr) -> StdResult<GetUserResponse> {
         });
 
         total_airdrops = merge_coin_vector(
-            total_airdrops,
+            &total_airdrops,
             CoinVecOp {
                 fund: user_airdrops,
                 operation: Operation::Add,
