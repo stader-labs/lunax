@@ -1,3 +1,5 @@
+#![allow(clippy)]
+
 // test_helpers specific to scc
 
 use crate::msg::UserStrategyQueryInfo;

@@ -1,3 +1,5 @@
+#![allow(clippy)]
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -627,6 +629,26 @@ mod tests {
         )
         .unwrap_err();
         assert!(matches!(err, ContractError::Unauthorized {}));
+
+        /*
+           Test - 2. Strategy does not exist
+        */
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::UpdateStrategy {
+                strategy_name: "sid1".to_string(),
+                unbonding_period: 0,
+                unbonding_buffer: 0,
+                is_active: false,
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(
+            err,
+            ContractError::StrategyInfoDoesNotExist(String { .. })
+        ));
     }
 
     #[test]

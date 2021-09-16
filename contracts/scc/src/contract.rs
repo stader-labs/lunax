@@ -11,17 +11,23 @@ use crate::helpers::{
     get_sic_fulfillable_undelegated_funds, get_staked_amount, get_strategy_shares_per_token_ratio,
     get_strategy_split,
 };
-use crate::msg::{ExecuteMsg, GetAllStrategiesResponse, GetConfigResponse, GetStateResponse, GetStrategiesListResponse, GetStrategyInfoResponse, GetUndelegationBatchInfoResponse, GetUserResponse, GetUserRewardInfo, InstantiateMsg, QueryMsg, StrategyInfoQuery, UpdateUserAirdropsRequest, UpdateUserRewardsRequest, UserRewardInfoQuery, UserStrategyQueryInfo, MigrateMsg};
+use crate::msg::{
+    ExecuteMsg, GetAllStrategiesResponse, GetConfigResponse, GetStateResponse,
+    GetStrategiesListResponse, GetStrategyInfoResponse, GetUndelegationBatchInfoResponse,
+    GetUserResponse, GetUserRewardInfo, InstantiateMsg, MigrateMsg, QueryMsg, StrategyInfoQuery,
+    UpdateUserAirdropsRequest, UpdateUserRewardsRequest, UserRewardInfoQuery,
+    UserStrategyQueryInfo,
+};
 use crate::state::{
     BatchUndelegationRecord, Config, Cw20TokenContractsInfo, State, StrategyInfo, UserRewardInfo,
     UserStrategyInfo, UserStrategyPortfolio, UserUndelegationRecord, CONFIG,
     CW20_TOKEN_CONTRACTS_REGISTRY, STATE, STRATEGY_MAP, UNDELEGATION_BATCH_MAP,
     USER_REWARD_INFO_MAP,
 };
-use cw_storage_plus::U64Key;
-use serde::Serialize;
 use crate::user::{allocate_user_airdrops_across_strategies, get_user_airdrops};
 use cw2::set_contract_version;
+use cw_storage_plus::U64Key;
+use serde::Serialize;
 use sic_base::msg::{ExecuteMsg as sic_execute_msg, QueryMsg as sic_query_msg};
 use stader_utils::coin_utils::{
     decimal_division_in_256, decimal_multiplication_in_256, decimal_subtraction_in_256,
@@ -205,8 +211,7 @@ pub fn try_withdraw_pending_rewards(
 
     let mut user_reward_info: UserRewardInfo;
     if let Some(user_reward_info_map) = USER_REWARD_INFO_MAP
-        .may_load(deps.storage, &user_addr)
-        .unwrap()
+        .may_load(deps.storage, &user_addr)?
     {
         user_reward_info = user_reward_info_map;
     } else {
@@ -254,7 +259,7 @@ pub fn try_fetch_undelegated_rewards_from_strategies(
     for strategy in strategies {
         let mut strategy_info: StrategyInfo;
         if let Some(strategy_info_mapping) =
-            STRATEGY_MAP.may_load(deps.storage, &*strategy).unwrap()
+            STRATEGY_MAP.may_load(deps.storage, &*strategy)?
         {
             strategy_info = strategy_info_mapping;
         } else {
@@ -263,14 +268,12 @@ pub fn try_fetch_undelegated_rewards_from_strategies(
         }
 
         let last_reconciled_batch_id = strategy_info.reconciled_batch_id_pointer;
-        let mut failed_sics: Vec<String> = vec![];
         let mut current_batch_being_reconciled = last_reconciled_batch_id;
         let strategy_name = strategy_info.name.clone();
         for i in (last_reconciled_batch_id)..(strategy_info.undelegation_batch_id_pointer) {
             let mut undelegation_batch: BatchUndelegationRecord;
             if let Some(undelegation_batch_map) = UNDELEGATION_BATCH_MAP
-                .may_load(deps.storage, (U64Key::new(i), &*strategy_name))
-                .unwrap()
+                .may_load(deps.storage, (U64Key::new(i), &*strategy_name))?
             {
                 undelegation_batch = undelegation_batch_map;
             } else {
@@ -398,7 +401,7 @@ pub fn try_undelegate_from_strategies(
     for strategy in strategies {
         let mut strategy_info: StrategyInfo;
         if let Some(strategy_info_mapping) =
-            STRATEGY_MAP.may_load(deps.storage, &*strategy).unwrap()
+            STRATEGY_MAP.may_load(deps.storage, &*strategy)?
         {
             strategy_info = strategy_info_mapping;
         } else {
@@ -487,7 +490,7 @@ pub fn try_update_cw20_contracts_registry(
     cw20_token_contract: Addr,
     airdrop_contract: Addr,
 ) -> Result<Response, ContractError> {
-    let state = STATE.load(deps.storage).unwrap();
+    let state = STATE.load(deps.storage)?;
     if state.manager != info.sender {
         return Err(ContractError::Unauthorized {});
     }
@@ -622,15 +625,14 @@ pub fn try_claim_airdrops(
     denom: String,
     claim_msg: Binary,
 ) -> Result<Response, ContractError> {
-    let state = STATE.load(deps.storage).unwrap();
+    let state = STATE.load(deps.storage)?;
     if info.sender != state.manager {
         return Err(ContractError::Unauthorized {});
     }
 
     let cw20_token_contracts: Cw20TokenContractsInfo;
     if let Some(cw20_token_contracts_mapping) = CW20_TOKEN_CONTRACTS_REGISTRY
-        .may_load(deps.storage, denom.clone())
-        .unwrap()
+        .may_load(deps.storage, denom.clone())?
     {
         cw20_token_contracts = cw20_token_contracts_mapping;
     } else {
@@ -638,7 +640,7 @@ pub fn try_claim_airdrops(
     }
 
     let mut strategy_info: StrategyInfo;
-    if let Some(strategy_info_mapping) = STRATEGY_MAP.may_load(deps.storage, &*strategy_id).unwrap()
+    if let Some(strategy_info_mapping) = STRATEGY_MAP.may_load(deps.storage, &*strategy_id)?
     {
         // while registering the strategy, we need to update the airdrops the strategy supports.
         strategy_info = strategy_info_mapping;
@@ -706,8 +708,7 @@ pub fn try_withdraw_airdrops(
 
     let mut user_reward_info: UserRewardInfo;
     if let Some(user_reward_info_map) = USER_REWARD_INFO_MAP
-        .may_load(deps.storage, &user_addr)
-        .unwrap()
+        .may_load(deps.storage, &user_addr)?
     {
         user_reward_info = user_reward_info_map;
     } else {
@@ -727,8 +728,7 @@ pub fn try_withdraw_airdrops(
             let airdrop_amount = user_airdrop.amount;
 
             let cw20_token_contracts = CW20_TOKEN_CONTRACTS_REGISTRY
-                .may_load(deps.storage, airdrop_denom.to_string())
-                .unwrap();
+                .may_load(deps.storage, airdrop_denom.to_string()).unwrap();
 
             if cw20_token_contracts.is_none() || airdrop_amount.is_zero() {
                 return;
@@ -779,8 +779,7 @@ pub fn try_withdraw_rewards(
 
     let mut user_reward_info: UserRewardInfo;
     if let Some(user_reward_info_mapping) = USER_REWARD_INFO_MAP
-        .may_load(deps.storage, &user_addr)
-        .unwrap()
+        .may_load(deps.storage, &user_addr)?
     {
         user_reward_info = user_reward_info_mapping;
     } else {
@@ -816,8 +815,7 @@ pub fn try_withdraw_rewards(
     let undelegation_batch_id = U64Key::new(user_undelegation_record.undelegation_batch_id);
     let undelegation_batch: BatchUndelegationRecord;
     if let Some(undelegation_batch_map) = UNDELEGATION_BATCH_MAP
-        .may_load(deps.storage, (undelegation_batch_id, &*strategy_name))
-        .unwrap()
+        .may_load(deps.storage, (undelegation_batch_id, &*strategy_name))?
     {
         undelegation_batch = undelegation_batch_map;
     } else {
@@ -863,15 +861,13 @@ pub fn try_register_strategy(
     unbonding_period: Option<u64>,
     unbonding_buffer: Option<u64>,
 ) -> Result<Response, ContractError> {
-    let state = STATE.load(deps.storage).unwrap();
+    let state = STATE.load(deps.storage)?;
     if info.sender != state.manager {
         return Err(ContractError::Unauthorized {});
     }
 
     if STRATEGY_MAP
-        .may_load(deps.storage, &*strategy_name)
-        .unwrap()
-        .is_some()
+        .may_load(deps.storage, &*strategy_name)?.is_some()
     {
         return Err(ContractError::StrategyInfoAlreadyExists {});
     }
@@ -896,7 +892,7 @@ pub fn try_deactivate_strategy(
     info: MessageInfo,
     strategy_name: String,
 ) -> Result<Response, ContractError> {
-    let state = STATE.load(deps.storage).unwrap();
+    let state = STATE.load(deps.storage)?;
     if info.sender != state.manager {
         return Err(ContractError::Unauthorized {});
     }
@@ -924,7 +920,7 @@ pub fn try_activate_strategy(
     info: MessageInfo,
     strategy_name: String,
 ) -> Result<Response, ContractError> {
-    let state = STATE.load(deps.storage).unwrap();
+    let state = STATE.load(deps.storage)?;
     if info.sender != state.manager {
         return Err(ContractError::Unauthorized {});
     }
@@ -952,7 +948,7 @@ pub fn try_remove_strategy(
     info: MessageInfo,
     strategy_name: String,
 ) -> Result<Response, ContractError> {
-    let state = STATE.load(deps.storage).unwrap();
+    let state = STATE.load(deps.storage)?;
     if info.sender != state.manager {
         return Err(ContractError::Unauthorized {});
     }
@@ -977,9 +973,7 @@ pub fn try_update_user_portfolio(
         let strategy_name = portfolio.strategy_name.clone();
 
         if STRATEGY_MAP
-            .may_load(deps.storage, &*strategy_name)
-            .unwrap()
-            .is_none()
+            .may_load(deps.storage, &*strategy_name)?.is_none()
         {
             return Err(ContractError::StrategyInfoDoesNotExist(strategy_name));
         }
@@ -1038,8 +1032,7 @@ pub fn try_update_user_rewards(
 
         let config = CONFIG.load(deps.storage)?;
         let mut user_reward_info = USER_REWARD_INFO_MAP
-            .may_load(deps.storage, &user_addr)
-            .unwrap()
+            .may_load(deps.storage, &user_addr)?
             .unwrap_or_else(|| UserRewardInfo::new(config.default_user_portfolio));
 
         // this is the amount to be split per strategy
@@ -1054,6 +1047,7 @@ pub fn try_update_user_rewards(
                 strategy_split = strategy_split_with_surplus.0;
                 surplus = strategy_split_with_surplus.1;
             }
+            // if strategy_name is given, it overrides the user portfolio distribution.
             Some(strategy_name) => {
                 strategy_split = vec![(strategy_name, funds)];
             }
@@ -1076,8 +1070,7 @@ pub fn try_update_user_rewards(
 
             let mut strategy_info: StrategyInfo;
             if let Some(strategy_info_mapping) = STRATEGY_MAP
-                .may_load(deps.storage, &*strategy_name)
-                .unwrap()
+                .may_load(deps.storage, &*strategy_name)?
             {
                 strategy_info = strategy_info_mapping;
             } else {
@@ -1237,7 +1230,7 @@ pub fn try_update_user_airdrops(
         // fetch the user rewards info
         let mut user_reward_info = UserRewardInfo::new(config.default_user_portfolio);
         if let Some(user_reward_info_mapping) =
-            USER_REWARD_INFO_MAP.may_load(deps.storage, &user).unwrap()
+            USER_REWARD_INFO_MAP.may_load(deps.storage, &user)?
         {
             user_reward_info = user_reward_info_mapping;
         }
@@ -1284,7 +1277,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 }
 
 fn query_user(deps: Deps, user: Addr) -> StdResult<GetUserResponse> {
-    let user_reward_info_opt = USER_REWARD_INFO_MAP.may_load(deps.storage, &user).unwrap();
+    let user_reward_info_opt = USER_REWARD_INFO_MAP.may_load(deps.storage, &user)?;
     if user_reward_info_opt.is_none() {
         return Ok(GetUserResponse { user: None });
     }
@@ -1306,8 +1299,7 @@ fn query_user(deps: Deps, user: Addr) -> StdResult<GetUserResponse> {
 
         let strategy_info: StrategyInfo;
         if let Some(si) = STRATEGY_MAP
-            .may_load(deps.storage, &*strategy_name)
-            .unwrap()
+            .may_load(deps.storage, &*strategy_name)?
         {
             strategy_info = si;
         } else {
@@ -1439,14 +1431,13 @@ fn query_config(deps: Deps) -> StdResult<GetConfigResponse> {
 }
 
 fn query_user_reward_info(deps: Deps, user: Addr) -> StdResult<GetUserRewardInfo> {
-    let user_reward_info = USER_REWARD_INFO_MAP.may_load(deps.storage, &user).unwrap();
+    let user_reward_info = USER_REWARD_INFO_MAP.may_load(deps.storage, &user)?;
     Ok(GetUserRewardInfo { user_reward_info })
 }
 
 fn query_strategy_info(deps: Deps, strategy_name: String) -> StdResult<GetStrategyInfoResponse> {
     let strategy_info = STRATEGY_MAP
-        .may_load(deps.storage, &*strategy_name)
-        .unwrap();
+        .may_load(deps.storage, &*strategy_name)?;
     Ok(GetStrategyInfoResponse { strategy_info })
 }
 
