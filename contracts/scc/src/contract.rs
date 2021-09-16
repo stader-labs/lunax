@@ -261,6 +261,7 @@ pub fn try_fetch_undelegated_rewards_from_strategies(
         }
 
         let last_reconciled_batch_id = strategy_info.reconciled_batch_id_pointer;
+        let mut failed_sics: Vec<String> = vec![];
         let mut current_batch_being_reconciled = last_reconciled_batch_id;
         let strategy_name = strategy_info.name.clone();
         for i in (last_reconciled_batch_id)..(strategy_info.undelegation_batch_id_pointer) {
@@ -307,11 +308,20 @@ pub fn try_fetch_undelegated_rewards_from_strategies(
             let undelegation_batch_amount = undelegation_batch.amount;
 
             // query the undelegated funds which we will receive from the SIC on best effort
-            let fulfillable_amount = get_sic_fulfillable_undelegated_funds(
+            // TODO: bchain99 - this assignment works in the assumption that undelegation slashing is rare.
+            // if we don't get back any response from the SIC, we can assume the full amount.
+            // if there was indeed some slashing, we would have to compensate for it.
+            let mut fulfillable_amount: Uint128 = undelegation_batch_amount;
+            if let Ok(result) = get_sic_fulfillable_undelegated_funds(
                 deps.querier,
                 undelegation_batch_amount,
                 &strategy_info.sic_contract_address,
-            );
+            ) {
+                fulfillable_amount = result
+                    .undelegated_funds
+                    .unwrap_or(undelegation_batch_amount);
+            }
+
             let unbonding_slashing_ratio = if fulfillable_amount.lt(&undelegation_batch_amount) {
                 Decimal::from_ratio(fulfillable_amount, undelegation_batch_amount)
             } else {

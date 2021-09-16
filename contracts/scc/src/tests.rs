@@ -2322,26 +2322,7 @@ mod tests {
         let user1 = Addr::unchecked("user1");
 
         /*
-            Test - 1. Strategy info does not exist
-        */
-        let mut err = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info(user1.as_str(), &[]),
-            ExecuteMsg::WithdrawRewards {
-                undelegation_id: "123".to_string(),
-                strategy_name: "sid1".to_string(),
-                amount: Default::default(),
-            },
-        )
-        .unwrap_err();
-        assert!(matches!(
-            err,
-            ContractError::StrategyInfoDoesNotExist(String { .. })
-        ));
-
-        /*
-            Test - 2. User reward info does not exist
+            Test - 1. User reward info does not exist
         */
         STRATEGY_MAP.save(
             deps.as_mut().storage,
@@ -2362,7 +2343,7 @@ mod tests {
         assert!(matches!(err, ContractError::UserRewardInfoDoesNotExist {}));
 
         /*
-            Test - 3. User undelegation record does not exist
+            Test - 2. User undelegation record does not exist
         */
         STRATEGY_MAP.save(
             deps.as_mut().storage,

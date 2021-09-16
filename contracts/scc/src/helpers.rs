@@ -52,15 +52,11 @@ pub fn get_sic_fulfillable_undelegated_funds(
     querier: QuerierWrapper,
     amount: Uint128,
     sic_address: &Addr,
-) -> Uint128 {
-    let res: GetFulfillableUndelegatedFundsResponse = querier
-        .query_wasm_smart(
-            sic_address,
-            &sic_msg::GetFulfillableUndelegatedFunds { amount },
-        )
-        .unwrap();
-
-    res.undelegated_funds.unwrap_or_else(Uint128::zero)
+) -> StdResult<GetFulfillableUndelegatedFundsResponse> {
+    querier.query_wasm_smart(
+        sic_address,
+        &sic_msg::GetFulfillableUndelegatedFunds { amount },
+    )
 }
 
 pub fn get_strategy_shares_per_token_ratio(
