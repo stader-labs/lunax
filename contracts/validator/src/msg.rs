@@ -6,8 +6,9 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
     pub vault_denom: String,
-    pub pools_contract_addr: Addr,
-    pub scc_contract_addr: Addr,
+    pub pools_contract: Addr,
+    pub scc_contract: Addr,
+    pub delegator_contract: Addr,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -35,26 +36,28 @@ pub enum ExecuteMsg {
         val_addr: Addr,
         amount: Uint128,
     },
-    RedeemAirdrop {
+    RedeemAirdropAndTransfer {
         airdrop_token: String,
         amount: Uint128,
         claim_msg: Binary,
     },
-    Swap {
+    SwapAndTransfer {
         validators: Vec<Addr>,
+        identifier: String,
     },
-    TransferRewards {
+
+    TransferReconciledFunds {
         amount: Uint128,
     },
-    TransferAirdrops {},
 
     UpdateAirdropRegistry {
         denom: String,
         airdrop_contract: Addr,
         token_contract: Addr,
     },
-    UpdateSlashingFunds {
-        amount: i64,
+    AddSlashingFunds {},
+    RemoveSlashingFunds {
+        amount: Uint128,
     },
 }
 

@@ -1,5 +1,5 @@
 [package]
-name = "validators"
+name = "validator"
 version = "0.1.0"
 authors = ["dheerajborra"]
 edition = "2018"
