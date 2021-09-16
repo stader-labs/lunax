@@ -8,8 +8,8 @@ use cosmwasm_std::{
 
 use crate::error::ContractError;
 use crate::helpers::{
-    get_sic_fulfillable_undelegated_funds, get_strategy_shares_per_token_ratio, get_strategy_split,
-    get_user_staked_amount,
+    get_sic_fulfillable_undelegated_funds, get_staked_amount, get_strategy_shares_per_token_ratio,
+    get_strategy_split,
 };
 use crate::msg::{
     ExecuteMsg, GetAllStrategiesResponse, GetConfigResponse, GetStateResponse,
@@ -45,7 +45,7 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     let config = Config {
-        default_user_portfolio: msg.default_user_portfolio.unwrap_or(vec![]),
+        default_user_portfolio: msg.default_user_portfolio.unwrap_or_default(),
     };
 
     let state = State {
@@ -380,6 +380,7 @@ pub fn try_undelegate_from_strategies(
     }
 
     let mut failed_strategies: Vec<String> = vec![];
+    let mut failed_sics: Vec<String> = vec![];
     let mut strategies_with_no_undelegations: Vec<String> = vec![];
     let mut messages: Vec<WasmMsg> = vec![];
     for strategy in strategies {
@@ -399,7 +400,17 @@ pub fn try_undelegate_from_strategies(
             continue;
         }
 
-        let strategy_s_t_ratio = get_strategy_shares_per_token_ratio(deps.querier, &strategy_info);
+        let strategy_s_t_ratio: Decimal;
+        match get_strategy_shares_per_token_ratio(deps.querier, &strategy_info) {
+            Ok(result) => {
+                strategy_s_t_ratio = result;
+            }
+            Err(_) => {
+                failed_sics.push(strategy_info.name);
+                continue;
+            }
+        }
+
         let undelegation_amount = uint128_from_decimal(decimal_division_in_256(
             strategy_undelegation_shares,
             strategy_s_t_ratio,
@@ -408,23 +419,22 @@ pub fn try_undelegate_from_strategies(
         let current_undelegation_batch_id = strategy_info.undelegation_batch_id_pointer;
         let new_undelegation_batch_id = current_undelegation_batch_id + 1;
 
-        UNDELEGATION_BATCH_MAP.update(
+        UNDELEGATION_BATCH_MAP.save(
             deps.storage,
             (U64Key::new(current_undelegation_batch_id), &*strategy),
-            |wrapped_batch| -> Result<_, ContractError> {
-                Ok(BatchUndelegationRecord {
-                    amount: undelegation_amount,
-                    shares: strategy_undelegation_shares,
-                    // we get to know this when we fetch the undelegated amount from sic
-                    unbonding_slashing_ratio: Decimal::one(),
-                    // this is the S/T ratio when the amount is undelegated.
-                    undelegation_s_t_ratio: strategy_s_t_ratio,
-                    create_time: _env.block.time,
-                    est_release_time: _env.block.time.plus_seconds(
-                        strategy_info.unbonding_period + strategy_info.unbonding_buffer,
-                    ),
-                    slashing_checked: false,
-                })
+            &BatchUndelegationRecord {
+                amount: undelegation_amount,
+                shares: strategy_undelegation_shares,
+                // we get to know this when we fetch the undelegated amount from sic
+                unbonding_slashing_ratio: Decimal::one(),
+                // this is the S/T ratio when the amount is undelegated.
+                undelegation_s_t_ratio: strategy_s_t_ratio,
+                create_time: _env.block.time,
+                est_release_time: _env
+                    .block
+                    .time
+                    .plus_seconds(strategy_info.unbonding_period + strategy_info.unbonding_buffer),
+                slashing_checked: false,
             },
         )?;
 
@@ -453,6 +463,7 @@ pub fn try_undelegate_from_strategies(
             "strategies_with_no_undelegations",
             strategies_with_no_undelegations.join(","),
         )
+        .add_attribute("failed_sics", failed_sics.join(","))
         .add_messages(messages))
 }
 
@@ -541,8 +552,16 @@ pub fn try_undelegate_user_rewards(
     );
 
     // subtract the user shares based on how much they want to withdraw.
-    let strategy_shares_per_token_ratio =
-        get_strategy_shares_per_token_ratio(deps.querier, &strategy_info);
+    let strategy_shares_per_token_ratio: Decimal;
+    match get_strategy_shares_per_token_ratio(deps.querier, &strategy_info) {
+        Ok(result) => {
+            strategy_shares_per_token_ratio = result;
+        }
+        Err(_) => {
+            return Err(ContractError::SICFailedToReturnResult {});
+        }
+    }
+
     strategy_info.shares_per_token_ratio = strategy_shares_per_token_ratio;
     let user_total_shares = user_strategy_info.shares;
     let user_undelegated_shares = decimal_multiplication_in_256(
@@ -745,16 +764,6 @@ pub fn try_withdraw_rewards(
 ) -> Result<Response, ContractError> {
     let state = STATE.load(deps.storage)?;
     let user_addr = info.sender;
-
-    let strategy_info: StrategyInfo;
-    if let Some(strategy_info_mapping) = STRATEGY_MAP
-        .may_load(deps.storage, &*strategy_name)
-        .unwrap()
-    {
-        strategy_info = strategy_info_mapping;
-    } else {
-        return Err(ContractError::StrategyInfoDoesNotExist(strategy_name));
-    }
 
     let mut user_reward_info: UserRewardInfo;
     if let Some(user_reward_info_mapping) = USER_REWARD_INFO_MAP
@@ -975,7 +984,7 @@ pub fn try_update_user_portfolio(
         deps.storage,
         &user_addr,
         |reward_info_opt| -> Result<_, ContractError> {
-            let mut user_reward_info = reward_info_opt.unwrap_or(UserRewardInfo::default());
+            let mut user_reward_info = reward_info_opt.unwrap_or_else(UserRewardInfo::default);
             user_reward_info.user_portfolio = user_portfolio;
             Ok(user_reward_info)
         },
@@ -998,6 +1007,7 @@ pub fn try_update_user_rewards(
     }
 
     let mut failed_strategies: Vec<String> = vec![];
+    let mut failed_sics: Vec<String> = vec![];
     let mut inactive_strategies: Vec<String> = vec![];
     let mut users_with_zero_deposits: Vec<String> = vec![];
     // cache for the S/T ratio per strategy. We fetch it once and cache it up.
@@ -1018,7 +1028,7 @@ pub fn try_update_user_rewards(
         let mut user_reward_info = USER_REWARD_INFO_MAP
             .may_load(deps.storage, &user_addr)
             .unwrap()
-            .unwrap_or(UserRewardInfo::new(config.default_user_portfolio.clone()));
+            .unwrap_or_else(|| UserRewardInfo::new(config.default_user_portfolio.clone()));
 
         // this is the amount to be split per strategy
         let strategy_split: Vec<(String, Uint128)>;
@@ -1074,8 +1084,15 @@ pub fn try_update_user_rewards(
             // it up in a map like we always do.
             let current_strategy_shares_per_token_ratio: Decimal;
             if !strategy_to_s_t_ratio.contains_key(&strategy_name) {
-                current_strategy_shares_per_token_ratio =
-                    get_strategy_shares_per_token_ratio(deps.querier, &strategy_info);
+                match get_strategy_shares_per_token_ratio(deps.querier, &strategy_info) {
+                    Ok(result) => {
+                        current_strategy_shares_per_token_ratio = result;
+                    }
+                    Err(_) => {
+                        failed_sics.push(strategy_info.name);
+                        continue;
+                    }
+                }
                 strategy_info.shares_per_token_ratio = current_strategy_shares_per_token_ratio;
                 strategy_to_s_t_ratio.insert(
                     strategy_name.clone(),
@@ -1167,7 +1184,8 @@ pub fn try_update_user_rewards(
         .add_attribute(
             "users_with_zero_deposits",
             users_with_zero_deposits.join(","),
-        ))
+        )
+        .add_attribute("failed_sics", failed_sics.join(",")))
 }
 
 // This assumes that the validator contract will transfer ownership of the airdrops
@@ -1260,7 +1278,7 @@ fn query_user(deps: Deps, user: Addr) -> StdResult<GetUserResponse> {
         return Ok(GetUserResponse { user: None });
     }
 
-    let mut user_reward_info = user_reward_info_opt.unwrap();
+    let user_reward_info = user_reward_info_opt.unwrap();
 
     let mut user_strategy_query: UserRewardInfoQuery = UserRewardInfoQuery {
         total_airdrops: vec![],
@@ -1287,8 +1305,13 @@ fn query_user(deps: Deps, user: Addr) -> StdResult<GetUserResponse> {
 
         let user_shares = user_strategy.shares;
         let user_airdrop_pointer = &user_strategy.airdrop_pointer;
-        let strategy_s_t_ratio = get_strategy_shares_per_token_ratio(deps.querier, &strategy_info);
-        let user_rewards = get_user_staked_amount(strategy_s_t_ratio, user_shares);
+
+        // if we fail to fetch the tokens from the strategy, just default it to 10
+        let mut strategy_s_t_ratio: Decimal = Decimal::from_ratio(10_u128, 1_u128);
+        if let Ok(result) = get_strategy_shares_per_token_ratio(deps.querier, &strategy_info) {
+            strategy_s_t_ratio = result;
+        }
+        let user_rewards = get_staked_amount(strategy_s_t_ratio, user_shares);
         let user_airdrops = get_user_airdrops(
             &strategy_info.global_airdrop_pointer,
             user_airdrop_pointer,
@@ -1346,14 +1369,14 @@ fn query_get_all_strategies(deps: Deps) -> StdResult<GetAllStrategiesResponse> {
             let strategy_name = String::from_utf8(x.0).unwrap_or_default();
             let strategy_info = x.1;
 
-            let strategy_s_t_ratio =
-                get_strategy_shares_per_token_ratio(deps.querier, &strategy_info);
+            let mut strategy_s_t_ratio: Decimal = Decimal::from_ratio(10_u128, 1_u128);
+            if let Ok(result) = get_strategy_shares_per_token_ratio(deps.querier, &strategy_info) {
+                strategy_s_t_ratio = result;
+            }
             let total_strategy_tokens =
-                get_user_staked_amount(strategy_s_t_ratio, strategy_info.total_shares);
-            let total_tokens_in_undelegation = get_user_staked_amount(
-                strategy_s_t_ratio,
-                strategy_info.current_undelegated_shares,
-            );
+                get_staked_amount(strategy_s_t_ratio, strategy_info.total_shares);
+            let total_tokens_in_undelegation =
+                get_staked_amount(strategy_s_t_ratio, strategy_info.current_undelegated_shares);
 
             all_strategies_info.push(StrategyInfoQuery {
                 strategy_name,
@@ -1389,7 +1412,7 @@ fn query_strategies_list(deps: Deps) -> StdResult<GetStrategiesListResponse> {
     STRATEGY_MAP
         .keys(deps.storage, None, None, Order::Ascending)
         .for_each(|x| {
-            strategies_list.push(String::from_utf8(x).unwrap_or("".to_string()));
+            strategies_list.push(String::from_utf8(x).unwrap_or_default());
         });
 
     Ok(GetStrategiesListResponse {

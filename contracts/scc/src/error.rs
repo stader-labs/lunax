@@ -48,4 +48,7 @@ pub enum ContractError {
 
     #[error("User portfolio fraction is greater than one")]
     InvalidPortfolioDepositFraction {},
+
+    #[error("SIC failed to return a result")]
+    SICFailedToReturnResult {},
 }
