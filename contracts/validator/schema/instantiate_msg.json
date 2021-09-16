@@ -1,21 +1,21 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "Config",
+  "title": "InstantiateMsg",
   "type": "object",
   "required": [
-    "manager",
-    "pools_contract_addr",
-    "scc_contract_addr",
+    "delegator_contract",
+    "pools_contract",
+    "scc_contract",
     "vault_denom"
   ],
   "properties": {
-    "manager": {
+    "delegator_contract": {
       "$ref": "#/definitions/Addr"
     },
-    "pools_contract_addr": {
+    "pools_contract": {
       "$ref": "#/definitions/Addr"
     },
-    "scc_contract_addr": {
+    "scc_contract": {
       "$ref": "#/definitions/Addr"
     },
     "vault_denom": {

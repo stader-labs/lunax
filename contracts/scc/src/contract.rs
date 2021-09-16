@@ -11,25 +11,17 @@ use crate::helpers::{
     get_sic_fulfillable_undelegated_funds, get_staked_amount, get_strategy_shares_per_token_ratio,
     get_strategy_split,
 };
-use crate::msg::{
-    ExecuteMsg, GetAllStrategiesResponse, GetConfigResponse, GetStateResponse,
-    GetStrategiesListResponse, GetStrategyInfoResponse, GetUndelegationBatchInfoResponse,
-    GetUserResponse, GetUserRewardInfo, InstantiateMsg, QueryMsg, StrategyInfoQuery,
-    UpdateUserAirdropsRequest, UpdateUserRewardsRequest, UserRewardInfoQuery,
-    UserStrategyQueryInfo,
-};
+use crate::msg::{ExecuteMsg, GetAllStrategiesResponse, GetConfigResponse, GetStateResponse, GetStrategiesListResponse, GetStrategyInfoResponse, GetUndelegationBatchInfoResponse, GetUserResponse, GetUserRewardInfo, InstantiateMsg, QueryMsg, StrategyInfoQuery, UpdateUserAirdropsRequest, UpdateUserRewardsRequest, UserRewardInfoQuery, UserStrategyQueryInfo, MigrateMsg};
 use crate::state::{
     BatchUndelegationRecord, Config, Cw20TokenContractsInfo, State, StrategyInfo, UserRewardInfo,
     UserStrategyInfo, UserStrategyPortfolio, UserUndelegationRecord, CONFIG,
     CW20_TOKEN_CONTRACTS_REGISTRY, STATE, STRATEGY_MAP, UNDELEGATION_BATCH_MAP,
     USER_REWARD_INFO_MAP,
 };
-use crate::user::{
-    allocate_user_airdrops_across_strategies, allocate_user_airdrops_for_strategy,
-    get_user_airdrops,
-};
 use cw_storage_plus::U64Key;
 use serde::Serialize;
+use crate::user::{allocate_user_airdrops_across_strategies, get_user_airdrops};
+use cw2::set_contract_version;
 use sic_base::msg::{ExecuteMsg as sic_execute_msg, QueryMsg as sic_query_msg};
 use stader_utils::coin_utils::{
     decimal_division_in_256, decimal_multiplication_in_256, decimal_subtraction_in_256,
@@ -40,7 +32,9 @@ use stader_utils::helpers::send_funds_msg;
 use std::cmp::min;
 use std::collections::HashMap;
 
-#[cfg_attr(not(feature = "library"), entry_point)]
+const CONTRACT_NAME: &str = "scc";
+const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
+
 pub fn instantiate(
     deps: DepsMut,
     _env: Env,
@@ -63,12 +57,17 @@ pub fn instantiate(
     STATE.save(deps.storage, &state)?;
     CONFIG.save(deps.storage, &config)?;
 
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
     Ok(Response::new()
         .add_attribute("method", "instantiate")
         .add_attribute("owner", info.sender))
 }
 
-#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
+    Ok(Response::default())
+}
+
 pub fn execute(
     deps: DepsMut,
     _env: Env,
@@ -1262,7 +1261,6 @@ pub fn try_update_user_airdrops(
     Ok(Response::default())
 }
 
-#[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetState {} => to_binary(&query_state(deps)?),
