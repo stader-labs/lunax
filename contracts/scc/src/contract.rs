@@ -210,9 +210,7 @@ pub fn try_withdraw_pending_rewards(
     let user_addr = info.sender;
 
     let mut user_reward_info: UserRewardInfo;
-    if let Some(user_reward_info_map) = USER_REWARD_INFO_MAP
-        .may_load(deps.storage, &user_addr)?
-    {
+    if let Some(user_reward_info_map) = USER_REWARD_INFO_MAP.may_load(deps.storage, &user_addr)? {
         user_reward_info = user_reward_info_map;
     } else {
         return Err(ContractError::UserRewardInfoDoesNotExist {});
@@ -258,9 +256,7 @@ pub fn try_fetch_undelegated_rewards_from_strategies(
     let mut total_funds_transferred_to_scc: Uint128 = Uint128::zero();
     for strategy in strategies {
         let mut strategy_info: StrategyInfo;
-        if let Some(strategy_info_mapping) =
-            STRATEGY_MAP.may_load(deps.storage, &*strategy)?
-        {
+        if let Some(strategy_info_mapping) = STRATEGY_MAP.may_load(deps.storage, &*strategy)? {
             strategy_info = strategy_info_mapping;
         } else {
             failed_strategies.push(strategy);
@@ -272,8 +268,8 @@ pub fn try_fetch_undelegated_rewards_from_strategies(
         let strategy_name = strategy_info.name.clone();
         for i in (last_reconciled_batch_id)..(strategy_info.undelegation_batch_id_pointer) {
             let mut undelegation_batch: BatchUndelegationRecord;
-            if let Some(undelegation_batch_map) = UNDELEGATION_BATCH_MAP
-                .may_load(deps.storage, (U64Key::new(i), &*strategy_name))?
+            if let Some(undelegation_batch_map) =
+                UNDELEGATION_BATCH_MAP.may_load(deps.storage, (U64Key::new(i), &*strategy_name))?
             {
                 undelegation_batch = undelegation_batch_map;
             } else {
@@ -400,9 +396,7 @@ pub fn try_undelegate_from_strategies(
     let mut messages: Vec<WasmMsg> = vec![];
     for strategy in strategies {
         let mut strategy_info: StrategyInfo;
-        if let Some(strategy_info_mapping) =
-            STRATEGY_MAP.may_load(deps.storage, &*strategy)?
-        {
+        if let Some(strategy_info_mapping) = STRATEGY_MAP.may_load(deps.storage, &*strategy)? {
             strategy_info = strategy_info_mapping;
         } else {
             failed_strategies.push(strategy);
@@ -631,8 +625,8 @@ pub fn try_claim_airdrops(
     }
 
     let cw20_token_contracts: Cw20TokenContractsInfo;
-    if let Some(cw20_token_contracts_mapping) = CW20_TOKEN_CONTRACTS_REGISTRY
-        .may_load(deps.storage, denom.clone())?
+    if let Some(cw20_token_contracts_mapping) =
+        CW20_TOKEN_CONTRACTS_REGISTRY.may_load(deps.storage, denom.clone())?
     {
         cw20_token_contracts = cw20_token_contracts_mapping;
     } else {
@@ -640,8 +634,7 @@ pub fn try_claim_airdrops(
     }
 
     let mut strategy_info: StrategyInfo;
-    if let Some(strategy_info_mapping) = STRATEGY_MAP.may_load(deps.storage, &*strategy_id)?
-    {
+    if let Some(strategy_info_mapping) = STRATEGY_MAP.may_load(deps.storage, &*strategy_id)? {
         // while registering the strategy, we need to update the airdrops the strategy supports.
         strategy_info = strategy_info_mapping;
     } else {
@@ -707,9 +700,7 @@ pub fn try_withdraw_airdrops(
     let user_addr = info.sender;
 
     let mut user_reward_info: UserRewardInfo;
-    if let Some(user_reward_info_map) = USER_REWARD_INFO_MAP
-        .may_load(deps.storage, &user_addr)?
-    {
+    if let Some(user_reward_info_map) = USER_REWARD_INFO_MAP.may_load(deps.storage, &user_addr)? {
         user_reward_info = user_reward_info_map;
     } else {
         return Err(ContractError::UserRewardInfoDoesNotExist {});
@@ -728,7 +719,8 @@ pub fn try_withdraw_airdrops(
             let airdrop_amount = user_airdrop.amount;
 
             let cw20_token_contracts = CW20_TOKEN_CONTRACTS_REGISTRY
-                .may_load(deps.storage, airdrop_denom.to_string()).unwrap();
+                .may_load(deps.storage, airdrop_denom.to_string())
+                .unwrap();
 
             if cw20_token_contracts.is_none() || airdrop_amount.is_zero() {
                 return;
@@ -778,8 +770,8 @@ pub fn try_withdraw_rewards(
     let user_addr = info.sender;
 
     let mut user_reward_info: UserRewardInfo;
-    if let Some(user_reward_info_mapping) = USER_REWARD_INFO_MAP
-        .may_load(deps.storage, &user_addr)?
+    if let Some(user_reward_info_mapping) =
+        USER_REWARD_INFO_MAP.may_load(deps.storage, &user_addr)?
     {
         user_reward_info = user_reward_info_mapping;
     } else {
@@ -814,8 +806,8 @@ pub fn try_withdraw_rewards(
 
     let undelegation_batch_id = U64Key::new(user_undelegation_record.undelegation_batch_id);
     let undelegation_batch: BatchUndelegationRecord;
-    if let Some(undelegation_batch_map) = UNDELEGATION_BATCH_MAP
-        .may_load(deps.storage, (undelegation_batch_id, &*strategy_name))?
+    if let Some(undelegation_batch_map) =
+        UNDELEGATION_BATCH_MAP.may_load(deps.storage, (undelegation_batch_id, &*strategy_name))?
     {
         undelegation_batch = undelegation_batch_map;
     } else {
@@ -867,7 +859,8 @@ pub fn try_register_strategy(
     }
 
     if STRATEGY_MAP
-        .may_load(deps.storage, &*strategy_name)?.is_some()
+        .may_load(deps.storage, &*strategy_name)?
+        .is_some()
     {
         return Err(ContractError::StrategyInfoAlreadyExists {});
     }
@@ -970,10 +963,11 @@ pub fn try_update_user_portfolio(
     // do bunch of sanity checks
     let mut total_deposit_fraction = Decimal::zero();
     for portfolio in &user_portfolio {
-        let strategy_name = portfolio.strategy_name.clone();
+        let strategy_name = portfolio.strategy_name.to_string();
 
         if STRATEGY_MAP
-            .may_load(deps.storage, &*strategy_name)?.is_none()
+            .may_load(deps.storage, &*strategy_name)?
+            .is_none()
         {
             return Err(ContractError::StrategyInfoDoesNotExist(strategy_name));
         }
@@ -1069,8 +1063,8 @@ pub fn try_update_user_rewards(
             }
 
             let mut strategy_info: StrategyInfo;
-            if let Some(strategy_info_mapping) = STRATEGY_MAP
-                .may_load(deps.storage, &*strategy_name)?
+            if let Some(strategy_info_mapping) =
+                STRATEGY_MAP.may_load(deps.storage, &*strategy_name)?
             {
                 strategy_info = strategy_info_mapping;
             } else {
@@ -1219,9 +1213,9 @@ pub fn try_update_user_airdrops(
         let user_airdrops = user_request.pool_airdrops;
 
         total_scc_airdrops = merge_coin_vector(
-            &total_scc_airdrops,
+            &user_airdrops,
             CoinVecOp {
-                fund: user_airdrops.clone(),
+                fund: total_scc_airdrops,
                 operation: Operation::Add,
             },
         );
@@ -1236,9 +1230,9 @@ pub fn try_update_user_airdrops(
         }
 
         user_reward_info.pending_airdrops = merge_coin_vector(
-            &user_reward_info.pending_airdrops,
+            &user_airdrops,
             CoinVecOp {
-                fund: user_airdrops,
+                fund: user_reward_info.pending_airdrops,
                 operation: Operation::Add,
             },
         );
@@ -1298,9 +1292,7 @@ fn query_user(deps: Deps, user: Addr) -> StdResult<GetUserResponse> {
         let strategy_name = user_strategy.strategy_name.clone();
 
         let strategy_info: StrategyInfo;
-        if let Some(si) = STRATEGY_MAP
-            .may_load(deps.storage, &*strategy_name)?
-        {
+        if let Some(si) = STRATEGY_MAP.may_load(deps.storage, &*strategy_name)? {
             strategy_info = si;
         } else {
             continue;
@@ -1329,9 +1321,9 @@ fn query_user(deps: Deps, user: Addr) -> StdResult<GetUserResponse> {
         });
 
         total_airdrops = merge_coin_vector(
-            &total_airdrops,
+            &user_airdrops,
             CoinVecOp {
-                fund: user_airdrops,
+                fund: total_airdrops,
                 operation: Operation::Add,
             },
         );
@@ -1436,8 +1428,7 @@ fn query_user_reward_info(deps: Deps, user: Addr) -> StdResult<GetUserRewardInfo
 }
 
 fn query_strategy_info(deps: Deps, strategy_name: String) -> StdResult<GetStrategyInfoResponse> {
-    let strategy_info = STRATEGY_MAP
-        .may_load(deps.storage, &*strategy_name)?;
+    let strategy_info = STRATEGY_MAP.may_load(deps.storage, &*strategy_name)?;
     Ok(GetStrategyInfoResponse { strategy_info })
 }
 
