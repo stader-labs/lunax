@@ -1,28 +1,36 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, to_binary, Addr, Attribute, Binary, Coin, ContractResult, Deps, DepsMut,
-    DistributionMsg, Env, Event, MessageInfo, Reply, Response, StakingMsg, StdResult, SubMsg,
+    attr, to_binary, Addr, Attribute, Binary, Coin, ContractResult, Deps, DepsMut, DistributionMsg,
+    Env, Event, MessageInfo, Reply, Response, StakingMsg, StdResult, SubMsg,
     SubMsgExecutionResponse, Uint128, WasmMsg,
 };
 
 use crate::error::ContractError;
 use crate::msg::{
     ExecuteMsg, GetAirdropMetaResponse, GetConfigResponse, GetStateResponse,
-    GetValidatorMetaResponse, InstantiateMsg, QueryMsg,
+    GetValidatorMetaResponse, InstantiateMsg, MigrateMsg, QueryMsg,
 };
-use crate::operations::{EVENT_REDELEGATE_KEY_DST_ADDR, EVENT_REDELEGATE_ID, EVENT_REDELEGATE_KEY_SRC_ADDR, EVENT_REDELEGATE_TYPE};
+use crate::operations::{
+    EVENT_REDELEGATE_ID, EVENT_REDELEGATE_KEY_DST_ADDR, EVENT_REDELEGATE_KEY_SRC_ADDR,
+    EVENT_REDELEGATE_TYPE,
+};
 use crate::request_validation::{validate, Verify};
-use crate::state::{AirdropRegistryInfo, Config, State, VMeta, AIRDROP_REGISTRY, CONFIG, STATE, VALIDATOR_REGISTRY};
+use crate::state::{
+    AirdropRegistryInfo, Config, State, VMeta, AIRDROP_REGISTRY, CONFIG, STATE, VALIDATOR_REGISTRY,
+};
+use cw2::set_contract_version;
 use cw20::Cw20ExecuteMsg;
 use stader_utils::coin_utils::{
     merge_coin_vector, multiply_coin_with_decimal, CoinVecOp, Operation,
 };
 use stader_utils::helpers::{query_exchange_rates, send_funds_msg};
+use stader_utils::operations::{EVENT_KEY_IDENTIFIER, EVENT_SWAP_KEY_AMOUNT, EVENT_SWAP_TYPE};
 use terra_cosmwasm::{create_swap_msg, TerraMsgWrapper};
-use stader_utils::operations::{EVENT_SWAP_TYPE, EVENT_SWAP_KEY_AMOUNT, EVENT_KEY_IDENTIFIER};
 
-#[cfg_attr(not(feature = "library"), entry_point)]
+const CONTRACT_NAME: &str = "validator";
+const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
+
 pub fn instantiate(
     deps: DepsMut,
     env: Env,
@@ -34,19 +42,29 @@ pub fn instantiate(
         vault_denom: msg.vault_denom,
         pools_contract: msg.pools_contract,
         scc_contract: msg.scc_contract,
-        delegator_contract: msg.delegator_contract
+        delegator_contract: msg.delegator_contract,
     };
     validate(&config, &info, &env, vec![Verify::NoFunds])?;
     let state = State {
         slashing_funds: Uint128::zero(),
-        unswapped_rewards: vec![]
+        unswapped_rewards: vec![],
     };
     CONFIG.save(deps.storage, &config)?;
     STATE.save(deps.storage, &state)?;
+
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
     Ok(Response::default())
 }
 
-#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(
+    deps: DepsMut,
+    env: Env,
+    msg: MigrateMsg,
+) -> Result<Response<TerraMsgWrapper>, ContractError> {
+    Ok(Response::default())
+}
+
 pub fn execute(
     deps: DepsMut,
     env: Env,
@@ -72,18 +90,21 @@ pub fn execute(
             amount,
             claim_msg,
         } => redeem_airdrop_and_transfer(deps, env, info, airdrop_token, amount, claim_msg),
-        ExecuteMsg::SwapAndTransfer { validators, identifier } => swap_and_transfer(deps, info, env, validators, identifier),
+        ExecuteMsg::SwapAndTransfer {
+            validators,
+            identifier,
+        } => swap_and_transfer(deps, info, env, validators, identifier),
 
-        ExecuteMsg::TransferReconciledFunds { amount } => transfer_reconciled_funds(deps, info, env, amount),
+        ExecuteMsg::TransferReconciledFunds { amount } => {
+            transfer_reconciled_funds(deps, info, env, amount)
+        }
 
         ExecuteMsg::UpdateAirdropRegistry {
             denom,
             airdrop_contract,
             token_contract,
         } => update_airdrop_registry(deps, info, env, denom, airdrop_contract, token_contract),
-        ExecuteMsg::AddSlashingFunds { } => {
-            add_slashing_funds(deps, info, env)
-        },
+        ExecuteMsg::AddSlashingFunds {} => add_slashing_funds(deps, info, env),
         ExecuteMsg::RemoveSlashingFunds { amount } => {
             remove_slashing_funds(deps, info, env, amount)
         }
@@ -158,8 +179,7 @@ pub fn remove_validator(
         ));
     }
 
-    Ok(Response::new()
-        .add_submessages(messages))
+    Ok(Response::new().add_submessages(messages))
 }
 
 // stake_to_validator can be called for each users message rather than a batch.
@@ -213,10 +233,13 @@ pub fn stake_to_validator(
     )?;
 
     STATE.update(deps.storage, |mut state| -> StdResult<_> {
-        state.unswapped_rewards = merge_coin_vector(state.unswapped_rewards, CoinVecOp {
-            fund: accrued_rewards,
-            operation: Operation::Add,
-        });
+        state.unswapped_rewards = merge_coin_vector(
+            state.unswapped_rewards,
+            CoinVecOp {
+                fund: accrued_rewards,
+                operation: Operation::Add,
+            },
+        );
         Ok(state)
     })?;
 
@@ -275,10 +298,13 @@ pub fn redeem_rewards(
                 amount: Coin::new(difference.u128(), config.vault_denom.clone()),
             }));
         }
-        total_rewards = merge_coin_vector(total_rewards, CoinVecOp {
-            fund: full_delegation.accumulated_rewards.clone(),
-            operation: Operation::Add,
-        });
+        total_rewards = merge_coin_vector(
+            total_rewards,
+            CoinVecOp {
+                fund: full_delegation.accumulated_rewards.clone(),
+                operation: Operation::Add,
+            },
+        );
         val_meta.accrued_rewards = merge_coin_vector(
             val_meta.accrued_rewards.clone(),
             CoinVecOp {
@@ -299,10 +325,13 @@ pub fn redeem_rewards(
             .slashing_funds
             .checked_sub(total_slashing_difference)
             .unwrap();
-        state.unswapped_rewards = merge_coin_vector(state.unswapped_rewards, CoinVecOp {
-            fund: total_rewards,
-            operation: Operation::Add,
-        });
+        state.unswapped_rewards = merge_coin_vector(
+            state.unswapped_rewards,
+            CoinVecOp {
+                fund: total_rewards,
+                operation: Operation::Add,
+            },
+        );
         Ok(state)
     })?;
 
@@ -353,7 +382,7 @@ pub fn redelegate(
         src_meta.accrued_rewards,
         CoinVecOp {
             operation: Operation::Add,
-            fund: src_rewards.clone()
+            fund: src_rewards.clone(),
         },
     );
 
@@ -369,7 +398,7 @@ pub fn redelegate(
         dst_meta.accrued_rewards,
         CoinVecOp {
             operation: Operation::Add,
-            fund: dst_rewards.clone()
+            fund: dst_rewards.clone(),
         },
     );
 
@@ -377,14 +406,20 @@ pub fn redelegate(
     VALIDATOR_REGISTRY.save(deps.storage, &dst, &dst_meta)?;
 
     STATE.update(deps.storage, |mut state| -> StdResult<_> {
-        let total_redeemed_rewards = merge_coin_vector(src_rewards, CoinVecOp {
-            operation: Operation::Add,
-            fund: dst_rewards
-        });
-        state.unswapped_rewards = merge_coin_vector(state.unswapped_rewards, CoinVecOp {
-            operation: Operation::Add,
-            fund: total_redeemed_rewards
-        });
+        let total_redeemed_rewards = merge_coin_vector(
+            src_rewards,
+            CoinVecOp {
+                operation: Operation::Add,
+                fund: dst_rewards,
+            },
+        );
+        state.unswapped_rewards = merge_coin_vector(
+            state.unswapped_rewards,
+            CoinVecOp {
+                operation: Operation::Add,
+                fund: total_redeemed_rewards,
+            },
+        );
         Ok(state)
     })?;
 
@@ -449,10 +484,13 @@ pub fn undelegate(
     VALIDATOR_REGISTRY.save(deps.storage, &val_addr, &val_meta)?;
 
     STATE.update(deps.storage, |mut state| -> StdResult<_> {
-        state.unswapped_rewards = merge_coin_vector(state.unswapped_rewards.clone(), CoinVecOp {
-            fund: acc_rewards,
-            operation: Operation::Add,
-        });
+        state.unswapped_rewards = merge_coin_vector(
+            state.unswapped_rewards.clone(),
+            CoinVecOp {
+                fund: acc_rewards,
+                operation: Operation::Add,
+            },
+        );
         Ok(state)
     })?;
 
@@ -508,18 +546,22 @@ pub fn redeem_airdrop_and_transfer(
 
     let airdrop_registry_info = airdrop_contract_opt.unwrap();
 
-    let messages: Vec<WasmMsg> = vec![WasmMsg::Execute {
-        contract_addr: airdrop_registry_info.airdrop_contract.to_string(),
-        msg: claim_msg,
-        funds: vec![],
-    }, WasmMsg::Execute {
-        contract_addr: airdrop_registry_info.token_contract.to_string(),
-        msg: to_binary(&Cw20ExecuteMsg::Transfer {
-            recipient: String::from(config.scc_contract.clone()),
-            amount: amount,
-        }).unwrap(),
-        funds: vec![],
-    }];
+    let messages: Vec<WasmMsg> = vec![
+        WasmMsg::Execute {
+            contract_addr: airdrop_registry_info.airdrop_contract.to_string(),
+            msg: claim_msg,
+            funds: vec![],
+        },
+        WasmMsg::Execute {
+            contract_addr: airdrop_registry_info.token_contract.to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                recipient: String::from(config.scc_contract.clone()),
+                amount: amount,
+            })
+            .unwrap(),
+            funds: vec![],
+        },
+    ];
 
     Ok(Response::new().add_messages(messages))
 }
@@ -577,31 +619,50 @@ pub fn swap_and_transfer(
             // don't need to be in failed coins or rewards swapped because 0 reward denoms can be cleared out.
             continue;
         } else if coin.denom.eq(&config.vault_denom) {
-            rewards_swapped = merge_coin_vector(rewards_swapped, CoinVecOp {
-                operation: Operation::Add,
-                fund: vec![Coin::new(coin.amount.u128(), coin.denom.clone())] // Coin does not have copy
-            });
+            rewards_swapped = merge_coin_vector(
+                rewards_swapped,
+                CoinVecOp {
+                    operation: Operation::Add,
+                    fund: vec![Coin::new(coin.amount.u128(), coin.denom.clone())], // Coin does not have copy
+                },
+            );
             total_transfer_amount = total_transfer_amount + coin.amount.u128();
             logs.push(attr(format!("coin-{}", coin.denom), 1_u128.to_string()));
-            logs.push(attr(format!("converted-coin-{}", coin.denom), coin.amount.to_string()));
-
+            logs.push(attr(
+                format!("converted-coin-{}", coin.denom),
+                coin.amount.to_string(),
+            ));
         } else if exchange_rates.contains_key(&coin.denom) {
             let exchange_rate = *exchange_rates.get(&coin.denom).unwrap();
-            let coin_converted = multiply_coin_with_decimal(&coin, exchange_rate).amount.u128();
-            logs.push(attr(format!("coin-{}", coin.denom), exchange_rate.to_string()));
-            logs.push(attr(format!("converted-coin-{}", coin.denom), coin_converted.to_string()));
+            let coin_converted = multiply_coin_with_decimal(&coin, exchange_rate)
+                .amount
+                .u128();
+            logs.push(attr(
+                format!("coin-{}", coin.denom),
+                exchange_rate.to_string(),
+            ));
+            logs.push(attr(
+                format!("converted-coin-{}", coin.denom),
+                coin_converted.to_string(),
+            ));
 
             if coin_converted == 0_u128 {
                 failed_denoms.push(coin.denom.clone());
                 continue;
             }
             total_transfer_amount = total_transfer_amount + coin_converted;
-            messages.push(create_swap_msg(Coin::new(coin.amount.u128(), coin.denom.clone()), config.vault_denom.clone()));
+            messages.push(create_swap_msg(
+                Coin::new(coin.amount.u128(), coin.denom.clone()),
+                config.vault_denom.clone(),
+            ));
 
-            rewards_swapped = merge_coin_vector(rewards_swapped, CoinVecOp {
-                operation: Operation::Add,
-                fund: vec![Coin::new(coin.amount.u128(), coin.denom.clone())] // Coin does not have copy
-            });
+            rewards_swapped = merge_coin_vector(
+                rewards_swapped,
+                CoinVecOp {
+                    operation: Operation::Add,
+                    fund: vec![Coin::new(coin.amount.u128(), coin.denom.clone())], // Coin does not have copy
+                },
+            );
         }
     }
 
@@ -616,7 +677,8 @@ pub fn swap_and_transfer(
             continue;
         }
         let mut val_meta = val_meta_opt.unwrap();
-        val_meta.accrued_rewards = val_meta.clone()
+        val_meta.accrued_rewards = val_meta
+            .clone()
             .accrued_rewards
             .into_iter()
             .filter(|coin| failed_denoms.contains(&coin.denom))
@@ -627,10 +689,13 @@ pub fn swap_and_transfer(
 
     // TODO - GM. This should be a map entry with a pool_id as key.
     STATE.update(deps.storage, |mut state| -> StdResult<_> {
-        state.unswapped_rewards = merge_coin_vector(state.unswapped_rewards, CoinVecOp {
-            operation: Operation::Sub,
-            fund: rewards_swapped
-        });
+        state.unswapped_rewards = merge_coin_vector(
+            state.unswapped_rewards,
+            CoinVecOp {
+                operation: Operation::Sub,
+                fund: rewards_swapped,
+            },
+        );
         Ok(state)
     })?;
 
@@ -640,11 +705,12 @@ pub fn swap_and_transfer(
         .add_messages(messages)
         .add_message(send_funds_msg(
             &config.scc_contract,
-            &vec![Coin::new(total_transfer_amount, config.vault_denom)]))
+            &vec![Coin::new(total_transfer_amount, config.vault_denom)],
+        ))
         .add_event(
             Event::new(EVENT_SWAP_TYPE)
                 .add_attribute(EVENT_SWAP_KEY_AMOUNT, total_transfer_amount.to_string())
-                .add_attribute(EVENT_KEY_IDENTIFIER, identifier)
+                .add_attribute(EVENT_KEY_IDENTIFIER, identifier),
         )
         .add_attributes(logs)
         .add_attribute("failed_validators", failed_vals.join(","))
@@ -696,13 +762,17 @@ pub fn transfer_reconciled_funds(
         STATE.save(deps.storage, &state).unwrap();
     }
 
-    Ok(Response::new().add_message(send_funds_msg(
-        &config.delegator_contract,
-        &vec![Coin::new(amount.u128(), config.vault_denom)],
-    )).add_attribute("slashing_funds", current_slashing_funds.to_string())
-        .add_attribute("base_rewards_funds", base_funds_from_unswapped_rewards.to_string())
-        .add_attribute("total_base_funds", total_base_funds_in_vault)
-    )
+    Ok(Response::new()
+        .add_message(send_funds_msg(
+            &config.delegator_contract,
+            &vec![Coin::new(amount.u128(), config.vault_denom)],
+        ))
+        .add_attribute("slashing_funds", current_slashing_funds.to_string())
+        .add_attribute(
+            "base_rewards_funds",
+            base_funds_from_unswapped_rewards.to_string(),
+        )
+        .add_attribute("total_base_funds", total_base_funds_in_vault))
 }
 
 pub fn add_slashing_funds(
@@ -711,21 +781,22 @@ pub fn add_slashing_funds(
     env: Env,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let config = CONFIG.load(deps.storage)?;
-    validate(&config, &info, &env, vec![Verify::SenderManager, Verify::NonZeroSingleInfoFund])?;
+    validate(
+        &config,
+        &info,
+        &env,
+        vec![Verify::SenderManager, Verify::NonZeroSingleInfoFund],
+    )?;
 
     let amount = info.funds[0].amount;
 
     STATE.update(deps.storage, |mut state| -> StdResult<_> {
-        state.slashing_funds = state
-                .slashing_funds
-                .checked_add(amount)
-                .unwrap();
+        state.slashing_funds = state.slashing_funds.checked_add(amount).unwrap();
         Ok(state)
     })?;
 
     Ok(Response::default())
 }
-
 
 pub fn remove_slashing_funds(
     deps: DepsMut,
@@ -734,7 +805,12 @@ pub fn remove_slashing_funds(
     amount: Uint128,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let config = CONFIG.load(deps.storage)?;
-    validate(&config, &info, &env, vec![Verify::SenderManager, Verify::NoFunds])?;
+    validate(
+        &config,
+        &info,
+        &env,
+        vec![Verify::SenderManager, Verify::NoFunds],
+    )?;
 
     if amount.is_zero() {
         return Err(ContractError::ZeroAmount {});
@@ -747,17 +823,16 @@ pub fn remove_slashing_funds(
     }
 
     STATE.update(deps.storage, |mut state| -> StdResult<_> {
-        state.slashing_funds = state
-                .slashing_funds
-                .checked_sub(amount)
-                .unwrap();
+        state.slashing_funds = state.slashing_funds.checked_sub(amount).unwrap();
         Ok(state)
     })?;
 
-    Ok(Response::new().add_message(send_funds_msg(&caller, &vec![Coin::new(amount.u128(), config.vault_denom)])))
+    Ok(Response::new().add_message(send_funds_msg(
+        &caller,
+        &vec![Coin::new(amount.u128(), config.vault_denom)],
+    )))
 }
 
-#[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetConfig {} => to_binary(&query_config(deps)?),

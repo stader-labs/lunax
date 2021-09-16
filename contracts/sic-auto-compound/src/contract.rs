@@ -12,11 +12,15 @@ use crate::msg::{
     InstantiateMsg, MigrateMsg, QueryMsg,
 };
 use crate::state::{StakeQuota, State, STATE, VALIDATORS_TO_STAKED_QUOTA};
+use cw2::set_contract_version;
 use stader_utils::coin_utils::{merge_coin, merge_coin_vector, CoinOp, CoinVecOp, Operation};
 use stader_utils::helpers::send_funds_msg;
 use std::cmp::min;
 use std::collections::HashMap;
 use terra_cosmwasm::{create_swap_msg, SwapResponse, TerraMsgWrapper, TerraQuerier};
+
+const CONTRACT_NAME: &str = "sic-auto-compound";
+const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub fn instantiate(
     deps: DepsMut,
@@ -40,6 +44,8 @@ pub fn instantiate(
     };
 
     STATE.save(deps.storage, &state)?;
+
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     Ok(Response::new()
         .add_attribute("method", "instantiate")
