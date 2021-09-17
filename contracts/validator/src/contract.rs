@@ -20,7 +20,7 @@ use stader_utils::coin_utils::{
 };
 use stader_utils::helpers::{query_exchange_rates, send_funds_msg};
 use terra_cosmwasm::{create_swap_msg, TerraMsgWrapper};
-use stader_utils::operations::{EVENT_SWAP_TYPE, EVENT_SWAP_KEY_AMOUNT, EVENT_KEY_IDENTIFIER};
+use stader_utils::event_constants::{EVENT_SWAP_TYPE, EVENT_SWAP_KEY_AMOUNT, EVENT_KEY_IDENTIFIER};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(

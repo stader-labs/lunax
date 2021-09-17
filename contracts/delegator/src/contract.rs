@@ -274,7 +274,7 @@ pub fn query_user_pool(deps: Deps, user_addr: Addr, pool_id: u64) -> StdResult<U
 }
 
 pub fn query_user(deps: Deps, user_addr: Addr) -> StdResult<UserResponse> {
-    let x = USER_REGISTRY.prefix(&user_addr).range(deps.storage, None, None, Order::Ascending).collect();
+    let x = USER_REGISTRY.prefix(&user_addr).range(deps.storage, None, None, Order::Ascending);
     let mut res = vec![];
     for y in x {
         let z = y.unwrap();
