@@ -4089,7 +4089,21 @@ mod tests {
         let sic3_address = Addr::unchecked("sic3_address");
 
         /*
-           Test - 1. Empty user requests
+           Test - 1. Unauthorized
+        */
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("not-pools", &[]),
+            ExecuteMsg::UpdateUserRewards {
+                update_user_rewards_requests: vec![],
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::Unauthorized {}));
+
+        /*
+           Test - 2. Empty user requests
         */
         let res = execute(
             deps.as_mut(),
@@ -4110,7 +4124,7 @@ mod tests {
         ));
 
         /*
-           Test - 2. User sends 0 funds
+           Test - 3. User sends 0 funds
         */
         let res = execute(
             deps.as_mut(),
@@ -4150,7 +4164,7 @@ mod tests {
         ));
 
         /*
-           Test - 3. Strategy not found
+           Test - 4. Strategy not found
         */
         let res = execute(
             deps.as_mut(),
@@ -4190,7 +4204,7 @@ mod tests {
         ));
 
         /*
-           Test - 4. Inactive strategy
+           Test - 5. Inactive strategy
         */
         STRATEGY_MAP.save(
             deps.as_mut().storage,

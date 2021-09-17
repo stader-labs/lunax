@@ -997,10 +997,13 @@ pub fn try_update_user_portfolio(
 pub fn try_update_user_rewards(
     deps: DepsMut,
     _env: Env,
-    _info: MessageInfo,
+    info: MessageInfo,
     update_user_rewards_requests: Vec<UpdateUserRewardsRequest>,
 ) -> Result<Response, ContractError> {
     let state = STATE.load(deps.storage)?;
+    if info.sender != state.pool_contract {
+        return Err(ContractError::Unauthorized {});
+    }
 
     if update_user_rewards_requests.is_empty() {
         return Ok(Response::new().add_attribute("zero_update_user_rewards_requests", "1"));
