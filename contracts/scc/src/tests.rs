@@ -645,10 +645,7 @@ mod tests {
             },
         )
         .unwrap_err();
-        assert!(matches!(
-            err,
-            ContractError::StrategyInfoDoesNotExist(String { .. })
-        ));
+        assert!(matches!(err, ContractError::StrategyInfoDoesNotExist {}));
     }
 
     #[test]
@@ -2982,10 +2979,7 @@ mod tests {
             },
         )
         .unwrap_err();
-        assert!(matches!(
-            err,
-            ContractError::StrategyInfoDoesNotExist(String { .. })
-        ));
+        assert!(matches!(err, ContractError::StrategyInfoDoesNotExist {}));
 
         /*
            Test - 3. User reward info does not exist
@@ -3399,10 +3393,7 @@ mod tests {
             },
         )
         .unwrap_err();
-        assert!(matches!(
-            err,
-            ContractError::StrategyInfoDoesNotExist(String { .. })
-        ));
+        assert!(matches!(err, ContractError::StrategyInfoDoesNotExist {}));
     }
 
     #[test]
@@ -4067,10 +4058,7 @@ mod tests {
             },
         )
         .unwrap_err();
-        assert!(matches!(
-            err,
-            ContractError::StrategyInfoDoesNotExist(String { .. })
-        ));
+        assert!(matches!(err, ContractError::StrategyInfoDoesNotExist {}));
 
         /*
            Test - 2. Adding an invalid portfolio which causes the entire deposit fraction to go beyond 1
@@ -6126,10 +6114,7 @@ mod tests {
             },
         )
         .unwrap_err();
-        assert!(matches!(
-            err,
-            ContractError::StrategyInfoDoesNotExist(String { .. })
-        ));
+        assert!(matches!(err, ContractError::StrategyInfoDoesNotExist {}));
     }
 
     #[test]
@@ -6212,10 +6197,7 @@ mod tests {
             },
         )
         .unwrap_err();
-        assert!(matches!(
-            err,
-            ContractError::StrategyInfoDoesNotExist(String { .. })
-        ));
+        assert!(matches!(err, ContractError::StrategyInfoDoesNotExist {}));
     }
 
     #[test]

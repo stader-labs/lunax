@@ -13,8 +13,8 @@ pub enum ContractError {
     #[error("Strategy info already exists")]
     StrategyInfoAlreadyExists {},
 
-    #[error("Strategy info does not exist `{0}`")]
-    StrategyInfoDoesNotExist(String),
+    #[error("Strategy info does not exist")]
+    StrategyInfoDoesNotExist {},
 
     #[error("Strategy does not support airdrops")]
     StrategyDoesNotSupportAirdrop {},
