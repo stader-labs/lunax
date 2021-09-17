@@ -140,7 +140,7 @@ pub fn try_swap(
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let state = STATE.load(deps.storage)?;
 
-    if info.sender != state.manager {
+    if info.sender != state.manager && info.sender != _env.contract.address {
         return Err(ContractError::Unauthorized {});
     }
 
