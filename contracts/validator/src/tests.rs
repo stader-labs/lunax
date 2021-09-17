@@ -5,7 +5,8 @@ mod tests {
     use crate::error::ContractError;
     use crate::msg::{ExecuteMsg, GetConfigResponse, InstantiateMsg, QueryMsg};
     use crate::operations::{
-        EVENT_REDELEGATE_KEY_DST_ADDR, EVENT_REDELEGATE_ID, EVENT_REDELEGATE_KEY_SRC_ADDR, EVENT_REDELEGATE_TYPE,
+        EVENT_REDELEGATE_ID, EVENT_REDELEGATE_KEY_DST_ADDR, EVENT_REDELEGATE_KEY_SRC_ADDR,
+        EVENT_REDELEGATE_TYPE,
     };
     use crate::state::{
         AirdropRegistryInfo, Config, State, VMeta, AIRDROP_REGISTRY, CONFIG, STATE,
@@ -270,7 +271,10 @@ mod tests {
             })
         );
         let state = STATE.load(deps.as_mut().storage).unwrap();
-        assert!(check_equal_coin_vector(&state.unswapped_rewards, &vec![Coin::new(20, "utest"), Coin::new(30, "urew1")]));
+        assert!(check_equal_coin_vector(
+            &state.unswapped_rewards,
+            &vec![Coin::new(20, "utest"), Coin::new(30, "urew1")]
+        ));
 
         let valid1_meta = VALIDATOR_REGISTRY
             .may_load(deps.as_mut().storage, &valid1)
@@ -303,7 +307,10 @@ mod tests {
         )); // Accrued rewards remains unchanged
         assert_eq!(valid1_meta_unwrapped.staked, Uint128::new(2400)); // Adds to previous staked amount.
         let state = STATE.load(deps.as_mut().storage).unwrap();
-        assert!(check_equal_coin_vector(&state.unswapped_rewards, &vec![Coin::new(40, "utest"), Coin::new(60, "urew1")]));
+        assert!(check_equal_coin_vector(
+            &state.unswapped_rewards,
+            &vec![Coin::new(40, "utest"), Coin::new(60, "urew1")]
+        ));
     }
 
     #[test]
@@ -425,7 +432,10 @@ mod tests {
 
         let state = STATE.load(deps.as_mut().storage).unwrap();
         assert_eq!(state.slashing_funds, Uint128::new(50));
-        assert!(check_equal_coin_vector(&state.unswapped_rewards, &vec![Coin::new(60, "utest"), Coin::new(90, "urew1")]));
+        assert!(check_equal_coin_vector(
+            &state.unswapped_rewards,
+            &vec![Coin::new(60, "utest"), Coin::new(90, "urew1")]
+        ));
     }
 
     #[test]
@@ -526,11 +536,15 @@ mod tests {
         .unwrap_err();
         assert!(matches!(err, ContractError::InSufficientFunds {}));
 
-        STATE.save(deps.as_mut().storage, &State {
-            slashing_funds: Uint128::zero(),
-            unswapped_rewards: vec![Coin::new(10, "utest"), Coin::new(10, "urew1")]
-
-        }).unwrap();
+        STATE
+            .save(
+                deps.as_mut().storage,
+                &State {
+                    slashing_funds: Uint128::zero(),
+                    unswapped_rewards: vec![Coin::new(10, "utest"), Coin::new(10, "urew1")],
+                },
+            )
+            .unwrap();
         let res = execute(
             deps.as_mut(),
             env.clone(),
@@ -570,7 +584,10 @@ mod tests {
         ));
 
         let state = STATE.load(deps.as_mut().storage).unwrap();
-        assert!(check_equal_coin_vector(&state.unswapped_rewards, &vec![Coin::new(70, "utest"), Coin::new(100, "urew1")]));
+        assert!(check_equal_coin_vector(
+            &state.unswapped_rewards,
+            &vec![Coin::new(70, "utest"), Coin::new(100, "urew1")]
+        ));
     }
 
     #[test]
@@ -640,10 +657,15 @@ mod tests {
         .unwrap_err();
         assert!(matches!(err, ContractError::InSufficientFunds {}));
 
-        STATE.save(deps.as_mut().storage, &State {
-            slashing_funds: Uint128::new(127),
-            unswapped_rewards: vec![Coin::new(18, "utest"), Coin::new(26, "urew1")]
-        }).unwrap();
+        STATE
+            .save(
+                deps.as_mut().storage,
+                &State {
+                    slashing_funds: Uint128::new(127),
+                    unswapped_rewards: vec![Coin::new(18, "utest"), Coin::new(26, "urew1")],
+                },
+            )
+            .unwrap();
         let res = execute(
             deps.as_mut(),
             env.clone(),
@@ -674,7 +696,10 @@ mod tests {
 
         let state = STATE.load(deps.as_mut().storage).unwrap();
         assert_eq!(state.slashing_funds, Uint128::new(127));
-        assert!(check_equal_coin_vector(&state.unswapped_rewards, &vec![Coin::new(38, "utest"), Coin::new(56, "urew1")]));
+        assert!(check_equal_coin_vector(
+            &state.unswapped_rewards,
+            &vec![Coin::new(38, "utest"), Coin::new(56, "urew1")]
+        ));
     }
 
     #[test]
@@ -826,7 +851,8 @@ mod tests {
                 msg: to_binary(&Cw20ExecuteMsg::Transfer {
                     recipient: Addr::unchecked("scc_addr").to_string(),
                     amount: Uint128::new(2000_u128),
-                }).unwrap(),
+                })
+                .unwrap(),
                 funds: vec![]
             })
         );
@@ -861,7 +887,8 @@ mod tests {
                 msg: to_binary(&Cw20ExecuteMsg::Transfer {
                     recipient: Addr::unchecked("scc_addr").to_string(),
                     amount: Uint128::new(1000_u128),
-                }).unwrap(),
+                })
+                .unwrap(),
                 funds: vec![]
             })
         );
@@ -896,7 +923,8 @@ mod tests {
                 msg: to_binary(&Cw20ExecuteMsg::Transfer {
                     recipient: Addr::unchecked("scc_addr").to_string(),
                     amount: Uint128::new(2000_u128),
-                }).unwrap(),
+                })
+                .unwrap(),
                 funds: vec![]
             })
         );
@@ -913,7 +941,7 @@ mod tests {
             deps.as_mut(),
             env.clone(),
             mock_info("other", &[]),
-            ExecuteMsg::AddSlashingFunds { },
+            ExecuteMsg::AddSlashingFunds {},
         )
         .unwrap_err();
         assert!(matches!(err, ContractError::Unauthorized {}));
@@ -925,16 +953,16 @@ mod tests {
             deps.as_mut(),
             env.clone(),
             mock_info("creator", &[]),
-            ExecuteMsg::AddSlashingFunds { },
+            ExecuteMsg::AddSlashingFunds {},
         )
-            .unwrap_err();
+        .unwrap_err();
         assert!(matches!(err, ContractError::NoFunds {}));
 
         let res = execute(
             deps.as_mut(),
             env.clone(),
             mock_info("creator", &[Coin::new(1000, "utest")]),
-            ExecuteMsg::AddSlashingFunds { },
+            ExecuteMsg::AddSlashingFunds {},
         )
         .unwrap();
         assert!(res.messages.is_empty());
@@ -971,7 +999,6 @@ mod tests {
         assert!(state.slashing_funds.eq(&Uint128::new(1200_u128)));
     }
 
-
     #[test]
     fn test_remove_slashing_funds() {
         let mut deps = mock_dependencies(&[]);
@@ -983,46 +1010,62 @@ mod tests {
             deps.as_mut(),
             env.clone(),
             mock_info("other", &[]),
-            ExecuteMsg::RemoveSlashingFunds { amount: Uint128::new(100) },
+            ExecuteMsg::RemoveSlashingFunds {
+                amount: Uint128::new(100),
+            },
         )
-            .unwrap_err();
+        .unwrap_err();
         assert!(matches!(err, ContractError::Unauthorized {}));
 
         let err = execute(
             deps.as_mut(),
             env.clone(),
             mock_info("creator", &[Coin::new(200, "utest")]),
-            ExecuteMsg::RemoveSlashingFunds { amount: Uint128::new(100) },
+            ExecuteMsg::RemoveSlashingFunds {
+                amount: Uint128::new(100),
+            },
         )
-            .unwrap_err();
+        .unwrap_err();
         assert!(matches!(err, ContractError::FundsNotExpected {}));
 
         let err = execute(
             deps.as_mut(),
             env.clone(),
             mock_info("creator", &[]),
-            ExecuteMsg::RemoveSlashingFunds { amount: Uint128::new(100) },
+            ExecuteMsg::RemoveSlashingFunds {
+                amount: Uint128::new(100),
+            },
         )
-            .unwrap_err();
+        .unwrap_err();
         assert!(matches!(err, ContractError::InSufficientFunds {}));
 
-        STATE.save(deps.as_mut().storage, &State {
-            slashing_funds: Uint128::new(500),
-            unswapped_rewards: vec![]
-        }).unwrap();
+        STATE
+            .save(
+                deps.as_mut().storage,
+                &State {
+                    slashing_funds: Uint128::new(500),
+                    unswapped_rewards: vec![],
+                },
+            )
+            .unwrap();
         let res = execute(
             deps.as_mut(),
             env.clone(),
             mock_info("creator", &[]),
-            ExecuteMsg::RemoveSlashingFunds { amount: Uint128::new(100) },
+            ExecuteMsg::RemoveSlashingFunds {
+                amount: Uint128::new(100),
+            },
         )
-            .unwrap();
+        .unwrap();
 
         assert_eq!(res.messages.len(), 1);
-        assert_eq!(res.messages[0], SubMsg::new(BankMsg::Send {
-            to_address: "creator".to_string(),
-            amount: vec![Coin::new(100, "utest")]
-        }));
+        assert_eq!(
+            res.messages[0],
+            SubMsg::new(BankMsg::Send {
+                to_address: "creator".to_string(),
+                amount: vec![Coin::new(100, "utest")]
+            })
+        );
 
         let state = STATE.load(deps.as_mut().storage).unwrap();
         assert!(state.slashing_funds.eq(&Uint128::new(400_u128)));
@@ -1150,7 +1193,7 @@ mod tests {
                 redelegate_addr: valid2.clone(),
             },
         )
-            .unwrap_err();
+        .unwrap_err();
         assert!(matches!(err, ContractError::Unauthorized {})); // Expects manager to make the call
 
         let pools_info = mock_info(&Addr::unchecked("pools_addr").to_string(), &[]);
@@ -1164,10 +1207,13 @@ mod tests {
             ],
         );
 
-        STATE.save(deps.as_mut().storage, &State {
-            slashing_funds: Uint128::new(1000_u128),
-            unswapped_rewards: vec![Coin::new(1500, "utest")]
-        });
+        STATE.save(
+            deps.as_mut().storage,
+            &State {
+                slashing_funds: Uint128::new(1000_u128),
+                unswapped_rewards: vec![Coin::new(1500, "utest")],
+            },
+        );
 
         let res = execute(
             deps.as_mut(),
@@ -1177,7 +1223,7 @@ mod tests {
                 amount: Uint128::new(400),
             },
         )
-            .unwrap();
+        .unwrap();
         assert_eq!(res.messages.len(), 1);
         assert_eq!(
             res.messages[0],
@@ -1188,7 +1234,10 @@ mod tests {
         );
         let state = STATE.load(deps.as_mut().storage).unwrap();
         assert_eq!(state.slashing_funds, Uint128::new(1000));
-        assert!(check_equal_coin_vector(&state.unswapped_rewards, &vec![Coin::new(1500, "utest")]));
+        assert!(check_equal_coin_vector(
+            &state.unswapped_rewards,
+            &vec![Coin::new(1500, "utest")]
+        ));
 
         // Remove 400 utest as simulation from previous iteration withdraw
         deps.querier.update_balance(
@@ -1210,7 +1259,7 @@ mod tests {
                 amount: Uint128::new(1500),
             },
         )
-            .unwrap();
+        .unwrap();
         assert_eq!(res.messages.len(), 1);
         assert_eq!(
             res.messages[0],
@@ -1221,8 +1270,10 @@ mod tests {
         );
         let state = STATE.load(deps.as_mut().storage).unwrap();
         assert_eq!(state.slashing_funds, Uint128::new(956));
-        assert!(check_equal_coin_vector(&state.unswapped_rewards, &vec![Coin::new(1500, "utest")]));
-
+        assert!(check_equal_coin_vector(
+            &state.unswapped_rewards,
+            &vec![Coin::new(1500, "utest")]
+        ));
 
         deps.querier.update_balance(
             env.contract.address.clone(),
@@ -1242,7 +1293,7 @@ mod tests {
                 amount: Uint128::new(1000),
             },
         )
-            .unwrap_err();
+        .unwrap_err();
         assert!(matches!(err, ContractError::NotEnoughSlashingFunds {}));
     }
 
@@ -1272,17 +1323,13 @@ mod tests {
                 accrued_rewards: vec![Coin::new(100, "utest"), Coin::new(100, "urew1")],
             },
         );
-        let res =
-            reply(
-                deps.as_mut(),
-                env,
-                Reply {
-                    id: EVENT_REDELEGATE_ID,
-                    result:
-                        ContractResult::Ok(
-                            SubMsgExecutionResponse {
-                                events:
-                                    vec![
+        let res = reply(
+            deps.as_mut(),
+            env,
+            Reply {
+                id: EVENT_REDELEGATE_ID,
+                result: ContractResult::Ok(SubMsgExecutionResponse {
+                    events: vec![
                                         Event::new(format!("wasm-{}", EVENT_REDELEGATE_TYPE)) // Events are automatically prepended with a `wasm-`
                                             .add_attribute(
                                                 EVENT_REDELEGATE_KEY_SRC_ADDR,
@@ -1293,12 +1340,11 @@ mod tests {
                                                 valid2.to_string(),
                                             ),
                                     ],
-                                data: None,
-                            },
-                        ),
-                },
-            )
-            .unwrap();
+                    data: None,
+                }),
+            },
+        )
+        .unwrap();
 
         assert!(VALIDATOR_REGISTRY
             .may_load(deps.as_mut().storage, &valid1)

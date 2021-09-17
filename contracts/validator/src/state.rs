@@ -16,7 +16,7 @@ pub struct Config {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct State {
     pub slashing_funds: Uint128, // Although can be changed by manager, state is a better fit
-    pub unswapped_rewards: Vec<Coin> // Total contract redeemed rewards that are yet to be swapped.
+    pub unswapped_rewards: Vec<Coin>, // Total contract redeemed rewards that are yet to be swapped.
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
