@@ -4,6 +4,7 @@ use crate::state::{
     StrategyInfo, UserRewardInfo, UserStrategyInfo, STRATEGY_MAP, USER_REWARD_INFO_MAP,
 };
 use cosmwasm_std::{Addr, Coin, Decimal, Env, Storage};
+use cw_storage_plus::U64Key;
 use stader_utils::coin_utils::{
     check_equal_deccoin_vector, deccoin_vec_to_coin_vec, merge_coin_vector, merge_dec_coin_vector,
     multiply_deccoin_vector_with_decimal, CoinVecOp, DecCoin, DecCoinVecOp, Operation,
@@ -15,15 +16,17 @@ pub fn allocate_user_airdrops_across_strategies(
 ) {
     let mut total_allocated_airdrops: Vec<Coin> = user_reward_info.pending_airdrops.clone();
     for user_strategy_info in &mut user_reward_info.strategies {
-        let strategy_name = user_strategy_info.strategy_name.clone();
+        let strategy_id = user_strategy_info.strategy_id.clone();
         let user_shares = user_strategy_info.shares;
 
-        let strategy_info: StrategyInfo;
-        if let Some(strategy_info_map) = STRATEGY_MAP.may_load(storage, &*strategy_name).unwrap() {
-            strategy_info = strategy_info_map;
+        let strategy_info = if let Some(strategy_info) = STRATEGY_MAP
+            .may_load(storage, U64Key::new(strategy_id))
+            .unwrap()
+        {
+            strategy_info
         } else {
             continue;
-        }
+        };
 
         let strategy_global_airdrop_pointer = strategy_info.global_airdrop_pointer;
         let user_airdrop_pointer = &user_strategy_info.airdrop_pointer;

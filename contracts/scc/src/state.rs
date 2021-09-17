@@ -19,6 +19,8 @@ pub struct State {
     pub contract_genesis_block_height: u64,
     pub contract_genesis_timestamp: Timestamp,
 
+    pub strategy_counter: u64,
+
     // sum of all the retained rewards in scc
     pub rewards_in_scc: Uint128,
     pub total_accumulated_airdrops: Vec<Coin>,
@@ -84,7 +86,7 @@ impl StrategyInfo {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct UserStrategyInfo {
-    pub strategy_name: String,
+    pub strategy_id: u64,
     pub shares: Decimal,
     // airdrop here is an unswappable reward. For v1, we are keeping airdrops idle and distributing
     // them back to the user. The airdrop_pointer here is only for the particular strategy.
@@ -94,14 +96,14 @@ pub struct UserStrategyInfo {
 impl UserStrategyInfo {
     pub fn default() -> Self {
         UserStrategyInfo {
-            strategy_name: "".to_string(),
+            strategy_id: 0,
             shares: Default::default(),
             airdrop_pointer: vec![],
         }
     }
-    pub fn new(strategy_name: String, airdrop_pointer: Vec<DecCoin>) -> Self {
+    pub fn new(strategy_id: u64, airdrop_pointer: Vec<DecCoin>) -> Self {
         UserStrategyInfo {
-            strategy_name,
+            strategy_id,
             shares: Decimal::zero(),
             airdrop_pointer,
         }
@@ -148,20 +150,20 @@ pub struct UserUndelegationRecord {
     pub est_release_time: Timestamp,
     pub amount: Uint128,
     pub shares: Decimal,
-    pub strategy_name: String,
+    pub strategy_id: u64,
     pub undelegation_batch_id: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct UserStrategyPortfolio {
-    pub strategy_name: String,
+    pub strategy_id: u64,
     pub deposit_fraction: Decimal,
 }
 
 impl UserStrategyPortfolio {
-    pub fn new(strategy_name: String, deposit_fraction: Decimal) -> Self {
+    pub fn new(strategy_id: u64, deposit_fraction: Decimal) -> Self {
         UserStrategyPortfolio {
-            strategy_name,
+            strategy_id,
             deposit_fraction,
         }
     }
@@ -187,9 +189,9 @@ pub struct BatchUndelegationRecord {
 pub const STATE: Item<State> = Item::new("state");
 pub const CONFIG: Item<Config> = Item::new("config");
 
-pub const STRATEGY_MAP: Map<&str, StrategyInfo> = Map::new("strategy_map");
+pub const STRATEGY_MAP: Map<U64Key, StrategyInfo> = Map::new("strategy_map");
 pub const USER_REWARD_INFO_MAP: Map<&Addr, UserRewardInfo> = Map::new("user_reward_info_map");
 pub const CW20_TOKEN_CONTRACTS_REGISTRY: Map<String, Cw20TokenContractsInfo> =
     Map::new("cw20_token_contracts_registry");
-pub const UNDELEGATION_BATCH_MAP: Map<(U64Key, &str), BatchUndelegationRecord> =
+pub const UNDELEGATION_BATCH_MAP: Map<(U64Key, U64Key), BatchUndelegationRecord> =
     Map::new("undelegation_batch_map");
