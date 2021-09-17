@@ -339,17 +339,6 @@ pub fn try_withdraw_airdrops(
             transfered_airdrops.push(Coin::new(airdrop_amount.u128(), airdrop_denom));
         });
 
-    STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
-        state.total_accumulated_airdrops = merge_coin_vector(
-            state.total_accumulated_airdrops,
-            CoinVecOp {
-                fund: transfered_airdrops,
-                operation: Operation::Sub,
-            },
-        );
-        Ok(state)
-    })?;
-
     USER_REWARD_INFO_MAP.save(deps.storage, &user_addr, &user_reward_info)?;
 
     Ok(Response::new().add_messages(messages))
