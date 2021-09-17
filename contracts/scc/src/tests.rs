@@ -354,7 +354,7 @@ mod tests {
     }
 
     #[test]
-    fn test__query_total_rewards_per_strategy() {
+    fn test__query_get_all_strategies() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &coins(1000, "earth"));
         let env = mock_env();
@@ -473,7 +473,7 @@ mod tests {
             all_strategies,
             vec![
                 StrategyInfoQuery {
-                    strategy_name: "retain-rewards".to_string(),
+                    strategy_name: "retain_rewards".to_string(),
                     total_rewards: Uint128::new(1000_u128),
                     rewards_in_undelegation: Uint128::zero(),
                     is_active: true,
@@ -1917,9 +1917,10 @@ mod tests {
                 unbonding_slashing_ratio: Decimal::one(),
                 undelegation_s_t_ratio: Decimal::from_ratio(10_u128, 1_u128),
                 create_time: env.block.time,
-                est_release_time: env.block.time.plus_seconds(
-                    sid1_strategy_info.unbonding_period + sid1_strategy_info.unbonding_buffer
-                ),
+                est_release_time: env
+                    .block
+                    .time
+                    .plus_seconds(sid1_strategy_info.unbonding_period),
                 slashing_checked: false
             }
         );
@@ -1931,9 +1932,10 @@ mod tests {
                 unbonding_slashing_ratio: Decimal::one(),
                 undelegation_s_t_ratio: Decimal::from_ratio(10_u128, 1_u128),
                 create_time: env.block.time,
-                est_release_time: env.block.time.plus_seconds(
-                    sid2_strategy_info.unbonding_period + sid2_strategy_info.unbonding_buffer
-                ),
+                est_release_time: env
+                    .block
+                    .time
+                    .plus_seconds(sid2_strategy_info.unbonding_period),
                 slashing_checked: false
             }
         );
@@ -1945,9 +1947,10 @@ mod tests {
                 unbonding_slashing_ratio: Decimal::one(),
                 undelegation_s_t_ratio: Decimal::from_ratio(10_u128, 1_u128),
                 create_time: env.block.time,
-                est_release_time: env.block.time.plus_seconds(
-                    sid3_strategy_info.unbonding_period + sid3_strategy_info.unbonding_buffer
-                ),
+                est_release_time: env
+                    .block
+                    .time
+                    .plus_seconds(sid3_strategy_info.unbonding_period),
                 slashing_checked: false
             }
         );
@@ -2124,9 +2127,10 @@ mod tests {
                 unbonding_slashing_ratio: Decimal::one(),
                 undelegation_s_t_ratio: Decimal::from_ratio(10_u128, 1_u128),
                 create_time: env.block.time,
-                est_release_time: env.block.time.plus_seconds(
-                    sid1_strategy_info.unbonding_period + sid1_strategy_info.unbonding_buffer
-                ),
+                est_release_time: env
+                    .block
+                    .time
+                    .plus_seconds(sid1_strategy_info.unbonding_period),
                 slashing_checked: false
             }
         );
@@ -2138,9 +2142,10 @@ mod tests {
                 unbonding_slashing_ratio: Decimal::one(),
                 undelegation_s_t_ratio: Decimal::from_ratio(10_u128, 1_u128),
                 create_time: env.block.time,
-                est_release_time: env.block.time.plus_seconds(
-                    sid2_strategy_info.unbonding_period + sid2_strategy_info.unbonding_buffer
-                ),
+                est_release_time: env
+                    .block
+                    .time
+                    .plus_seconds(sid2_strategy_info.unbonding_period),
                 slashing_checked: false
             }
         );
@@ -2152,9 +2157,10 @@ mod tests {
                 unbonding_slashing_ratio: Decimal::one(),
                 undelegation_s_t_ratio: Decimal::from_ratio(10_u128, 1_u128),
                 create_time: env.block.time,
-                est_release_time: env.block.time.plus_seconds(
-                    sid3_strategy_info.unbonding_period + sid3_strategy_info.unbonding_buffer
-                ),
+                est_release_time: env
+                    .block
+                    .time
+                    .plus_seconds(sid3_strategy_info.unbonding_period),
                 slashing_checked: false
             }
         );
@@ -2304,9 +2310,10 @@ mod tests {
                 unbonding_slashing_ratio: Decimal::one(),
                 undelegation_s_t_ratio: Decimal::from_ratio(10_u128, 1_u128),
                 create_time: env.block.time,
-                est_release_time: env.block.time.plus_seconds(
-                    sid1_strategy_info.unbonding_period + sid1_strategy_info.unbonding_buffer
-                ),
+                est_release_time: env
+                    .block
+                    .time
+                    .plus_seconds(sid1_strategy_info.unbonding_period),
                 slashing_checked: false
             }
         );
@@ -2318,9 +2325,10 @@ mod tests {
                 unbonding_slashing_ratio: Decimal::one(),
                 undelegation_s_t_ratio: Decimal::from_ratio(10_u128, 1_u128),
                 create_time: env.block.time,
-                est_release_time: env.block.time.plus_seconds(
-                    sid2_strategy_info.unbonding_period + sid2_strategy_info.unbonding_buffer
-                ),
+                est_release_time: env
+                    .block
+                    .time
+                    .plus_seconds(sid2_strategy_info.unbonding_period),
                 slashing_checked: false
             }
         );

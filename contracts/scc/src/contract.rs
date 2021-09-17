@@ -442,7 +442,8 @@ pub fn try_undelegate_from_strategies(
                 est_release_time: _env
                     .block
                     .time
-                    .plus_seconds(strategy_info.unbonding_period + strategy_info.unbonding_buffer),
+                    // consider only unbonding_period here. Add a small buffer to the unbonding_period
+                    .plus_seconds(strategy_info.unbonding_period),
                 slashing_checked: false,
             },
         )?;
