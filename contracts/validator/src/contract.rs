@@ -25,8 +25,8 @@ use stader_utils::coin_utils::{
     merge_coin_vector, multiply_coin_with_decimal, CoinVecOp, Operation,
 };
 use stader_utils::helpers::{query_exchange_rates, send_funds_msg};
-use stader_utils::operations::{EVENT_KEY_IDENTIFIER, EVENT_SWAP_KEY_AMOUNT, EVENT_SWAP_TYPE};
 use terra_cosmwasm::{create_swap_msg, TerraMsgWrapper};
+use stader_utils::event_constants::{EVENT_SWAP_TYPE, EVENT_SWAP_KEY_AMOUNT, EVENT_KEY_IDENTIFIER};
 
 const CONTRACT_NAME: &str = "validator";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
