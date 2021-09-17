@@ -262,12 +262,20 @@ pub fn try_replace_validator(
     )?;
 
     let mut redelegation_msgs: Vec<StakingMsg> = vec![];
+    let mut rewards_msgs: Vec<DistributionMsg> = vec![];
     let mut src_validator_staked_amount = Uint128::zero();
+    let mut src_validator_rewards: Vec<Coin> = vec![];
     if src_validator_delegation_opt.is_some() {
         let src_validator_delegation = src_validator_delegation_opt.unwrap();
         src_validator_staked_amount = src_validator_staked_amount
             .checked_add(src_validator_delegation.amount.amount)
             .unwrap();
+
+        // drain the validator rewards
+        src_validator_rewards = src_validator_delegation.accumulated_rewards;
+        rewards_msgs.push(DistributionMsg::WithdrawDelegatorReward {
+            validator: src_validator.to_string(),
+        });
 
         // send redelegation message only if src_validator has a redelegation
         redelegation_msgs.push(StakingMsg::Redelegate {
@@ -300,11 +308,20 @@ pub fn try_replace_validator(
             .into_iter()
             .filter(|x| x.ne(&src_validator))
             .collect();
+        state.unswapped_rewards = merge_coin_vector(
+            state.unswapped_rewards,
+            CoinVecOp {
+                fund: src_validator_rewards,
+                operation: Operation::Add,
+            },
+        );
         state.validator_pool.push(dst_validator);
         Ok(state)
     })?;
 
-    Ok(Response::new().add_messages(redelegation_msgs))
+    Ok(Response::new()
+        .add_messages(rewards_msgs)
+        .add_messages(redelegation_msgs))
 }
 
 pub fn try_add_validator(

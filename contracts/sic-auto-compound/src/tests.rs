@@ -669,14 +669,19 @@ mod tests {
             },
         )
         .unwrap();
-        assert_eq!(res.messages.len(), 1);
+        assert_eq!(res.messages.len(), 2);
         assert!(check_equal_vec(
             res.messages,
-            vec![SubMsg::new(StakingMsg::Redelegate {
-                src_validator: "valid0001".to_string(),
-                dst_validator: "valid0003".to_string(),
-                amount: Coin::new(2000_u128, "uluna".to_string())
-            })]
+            vec![
+                SubMsg::new(DistributionMsg::WithdrawDelegatorReward {
+                    validator: "valid0001".to_string()
+                }),
+                SubMsg::new(StakingMsg::Redelegate {
+                    src_validator: "valid0001".to_string(),
+                    dst_validator: "valid0003".to_string(),
+                    amount: Coin::new(2000_u128, "uluna".to_string())
+                })
+            ]
         ));
 
         let src_validator_stake_quota_opt = VALIDATORS_TO_STAKED_QUOTA
@@ -705,6 +710,10 @@ mod tests {
         assert!(check_equal_vec(
             state.validator_pool,
             vec![Addr::unchecked("valid0002"), Addr::unchecked("valid0003")]
+        ));
+        assert!(check_equal_vec(
+            state.unswapped_rewards,
+            vec![Coin::new(20, "uluna".to_string()), Coin::new(30, "urew1"),]
         ));
 
         /*
