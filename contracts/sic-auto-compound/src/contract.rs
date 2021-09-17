@@ -207,9 +207,9 @@ pub fn try_remove_validator(
 
     STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
         state.unswapped_rewards = merge_coin_vector(
-            state.unswapped_rewards,
+            &validator_rewards,
             CoinVecOp {
-                fund: validator_rewards,
+                fund: state.unswapped_rewards,
                 operation: Operation::Add,
             },
         );
@@ -309,9 +309,9 @@ pub fn try_replace_validator(
             .filter(|x| x.ne(&src_validator))
             .collect();
         state.unswapped_rewards = merge_coin_vector(
-            state.unswapped_rewards,
+            &src_validator_rewards,
             CoinVecOp {
-                fund: src_validator_rewards,
+                fund: state.unswapped_rewards,
                 operation: Operation::Add,
             },
         );
