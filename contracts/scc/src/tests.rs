@@ -87,6 +87,7 @@ mod tests {
                 scc_denom: "uluna".to_string(),
                 contract_genesis_block_height: env.block.height,
                 contract_genesis_timestamp: env.block.time,
+                strategy_counter: 1,
                 rewards_in_scc: Uint128::zero(),
                 total_accumulated_airdrops: vec![],
             }
@@ -154,7 +155,7 @@ mod tests {
 
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid1",
+            U64Key::new(1),
             &StrategyInfo {
                 name: "sid1".to_string(),
                 sic_contract_address: sic1_address.clone(),
@@ -179,7 +180,7 @@ mod tests {
 
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid2",
+            U64Key::new(2),
             &StrategyInfo {
                 name: "sid2".to_string(),
                 sic_contract_address: sic2_address.clone(),
@@ -203,7 +204,7 @@ mod tests {
         );
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid3",
+            U64Key::new(3),
             &StrategyInfo {
                 name: "sid3".to_string(),
                 sic_contract_address: sic3_address.clone(),
@@ -232,31 +233,31 @@ mod tests {
             &UserRewardInfo {
                 user_portfolio: vec![
                     UserStrategyPortfolio {
-                        strategy_name: "sid1".to_string(),
+                        strategy_id: 1,
                         deposit_fraction: Decimal::from_ratio(1_u128, 4_u128),
                     },
                     UserStrategyPortfolio {
-                        strategy_name: "sid2".to_string(),
+                        strategy_id: 2,
                         deposit_fraction: Decimal::from_ratio(1_u128, 4_u128),
                     },
                     UserStrategyPortfolio {
-                        strategy_name: "sid3".to_string(),
+                        strategy_id: 3,
                         deposit_fraction: Decimal::from_ratio(1_u128, 4_u128),
                     },
                 ],
                 strategies: vec![
                     UserStrategyInfo {
-                        strategy_name: "sid1".to_string(),
+                        strategy_id: 1,
                         shares: Decimal::from_ratio(250_u128, 1_u128),
                         airdrop_pointer: vec![],
                     },
                     UserStrategyInfo {
-                        strategy_name: "sid2".to_string(),
+                        strategy_id: 2,
                         shares: Decimal::from_ratio(250_u128, 1_u128),
                         airdrop_pointer: vec![],
                     },
                     UserStrategyInfo {
-                        strategy_name: "sid3".to_string(),
+                        strategy_id: 3,
                         shares: Decimal::from_ratio(250_u128, 1_u128),
                         airdrop_pointer: vec![],
                     },
@@ -267,7 +268,7 @@ mod tests {
                     est_release_time: Timestamp::from_seconds(126),
                     amount: Uint128::new(100_u128),
                     shares: Decimal::from_ratio(1000_u128, 1_u128),
-                    strategy_name: "sid1".to_string(),
+                    strategy_id: 1,
                     undelegation_batch_id: 0,
                 }],
                 pending_rewards: Uint128::new(25_u128),
@@ -300,7 +301,7 @@ mod tests {
                 est_release_time: Timestamp::from_seconds(126),
                 amount: Uint128::new(100_u128),
                 shares: Decimal::from_ratio(1000_u128, 1_u128),
-                strategy_name: "sid1".to_string(),
+                strategy_id: 1,
                 undelegation_batch_id: 0
             }]
         ));
@@ -308,15 +309,15 @@ mod tests {
             user.user_portfolio,
             vec![
                 UserStrategyPortfolio {
-                    strategy_name: "sid1".to_string(),
+                    strategy_id: 1,
                     deposit_fraction: Decimal::from_ratio(1_u128, 4_u128)
                 },
                 UserStrategyPortfolio {
-                    strategy_name: "sid2".to_string(),
+                    strategy_id: 2,
                     deposit_fraction: Decimal::from_ratio(1_u128, 4_u128)
                 },
                 UserStrategyPortfolio {
-                    strategy_name: "sid3".to_string(),
+                    strategy_id: 3,
                     deposit_fraction: Decimal::from_ratio(1_u128, 4_u128)
                 }
             ]
@@ -326,6 +327,7 @@ mod tests {
             user.user_strategy_info,
             vec![
                 UserStrategyQueryInfo {
+                    strategy_id: 1,
                     strategy_name: "sid1".to_string(),
                     total_rewards: Uint128::new(25_u128),
                     total_airdrops: vec![
@@ -334,6 +336,7 @@ mod tests {
                     ]
                 },
                 UserStrategyQueryInfo {
+                    strategy_id: 2,
                     strategy_name: "sid2".to_string(),
                     total_rewards: Uint128::new(25_u128),
                     total_airdrops: vec![
@@ -342,6 +345,7 @@ mod tests {
                     ]
                 },
                 UserStrategyQueryInfo {
+                    strategy_id: 3,
                     strategy_name: "sid3".to_string(),
                     total_rewards: Uint128::new(25_u128),
                     total_airdrops: vec![
@@ -383,13 +387,14 @@ mod tests {
             deps.as_mut().storage,
             |mut state| -> Result<_, ContractError> {
                 state.rewards_in_scc = Uint128::new(1000_u128);
+                state.strategy_counter = 4;
                 Ok(state)
             },
         );
 
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid1",
+            U64Key::new(1),
             &StrategyInfo {
                 name: "sid1".to_string(),
                 sic_contract_address: sic1_address.clone(),
@@ -416,7 +421,7 @@ mod tests {
         );
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid2",
+            U64Key::new(2),
             &StrategyInfo {
                 name: "sid2".to_string(),
                 sic_contract_address: sic2_address.clone(),
@@ -440,7 +445,7 @@ mod tests {
         );
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid3",
+            U64Key::new(3),
             &StrategyInfo {
                 name: "sid3".to_string(),
                 sic_contract_address: sic3_address.clone(),
@@ -473,6 +478,7 @@ mod tests {
             all_strategies,
             vec![
                 StrategyInfoQuery {
+                    strategy_id: 0,
                     strategy_name: "retain_rewards".to_string(),
                     total_rewards: Uint128::new(1000_u128),
                     rewards_in_undelegation: Uint128::zero(),
@@ -483,6 +489,7 @@ mod tests {
                     sic_contract_address: Addr::unchecked("")
                 },
                 StrategyInfoQuery {
+                    strategy_id: 1,
                     strategy_name: "sid1".to_string(),
                     total_rewards: Uint128::new(500_u128),
                     rewards_in_undelegation: Uint128::zero(),
@@ -496,6 +503,7 @@ mod tests {
                     sic_contract_address: sic1_address.clone()
                 },
                 StrategyInfoQuery {
+                    strategy_id: 2,
                     strategy_name: "sid2".to_string(),
                     total_rewards: Uint128::new(2000_u128),
                     rewards_in_undelegation: Uint128::new(1000_u128),
@@ -509,6 +517,7 @@ mod tests {
                     sic_contract_address: sic2_address.clone()
                 },
                 StrategyInfoQuery {
+                    strategy_id: 3,
                     strategy_name: "sid3".to_string(),
                     total_rewards: Uint128::new(700_u128),
                     rewards_in_undelegation: Uint128::zero(),
@@ -554,29 +563,37 @@ mod tests {
         /*
            Test - 2. 5 strategies
         */
+        STATE.update(
+            deps.as_mut().storage,
+            |mut state| -> Result<_, ContractError> {
+                state.strategy_counter = 6;
+                Ok(state)
+            },
+        );
+
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid1",
+            U64Key::new(1),
             &StrategyInfo::default("sid1".to_string()),
         );
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid2",
+            U64Key::new(2),
             &StrategyInfo::default("sid2".to_string()),
         );
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid3",
+            U64Key::new(3),
             &StrategyInfo::default("sid3".to_string()),
         );
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid4",
+            U64Key::new(4),
             &StrategyInfo::default("sid4".to_string()),
         );
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid5",
+            U64Key::new(5),
             &StrategyInfo::default("sid5".to_string()),
         );
 
@@ -588,13 +605,7 @@ mod tests {
         let strategies_list = strategies_list_response.strategies_list.unwrap();
         assert_eq!(
             strategies_list,
-            vec![
-                "sid1".to_string(),
-                "sid2".to_string(),
-                "sid3".to_string(),
-                "sid4".to_string(),
-                "sid5".to_string()
-            ]
+            vec!["sid1", "sid2", "sid3", "sid4", "sid5"]
         );
     }
 
@@ -621,7 +632,7 @@ mod tests {
             env.clone(),
             mock_info("not-creator", &[]),
             ExecuteMsg::UpdateStrategy {
-                strategy_name: "".to_string(),
+                strategy_id: 2,
                 unbonding_period: 0,
                 unbonding_buffer: 0,
                 is_active: false,
@@ -638,7 +649,7 @@ mod tests {
             env.clone(),
             mock_info("creator", &[]),
             ExecuteMsg::UpdateStrategy {
-                strategy_name: "sid1".to_string(),
+                strategy_id: 1,
                 unbonding_period: 0,
                 unbonding_buffer: 0,
                 is_active: false,
@@ -665,7 +676,7 @@ mod tests {
 
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid1",
+            U64Key::new(1),
             &StrategyInfo {
                 name: "sid1".to_string(),
                 sic_contract_address: Addr::unchecked("abc"),
@@ -687,7 +698,7 @@ mod tests {
             env.clone(),
             mock_info("creator", &[]),
             ExecuteMsg::UpdateStrategy {
-                strategy_name: "sid1".to_string(),
+                strategy_id: 1,
                 unbonding_period: 10000,
                 unbonding_buffer: 15000,
                 is_active: true,
@@ -696,7 +707,7 @@ mod tests {
         .unwrap();
 
         let sid1_strategy_info_opt = STRATEGY_MAP
-            .may_load(deps.as_mut().storage, "sid1")
+            .may_load(deps.as_mut().storage, U64Key::new(1))
             .unwrap();
         assert_ne!(sid1_strategy_info_opt, None);
         let sid1_strategy_info = sid1_strategy_info_opt.unwrap();
@@ -828,7 +839,7 @@ mod tests {
             env.clone(),
             mock_info("creator", &[]),
             ExecuteMsg::FetchUndelegatedRewardsFromStrategies {
-                strategies: vec!["sid1".to_string(), "sid2".to_string()],
+                strategies: vec![1, 2],
             },
         )
         .unwrap();
@@ -838,7 +849,7 @@ mod tests {
             vec![
                 Attribute {
                     key: "failed_strategies".to_string(),
-                    value: "sid1,sid2".to_string()
+                    value: "1,2".to_string()
                 },
                 Attribute {
                     key: "failed_undelegation_batches".to_string(),
@@ -860,7 +871,7 @@ mod tests {
         */
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid1",
+            U64Key::new(1),
             &StrategyInfo {
                 name: "sid1".to_string(),
                 sic_contract_address: Addr::unchecked("abc"),
@@ -878,7 +889,7 @@ mod tests {
         );
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid2",
+            U64Key::new(2),
             &StrategyInfo {
                 name: "sid2".to_string(),
                 sic_contract_address: Addr::unchecked("def"),
@@ -900,7 +911,7 @@ mod tests {
             env.clone(),
             mock_info("creator", &[]),
             ExecuteMsg::FetchUndelegatedRewardsFromStrategies {
-                strategies: vec!["sid1".to_string(), "sid2".to_string()],
+                strategies: vec![1, 2],
             },
         )
         .unwrap();
@@ -914,7 +925,7 @@ mod tests {
                 },
                 Attribute {
                     key: "failed_undelegation_batches".to_string(),
-                    value: "sid1:1,sid2:2".to_string()
+                    value: "1:1,2:2".to_string()
                 },
                 Attribute {
                     key: "undelegation_batches_in_unbonding_period".to_string(),
@@ -926,8 +937,12 @@ mod tests {
                 }
             ]
         ));
-        let sid1_strategy_info = STRATEGY_MAP.load(deps.as_mut().storage, "sid1").unwrap();
-        let sid2_strategy_info = STRATEGY_MAP.load(deps.as_mut().storage, "sid2").unwrap();
+        let sid1_strategy_info = STRATEGY_MAP
+            .load(deps.as_mut().storage, U64Key::new(1))
+            .unwrap();
+        let sid2_strategy_info = STRATEGY_MAP
+            .load(deps.as_mut().storage, U64Key::new(2))
+            .unwrap();
         assert_eq!(sid1_strategy_info.reconciled_batch_id_pointer, 2);
         assert_eq!(sid1_strategy_info.undelegation_batch_id_pointer, 2);
         assert_eq!(sid2_strategy_info.reconciled_batch_id_pointer, 3);
@@ -938,7 +953,7 @@ mod tests {
         */
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid1",
+            U64Key::new(1),
             &StrategyInfo {
                 name: "sid1".to_string(),
                 sic_contract_address: Addr::unchecked("abc"),
@@ -956,7 +971,7 @@ mod tests {
         );
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid2",
+            U64Key::new(2),
             &StrategyInfo {
                 name: "sid2".to_string(),
                 sic_contract_address: Addr::unchecked("def"),
@@ -974,7 +989,7 @@ mod tests {
         );
         UNDELEGATION_BATCH_MAP.save(
             deps.as_mut().storage,
-            (U64Key::new(1), "sid1"),
+            (U64Key::new(1), U64Key::new(1)),
             &BatchUndelegationRecord {
                 amount: Uint128::new(100_u128),
                 shares: Decimal::from_ratio(1000_u128, 1_u128),
@@ -987,7 +1002,7 @@ mod tests {
         );
         UNDELEGATION_BATCH_MAP.save(
             deps.as_mut().storage,
-            (U64Key::new(2), "sid2"),
+            (U64Key::new(2), U64Key::new(2)),
             &BatchUndelegationRecord {
                 amount: Uint128::new(400_u128),
                 shares: Decimal::from_ratio(1000_u128, 1_u128),
@@ -1004,7 +1019,7 @@ mod tests {
             env.clone(),
             mock_info("creator", &[]),
             ExecuteMsg::FetchUndelegatedRewardsFromStrategies {
-                strategies: vec!["sid1".to_string(), "sid2".to_string()],
+                strategies: vec![1, 2],
             },
         )
         .unwrap();
@@ -1022,7 +1037,7 @@ mod tests {
                 },
                 Attribute {
                     key: "undelegation_batches_in_unbonding_period".to_string(),
-                    value: "sid1:1,sid2:2".to_string()
+                    value: "1:1,2:2".to_string()
                 },
                 Attribute {
                     key: "undelegation_batches_slashing_checked".to_string(),
@@ -1030,8 +1045,12 @@ mod tests {
                 }
             ]
         ));
-        let sid1_strategy_info = STRATEGY_MAP.load(deps.as_mut().storage, "sid1").unwrap();
-        let sid2_strategy_info = STRATEGY_MAP.load(deps.as_mut().storage, "sid2").unwrap();
+        let sid1_strategy_info = STRATEGY_MAP
+            .load(deps.as_mut().storage, U64Key::new(1))
+            .unwrap();
+        let sid2_strategy_info = STRATEGY_MAP
+            .load(deps.as_mut().storage, U64Key::new(2))
+            .unwrap();
         assert_eq!(sid1_strategy_info.reconciled_batch_id_pointer, 1);
         assert_eq!(sid1_strategy_info.undelegation_batch_id_pointer, 2);
         assert_eq!(sid2_strategy_info.reconciled_batch_id_pointer, 2);
@@ -1042,7 +1061,7 @@ mod tests {
         */
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid1",
+            U64Key::new(1),
             &StrategyInfo {
                 name: "sid1".to_string(),
                 sic_contract_address: Addr::unchecked("abc"),
@@ -1060,7 +1079,7 @@ mod tests {
         );
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid2",
+            U64Key::new(2),
             &StrategyInfo {
                 name: "sid2".to_string(),
                 sic_contract_address: Addr::unchecked("def"),
@@ -1078,7 +1097,7 @@ mod tests {
         );
         UNDELEGATION_BATCH_MAP.save(
             deps.as_mut().storage,
-            (U64Key::new(1), "sid1"),
+            (U64Key::new(1), U64Key::new(1)),
             &BatchUndelegationRecord {
                 amount: Uint128::new(100_u128),
                 shares: Decimal::from_ratio(1000_u128, 1_u128),
@@ -1091,7 +1110,7 @@ mod tests {
         );
         UNDELEGATION_BATCH_MAP.save(
             deps.as_mut().storage,
-            (U64Key::new(2), "sid2"),
+            (U64Key::new(2), U64Key::new(2)),
             &BatchUndelegationRecord {
                 amount: Uint128::new(400_u128),
                 shares: Decimal::from_ratio(4000_u128, 1_u128),
@@ -1108,7 +1127,7 @@ mod tests {
             env.clone(),
             mock_info("creator", &[]),
             ExecuteMsg::FetchUndelegatedRewardsFromStrategies {
-                strategies: vec!["sid1".to_string(), "sid2".to_string()],
+                strategies: vec![1, 2],
             },
         )
         .unwrap();
@@ -1130,12 +1149,16 @@ mod tests {
                 },
                 Attribute {
                     key: "undelegation_batches_slashing_checked".to_string(),
-                    value: "sid1:1,sid2:2".to_string()
+                    value: "1:1,2:2".to_string()
                 }
             ]
         ));
-        let sid1_strategy_info = STRATEGY_MAP.load(deps.as_mut().storage, "sid1").unwrap();
-        let sid2_strategy_info = STRATEGY_MAP.load(deps.as_mut().storage, "sid2").unwrap();
+        let sid1_strategy_info = STRATEGY_MAP
+            .load(deps.as_mut().storage, U64Key::new(1))
+            .unwrap();
+        let sid2_strategy_info = STRATEGY_MAP
+            .load(deps.as_mut().storage, U64Key::new(2))
+            .unwrap();
         assert_eq!(sid1_strategy_info.reconciled_batch_id_pointer, 2);
         assert_eq!(sid1_strategy_info.undelegation_batch_id_pointer, 2);
         assert_eq!(sid2_strategy_info.reconciled_batch_id_pointer, 3);
@@ -1171,7 +1194,7 @@ mod tests {
 
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid1",
+            U64Key::new(1),
             &StrategyInfo {
                 name: "sid1".to_string(),
                 sic_contract_address: sic1_address.clone(),
@@ -1189,7 +1212,7 @@ mod tests {
         );
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid2",
+            U64Key::new(2),
             &StrategyInfo {
                 name: "sid2".to_string(),
                 sic_contract_address: sic2_address.clone(),
@@ -1207,7 +1230,7 @@ mod tests {
         );
         UNDELEGATION_BATCH_MAP.save(
             deps.as_mut().storage,
-            (U64Key::new(1), "sid1"),
+            (U64Key::new(1), U64Key::new(1)),
             &BatchUndelegationRecord {
                 amount: Uint128::new(100_u128),
                 shares: Default::default(),
@@ -1220,7 +1243,7 @@ mod tests {
         );
         UNDELEGATION_BATCH_MAP.save(
             deps.as_mut().storage,
-            (U64Key::new(2), "sid2"),
+            (U64Key::new(2), U64Key::new(2)),
             &BatchUndelegationRecord {
                 amount: Uint128::new(400_u128),
                 shares: Default::default(),
@@ -1237,7 +1260,7 @@ mod tests {
             env.clone(),
             mock_info("creator", &[]),
             ExecuteMsg::FetchUndelegatedRewardsFromStrategies {
-                strategies: vec!["sid1".to_string(), "sid2".to_string()],
+                strategies: vec![1, 2],
             },
         )
         .unwrap();
@@ -1287,10 +1310,10 @@ mod tests {
         ));
 
         let sid1_strategy_info_opt = STRATEGY_MAP
-            .may_load(deps.as_mut().storage, "sid1")
+            .may_load(deps.as_mut().storage, U64Key::new(1))
             .unwrap();
         let sid2_strategy_info_opt = STRATEGY_MAP
-            .may_load(deps.as_mut().storage, "sid2")
+            .may_load(deps.as_mut().storage, U64Key::new(2))
             .unwrap();
         assert_ne!(sid1_strategy_info_opt, None);
         assert_ne!(sid2_strategy_info_opt, None);
@@ -1301,10 +1324,10 @@ mod tests {
         assert_eq!(sid2_strategy_info.undelegation_batch_id_pointer, 3);
         assert_eq!(sid2_strategy_info.reconciled_batch_id_pointer, 3);
         let sid1_undelegation_batch_opt = UNDELEGATION_BATCH_MAP
-            .may_load(deps.as_mut().storage, (U64Key::new(1), "sid1"))
+            .may_load(deps.as_mut().storage, (U64Key::new(1), U64Key::new(1)))
             .unwrap();
         let sid2_undelegation_batch_opt = UNDELEGATION_BATCH_MAP
-            .may_load(deps.as_mut().storage, (U64Key::new(2), "sid2"))
+            .may_load(deps.as_mut().storage, (U64Key::new(2), U64Key::new(2)))
             .unwrap();
         assert_ne!(sid1_undelegation_batch_opt, None);
         assert_ne!(sid2_undelegation_batch_opt, None);
@@ -1336,7 +1359,7 @@ mod tests {
 
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid1",
+            U64Key::new(1),
             &StrategyInfo {
                 name: "sid1".to_string(),
                 sic_contract_address: sic1_address.clone(),
@@ -1354,7 +1377,7 @@ mod tests {
         );
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid2",
+            U64Key::new(2),
             &StrategyInfo {
                 name: "sid2".to_string(),
                 sic_contract_address: sic2_address.clone(),
@@ -1372,7 +1395,7 @@ mod tests {
         );
         UNDELEGATION_BATCH_MAP.save(
             deps.as_mut().storage,
-            (U64Key::new(1), "sid1"),
+            (U64Key::new(1), U64Key::new(1)),
             &BatchUndelegationRecord {
                 amount: Uint128::new(100_u128),
                 shares: Default::default(),
@@ -1385,7 +1408,7 @@ mod tests {
         );
         UNDELEGATION_BATCH_MAP.save(
             deps.as_mut().storage,
-            (U64Key::new(2), "sid2"),
+            (U64Key::new(2), U64Key::new(2)),
             &BatchUndelegationRecord {
                 amount: Uint128::new(400_u128),
                 shares: Default::default(),
@@ -1402,7 +1425,7 @@ mod tests {
             env.clone(),
             mock_info("creator", &[]),
             ExecuteMsg::FetchUndelegatedRewardsFromStrategies {
-                strategies: vec!["sid1".to_string(), "sid2".to_string()],
+                strategies: vec![1, 2],
             },
         )
         .unwrap();
@@ -1452,10 +1475,10 @@ mod tests {
         ));
 
         let sid1_strategy_info_opt = STRATEGY_MAP
-            .may_load(deps.as_mut().storage, "sid1")
+            .may_load(deps.as_mut().storage, U64Key::new(1))
             .unwrap();
         let sid2_strategy_info_opt = STRATEGY_MAP
-            .may_load(deps.as_mut().storage, "sid2")
+            .may_load(deps.as_mut().storage, U64Key::new(2))
             .unwrap();
         assert_ne!(sid1_strategy_info_opt, None);
         assert_ne!(sid2_strategy_info_opt, None);
@@ -1466,10 +1489,10 @@ mod tests {
         assert_eq!(sid2_strategy_info.undelegation_batch_id_pointer, 3);
         assert_eq!(sid2_strategy_info.reconciled_batch_id_pointer, 3);
         let sid1_undelegation_batch_opt = UNDELEGATION_BATCH_MAP
-            .may_load(deps.as_mut().storage, (U64Key::new(1), "sid1"))
+            .may_load(deps.as_mut().storage, (U64Key::new(1), U64Key::new(1)))
             .unwrap();
         let sid2_undelegation_batch_opt = UNDELEGATION_BATCH_MAP
-            .may_load(deps.as_mut().storage, (U64Key::new(2), "sid2"))
+            .may_load(deps.as_mut().storage, (U64Key::new(2), U64Key::new(2)))
             .unwrap();
         assert_ne!(sid1_undelegation_batch_opt, None);
         assert_ne!(sid2_undelegation_batch_opt, None);
@@ -1497,7 +1520,7 @@ mod tests {
 
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid1",
+            U64Key::new(1),
             &StrategyInfo {
                 name: "sid1".to_string(),
                 sic_contract_address: sic1_address.clone(),
@@ -1515,7 +1538,7 @@ mod tests {
         );
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid2",
+            U64Key::new(2),
             &StrategyInfo {
                 name: "sid2".to_string(),
                 sic_contract_address: sic2_address.clone(),
@@ -1533,7 +1556,7 @@ mod tests {
         );
         UNDELEGATION_BATCH_MAP.save(
             deps.as_mut().storage,
-            (U64Key::new(1), "sid1"),
+            (U64Key::new(1), U64Key::new(1)),
             &BatchUndelegationRecord {
                 amount: Uint128::new(100_u128),
                 shares: Default::default(),
@@ -1546,7 +1569,7 @@ mod tests {
         );
         UNDELEGATION_BATCH_MAP.save(
             deps.as_mut().storage,
-            (U64Key::new(2), "sid2"),
+            (U64Key::new(2), U64Key::new(2)),
             &BatchUndelegationRecord {
                 amount: Uint128::new(400_u128),
                 shares: Default::default(),
@@ -1563,7 +1586,7 @@ mod tests {
             env.clone(),
             mock_info("creator", &[]),
             ExecuteMsg::FetchUndelegatedRewardsFromStrategies {
-                strategies: vec!["sid1".to_string(), "sid2".to_string()],
+                strategies: vec![1, 2],
             },
         )
         .unwrap();
@@ -1613,10 +1636,10 @@ mod tests {
         ));
 
         let sid1_strategy_info_opt = STRATEGY_MAP
-            .may_load(deps.as_mut().storage, "sid1")
+            .may_load(deps.as_mut().storage, U64Key::new(1))
             .unwrap();
         let sid2_strategy_info_opt = STRATEGY_MAP
-            .may_load(deps.as_mut().storage, "sid2")
+            .may_load(deps.as_mut().storage, U64Key::new(2))
             .unwrap();
         assert_ne!(sid1_strategy_info_opt, None);
         assert_ne!(sid2_strategy_info_opt, None);
@@ -1627,10 +1650,10 @@ mod tests {
         assert_eq!(sid2_strategy_info.undelegation_batch_id_pointer, 3);
         assert_eq!(sid2_strategy_info.reconciled_batch_id_pointer, 3);
         let sid1_undelegation_batch_opt = UNDELEGATION_BATCH_MAP
-            .may_load(deps.as_mut().storage, (U64Key::new(1), "sid1"))
+            .may_load(deps.as_mut().storage, (U64Key::new(1), U64Key::new(1)))
             .unwrap();
         let sid2_undelegation_batch_opt = UNDELEGATION_BATCH_MAP
-            .may_load(deps.as_mut().storage, (U64Key::new(2), "sid2"))
+            .may_load(deps.as_mut().storage, (U64Key::new(2), U64Key::new(2)))
             .unwrap();
         assert_ne!(sid1_undelegation_batch_opt, None);
         assert_ne!(sid2_undelegation_batch_opt, None);
@@ -1657,7 +1680,7 @@ mod tests {
             .update_wasm(None, Some(contracts_to_fulfillable_undelegation));
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid1",
+            U64Key::new(1),
             &StrategyInfo {
                 name: "sid1".to_string(),
                 sic_contract_address: sic1_address.clone(),
@@ -1675,7 +1698,7 @@ mod tests {
         );
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid2",
+            U64Key::new(2),
             &StrategyInfo {
                 name: "sid2".to_string(),
                 sic_contract_address: sic2_address.clone(),
@@ -1693,7 +1716,7 @@ mod tests {
         );
         UNDELEGATION_BATCH_MAP.save(
             deps.as_mut().storage,
-            (U64Key::new(2), "sid1"),
+            (U64Key::new(2), U64Key::new(1)),
             &BatchUndelegationRecord {
                 amount: Uint128::new(100_u128),
                 shares: Decimal::from_ratio(1000_u128, 1_u128),
@@ -1706,7 +1729,7 @@ mod tests {
         );
         UNDELEGATION_BATCH_MAP.save(
             deps.as_mut().storage,
-            (U64Key::new(1), "sid1"),
+            (U64Key::new(1), U64Key::new(1)),
             &BatchUndelegationRecord {
                 amount: Uint128::new(100_u128),
                 shares: Decimal::from_ratio(1000_u128, 1_u128),
@@ -1719,7 +1742,7 @@ mod tests {
         );
         UNDELEGATION_BATCH_MAP.save(
             deps.as_mut().storage,
-            (U64Key::new(2), "sid2"),
+            (U64Key::new(2), U64Key::new(2)),
             &BatchUndelegationRecord {
                 amount: Uint128::new(400_u128),
                 shares: Decimal::from_ratio(1000_u128, 1_u128),
@@ -1732,7 +1755,7 @@ mod tests {
         );
         UNDELEGATION_BATCH_MAP.save(
             deps.as_mut().storage,
-            (U64Key::new(3), "sid2"),
+            (U64Key::new(3), U64Key::new(2)),
             &BatchUndelegationRecord {
                 amount: Uint128::new(400_u128),
                 shares: Decimal::from_ratio(1000_u128, 1_u128),
@@ -1745,7 +1768,7 @@ mod tests {
         );
         UNDELEGATION_BATCH_MAP.save(
             deps.as_mut().storage,
-            (U64Key::new(4), "sid2"),
+            (U64Key::new(4), U64Key::new(2)),
             &BatchUndelegationRecord {
                 amount: Uint128::new(400_u128),
                 shares: Decimal::from_ratio(1000_u128, 1_u128),
@@ -1762,7 +1785,7 @@ mod tests {
             env.clone(),
             mock_info("creator", &[]),
             ExecuteMsg::FetchUndelegatedRewardsFromStrategies {
-                strategies: vec!["sid1".to_string(), "sid2".to_string()],
+                strategies: vec![1, 2],
             },
         )
         .unwrap();
@@ -1780,11 +1803,11 @@ mod tests {
                 },
                 Attribute {
                     key: "undelegation_batches_in_unbonding_period".to_string(),
-                    value: "sid1:2,sid2:4".to_string()
+                    value: "1:2,2:4".to_string()
                 },
                 Attribute {
                     key: "undelegation_batches_slashing_checked".to_string(),
-                    value: "sid2:2".to_string()
+                    value: "2:2".to_string()
                 }
             ]
         ));
@@ -1810,14 +1833,18 @@ mod tests {
                 }),
             ]
         ));
-        let sid1_strategy_info = STRATEGY_MAP.load(deps.as_mut().storage, "sid1").unwrap();
-        let sid2_strategy_info = STRATEGY_MAP.load(deps.as_mut().storage, "sid2").unwrap();
+        let sid1_strategy_info = STRATEGY_MAP
+            .load(deps.as_mut().storage, U64Key::new(1))
+            .unwrap();
+        let sid2_strategy_info = STRATEGY_MAP
+            .load(deps.as_mut().storage, U64Key::new(2))
+            .unwrap();
         assert_eq!(sid1_strategy_info.reconciled_batch_id_pointer, 2);
         assert_eq!(sid1_strategy_info.undelegation_batch_id_pointer, 4);
         assert_eq!(sid2_strategy_info.reconciled_batch_id_pointer, 4);
         assert_eq!(sid2_strategy_info.undelegation_batch_id_pointer, 6);
         let sid1_undelegation_batch_opt = UNDELEGATION_BATCH_MAP
-            .may_load(deps.as_mut().storage, (U64Key::new(1), "sid1"))
+            .may_load(deps.as_mut().storage, (U64Key::new(1), U64Key::new(1)))
             .unwrap();
         assert_ne!(sid1_undelegation_batch_opt, None);
         let sid1_undelegation_batch = sid1_undelegation_batch_opt.unwrap();
@@ -1827,7 +1854,7 @@ mod tests {
             Decimal::one()
         );
         let sid2_undelegation_batch_opt = UNDELEGATION_BATCH_MAP
-            .may_load(deps.as_mut().storage, (U64Key::new(3), "sid2"))
+            .may_load(deps.as_mut().storage, (U64Key::new(3), U64Key::new(2)))
             .unwrap();
         assert_ne!(sid2_undelegation_batch_opt, None);
         let sid2_undelegation_batch = sid2_undelegation_batch_opt.unwrap();
@@ -1861,7 +1888,7 @@ mod tests {
             env.clone(),
             mock_info("non-creator", &[]),
             ExecuteMsg::UndelegateFromStrategies {
-                strategies: vec!["sid1".to_string(), "sid2".to_string()],
+                strategies: vec![1, 2],
             },
         )
         .unwrap_err();
@@ -1917,7 +1944,7 @@ mod tests {
 
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid1",
+            U64Key::new(1),
             &StrategyInfo {
                 name: "sid1".to_string(),
                 sic_contract_address: sic1_address.clone(),
@@ -1935,7 +1962,7 @@ mod tests {
         );
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid2",
+            U64Key::new(2),
             &StrategyInfo {
                 name: "sid2".to_string(),
                 sic_contract_address: sic2_address.clone(),
@@ -1953,7 +1980,7 @@ mod tests {
         );
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid3",
+            U64Key::new(3),
             &StrategyInfo {
                 name: "sid3".to_string(),
                 sic_contract_address: sic3_address.clone(),
@@ -1970,13 +1997,13 @@ mod tests {
             },
         );
         let undelegation_batch_sid1_opt = UNDELEGATION_BATCH_MAP
-            .may_load(deps.as_mut().storage, (U64Key::new(4), "sid1"))
+            .may_load(deps.as_mut().storage, (U64Key::new(4), U64Key::new(1)))
             .unwrap();
         let undelegation_batch_sid2_opt = UNDELEGATION_BATCH_MAP
-            .may_load(deps.as_mut().storage, (U64Key::new(4), "sid2"))
+            .may_load(deps.as_mut().storage, (U64Key::new(4), U64Key::new(2)))
             .unwrap();
         let undelegation_batch_sid3_opt = UNDELEGATION_BATCH_MAP
-            .may_load(deps.as_mut().storage, (U64Key::new(4), "sid3"))
+            .may_load(deps.as_mut().storage, (U64Key::new(4), U64Key::new(3)))
             .unwrap();
         assert_eq!(undelegation_batch_sid1_opt, None);
         assert_eq!(undelegation_batch_sid2_opt, None);
@@ -1986,7 +2013,7 @@ mod tests {
             env.clone(),
             mock_info("creator", &[]),
             ExecuteMsg::UndelegateFromStrategies {
-                strategies: vec!["sid1".to_string(), "sid2".to_string(), "sid3".to_string()],
+                strategies: vec![1, 2, 3],
             },
         )
         .unwrap();
@@ -2039,7 +2066,7 @@ mod tests {
             ]
         ));
         let sid1_strategy_info_opt = STRATEGY_MAP
-            .may_load(deps.as_mut().storage, "sid1")
+            .may_load(deps.as_mut().storage, U64Key::new(1))
             .unwrap();
         assert_ne!(sid1_strategy_info_opt, None);
         let sid1_strategy_info = sid1_strategy_info_opt.unwrap();
@@ -2053,7 +2080,7 @@ mod tests {
             Decimal::from_ratio(4000_u128, 1_u128)
         );
         let sid2_strategy_info_opt = STRATEGY_MAP
-            .may_load(deps.as_mut().storage, "sid2")
+            .may_load(deps.as_mut().storage, U64Key::new(2))
             .unwrap();
         assert_ne!(sid2_strategy_info_opt, None);
         let sid2_strategy_info = sid2_strategy_info_opt.unwrap();
@@ -2067,7 +2094,7 @@ mod tests {
             Decimal::from_ratio(3000_u128, 1_u128)
         );
         let sid3_strategy_info_opt = STRATEGY_MAP
-            .may_load(deps.as_mut().storage, "sid3")
+            .may_load(deps.as_mut().storage, U64Key::new(3))
             .unwrap();
         assert_ne!(sid3_strategy_info_opt, None);
         let sid3_strategy_info = sid3_strategy_info_opt.unwrap();
@@ -2082,13 +2109,13 @@ mod tests {
         );
 
         let undelegation_batch_sid1_opt = UNDELEGATION_BATCH_MAP
-            .may_load(deps.as_mut().storage, (U64Key::new(4), "sid1"))
+            .may_load(deps.as_mut().storage, (U64Key::new(4), U64Key::new(1)))
             .unwrap();
         let undelegation_batch_sid2_opt = UNDELEGATION_BATCH_MAP
-            .may_load(deps.as_mut().storage, (U64Key::new(4), "sid2"))
+            .may_load(deps.as_mut().storage, (U64Key::new(4), U64Key::new(2)))
             .unwrap();
         let undelegation_batch_sid3_opt = UNDELEGATION_BATCH_MAP
-            .may_load(deps.as_mut().storage, (U64Key::new(4), "sid3"))
+            .may_load(deps.as_mut().storage, (U64Key::new(4), U64Key::new(3)))
             .unwrap();
         assert_ne!(undelegation_batch_sid1_opt, None);
         assert_ne!(undelegation_batch_sid2_opt, None);
@@ -2147,7 +2174,7 @@ mod tests {
         */
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid1",
+            U64Key::new(1),
             &StrategyInfo {
                 name: "sid1".to_string(),
                 sic_contract_address: sic1_address.clone(),
@@ -2165,7 +2192,7 @@ mod tests {
         );
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid2",
+            U64Key::new(2),
             &StrategyInfo {
                 name: "sid2".to_string(),
                 sic_contract_address: sic2_address.clone(),
@@ -2183,7 +2210,7 @@ mod tests {
         );
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid3",
+            U64Key::new(3),
             &StrategyInfo {
                 name: "sid3".to_string(),
                 sic_contract_address: sic3_address.clone(),
@@ -2204,12 +2231,7 @@ mod tests {
             env.clone(),
             mock_info("creator", &[]),
             ExecuteMsg::UndelegateFromStrategies {
-                strategies: vec![
-                    "sid1".to_string(),
-                    "sid2".to_string(),
-                    "sid3".to_string(),
-                    "sid4".to_string(),
-                ],
+                strategies: vec![1, 2, 3, 4],
             },
         )
         .unwrap();
@@ -2219,7 +2241,7 @@ mod tests {
             vec![
                 Attribute {
                     key: "failed_strategies".to_string(),
-                    value: "sid4".to_string()
+                    value: "4".to_string()
                 },
                 Attribute {
                     key: "strategies_with_no_undelegations".to_string(),
@@ -2262,7 +2284,7 @@ mod tests {
             ]
         ));
         let sid1_strategy_info_opt = STRATEGY_MAP
-            .may_load(deps.as_mut().storage, "sid1")
+            .may_load(deps.as_mut().storage, U64Key::new(1))
             .unwrap();
         assert_ne!(sid1_strategy_info_opt, None);
         let sid1_strategy_info = sid1_strategy_info_opt.unwrap();
@@ -2272,7 +2294,7 @@ mod tests {
             Decimal::zero()
         );
         let sid2_strategy_info_opt = STRATEGY_MAP
-            .may_load(deps.as_mut().storage, "sid2")
+            .may_load(deps.as_mut().storage, U64Key::new(2))
             .unwrap();
         assert_ne!(sid2_strategy_info_opt, None);
         let sid2_strategy_info = sid2_strategy_info_opt.unwrap();
@@ -2282,7 +2304,7 @@ mod tests {
             Decimal::zero()
         );
         let sid3_strategy_info_opt = STRATEGY_MAP
-            .may_load(deps.as_mut().storage, "sid3")
+            .may_load(deps.as_mut().storage, U64Key::new(3))
             .unwrap();
         assert_ne!(sid3_strategy_info_opt, None);
         let sid3_strategy_info = sid3_strategy_info_opt.unwrap();
@@ -2292,13 +2314,13 @@ mod tests {
         );
         assert_eq!(sid3_strategy_info.undelegation_batch_id_pointer, 5);
         let undelegation_batch_sid1_opt = UNDELEGATION_BATCH_MAP
-            .may_load(deps.as_mut().storage, (U64Key::new(4), "sid1"))
+            .may_load(deps.as_mut().storage, (U64Key::new(4), U64Key::new(1)))
             .unwrap();
         let undelegation_batch_sid2_opt = UNDELEGATION_BATCH_MAP
-            .may_load(deps.as_mut().storage, (U64Key::new(4), "sid2"))
+            .may_load(deps.as_mut().storage, (U64Key::new(4), U64Key::new(2)))
             .unwrap();
         let undelegation_batch_sid3_opt = UNDELEGATION_BATCH_MAP
-            .may_load(deps.as_mut().storage, (U64Key::new(4), "sid3"))
+            .may_load(deps.as_mut().storage, (U64Key::new(4), U64Key::new(3)))
             .unwrap();
         assert_ne!(undelegation_batch_sid1_opt, None);
         assert_ne!(undelegation_batch_sid2_opt, None);
@@ -2357,7 +2379,7 @@ mod tests {
         */
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid1",
+            U64Key::new(1),
             &StrategyInfo {
                 name: "sid1".to_string(),
                 sic_contract_address: sic1_address.clone(),
@@ -2375,7 +2397,7 @@ mod tests {
         );
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid2",
+            U64Key::new(2),
             &StrategyInfo {
                 name: "sid2".to_string(),
                 sic_contract_address: sic2_address.clone(),
@@ -2393,7 +2415,7 @@ mod tests {
         );
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid3",
+            U64Key::new(3),
             &StrategyInfo {
                 name: "sid3".to_string(),
                 sic_contract_address: sic3_address.clone(),
@@ -2415,7 +2437,7 @@ mod tests {
             env.clone(),
             mock_info("creator", &[]),
             ExecuteMsg::UndelegateFromStrategies {
-                strategies: vec!["sid1".to_string(), "sid2".to_string(), "sid3".to_string()],
+                strategies: vec![1, 2, 3],
             },
         )
         .unwrap();
@@ -2429,7 +2451,7 @@ mod tests {
                 },
                 Attribute {
                     key: "strategies_with_no_undelegations".to_string(),
-                    value: "sid3".to_string()
+                    value: "3".to_string()
                 },
                 Attribute {
                     key: "failed_sics".to_string(),
@@ -2460,7 +2482,7 @@ mod tests {
             ]
         ));
         let sid1_strategy_info_opt = STRATEGY_MAP
-            .may_load(deps.as_mut().storage, "sid1")
+            .may_load(deps.as_mut().storage, U64Key::new(1))
             .unwrap();
         assert_ne!(sid1_strategy_info_opt, None);
         let sid1_strategy_info = sid1_strategy_info_opt.unwrap();
@@ -2470,7 +2492,7 @@ mod tests {
             Decimal::zero()
         );
         let sid2_strategy_info_opt = STRATEGY_MAP
-            .may_load(deps.as_mut().storage, "sid2")
+            .may_load(deps.as_mut().storage, U64Key::new(2))
             .unwrap();
         assert_ne!(sid2_strategy_info_opt, None);
         let sid2_strategy_info = sid2_strategy_info_opt.unwrap();
@@ -2480,10 +2502,10 @@ mod tests {
             Decimal::zero()
         );
         let undelegation_batch_sid1_opt = UNDELEGATION_BATCH_MAP
-            .may_load(deps.as_mut().storage, (U64Key::new(4), "sid1"))
+            .may_load(deps.as_mut().storage, (U64Key::new(4), U64Key::new(1)))
             .unwrap();
         let undelegation_batch_sid2_opt = UNDELEGATION_BATCH_MAP
-            .may_load(deps.as_mut().storage, (U64Key::new(4), "sid2"))
+            .may_load(deps.as_mut().storage, (U64Key::new(4), U64Key::new(2)))
             .unwrap();
         assert_ne!(undelegation_batch_sid1_opt, None);
         assert_ne!(undelegation_batch_sid2_opt, None);
@@ -2543,7 +2565,7 @@ mod tests {
         */
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid1",
+            U64Key::new(1),
             &StrategyInfo::default("sid1".to_string()),
         );
         let mut err = execute(
@@ -2552,7 +2574,7 @@ mod tests {
             mock_info(user1.as_str(), &[]),
             ExecuteMsg::WithdrawRewards {
                 undelegation_id: "123".to_string(),
-                strategy_name: "sid1".to_string(),
+                strategy_id: 1,
                 amount: Default::default(),
             },
         )
@@ -2564,7 +2586,7 @@ mod tests {
         */
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid1",
+            U64Key::new(1),
             &StrategyInfo::default("sid1".to_string()),
         );
         USER_REWARD_INFO_MAP.save(deps.as_mut().storage, &user1, &UserRewardInfo::default());
@@ -2574,7 +2596,7 @@ mod tests {
             mock_info(user1.as_str(), &[]),
             ExecuteMsg::WithdrawRewards {
                 undelegation_id: "123".to_string(),
-                strategy_name: "sid1".to_string(),
+                strategy_id: 1,
                 amount: Default::default(),
             },
         )
@@ -2586,7 +2608,7 @@ mod tests {
         */
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid1",
+            U64Key::new(1),
             &StrategyInfo::default("sid1".to_string()),
         );
         USER_REWARD_INFO_MAP.save(
@@ -2595,7 +2617,7 @@ mod tests {
             &UserRewardInfo {
                 user_portfolio: vec![],
                 strategies: vec![UserStrategyInfo {
-                    strategy_name: "sid1".to_string(),
+                    strategy_id: 1,
                     shares: Decimal::from_ratio(1000_u128, 1_u128),
                     airdrop_pointer: vec![],
                 }],
@@ -2605,7 +2627,7 @@ mod tests {
                     est_release_time: Default::default(),
                     amount: Uint128::new(100_u128),
                     shares: Default::default(),
-                    strategy_name: "sid1".to_string(),
+                    strategy_id: 1,
                     undelegation_batch_id: 3,
                 }],
                 pending_rewards: Uint128::zero(),
@@ -2617,7 +2639,7 @@ mod tests {
             mock_info(user1.as_str(), &[]),
             ExecuteMsg::WithdrawRewards {
                 undelegation_id: "123000000000".to_string(),
-                strategy_name: "sid1".to_string(),
+                strategy_id: 1,
                 amount: Uint128::new(100_u128),
             },
         )
@@ -2629,7 +2651,7 @@ mod tests {
         */
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid1",
+            U64Key::new(1),
             &StrategyInfo::default("sid1".to_string()),
         );
         USER_REWARD_INFO_MAP.save(
@@ -2638,7 +2660,7 @@ mod tests {
             &UserRewardInfo {
                 user_portfolio: vec![],
                 strategies: vec![UserStrategyInfo {
-                    strategy_name: "sid1".to_string(),
+                    strategy_id: 1,
                     shares: Decimal::from_ratio(1000_u128, 1_u128),
                     airdrop_pointer: vec![],
                 }],
@@ -2648,7 +2670,7 @@ mod tests {
                     est_release_time: env.block.time.plus_seconds(5000),
                     amount: Uint128::new(100_u128),
                     shares: Default::default(),
-                    strategy_name: "sid1".to_string(),
+                    strategy_id: 1,
                     undelegation_batch_id: 3,
                 }],
                 pending_rewards: Uint128::zero(),
@@ -2656,7 +2678,7 @@ mod tests {
         );
         UNDELEGATION_BATCH_MAP.save(
             deps.as_mut().storage,
-            (U64Key::new(3), "sid1"),
+            (U64Key::new(3), U64Key::new(1)),
             &BatchUndelegationRecord {
                 amount: Uint128::new(400_u128),
                 shares: Default::default(),
@@ -2673,7 +2695,7 @@ mod tests {
             mock_info(user1.as_str(), &[]),
             ExecuteMsg::WithdrawRewards {
                 undelegation_id: "123000000000".to_string(),
-                strategy_name: "sid1".to_string(),
+                strategy_id: 1,
                 amount: Uint128::new(100_u128),
             },
         )
@@ -2688,7 +2710,7 @@ mod tests {
         */
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid1",
+            U64Key::new(1),
             &StrategyInfo::default("sid1".to_string()),
         );
         USER_REWARD_INFO_MAP.save(
@@ -2697,7 +2719,7 @@ mod tests {
             &UserRewardInfo {
                 user_portfolio: vec![],
                 strategies: vec![UserStrategyInfo {
-                    strategy_name: "sid1".to_string(),
+                    strategy_id: 1,
                     shares: Decimal::from_ratio(1000_u128, 1_u128),
                     airdrop_pointer: vec![],
                 }],
@@ -2707,7 +2729,7 @@ mod tests {
                     est_release_time: Timestamp::from_seconds(126),
                     amount: Uint128::new(100_u128),
                     shares: Default::default(),
-                    strategy_name: "sid1".to_string(),
+                    strategy_id: 1,
                     undelegation_batch_id: 3,
                 }],
                 pending_rewards: Uint128::zero(),
@@ -2715,7 +2737,7 @@ mod tests {
         );
         UNDELEGATION_BATCH_MAP.save(
             deps.as_mut().storage,
-            (U64Key::new(3), "sid1"),
+            (U64Key::new(3), U64Key::new(1)),
             &BatchUndelegationRecord {
                 amount: Uint128::new(400_u128),
                 shares: Default::default(),
@@ -2732,7 +2754,7 @@ mod tests {
             mock_info(user1.as_str(), &[]),
             ExecuteMsg::WithdrawRewards {
                 undelegation_id: "123000000000".to_string(),
-                strategy_name: "sid1".to_string(),
+                strategy_id: 1,
                 amount: Uint128::new(100_u128),
             },
         )
@@ -2763,7 +2785,7 @@ mod tests {
         */
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid1",
+            U64Key::new(1),
             &StrategyInfo::new("sid1".to_string(), sic1_address.clone(), None, None),
         );
         USER_REWARD_INFO_MAP.save(
@@ -2772,7 +2794,7 @@ mod tests {
             &UserRewardInfo {
                 user_portfolio: vec![],
                 strategies: vec![UserStrategyInfo {
-                    strategy_name: "sid1".to_string(),
+                    strategy_id: 1,
                     shares: Decimal::from_ratio(5000_u128, 1_u128),
                     airdrop_pointer: vec![],
                 }],
@@ -2782,7 +2804,7 @@ mod tests {
                     est_release_time: Timestamp::from_seconds(126),
                     amount: Uint128::new(100_u128),
                     shares: Decimal::from_ratio(1000_u128, 1_u128),
-                    strategy_name: "sid1".to_string(),
+                    strategy_id: 1,
                     undelegation_batch_id: 5,
                 }],
                 pending_rewards: Uint128::zero(),
@@ -2790,7 +2812,7 @@ mod tests {
         );
         UNDELEGATION_BATCH_MAP.save(
             deps.as_mut().storage,
-            (U64Key::new(5), "sid1"),
+            (U64Key::new(5), U64Key::new(1)),
             &BatchUndelegationRecord {
                 amount: Uint128::new(400_u128),
                 shares: Decimal::from_ratio(4000_u128, 1_u128),
@@ -2807,7 +2829,7 @@ mod tests {
             mock_info(user1.as_str(), &[]),
             ExecuteMsg::WithdrawRewards {
                 undelegation_id: "123000000000".to_string(),
-                strategy_name: "sid1".to_string(),
+                strategy_id: 1,
                 amount: Uint128::new(100_u128),
             },
         )
@@ -2836,7 +2858,7 @@ mod tests {
         */
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid1",
+            U64Key::new(1),
             &StrategyInfo::new("sid1".to_string(), sic1_address.clone(), None, None),
         );
         USER_REWARD_INFO_MAP.save(
@@ -2846,12 +2868,12 @@ mod tests {
                 user_portfolio: vec![],
                 strategies: vec![
                     UserStrategyInfo {
-                        strategy_name: "sid1".to_string(),
+                        strategy_id: 1,
                         shares: Decimal::from_ratio(5000_u128, 1_u128),
                         airdrop_pointer: vec![],
                     },
                     UserStrategyInfo {
-                        strategy_name: "sid2".to_string(),
+                        strategy_id: 2,
                         shares: Decimal::from_ratio(5000_u128, 1_u128),
                         airdrop_pointer: vec![],
                     },
@@ -2863,7 +2885,7 @@ mod tests {
                         est_release_time: Default::default(),
                         amount: Uint128::new(100_u128),
                         shares: Decimal::from_ratio(1000_u128, 1_u128),
-                        strategy_name: "sid1".to_string(),
+                        strategy_id: 1,
                         undelegation_batch_id: 5,
                     },
                     UserUndelegationRecord {
@@ -2871,7 +2893,7 @@ mod tests {
                         est_release_time: Timestamp::from_seconds(130),
                         amount: Uint128::new(100_u128),
                         shares: Decimal::from_ratio(1000_u128, 1_u128),
-                        strategy_name: "sid2".to_string(),
+                        strategy_id: 2,
                         undelegation_batch_id: 6,
                     },
                 ],
@@ -2880,7 +2902,7 @@ mod tests {
         );
         UNDELEGATION_BATCH_MAP.save(
             deps.as_mut().storage,
-            (U64Key::new(5), "sid1"),
+            (U64Key::new(5), U64Key::new(1)),
             &BatchUndelegationRecord {
                 amount: Uint128::new(400_u128),
                 shares: Decimal::from_ratio(4000_u128, 1_u128),
@@ -2897,7 +2919,7 @@ mod tests {
             mock_info(user1.as_str(), &[]),
             ExecuteMsg::WithdrawRewards {
                 undelegation_id: "123000000000".to_string(),
-                strategy_name: "sid1".to_string(),
+                strategy_id: 1,
                 amount: Uint128::new(100_u128),
             },
         )
@@ -2927,7 +2949,7 @@ mod tests {
                 est_release_time: Timestamp::from_seconds(130),
                 amount: Uint128::new(100_u128),
                 shares: Decimal::from_ratio(1000_u128, 1_u128),
-                strategy_name: "sid2".to_string(),
+                strategy_id: 2,
                 undelegation_batch_id: 6,
             }]
         ));
@@ -2960,7 +2982,7 @@ mod tests {
             mock_info(user1.as_str(), &[]),
             ExecuteMsg::UndelegateRewards {
                 amount: Uint128::zero(),
-                strategy_name: "sid1".to_string(),
+                strategy_id: 1,
             },
         )
         .unwrap_err();
@@ -2975,7 +2997,7 @@ mod tests {
             mock_info(user1.as_str(), &[]),
             ExecuteMsg::UndelegateRewards {
                 amount: Uint128::new(100_u128),
-                strategy_name: "sid1".to_string(),
+                strategy_id: 1,
             },
         )
         .unwrap_err();
@@ -2986,7 +3008,7 @@ mod tests {
         */
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid1",
+            U64Key::new(1),
             &StrategyInfo::default("sid1".to_string()),
         );
         let mut err = execute(
@@ -2995,7 +3017,7 @@ mod tests {
             mock_info(user1.as_str(), &[]),
             ExecuteMsg::UndelegateRewards {
                 amount: Uint128::new(100_u128),
-                strategy_name: "sid1".to_string(),
+                strategy_id: 1,
             },
         )
         .unwrap_err();
@@ -3006,7 +3028,7 @@ mod tests {
         */
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid1",
+            U64Key::new(1),
             &StrategyInfo::default("sid1".to_string()),
         );
         USER_REWARD_INFO_MAP.save(deps.as_mut().storage, &user1, &UserRewardInfo::default());
@@ -3016,7 +3038,7 @@ mod tests {
             mock_info(user1.as_str(), &[]),
             ExecuteMsg::UndelegateRewards {
                 amount: Uint128::new(100_u128),
-                strategy_name: "sid1".to_string(),
+                strategy_id: 1,
             },
         )
         .unwrap_err();
@@ -3031,9 +3053,9 @@ mod tests {
 
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid1",
+            U64Key::new(1),
             &StrategyInfo {
-                name: "".to_string(),
+                name: "sid1".to_string(),
                 sic_contract_address: sic1_address.clone(),
                 unbonding_period: 3600,
                 unbonding_buffer: 3600,
@@ -3053,7 +3075,7 @@ mod tests {
             &UserRewardInfo {
                 user_portfolio: vec![],
                 strategies: vec![UserStrategyInfo {
-                    strategy_name: "sid1".to_string(),
+                    strategy_id: 1,
                     shares: Decimal::from_ratio(3000_u128, 1_u128),
                     airdrop_pointer: vec![],
                 }],
@@ -3069,7 +3091,7 @@ mod tests {
             mock_info(user1.as_str(), &[]),
             ExecuteMsg::UndelegateRewards {
                 amount: Uint128::new(400_u128),
-                strategy_name: "sid1".to_string(),
+                strategy_id: 1,
             },
         )
         .unwrap_err();
@@ -3107,9 +3129,9 @@ mod tests {
 
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid1",
+            U64Key::new(1),
             &StrategyInfo {
-                name: "".to_string(),
+                name: "sid1".to_string(),
                 sic_contract_address: sic1_address.clone(),
                 unbonding_period: 3600,
                 unbonding_buffer: 3600,
@@ -3132,7 +3154,7 @@ mod tests {
             &UserRewardInfo {
                 user_portfolio: vec![],
                 strategies: vec![UserStrategyInfo {
-                    strategy_name: "sid1".to_string(),
+                    strategy_id: 1,
                     shares: Decimal::from_ratio(3000_u128, 1_u128),
                     airdrop_pointer: vec![],
                 }],
@@ -3148,12 +3170,12 @@ mod tests {
             mock_info(user1.as_str(), &[]),
             ExecuteMsg::UndelegateRewards {
                 amount: Uint128::new(200_u128),
-                strategy_name: "sid1".to_string(),
+                strategy_id: 1,
             },
         )
         .unwrap();
         let sid1_strategy_info_opt = STRATEGY_MAP
-            .may_load(deps.as_mut().storage, "sid1")
+            .may_load(deps.as_mut().storage, U64Key::new(1))
             .unwrap();
         assert_ne!(sid1_strategy_info_opt, None);
         let sid1_strategy_info = sid1_strategy_info_opt.unwrap();
@@ -3170,7 +3192,7 @@ mod tests {
         assert!(check_equal_vec(
             user1_reward_info.strategies,
             vec![UserStrategyInfo {
-                strategy_name: "sid1".to_string(),
+                strategy_id: 1,
                 shares: Decimal::from_ratio(1000_u128, 1_u128),
                 airdrop_pointer: vec![
                     DecCoin::new(Decimal::from_ratio(200_u128, 5000_u128), "anc".to_string()),
@@ -3192,7 +3214,7 @@ mod tests {
                 est_release_time: env.block.time.plus_seconds(3600 + 3600),
                 amount: Uint128::new(200_u128),
                 shares: Decimal::from_ratio(2000_u128, 1_u128),
-                strategy_name: "sid1".to_string(),
+                strategy_id: 1,
                 undelegation_batch_id: 0
             }]
         ));
@@ -3202,9 +3224,9 @@ mod tests {
         */
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid1",
+            U64Key::new(1),
             &StrategyInfo {
-                name: "".to_string(),
+                name: "sid1".to_string(),
                 sic_contract_address: sic1_address.clone(),
                 unbonding_period: 3600,
                 unbonding_buffer: 3600,
@@ -3227,7 +3249,7 @@ mod tests {
             &UserRewardInfo {
                 user_portfolio: vec![],
                 strategies: vec![UserStrategyInfo {
-                    strategy_name: "sid1".to_string(),
+                    strategy_id: 1,
                     shares: Decimal::from_ratio(1000_u128, 1_u128),
                     airdrop_pointer: vec![
                         DecCoin::new(Decimal::from_ratio(200_u128, 5000_u128), "anc".to_string()),
@@ -3243,7 +3265,7 @@ mod tests {
                     est_release_time: env.block.time.plus_seconds(3600 + 3600),
                     amount: Uint128::new(200_u128),
                     shares: Decimal::from_ratio(2000_u128, 1_u128),
-                    strategy_name: "sid1".to_string(),
+                    strategy_id: 1,
                     undelegation_batch_id: 0,
                 }],
                 pending_rewards: Uint128::zero(),
@@ -3256,12 +3278,12 @@ mod tests {
             mock_info(user1.as_str(), &[]),
             ExecuteMsg::UndelegateRewards {
                 amount: Uint128::new(50_u128),
-                strategy_name: "sid1".to_string(),
+                strategy_id: 1,
             },
         )
         .unwrap();
         let sid1_strategy_info_opt = STRATEGY_MAP
-            .may_load(deps.as_mut().storage, "sid1")
+            .may_load(deps.as_mut().storage, U64Key::new(1))
             .unwrap();
         assert_ne!(sid1_strategy_info_opt, None);
         let sid1_strategy_info = sid1_strategy_info_opt.unwrap();
@@ -3278,7 +3300,7 @@ mod tests {
         assert!(check_equal_vec(
             user1_reward_info.strategies,
             vec![UserStrategyInfo {
-                strategy_name: "sid1".to_string(),
+                strategy_id: 1,
                 shares: Decimal::from_ratio(500_u128, 1_u128),
                 airdrop_pointer: vec![
                     DecCoin::new(Decimal::from_ratio(200_u128, 5000_u128), "anc".to_string()),
@@ -3301,7 +3323,7 @@ mod tests {
                     est_release_time: env.block.time.plus_seconds(3600 + 3600),
                     amount: Uint128::new(200_u128),
                     shares: Decimal::from_ratio(2000_u128, 1_u128),
-                    strategy_name: "sid1".to_string(),
+                    strategy_id: 1,
                     undelegation_batch_id: 0
                 },
                 UserUndelegationRecord {
@@ -3309,7 +3331,7 @@ mod tests {
                     est_release_time: env.block.time.plus_seconds(3600 + 3600),
                     amount: Uint128::new(50_u128),
                     shares: Decimal::from_ratio(500_u128, 1_u128),
-                    strategy_name: "sid1".to_string(),
+                    strategy_id: 1,
                     undelegation_batch_id: 0
                 },
             ]
@@ -3343,7 +3365,7 @@ mod tests {
             env.clone(),
             mock_info("not-creator", &[]),
             ExecuteMsg::ClaimAirdrops {
-                strategy_name: "sid".to_string(),
+                strategy_id: 1,
                 amount: Uint128::new(100_u128),
                 denom: "anc".to_string(),
                 claim_msg: get_airdrop_claim_msg(),
@@ -3360,7 +3382,7 @@ mod tests {
             env.clone(),
             mock_info("creator", &[]),
             ExecuteMsg::ClaimAirdrops {
-                strategy_name: "sid".to_string(),
+                strategy_id: 1,
                 amount: Uint128::new(100_u128),
                 denom: "anc".to_string(),
                 claim_msg: get_airdrop_claim_msg(),
@@ -3386,7 +3408,7 @@ mod tests {
             env.clone(),
             mock_info("creator", &[]),
             ExecuteMsg::ClaimAirdrops {
-                strategy_name: "sid".to_string(),
+                strategy_id: 1,
                 amount: Uint128::new(100_u128),
                 denom: "anc".to_string(),
                 claim_msg: get_airdrop_claim_msg(),
@@ -3443,16 +3465,16 @@ mod tests {
            Test - 1. Claiming airdrops from the sic for the first time
         */
         let mut strategy_info =
-            StrategyInfo::new("sid".to_string(), sic_contract.clone(), None, None);
+            StrategyInfo::new("sid1".to_string(), sic_contract.clone(), None, None);
         strategy_info.total_shares = Decimal::from_ratio(100_000_000_u128, 1_u128);
-        STRATEGY_MAP.save(deps.as_mut().storage, "sid", &strategy_info);
+        STRATEGY_MAP.save(deps.as_mut().storage, U64Key::new(1), &strategy_info);
 
         let res = execute(
             deps.as_mut(),
             env.clone(),
             mock_info("creator", &[]),
             ExecuteMsg::ClaimAirdrops {
-                strategy_name: "sid".to_string(),
+                strategy_id: 1,
                 amount: Uint128::new(100_u128),
                 denom: "anc".to_string(),
                 claim_msg: get_airdrop_claim_msg(),
@@ -3487,7 +3509,9 @@ mod tests {
             vec![Coin::new(100_u128, "anc".to_string())]
         );
 
-        let strategy_info_opt = STRATEGY_MAP.may_load(deps.as_mut().storage, "sid").unwrap();
+        let strategy_info_opt = STRATEGY_MAP
+            .may_load(deps.as_mut().storage, U64Key::new(1))
+            .unwrap();
         assert_ne!(strategy_info_opt, None);
         let strategy_info = strategy_info_opt.unwrap();
         assert_eq!(
@@ -3506,7 +3530,7 @@ mod tests {
             Test - 2. Claiming airdrops a mir airdrop with anc airdrop
         */
         let mut strategy_info =
-            StrategyInfo::new("sid".to_string(), sic_contract.clone(), None, None);
+            StrategyInfo::new("sid1".to_string(), sic_contract.clone(), None, None);
         strategy_info.total_shares = Decimal::from_ratio(100_000_000_u128, 1_u128);
         strategy_info.global_airdrop_pointer = vec![DecCoin::new(
             Decimal::from_ratio(100_u128, 100_000_000_u128),
@@ -3514,7 +3538,7 @@ mod tests {
         )];
         strategy_info.total_airdrops_accumulated = vec![Coin::new(100_u128, "anc".to_string())];
 
-        STRATEGY_MAP.save(deps.as_mut().storage, "sid", &strategy_info);
+        STRATEGY_MAP.save(deps.as_mut().storage, U64Key::new(1), &strategy_info);
 
         STATE.update(
             deps.as_mut().storage,
@@ -3532,7 +3556,7 @@ mod tests {
             env.clone(),
             mock_info("creator", &[]),
             ExecuteMsg::ClaimAirdrops {
-                strategy_name: "sid".to_string(),
+                strategy_id: 1,
                 amount: Uint128::new(100_u128),
                 denom: "mir".to_string(),
                 claim_msg: get_airdrop_claim_msg(),
@@ -3570,7 +3594,9 @@ mod tests {
             ]
         ));
 
-        let strategy_info_opt = STRATEGY_MAP.may_load(deps.as_mut().storage, "sid").unwrap();
+        let strategy_info_opt = STRATEGY_MAP
+            .may_load(deps.as_mut().storage, U64Key::new(1))
+            .unwrap();
         assert_ne!(strategy_info_opt, None);
         let strategy_info = strategy_info_opt.unwrap();
         assert!(check_equal_vec(
@@ -3667,7 +3693,7 @@ mod tests {
 
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid1",
+            U64Key::new(1),
             &StrategyInfo {
                 name: "sid1".to_string(),
                 sic_contract_address: sic1_address.clone(),
@@ -3696,7 +3722,7 @@ mod tests {
             &UserRewardInfo {
                 user_portfolio: vec![],
                 strategies: vec![UserStrategyInfo {
-                    strategy_name: "sid1".to_string(),
+                    strategy_id: 1,
                     shares: Decimal::from_ratio(5000_u128, 1_u128),
                     airdrop_pointer: vec![],
                 }],
@@ -3781,7 +3807,7 @@ mod tests {
 
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid1",
+            U64Key::new(1),
             &StrategyInfo {
                 name: "sid1".to_string(),
                 sic_contract_address: sic1_address,
@@ -3812,7 +3838,7 @@ mod tests {
             &UserRewardInfo {
                 user_portfolio: vec![],
                 strategies: vec![UserStrategyInfo {
-                    strategy_name: "sid1".to_string(),
+                    strategy_id: 1,
                     shares: Decimal::from_ratio(5000_u128, 1_u128),
                     airdrop_pointer: vec![],
                 }],
@@ -4024,7 +4050,7 @@ mod tests {
             mock_info("not-creator", &[]),
             ExecuteMsg::UpdateUserPortfolio {
                 user_portfolio: vec![UserStrategyPortfolio {
-                    strategy_name: "sid".to_string(),
+                    strategy_id: 1,
                     deposit_fraction: Decimal::one(),
                 }],
             },
@@ -4041,11 +4067,11 @@ mod tests {
             &UserRewardInfo {
                 user_portfolio: vec![
                     UserStrategyPortfolio {
-                        strategy_name: "sid1".to_string(),
+                        strategy_id: 1,
                         deposit_fraction: Decimal::from_ratio(1_u128, 2_u128),
                     },
                     UserStrategyPortfolio {
-                        strategy_name: "sid2".to_string(),
+                        strategy_id: 2,
                         deposit_fraction: Decimal::from_ratio(1_u128, 4_u128),
                     },
                 ],
@@ -4057,8 +4083,8 @@ mod tests {
         );
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid3",
-            &StrategyInfo::default("sid3".parse().unwrap()),
+            U64Key::new(3),
+            &StrategyInfo::default("sid3".to_string()),
         );
         let err = execute(
             deps.as_mut(),
@@ -4066,7 +4092,7 @@ mod tests {
             mock_info("user1", &[]),
             ExecuteMsg::UpdateUserPortfolio {
                 user_portfolio: vec![UserStrategyPortfolio {
-                    strategy_name: "sid3".to_string(),
+                    strategy_id: 3,
                     deposit_fraction: Decimal::from_ratio(4_u128, 3_u128),
                 }],
             },
@@ -4086,11 +4112,11 @@ mod tests {
             &UserRewardInfo {
                 user_portfolio: vec![
                     UserStrategyPortfolio {
-                        strategy_name: "sid1".to_string(),
+                        strategy_id: 1,
                         deposit_fraction: Decimal::from_ratio(1_u128, 2_u128),
                     },
                     UserStrategyPortfolio {
-                        strategy_name: "sid2".to_string(),
+                        strategy_id: 2,
                         deposit_fraction: Decimal::from_ratio(1_u128, 4_u128),
                     },
                 ],
@@ -4102,13 +4128,13 @@ mod tests {
         );
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid1",
-            &StrategyInfo::default("sid2".parse().unwrap()),
+            U64Key::new(1),
+            &StrategyInfo::default("sid1".to_string()),
         );
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid2",
-            &StrategyInfo::default("sid2".parse().unwrap()),
+            U64Key::new(2),
+            &StrategyInfo::default("sid2".to_string()),
         );
         let err = execute(
             deps.as_mut(),
@@ -4117,11 +4143,11 @@ mod tests {
             ExecuteMsg::UpdateUserPortfolio {
                 user_portfolio: vec![
                     UserStrategyPortfolio {
-                        strategy_name: "sid1".to_string(),
+                        strategy_id: 1,
                         deposit_fraction: Decimal::from_ratio(1_u128, 2_u128),
                     },
                     UserStrategyPortfolio {
-                        strategy_name: "sid2".to_string(),
+                        strategy_id: 2,
                         deposit_fraction: Decimal::from_ratio(3_u128, 4_u128),
                     },
                 ],
@@ -4156,12 +4182,12 @@ mod tests {
         */
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid1",
-            &StrategyInfo::default("sid1".parse().unwrap()),
+            U64Key::new(1),
+            &StrategyInfo::default("sid1".to_string()),
         );
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid2",
+            U64Key::new(2),
             &StrategyInfo::default("sid2".to_string()),
         );
         USER_REWARD_INFO_MAP.save(
@@ -4169,7 +4195,7 @@ mod tests {
             &user1,
             &UserRewardInfo {
                 user_portfolio: vec![UserStrategyPortfolio {
-                    strategy_name: "sid1".to_string(),
+                    strategy_id: 1,
                     deposit_fraction: Decimal::from_ratio(1_u128, 2_u128),
                 }],
                 strategies: vec![],
@@ -4185,11 +4211,11 @@ mod tests {
             ExecuteMsg::UpdateUserPortfolio {
                 user_portfolio: vec![
                     UserStrategyPortfolio {
-                        strategy_name: "sid1".to_string(),
+                        strategy_id: 1,
                         deposit_fraction: Decimal::from_ratio(1_u128, 2_u128),
                     },
                     UserStrategyPortfolio {
-                        strategy_name: "sid2".to_string(),
+                        strategy_id: 2,
                         deposit_fraction: Decimal::from_ratio(1_u128, 4_u128),
                     },
                 ],
@@ -4205,11 +4231,11 @@ mod tests {
             user_reward_info.user_portfolio,
             vec![
                 UserStrategyPortfolio {
-                    strategy_name: "sid1".to_string(),
+                    strategy_id: 1,
                     deposit_fraction: Decimal::from_ratio(1_u128, 2_u128),
                 },
                 UserStrategyPortfolio {
-                    strategy_name: "sid2".to_string(),
+                    strategy_id: 2,
                     deposit_fraction: Decimal::from_ratio(1_u128, 4_u128),
                 },
             ]
@@ -4284,7 +4310,7 @@ mod tests {
                 update_user_rewards_requests: vec![UpdateUserRewardsRequest {
                     user: user1.clone(),
                     funds: Uint128::new(0_u128),
-                    strategy_name: None,
+                    strategy_id: None,
                 }],
             },
         )
@@ -4324,7 +4350,7 @@ mod tests {
                 update_user_rewards_requests: vec![UpdateUserRewardsRequest {
                     user: user1.clone(),
                     funds: Uint128::new(100_u128),
-                    strategy_name: Some("sid1".to_string()),
+                    strategy_id: Some(1),
                 }],
             },
         )
@@ -4336,7 +4362,7 @@ mod tests {
             vec![
                 Attribute {
                     key: "failed_strategies".to_string(),
-                    value: "sid1".to_string()
+                    value: "1".to_string()
                 },
                 Attribute {
                     key: "inactive_strategies".to_string(),
@@ -4358,7 +4384,7 @@ mod tests {
         */
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid1",
+            U64Key::new(1),
             &StrategyInfo {
                 name: "sid1".to_string(),
                 sic_contract_address: sic1_address,
@@ -4383,7 +4409,7 @@ mod tests {
                 update_user_rewards_requests: vec![UpdateUserRewardsRequest {
                     user: user1.clone(),
                     funds: Uint128::new(100_u128),
-                    strategy_name: Some("sid1".to_string()),
+                    strategy_id: Some(1),
                 }],
             },
         )
@@ -4399,7 +4425,7 @@ mod tests {
                 },
                 Attribute {
                     key: "inactive_strategies".to_string(),
-                    value: "sid1".to_string()
+                    value: "1".to_string()
                 },
                 Attribute {
                     key: "users_with_zero_deposits".to_string(),
@@ -4444,7 +4470,7 @@ mod tests {
 
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid1",
+            U64Key::new(1),
             &StrategyInfo {
                 name: "sid1".to_string(),
                 sic_contract_address: sic1_address.clone(),
@@ -4468,7 +4494,7 @@ mod tests {
                 update_user_rewards_requests: vec![UpdateUserRewardsRequest {
                     user: user1.clone(),
                     funds: Uint128::new(100_u128),
-                    strategy_name: Some("sid1".to_string()),
+                    strategy_id: Some(1),
                 }],
             },
         )
@@ -4483,7 +4509,7 @@ mod tests {
             })]
         ));
         let sid1_strategy_opt = STRATEGY_MAP
-            .may_load(deps.as_mut().storage, "sid1")
+            .may_load(deps.as_mut().storage, U64Key::new(1))
             .unwrap();
         assert_ne!(sid1_strategy_opt, None);
         let sid1_strategy = sid1_strategy_opt.unwrap();
@@ -4503,7 +4529,7 @@ mod tests {
         assert!(check_equal_user_strategies(
             user1_reward_info.strategies,
             vec![UserStrategyInfo {
-                strategy_name: "sid1".to_string(),
+                strategy_id: 1,
                 shares: Decimal::from_ratio(1000_u128, 1_u128),
                 airdrop_pointer: vec![]
             }]
@@ -4534,7 +4560,7 @@ mod tests {
         );
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid1",
+            U64Key::new(1),
             &StrategyInfo {
                 name: "sid1".to_string(),
                 sic_contract_address: sic1_address.clone(),
@@ -4558,7 +4584,7 @@ mod tests {
         );
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid2",
+            U64Key::new(2),
             &StrategyInfo {
                 name: "sid2".to_string(),
                 sic_contract_address: sic2_address.clone(),
@@ -4576,7 +4602,7 @@ mod tests {
         );
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid3",
+            U64Key::new(3),
             &StrategyInfo {
                 name: "sid3".to_string(),
                 sic_contract_address: sic3_address.clone(),
@@ -4601,31 +4627,31 @@ mod tests {
             &UserRewardInfo {
                 user_portfolio: vec![
                     UserStrategyPortfolio {
-                        strategy_name: "sid1".to_string(),
+                        strategy_id: 1,
                         deposit_fraction: Decimal::from_ratio(1_u128, 2_u128),
                     },
                     UserStrategyPortfolio {
-                        strategy_name: "sid2".to_string(),
+                        strategy_id: 2,
                         deposit_fraction: Decimal::from_ratio(1_u128, 4_u128),
                     },
                     UserStrategyPortfolio {
-                        strategy_name: "sid3".to_string(),
+                        strategy_id: 3,
                         deposit_fraction: Decimal::from_ratio(1_u128, 4_u128),
                     },
                 ],
                 strategies: vec![
                     UserStrategyInfo {
-                        strategy_name: "sid1".to_string(),
+                        strategy_id: 1,
                         shares: Decimal::from_ratio(2000_u128, 1_u128),
                         airdrop_pointer: vec![],
                     },
                     UserStrategyInfo {
-                        strategy_name: "sid2".to_string(),
+                        strategy_id: 2,
                         shares: Decimal::from_ratio(3000_u128, 1_u128),
                         airdrop_pointer: vec![],
                     },
                     UserStrategyInfo {
-                        strategy_name: "sid3".to_string(),
+                        strategy_id: 3,
                         shares: Decimal::from_ratio(500_u128, 1_u128),
                         airdrop_pointer: vec![],
                     },
@@ -4646,7 +4672,7 @@ mod tests {
                 update_user_rewards_requests: vec![UpdateUserRewardsRequest {
                     user: user1.clone(),
                     funds: Uint128::new(500_u128),
-                    strategy_name: Some("sid3".to_string()),
+                    strategy_id: Some(3),
                 }],
             },
         )
@@ -4661,7 +4687,7 @@ mod tests {
             })]
         ));
         let sid3_strategy_opt = STRATEGY_MAP
-            .may_load(deps.as_mut().storage, "sid3")
+            .may_load(deps.as_mut().storage, U64Key::new(3))
             .unwrap();
         assert_ne!(sid3_strategy_opt, None);
         let sid3_strategy = sid3_strategy_opt.unwrap();
@@ -4682,17 +4708,17 @@ mod tests {
             user1_reward_info.strategies,
             vec![
                 UserStrategyInfo {
-                    strategy_name: "sid1".to_string(),
+                    strategy_id: 1,
                     shares: Decimal::from_ratio(2000_u128, 1_u128),
                     airdrop_pointer: vec![]
                 },
                 UserStrategyInfo {
-                    strategy_name: "sid2".to_string(),
+                    strategy_id: 2,
                     shares: Decimal::from_ratio(3000_u128, 1_u128),
                     airdrop_pointer: vec![]
                 },
                 UserStrategyInfo {
-                    strategy_name: "sid3".to_string(),
+                    strategy_id: 3,
                     shares: Decimal::from_ratio(5500_u128, 1_u128),
                     airdrop_pointer: vec![
                         DecCoin::new(Decimal::from_ratio(200_u128, 3000_u128), "anc".to_string()),
@@ -4707,15 +4733,15 @@ mod tests {
             user1_reward_info.user_portfolio,
             vec![
                 UserStrategyPortfolio {
-                    strategy_name: "sid1".to_string(),
+                    strategy_id: 1,
                     deposit_fraction: Decimal::from_ratio(1_u128, 2_u128)
                 },
                 UserStrategyPortfolio {
-                    strategy_name: "sid2".to_string(),
+                    strategy_id: 2,
                     deposit_fraction: Decimal::from_ratio(1_u128, 4_u128)
                 },
                 UserStrategyPortfolio {
-                    strategy_name: "sid3".to_string(),
+                    strategy_id: 3,
                     deposit_fraction: Decimal::from_ratio(1_u128, 4_u128)
                 },
             ]
@@ -4751,7 +4777,7 @@ mod tests {
         );
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid1",
+            U64Key::new(1),
             &StrategyInfo {
                 name: "sid1".to_string(),
                 sic_contract_address: sic1_address.clone(),
@@ -4775,7 +4801,7 @@ mod tests {
         );
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid2",
+            U64Key::new(2),
             &StrategyInfo {
                 name: "sid2".to_string(),
                 sic_contract_address: sic2_address.clone(),
@@ -4793,7 +4819,7 @@ mod tests {
         );
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid3",
+            U64Key::new(3),
             &StrategyInfo {
                 name: "sid3".to_string(),
                 sic_contract_address: sic3_address.clone(),
@@ -4818,31 +4844,31 @@ mod tests {
             &UserRewardInfo {
                 user_portfolio: vec![
                     UserStrategyPortfolio {
-                        strategy_name: "sid1".to_string(),
+                        strategy_id: 1,
                         deposit_fraction: Decimal::from_ratio(1_u128, 2_u128),
                     },
                     UserStrategyPortfolio {
-                        strategy_name: "sid2".to_string(),
+                        strategy_id: 2,
                         deposit_fraction: Decimal::from_ratio(1_u128, 4_u128),
                     },
                     UserStrategyPortfolio {
-                        strategy_name: "sid3".to_string(),
+                        strategy_id: 3,
                         deposit_fraction: Decimal::from_ratio(1_u128, 4_u128),
                     },
                 ],
                 strategies: vec![
                     UserStrategyInfo {
-                        strategy_name: "sid1".to_string(),
+                        strategy_id: 1,
                         shares: Decimal::from_ratio(2000_u128, 1_u128),
                         airdrop_pointer: vec![],
                     },
                     UserStrategyInfo {
-                        strategy_name: "sid2".to_string(),
+                        strategy_id: 2,
                         shares: Decimal::from_ratio(3000_u128, 1_u128),
                         airdrop_pointer: vec![],
                     },
                     UserStrategyInfo {
-                        strategy_name: "sid3".to_string(),
+                        strategy_id: 3,
                         shares: Decimal::from_ratio(500_u128, 1_u128),
                         airdrop_pointer: vec![],
                     },
@@ -4863,7 +4889,7 @@ mod tests {
                 update_user_rewards_requests: vec![UpdateUserRewardsRequest {
                     user: user1.clone(),
                     funds: Uint128::new(500_u128),
-                    strategy_name: Some("sid3".to_string()),
+                    strategy_id: Some(3),
                 }],
             },
         )
@@ -4878,7 +4904,7 @@ mod tests {
             })]
         ));
         let sid3_strategy_opt = STRATEGY_MAP
-            .may_load(deps.as_mut().storage, "sid3")
+            .may_load(deps.as_mut().storage, U64Key::new(3))
             .unwrap();
         assert_ne!(sid3_strategy_opt, None);
         let sid3_strategy = sid3_strategy_opt.unwrap();
@@ -4899,17 +4925,17 @@ mod tests {
             user1_reward_info.strategies,
             vec![
                 UserStrategyInfo {
-                    strategy_name: "sid1".to_string(),
+                    strategy_id: 1,
                     shares: Decimal::from_ratio(2000_u128, 1_u128),
                     airdrop_pointer: vec![]
                 },
                 UserStrategyInfo {
-                    strategy_name: "sid2".to_string(),
+                    strategy_id: 2,
                     shares: Decimal::from_ratio(3000_u128, 1_u128),
                     airdrop_pointer: vec![]
                 },
                 UserStrategyInfo {
-                    strategy_name: "sid3".to_string(),
+                    strategy_id: 3,
                     shares: Decimal::from_ratio(15500_u128, 1_u128),
                     airdrop_pointer: vec![
                         DecCoin::new(Decimal::from_ratio(200_u128, 3000_u128), "anc".to_string()),
@@ -4924,15 +4950,15 @@ mod tests {
             user1_reward_info.user_portfolio,
             vec![
                 UserStrategyPortfolio {
-                    strategy_name: "sid1".to_string(),
+                    strategy_id: 1,
                     deposit_fraction: Decimal::from_ratio(1_u128, 2_u128)
                 },
                 UserStrategyPortfolio {
-                    strategy_name: "sid2".to_string(),
+                    strategy_id: 2,
                     deposit_fraction: Decimal::from_ratio(1_u128, 4_u128)
                 },
                 UserStrategyPortfolio {
-                    strategy_name: "sid3".to_string(),
+                    strategy_id: 3,
                     deposit_fraction: Decimal::from_ratio(1_u128, 4_u128)
                 },
             ]
@@ -4969,7 +4995,7 @@ mod tests {
 
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid1",
+            U64Key::new(1),
             &StrategyInfo {
                 name: "sid1".to_string(),
                 sic_contract_address: sic1_address.clone(),
@@ -4993,7 +5019,7 @@ mod tests {
         );
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid2",
+            U64Key::new(2),
             &StrategyInfo {
                 name: "sid2".to_string(),
                 sic_contract_address: sic2_address.clone(),
@@ -5021,11 +5047,11 @@ mod tests {
             &UserRewardInfo {
                 user_portfolio: vec![
                     UserStrategyPortfolio {
-                        strategy_name: "sid1".to_string(),
+                        strategy_id: 1,
                         deposit_fraction: Decimal::from_ratio(1_u128, 4_u128),
                     },
                     UserStrategyPortfolio {
-                        strategy_name: "sid2".to_string(),
+                        strategy_id: 2,
                         deposit_fraction: Decimal::from_ratio(1_u128, 2_u128),
                     },
                 ],
@@ -5043,7 +5069,7 @@ mod tests {
                 update_user_rewards_requests: vec![UpdateUserRewardsRequest {
                     user: user1.clone(),
                     funds: Uint128::new(100_u128),
-                    strategy_name: None,
+                    strategy_id: None,
                 }],
             },
         )
@@ -5065,7 +5091,7 @@ mod tests {
             ]
         ));
         let sid1_strategy_opt = STRATEGY_MAP
-            .may_load(deps.as_mut().storage, "sid1")
+            .may_load(deps.as_mut().storage, U64Key::new(1))
             .unwrap();
         assert_ne!(sid1_strategy_opt, None);
         let sid1_strategy = sid1_strategy_opt.unwrap();
@@ -5078,7 +5104,7 @@ mod tests {
             Decimal::from_ratio(10_u128, 1_u128)
         );
         let sid2_strategy_opt = STRATEGY_MAP
-            .may_load(deps.as_mut().storage, "sid2")
+            .may_load(deps.as_mut().storage, U64Key::new(2))
             .unwrap();
         assert_ne!(sid2_strategy_opt, None);
         let sid2_strategy = sid2_strategy_opt.unwrap();
@@ -5099,7 +5125,7 @@ mod tests {
             user1_reward_info.strategies,
             vec![
                 UserStrategyInfo {
-                    strategy_name: "sid1".to_string(),
+                    strategy_id: 1,
                     shares: Decimal::from_ratio(250_u128, 1_u128),
                     airdrop_pointer: vec![
                         DecCoin::new(Decimal::from_ratio(100_u128, 1000_u128), "anc".to_string()),
@@ -5107,7 +5133,7 @@ mod tests {
                     ]
                 },
                 UserStrategyInfo {
-                    strategy_name: "sid2".to_string(),
+                    strategy_id: 2,
                     shares: Decimal::from_ratio(500_u128, 1_u128),
                     airdrop_pointer: vec![
                         DecCoin::new(Decimal::from_ratio(200_u128, 1000_u128), "anc".to_string()),
@@ -5149,7 +5175,7 @@ mod tests {
 
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid1",
+            U64Key::new(1),
             &StrategyInfo {
                 name: "sid1".to_string(),
                 sic_contract_address: sic1_address.clone(),
@@ -5173,7 +5199,7 @@ mod tests {
         );
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid2",
+            U64Key::new(2),
             &StrategyInfo {
                 name: "sid2".to_string(),
                 sic_contract_address: sic2_address.clone(),
@@ -5214,14 +5240,14 @@ mod tests {
                 update_user_rewards_requests: vec![UpdateUserRewardsRequest {
                     user: user1.clone(),
                     funds: Uint128::new(100_u128),
-                    strategy_name: None,
+                    strategy_id: None,
                 }],
             },
         )
         .unwrap();
         assert_eq!(res.messages.len(), 0);
         let sid1_strategy_opt = STRATEGY_MAP
-            .may_load(deps.as_mut().storage, "sid1")
+            .may_load(deps.as_mut().storage, U64Key::new(1))
             .unwrap();
         assert_ne!(sid1_strategy_opt, None);
         let sid1_strategy = sid1_strategy_opt.unwrap();
@@ -5234,7 +5260,7 @@ mod tests {
             Decimal::from_ratio(10_u128, 1_u128)
         );
         let sid2_strategy_opt = STRATEGY_MAP
-            .may_load(deps.as_mut().storage, "sid2")
+            .may_load(deps.as_mut().storage, U64Key::new(2))
             .unwrap();
         assert_ne!(sid2_strategy_opt, None);
         let sid2_strategy = sid2_strategy_opt.unwrap();
@@ -5278,7 +5304,7 @@ mod tests {
 
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid1",
+            U64Key::new(1),
             &StrategyInfo {
                 name: "sid1".to_string(),
                 sic_contract_address: sic1_address.clone(),
@@ -5296,7 +5322,7 @@ mod tests {
         );
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid2",
+            U64Key::new(2),
             &StrategyInfo {
                 name: "sid2".to_string(),
                 sic_contract_address: sic2_address.clone(),
@@ -5333,14 +5359,14 @@ mod tests {
                 update_user_rewards_requests: vec![UpdateUserRewardsRequest {
                     user: user1.clone(),
                     funds: Uint128::new(100_u128),
-                    strategy_name: None,
+                    strategy_id: None,
                 }],
             },
         )
         .unwrap();
         assert_eq!(res.messages.len(), 0);
         let sid1_strategy_opt = STRATEGY_MAP
-            .may_load(deps.as_mut().storage, "sid1")
+            .may_load(deps.as_mut().storage, U64Key::new(1))
             .unwrap();
         assert_ne!(sid1_strategy_opt, None);
         let sid1_strategy = sid1_strategy_opt.unwrap();
@@ -5353,7 +5379,7 @@ mod tests {
             Decimal::from_ratio(10_u128, 1_u128)
         );
         let sid2_strategy_opt = STRATEGY_MAP
-            .may_load(deps.as_mut().storage, "sid2")
+            .may_load(deps.as_mut().storage, U64Key::new(2))
             .unwrap();
         assert_ne!(sid2_strategy_opt, None);
         let sid2_strategy = sid2_strategy_opt.unwrap();
@@ -5398,7 +5424,7 @@ mod tests {
 
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid1",
+            U64Key::new(1),
             &StrategyInfo {
                 name: "sid1".to_string(),
                 sic_contract_address: sic1_address.clone(),
@@ -5422,7 +5448,7 @@ mod tests {
         );
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid2",
+            U64Key::new(2),
             &StrategyInfo {
                 name: "sid2".to_string(),
                 sic_contract_address: sic2_address.clone(),
@@ -5450,22 +5476,22 @@ mod tests {
             &UserRewardInfo {
                 user_portfolio: vec![
                     UserStrategyPortfolio {
-                        strategy_name: "sid1".to_string(),
+                        strategy_id: 1,
                         deposit_fraction: Decimal::from_ratio(1_u128, 4_u128),
                     },
                     UserStrategyPortfolio {
-                        strategy_name: "sid2".to_string(),
+                        strategy_id: 2,
                         deposit_fraction: Decimal::from_ratio(1_u128, 2_u128),
                     },
                 ],
                 strategies: vec![
                     UserStrategyInfo {
-                        strategy_name: "sid1".to_string(),
+                        strategy_id: 1,
                         shares: Decimal::from_ratio(1000_u128, 1_u128),
                         airdrop_pointer: vec![],
                     },
                     UserStrategyInfo {
-                        strategy_name: "sid2".to_string(),
+                        strategy_id: 2,
                         shares: Decimal::from_ratio(500_u128, 1_u128),
                         airdrop_pointer: vec![],
                     },
@@ -5483,7 +5509,7 @@ mod tests {
                 update_user_rewards_requests: vec![UpdateUserRewardsRequest {
                     user: user1.clone(),
                     funds: Uint128::new(100_u128),
-                    strategy_name: None,
+                    strategy_id: None,
                 }],
             },
         )
@@ -5505,7 +5531,7 @@ mod tests {
             ]
         ));
         let sid1_strategy_opt = STRATEGY_MAP
-            .may_load(deps.as_mut().storage, "sid1")
+            .may_load(deps.as_mut().storage, U64Key::new(1))
             .unwrap();
         assert_ne!(sid1_strategy_opt, None);
         let sid1_strategy = sid1_strategy_opt.unwrap();
@@ -5518,7 +5544,7 @@ mod tests {
             Decimal::from_ratio(5_u128, 1_u128)
         );
         let sid2_strategy_opt = STRATEGY_MAP
-            .may_load(deps.as_mut().storage, "sid2")
+            .may_load(deps.as_mut().storage, U64Key::new(2))
             .unwrap();
         assert_ne!(sid2_strategy_opt, None);
         let sid2_strategy = sid2_strategy_opt.unwrap();
@@ -5539,7 +5565,7 @@ mod tests {
             user1_reward_info.strategies,
             vec![
                 UserStrategyInfo {
-                    strategy_name: "sid1".to_string(),
+                    strategy_id: 1,
                     shares: Decimal::from_ratio(1125_u128, 1_u128),
                     airdrop_pointer: vec![
                         DecCoin::new(Decimal::from_ratio(100_u128, 1000_u128), "anc".to_string()),
@@ -5547,7 +5573,7 @@ mod tests {
                     ]
                 },
                 UserStrategyInfo {
-                    strategy_name: "sid2".to_string(),
+                    strategy_id: 2,
                     shares: Decimal::from_ratio(1000_u128, 1_u128),
                     airdrop_pointer: vec![
                         DecCoin::new(Decimal::from_ratio(200_u128, 1000_u128), "anc".to_string()),
@@ -5590,7 +5616,7 @@ mod tests {
 
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid1",
+            U64Key::new(1),
             &StrategyInfo {
                 name: "sid1".to_string(),
                 sic_contract_address: sic1_address.clone(),
@@ -5614,7 +5640,7 @@ mod tests {
         );
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid2",
+            U64Key::new(2),
             &StrategyInfo {
                 name: "sid2".to_string(),
                 sic_contract_address: sic2_address.clone(),
@@ -5638,7 +5664,7 @@ mod tests {
         );
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid3",
+            U64Key::new(3),
             &StrategyInfo {
                 name: "sid3".to_string(),
                 sic_contract_address: sic3_address.clone(),
@@ -5666,22 +5692,22 @@ mod tests {
             &UserRewardInfo {
                 user_portfolio: vec![
                     UserStrategyPortfolio {
-                        strategy_name: "sid1".to_string(),
+                        strategy_id: 1,
                         deposit_fraction: Decimal::from_ratio(1_u128, 4_u128),
                     },
                     UserStrategyPortfolio {
-                        strategy_name: "sid2".to_string(),
+                        strategy_id: 2,
                         deposit_fraction: Decimal::from_ratio(1_u128, 2_u128),
                     },
                 ],
                 strategies: vec![
                     UserStrategyInfo {
-                        strategy_name: "sid1".to_string(),
+                        strategy_id: 1,
                         shares: Decimal::from_ratio(2000_u128, 1_u128),
                         airdrop_pointer: vec![],
                     },
                     UserStrategyInfo {
-                        strategy_name: "sid2".to_string(),
+                        strategy_id: 2,
                         shares: Decimal::from_ratio(3000_u128, 1_u128),
                         airdrop_pointer: vec![],
                     },
@@ -5697,31 +5723,31 @@ mod tests {
             &UserRewardInfo {
                 user_portfolio: vec![
                     UserStrategyPortfolio {
-                        strategy_name: "sid1".to_string(),
+                        strategy_id: 1,
                         deposit_fraction: Decimal::from_ratio(1_u128, 2_u128),
                     },
                     UserStrategyPortfolio {
-                        strategy_name: "sid2".to_string(),
+                        strategy_id: 2,
                         deposit_fraction: Decimal::from_ratio(1_u128, 4_u128),
                     },
                     UserStrategyPortfolio {
-                        strategy_name: "sid3".to_string(),
+                        strategy_id: 3,
                         deposit_fraction: Decimal::from_ratio(1_u128, 8_u128),
                     },
                 ],
                 strategies: vec![
                     UserStrategyInfo {
-                        strategy_name: "sid1".to_string(),
+                        strategy_id: 1,
                         shares: Decimal::from_ratio(1000_u128, 1_u128),
                         airdrop_pointer: vec![],
                     },
                     UserStrategyInfo {
-                        strategy_name: "sid2".to_string(),
+                        strategy_id: 2,
                         shares: Decimal::from_ratio(2000_u128, 1_u128),
                         airdrop_pointer: vec![],
                     },
                     UserStrategyInfo {
-                        strategy_name: "sid3".to_string(),
+                        strategy_id: 3,
                         shares: Decimal::from_ratio(2000_u128, 1_u128),
                         airdrop_pointer: vec![],
                     },
@@ -5737,26 +5763,26 @@ mod tests {
             &UserRewardInfo {
                 user_portfolio: vec![
                     UserStrategyPortfolio {
-                        strategy_name: "sid1".to_string(),
+                        strategy_id: 1,
                         deposit_fraction: Decimal::from_ratio(1_u128, 2_u128),
                     },
                     UserStrategyPortfolio {
-                        strategy_name: "sid2".to_string(),
+                        strategy_id: 2,
                         deposit_fraction: Decimal::from_ratio(1_u128, 4_u128),
                     },
                     UserStrategyPortfolio {
-                        strategy_name: "sid3".to_string(),
+                        strategy_id: 3,
                         deposit_fraction: Decimal::from_ratio(1_u128, 4_u128),
                     },
                 ],
                 strategies: vec![
                     UserStrategyInfo {
-                        strategy_name: "sid1".to_string(),
+                        strategy_id: 1,
                         shares: Decimal::from_ratio(1000_u128, 1_u128),
                         airdrop_pointer: vec![],
                     },
                     UserStrategyInfo {
-                        strategy_name: "sid2".to_string(),
+                        strategy_id: 2,
                         shares: Decimal::from_ratio(2000_u128, 1_u128),
                         airdrop_pointer: vec![],
                     },
@@ -5775,17 +5801,17 @@ mod tests {
                     UpdateUserRewardsRequest {
                         user: user1.clone(),
                         funds: Uint128::new(100_u128),
-                        strategy_name: None,
+                        strategy_id: None,
                     },
                     UpdateUserRewardsRequest {
                         user: user2.clone(),
                         funds: Uint128::new(400_u128),
-                        strategy_name: None,
+                        strategy_id: None,
                     },
                     UpdateUserRewardsRequest {
                         user: user3.clone(),
                         funds: Uint128::new(600_u128),
-                        strategy_name: None,
+                        strategy_id: None,
                     },
                 ],
             },
@@ -5813,7 +5839,7 @@ mod tests {
             ]
         ));
         let sid1_strategy_opt = STRATEGY_MAP
-            .may_load(deps.as_mut().storage, "sid1")
+            .may_load(deps.as_mut().storage, U64Key::new(1))
             .unwrap();
         assert_ne!(sid1_strategy_opt, None);
         let sid1_strategy = sid1_strategy_opt.unwrap();
@@ -5826,7 +5852,7 @@ mod tests {
             Decimal::from_ratio(10_u128, 1_u128)
         );
         let sid2_strategy_opt = STRATEGY_MAP
-            .may_load(deps.as_mut().storage, "sid2")
+            .may_load(deps.as_mut().storage, U64Key::new(2))
             .unwrap();
         assert_ne!(sid2_strategy_opt, None);
         let sid2_strategy = sid2_strategy_opt.unwrap();
@@ -5839,7 +5865,7 @@ mod tests {
             Decimal::from_ratio(10_u128, 1_u128)
         );
         let sid3_strategy_opt = STRATEGY_MAP
-            .may_load(deps.as_mut().storage, "sid3")
+            .may_load(deps.as_mut().storage, U64Key::new(3))
             .unwrap();
         assert_ne!(sid3_strategy_opt, None);
         let sid3_strategy = sid3_strategy_opt.unwrap();
@@ -5860,7 +5886,7 @@ mod tests {
             user1_reward_info.strategies,
             vec![
                 UserStrategyInfo {
-                    strategy_name: "sid1".to_string(),
+                    strategy_id: 1,
                     shares: Decimal::from_ratio(2250_u128, 1_u128),
                     airdrop_pointer: vec![
                         DecCoin::new(Decimal::from_ratio(100_u128, 8000_u128), "anc".to_string()),
@@ -5868,7 +5894,7 @@ mod tests {
                     ]
                 },
                 UserStrategyInfo {
-                    strategy_name: "sid2".to_string(),
+                    strategy_id: 2,
                     shares: Decimal::from_ratio(3500_u128, 1_u128),
                     airdrop_pointer: vec![
                         DecCoin::new(Decimal::from_ratio(200_u128, 7000_u128), "anc".to_string()),
@@ -5894,7 +5920,7 @@ mod tests {
             user2_reward_info.strategies,
             vec![
                 UserStrategyInfo {
-                    strategy_name: "sid1".to_string(),
+                    strategy_id: 1,
                     shares: Decimal::from_ratio(3000_u128, 1_u128),
                     airdrop_pointer: vec![
                         DecCoin::new(Decimal::from_ratio(100_u128, 8000_u128), "anc".to_string()),
@@ -5902,7 +5928,7 @@ mod tests {
                     ]
                 },
                 UserStrategyInfo {
-                    strategy_name: "sid2".to_string(),
+                    strategy_id: 2,
                     shares: Decimal::from_ratio(3000_u128, 1_u128),
                     airdrop_pointer: vec![
                         DecCoin::new(Decimal::from_ratio(200_u128, 7000_u128), "anc".to_string()),
@@ -5910,7 +5936,7 @@ mod tests {
                     ]
                 },
                 UserStrategyInfo {
-                    strategy_name: "sid3".to_string(),
+                    strategy_id: 3,
                     shares: Decimal::from_ratio(2500_u128, 1_u128),
                     airdrop_pointer: vec![
                         DecCoin::new(Decimal::from_ratio(300_u128, 5000_u128), "anc".to_string()),
@@ -5936,7 +5962,7 @@ mod tests {
             user3_reward_info.strategies,
             vec![
                 UserStrategyInfo {
-                    strategy_name: "sid1".to_string(),
+                    strategy_id: 1,
                     shares: Decimal::from_ratio(4000_u128, 1_u128),
                     airdrop_pointer: vec![
                         DecCoin::new(Decimal::from_ratio(100_u128, 8000_u128), "anc".to_string()),
@@ -5944,7 +5970,7 @@ mod tests {
                     ]
                 },
                 UserStrategyInfo {
-                    strategy_name: "sid2".to_string(),
+                    strategy_id: 2,
                     shares: Decimal::from_ratio(3500_u128, 1_u128),
                     airdrop_pointer: vec![
                         DecCoin::new(Decimal::from_ratio(200_u128, 7000_u128), "anc".to_string()),
@@ -5952,7 +5978,7 @@ mod tests {
                     ]
                 },
                 UserStrategyInfo {
-                    strategy_name: "sid3".to_string(),
+                    strategy_id: 3,
                     shares: Decimal::from_ratio(1500_u128, 1_u128),
                     airdrop_pointer: vec![
                         DecCoin::new(Decimal::from_ratio(300_u128, 5000_u128), "anc".to_string()),
@@ -5999,9 +6025,7 @@ mod tests {
             deps.as_mut(),
             env.clone(),
             mock_info("not-creator", &[]),
-            ExecuteMsg::RemoveStrategy {
-                strategy_name: "sid".to_string(),
-            },
+            ExecuteMsg::RemoveStrategy { strategy_id: 2 },
         )
         .unwrap_err();
         assert!(matches!(err, ContractError::Unauthorized {}));
@@ -6024,191 +6048,21 @@ mod tests {
 
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid",
+            U64Key::new(3),
             &StrategyInfo::default("sid".to_string()),
         );
-        let strategy_info_op = STRATEGY_MAP.may_load(deps.as_mut().storage, "sid").unwrap();
-        assert_ne!(strategy_info_op, None);
 
         let res = execute(
             deps.as_mut(),
             env.clone(),
             mock_info("creator", &[]),
-            ExecuteMsg::RemoveStrategy {
-                strategy_name: "sid".to_string(),
-            },
+            ExecuteMsg::RemoveStrategy { strategy_id: 3 },
         )
         .unwrap();
-        let strategy_info_op = STRATEGY_MAP.may_load(deps.as_mut().storage, "sid").unwrap();
+        let strategy_info_op = STRATEGY_MAP
+            .may_load(deps.as_mut().storage, U64Key::new(3))
+            .unwrap();
         assert_eq!(strategy_info_op, None);
-    }
-
-    #[test]
-    fn test__try_deactivate_strategy_fail() {
-        let mut deps = mock_dependencies(&[]);
-        let info = mock_info("creator", &coins(1000, "earth"));
-        let env = mock_env();
-
-        let res = instantiate_contract(
-            &mut deps,
-            &info,
-            &env,
-            Some(String::from("uluna")),
-            Some(String::from("pools_contract")),
-            None,
-        );
-
-        let strategy_name: String = String::from("sid");
-
-        /*
-           Test - 1. Unauthorized
-        */
-        let mut err = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info("not-creator", &[]),
-            ExecuteMsg::DeactivateStrategy {
-                strategy_name: strategy_name.clone(),
-            },
-        )
-        .unwrap_err();
-        assert!(matches!(err, ContractError::Unauthorized {}));
-
-        /*
-           Test - 2. Strategy info does not exist
-        */
-        let mut err = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info("creator", &[]),
-            ExecuteMsg::DeactivateStrategy {
-                strategy_name: strategy_name.clone(),
-            },
-        )
-        .unwrap_err();
-        assert!(matches!(err, ContractError::StrategyInfoDoesNotExist {}));
-    }
-
-    #[test]
-    fn test__try_deactivate_strategy_success() {
-        let mut deps = mock_dependencies(&[]);
-        let info = mock_info("creator", &coins(1000, "earth"));
-        let env = mock_env();
-
-        let res = instantiate_contract(
-            &mut deps,
-            &info,
-            &env,
-            Some(String::from("uluna")),
-            Some(String::from("pools_contract")),
-            None,
-        );
-
-        let mut sid_strategy_info = StrategyInfo::default("sid".to_string());
-        sid_strategy_info.is_active = true;
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            "sid",
-            &StrategyInfo::default("sid".to_string()),
-        );
-
-        let res = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info("creator", &[]),
-            ExecuteMsg::DeactivateStrategy {
-                strategy_name: "sid".to_string(),
-            },
-        )
-        .unwrap();
-
-        let strategy_info_opt = STRATEGY_MAP.may_load(deps.as_mut().storage, "sid").unwrap();
-        assert_ne!(strategy_info_opt, None);
-        let strategy_info = strategy_info_opt.unwrap();
-        assert_eq!(strategy_info.is_active, false);
-    }
-
-    #[test]
-    fn test__try_activate_strategy_fail() {
-        let mut deps = mock_dependencies(&[]);
-        let info = mock_info("creator", &coins(1000, "earth"));
-        let env = mock_env();
-
-        let res = instantiate_contract(
-            &mut deps,
-            &info,
-            &env,
-            Some(String::from("uluna")),
-            Some(String::from("pools_contract")),
-            None,
-        );
-
-        /*
-           Test - 1. Unauthorized
-        */
-        let mut err = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info("not-creator", &[]),
-            ExecuteMsg::ActivateStrategy {
-                strategy_name: "sid".to_string(),
-            },
-        )
-        .unwrap_err();
-        assert!(matches!(err, ContractError::Unauthorized {}));
-
-        /*
-           Test - 2. Strategy info does not exist
-        */
-        let mut err = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info("creator", &[]),
-            ExecuteMsg::ActivateStrategy {
-                strategy_name: "sid".to_string(),
-            },
-        )
-        .unwrap_err();
-        assert!(matches!(err, ContractError::StrategyInfoDoesNotExist {}));
-    }
-
-    #[test]
-    fn test__try_activate_strategy_success() {
-        let mut deps = mock_dependencies(&[]);
-        let info = mock_info("creator", &coins(1000, "earth"));
-        let env = mock_env();
-
-        let res = instantiate_contract(
-            &mut deps,
-            &info,
-            &env,
-            Some(String::from("uluna")),
-            Some(String::from("pools_contract")),
-            None,
-        );
-
-        let mut sid_strategy_info = StrategyInfo::default("sid".to_string());
-        sid_strategy_info.is_active = false;
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            "sid",
-            &StrategyInfo::default("sid".to_string()),
-        );
-
-        let res = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info("creator", &[]),
-            ExecuteMsg::ActivateStrategy {
-                strategy_name: "sid".to_string(),
-            },
-        )
-        .unwrap();
-
-        let strategy_info_opt = STRATEGY_MAP.may_load(deps.as_mut().storage, "sid").unwrap();
-        assert_ne!(strategy_info_opt, None);
-        let strategy_info = strategy_info_opt.unwrap();
-        assert_eq!(strategy_info.is_active, true);
     }
 
     #[test]
@@ -6242,29 +6096,6 @@ mod tests {
         )
         .unwrap_err();
         assert!(matches!(err, ContractError::Unauthorized {}));
-
-        /*
-            Test - 2. Strategy already exists
-        */
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            "sid",
-            &StrategyInfo::default("sid".to_string()),
-        );
-
-        let mut err = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info("creator", &[]),
-            ExecuteMsg::RegisterStrategy {
-                strategy_name: "sid".to_string(),
-                sic_contract_address: Addr::unchecked("abc"),
-                unbonding_buffer: None,
-                unbonding_period: None,
-            },
-        )
-        .unwrap_err();
-        assert!(matches!(err, ContractError::StrategyInfoAlreadyExists {}));
     }
 
     #[test]
@@ -6287,7 +6118,7 @@ mod tests {
             env.clone(),
             mock_info("creator", &[]),
             ExecuteMsg::RegisterStrategy {
-                strategy_name: "sid".to_string(),
+                strategy_name: "sid1".to_string(),
                 sic_contract_address: Addr::unchecked("abc"),
                 unbonding_buffer: Some(100u64),
                 unbonding_period: Some(100u64),
@@ -6295,13 +6126,51 @@ mod tests {
         )
         .unwrap();
 
-        let strategy_info_opt = STRATEGY_MAP.may_load(deps.as_mut().storage, "sid").unwrap();
+        let strategy_info_opt = STRATEGY_MAP
+            .may_load(deps.as_mut().storage, U64Key::new(1))
+            .unwrap();
         assert_ne!(strategy_info_opt, None);
         let strategy_info = strategy_info_opt.unwrap();
         assert_eq!(
             strategy_info,
             StrategyInfo {
-                name: "sid".to_string(),
+                name: "sid1".to_string(),
+                sic_contract_address: Addr::unchecked("abc"),
+                unbonding_period: 100u64,
+                unbonding_buffer: 100,
+                undelegation_batch_id_pointer: 0,
+                reconciled_batch_id_pointer: 0,
+                is_active: false,
+                total_shares: Default::default(),
+                current_undelegated_shares: Default::default(),
+                global_airdrop_pointer: vec![],
+                total_airdrops_accumulated: vec![],
+                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+            }
+        );
+
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::RegisterStrategy {
+                strategy_name: "sid2".to_string(),
+                sic_contract_address: Addr::unchecked("abc"),
+                unbonding_buffer: Some(100u64),
+                unbonding_period: Some(100u64),
+            },
+        )
+        .unwrap();
+
+        let strategy_info_opt = STRATEGY_MAP
+            .may_load(deps.as_mut().storage, U64Key::new(2))
+            .unwrap();
+        assert_ne!(strategy_info_opt, None);
+        let strategy_info = strategy_info_opt.unwrap();
+        assert_eq!(
+            strategy_info,
+            StrategyInfo {
+                name: "sid2".to_string(),
                 sic_contract_address: Addr::unchecked("abc"),
                 unbonding_period: 100u64,
                 unbonding_buffer: 100,

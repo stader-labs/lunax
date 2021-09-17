@@ -57,6 +57,7 @@ pub fn instantiate(
         scc_denom: msg.strategy_denom,
         contract_genesis_block_height: _env.block.height,
         contract_genesis_timestamp: _env.block.time,
+        strategy_counter: 1,
         rewards_in_scc: Uint128::zero(),
         total_accumulated_airdrops: vec![],
     };
@@ -95,15 +96,8 @@ pub fn execute(
             unbonding_period,
             unbonding_buffer,
         ),
-        // TODO: bchain99 - deactivate/activate can come under update_strategy
-        ExecuteMsg::DeactivateStrategy { strategy_name } => {
-            try_deactivate_strategy(deps, _env, info, strategy_name)
-        }
-        ExecuteMsg::ActivateStrategy { strategy_name } => {
-            try_activate_strategy(deps, _env, info, strategy_name)
-        }
         ExecuteMsg::UpdateStrategy {
-            strategy_name,
+            strategy_id,
             unbonding_period,
             unbonding_buffer,
             is_active,
@@ -111,13 +105,13 @@ pub fn execute(
             deps,
             _env,
             info,
-            strategy_name,
+            strategy_id,
             unbonding_period,
             unbonding_buffer,
             is_active,
         ),
-        ExecuteMsg::RemoveStrategy { strategy_name } => {
-            try_remove_strategy(deps, _env, info, strategy_name)
+        ExecuteMsg::RemoveStrategy { strategy_id } => {
+            try_remove_strategy(deps, _env, info, strategy_id)
         }
         ExecuteMsg::UpdateUserPortfolio { user_portfolio } => {
             try_update_user_portfolio(deps, _env, info, user_portfolio)
@@ -130,19 +124,19 @@ pub fn execute(
         } => try_update_user_airdrops(deps, _env, info, update_user_airdrops_requests),
         ExecuteMsg::UndelegateRewards {
             amount,
-            strategy_name,
-        } => try_undelegate_user_rewards(deps, _env, info, amount, strategy_name),
+            strategy_id,
+        } => try_undelegate_user_rewards(deps, _env, info, amount, strategy_id),
         ExecuteMsg::ClaimAirdrops {
-            strategy_name,
+            strategy_id,
             amount,
             denom,
             claim_msg,
-        } => try_claim_airdrops(deps, _env, info, strategy_name, amount, denom, claim_msg),
+        } => try_claim_airdrops(deps, _env, info, strategy_id, amount, denom, claim_msg),
         ExecuteMsg::WithdrawRewards {
             undelegation_id,
-            strategy_name,
+            strategy_id,
             amount,
-        } => try_withdraw_rewards(deps, _env, info, undelegation_id, strategy_name, amount),
+        } => try_withdraw_rewards(deps, _env, info, undelegation_id, strategy_id, amount),
         ExecuteMsg::WithdrawAirdrops {} => try_withdraw_airdrops(deps, _env, info),
         ExecuteMsg::RegisterCw20Contracts {
             denom,
@@ -170,7 +164,7 @@ pub fn try_update_strategy(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    strategy_name: String,
+    strategy_id: u64,
     unbonding_period: u64,
     unbonding_buffer: u64,
     is_active: bool,
@@ -182,7 +176,7 @@ pub fn try_update_strategy(
 
     STRATEGY_MAP.update(
         deps.storage,
-        &*strategy_name,
+        U64Key::new(strategy_id),
         |wrapped_strategy| -> Result<_, ContractError> {
             if wrapped_strategy.is_none() {
                 return Err(ContractError::StrategyInfoDoesNotExist {});
@@ -235,7 +229,7 @@ pub fn try_fetch_undelegated_rewards_from_strategies(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    strategies: Vec<String>,
+    strategies: Vec<u64>,
 ) -> Result<Response, ContractError> {
     let state = STATE.load(deps.storage)?;
     if info.sender != state.manager {
@@ -254,28 +248,28 @@ pub fn try_fetch_undelegated_rewards_from_strategies(
     let mut undelegation_batches_in_unbonding_period: Vec<String> = vec![];
     let mut undelegation_batches_slashing_checked: Vec<String> = vec![];
     let mut total_funds_transferred_to_scc: Uint128 = Uint128::zero();
-    for strategy in strategies {
-        let mut strategy_info =
-            if let Some(strategy_info) = STRATEGY_MAP.may_load(deps.storage, &*strategy)? {
-                strategy_info
-            } else {
-                failed_strategies.push(strategy);
-                continue;
-            };
+    for strategy_id in strategies {
+        let mut strategy_info = if let Some(strategy_info) =
+            STRATEGY_MAP.may_load(deps.storage, U64Key::new(strategy_id))?
+        {
+            strategy_info
+        } else {
+            failed_strategies.push(strategy_id.to_string());
+            continue;
+        };
 
         let last_reconciled_batch_id = strategy_info.reconciled_batch_id_pointer;
         let mut current_batch_being_reconciled = last_reconciled_batch_id;
-        let strategy_name = strategy_info.name.clone();
         for i in (last_reconciled_batch_id)..(strategy_info.undelegation_batch_id_pointer) {
-            let mut undelegation_batch = if let Some(undelegation_batch) =
-                UNDELEGATION_BATCH_MAP.may_load(deps.storage, (U64Key::new(i), &*strategy_name))?
+            let mut undelegation_batch = if let Some(undelegation_batch) = UNDELEGATION_BATCH_MAP
+                .may_load(deps.storage, (U64Key::new(i), U64Key::new(strategy_id)))?
             {
                 undelegation_batch
             } else {
                 // move the pointer if there is no undelegation batch has been found.
                 failed_undelegation_batches.push(format!(
                     "{}:{}",
-                    strategy_name.as_str(),
+                    strategy_id.to_string(),
                     i.to_string(),
                 ));
                 current_batch_being_reconciled += 1;
@@ -287,7 +281,7 @@ pub fn try_fetch_undelegated_rewards_from_strategies(
             if undelegation_batch.slashing_checked {
                 undelegation_batches_slashing_checked.push(format!(
                     "{}:{}",
-                    strategy_name.as_str(),
+                    strategy_id.to_string(),
                     i.to_string(),
                 ));
                 current_batch_being_reconciled += 1;
@@ -299,7 +293,7 @@ pub fn try_fetch_undelegated_rewards_from_strategies(
             if undelegation_batch.est_release_time.gt(&env.block.time) {
                 undelegation_batches_in_unbonding_period.push(format!(
                     "{}:{}",
-                    strategy_name.as_str(),
+                    strategy_id.to_string(),
                     i.to_string(),
                 ));
                 break;
@@ -346,7 +340,7 @@ pub fn try_fetch_undelegated_rewards_from_strategies(
 
             UNDELEGATION_BATCH_MAP.save(
                 deps.storage,
-                (U64Key::new(i), &*strategy_name),
+                (U64Key::new(i), U64Key::new(strategy_id)),
                 &undelegation_batch,
             )?;
 
@@ -354,7 +348,7 @@ pub fn try_fetch_undelegated_rewards_from_strategies(
         }
 
         strategy_info.reconciled_batch_id_pointer = current_batch_being_reconciled;
-        STRATEGY_MAP.save(deps.storage, &*strategy_name, &strategy_info)?;
+        STRATEGY_MAP.save(deps.storage, U64Key::new(strategy_id), &strategy_info)?;
     }
 
     Ok(Response::new()
@@ -378,7 +372,7 @@ pub fn try_undelegate_from_strategies(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    strategies: Vec<String>,
+    strategies: Vec<u64>,
 ) -> Result<Response, ContractError> {
     let state = STATE.load(deps.storage)?;
     if info.sender != state.manager {
@@ -393,18 +387,19 @@ pub fn try_undelegate_from_strategies(
     let mut failed_sics: Vec<String> = vec![];
     let mut strategies_with_no_undelegations: Vec<String> = vec![];
     let mut messages: Vec<WasmMsg> = vec![];
-    for strategy in strategies {
-        let mut strategy_info =
-            if let Some(strategy_info) = STRATEGY_MAP.may_load(deps.storage, &*strategy)? {
-                strategy_info
-            } else {
-                failed_strategies.push(strategy);
-                continue;
-            };
+    for strategy_id in strategies {
+        let mut strategy_info = if let Some(strategy_info) =
+            STRATEGY_MAP.may_load(deps.storage, U64Key::new(strategy_id))?
+        {
+            strategy_info
+        } else {
+            failed_strategies.push(strategy_id.to_string());
+            continue;
+        };
 
         let strategy_undelegation_shares: Decimal = strategy_info.current_undelegated_shares;
         if strategy_undelegation_shares.is_zero() {
-            strategies_with_no_undelegations.push(strategy.clone());
+            strategies_with_no_undelegations.push(strategy_id.to_string());
             continue;
         }
 
@@ -429,7 +424,10 @@ pub fn try_undelegate_from_strategies(
 
         UNDELEGATION_BATCH_MAP.save(
             deps.storage,
-            (U64Key::new(current_undelegation_batch_id), &*strategy),
+            (
+                U64Key::new(current_undelegation_batch_id),
+                U64Key::new(strategy_id),
+            ),
             &BatchUndelegationRecord {
                 amount: undelegation_amount,
                 shares: strategy_undelegation_shares,
@@ -463,7 +461,7 @@ pub fn try_undelegate_from_strategies(
             funds: vec![],
         });
 
-        STRATEGY_MAP.save(deps.storage, &*strategy, &strategy_info)?;
+        STRATEGY_MAP.save(deps.storage, U64Key::new(strategy_id), &strategy_info)?;
     }
 
     Ok(Response::new()
@@ -506,7 +504,7 @@ pub fn try_undelegate_user_rewards(
     _env: Env,
     info: MessageInfo,
     amount: Uint128,
-    strategy_name: String,
+    strategy_id: u64,
 ) -> Result<Response, ContractError> {
     if amount.is_zero() {
         return Err(ContractError::CannotUndelegateZeroFunds {});
@@ -514,12 +512,13 @@ pub fn try_undelegate_user_rewards(
 
     let user_addr = info.sender;
 
-    let mut strategy_info =
-        if let Some(strategy_info) = STRATEGY_MAP.may_load(deps.storage, &*strategy_name)? {
-            strategy_info
-        } else {
-            return Err(ContractError::StrategyInfoDoesNotExist {});
-        };
+    let mut strategy_info = if let Some(strategy_info) =
+        STRATEGY_MAP.may_load(deps.storage, U64Key::new(strategy_id))?
+    {
+        strategy_info
+    } else {
+        return Err(ContractError::StrategyInfoDoesNotExist {});
+    };
 
     let mut user_reward_info =
         if let Some(user_reward_info) = USER_REWARD_INFO_MAP.may_load(deps.storage, &user_addr)? {
@@ -532,7 +531,7 @@ pub fn try_undelegate_user_rewards(
     let user_strategy_info = if let Some(user_strategy_info) = user_reward_info
         .strategies
         .iter_mut()
-        .find(|x| x.strategy_name.eq(&strategy_name))
+        .find(|x| x.strategy_id.eq(&strategy_id))
     {
         user_strategy_info
     } else {
@@ -599,11 +598,11 @@ pub fn try_undelegate_user_rewards(
                 .plus_seconds(strategy_info.unbonding_period + strategy_info.unbonding_buffer),
             amount,
             shares: user_undelegated_shares,
-            strategy_name: strategy_name.clone(),
+            strategy_id,
             undelegation_batch_id: strategy_info.undelegation_batch_id_pointer,
         });
 
-    STRATEGY_MAP.save(deps.storage, strategy_name.as_str(), &strategy_info)?;
+    STRATEGY_MAP.save(deps.storage, U64Key::new(strategy_id), &strategy_info)?;
     USER_REWARD_INFO_MAP.save(deps.storage, &user_addr, &user_reward_info)?;
 
     Ok(Response::default())
@@ -613,7 +612,7 @@ pub fn try_claim_airdrops(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    strategy_id: String,
+    strategy_id: u64,
     amount: Uint128,
     denom: String,
     claim_msg: Binary,
@@ -631,13 +630,14 @@ pub fn try_claim_airdrops(
         return Err(ContractError::AirdropNotRegistered {});
     };
 
-    let mut strategy_info =
-        if let Some(strategy_info) = STRATEGY_MAP.may_load(deps.storage, &*strategy_id)? {
-            // while registering the strategy, we need to update the airdrops the strategy supports.
-            strategy_info
-        } else {
-            return Err(ContractError::StrategyInfoDoesNotExist {});
-        };
+    let mut strategy_info = if let Some(strategy_info) =
+        STRATEGY_MAP.may_load(deps.storage, U64Key::new(strategy_id))?
+    {
+        // while registering the strategy, we need to update the airdrops the strategy supports.
+        strategy_info
+    } else {
+        return Err(ContractError::StrategyInfoDoesNotExist {});
+    };
 
     let total_shares = strategy_info.total_shares;
     let sic_address = strategy_info.sic_contract_address.clone();
@@ -662,7 +662,7 @@ pub fn try_claim_airdrops(
         },
     );
 
-    STRATEGY_MAP.save(deps.storage, &*strategy_id, &strategy_info)?;
+    STRATEGY_MAP.save(deps.storage, U64Key::new(strategy_id), &strategy_info)?;
 
     STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
         state.total_accumulated_airdrops = merge_coin_vector(
@@ -750,7 +750,7 @@ pub fn try_withdraw_rewards(
     env: Env,
     info: MessageInfo,
     undelegation_id: String,
-    strategy_name: String,
+    strategy_id: u64,
     amount: Uint128,
 ) -> Result<Response, ContractError> {
     let state = STATE.load(deps.storage)?;
@@ -772,8 +772,8 @@ pub fn try_withdraw_rewards(
                 .id
                 .eq(&undelegation_timestamp)
                 && user_reward_info.undelegation_records[i]
-                    .strategy_name
-                    .eq(&strategy_name)
+                    .strategy_id
+                    .eq(&strategy_id)
                 && user_reward_info.undelegation_records[i].amount.eq(&amount)
         }) {
         user_undelegation_record = &user_reward_info.undelegation_records[i];
@@ -790,9 +790,10 @@ pub fn try_withdraw_rewards(
     }
 
     let undelegation_batch_id = U64Key::new(user_undelegation_record.undelegation_batch_id);
-    let undelegation_batch = if let Some(undelegation_batch) =
-        UNDELEGATION_BATCH_MAP.may_load(deps.storage, (undelegation_batch_id, &*strategy_name))?
-    {
+    let undelegation_batch = if let Some(undelegation_batch) = UNDELEGATION_BATCH_MAP.may_load(
+        deps.storage,
+        (undelegation_batch_id, U64Key::new(strategy_id)),
+    )? {
         undelegation_batch
     } else {
         return Err(ContractError::UndelegationBatchNotFound {});
@@ -842,16 +843,11 @@ pub fn try_register_strategy(
         return Err(ContractError::Unauthorized {});
     }
 
-    if STRATEGY_MAP
-        .may_load(deps.storage, &*strategy_name)?
-        .is_some()
-    {
-        return Err(ContractError::StrategyInfoAlreadyExists {});
-    }
+    let strategy_id: u64 = state.strategy_counter;
 
     STRATEGY_MAP.save(
         deps.storage,
-        &*strategy_name.clone(),
+        U64Key::new(strategy_id),
         &StrategyInfo::new(
             strategy_name,
             sic_contract_address,
@@ -860,61 +856,10 @@ pub fn try_register_strategy(
         ),
     )?;
 
-    Ok(Response::default())
-}
-
-pub fn try_deactivate_strategy(
-    deps: DepsMut,
-    _env: Env,
-    info: MessageInfo,
-    strategy_name: String,
-) -> Result<Response, ContractError> {
-    let state = STATE.load(deps.storage)?;
-    if info.sender != state.manager {
-        return Err(ContractError::Unauthorized {});
-    }
-
-    STRATEGY_MAP.update(
-        deps.storage,
-        &*strategy_name,
-        |strategy_info_opt| -> Result<_, ContractError> {
-            if strategy_info_opt.is_none() {
-                return Err(ContractError::StrategyInfoDoesNotExist {});
-            }
-
-            let mut strategy_info = strategy_info_opt.unwrap();
-            strategy_info.is_active = false;
-            Ok(strategy_info)
-        },
-    )?;
-
-    Ok(Response::default())
-}
-
-pub fn try_activate_strategy(
-    deps: DepsMut,
-    _env: Env,
-    info: MessageInfo,
-    strategy_name: String,
-) -> Result<Response, ContractError> {
-    let state = STATE.load(deps.storage)?;
-    if info.sender != state.manager {
-        return Err(ContractError::Unauthorized {});
-    }
-
-    STRATEGY_MAP.update(
-        deps.storage,
-        &*strategy_name,
-        |strategy_info_option| -> Result<_, ContractError> {
-            if strategy_info_option.is_none() {
-                return Err(ContractError::StrategyInfoDoesNotExist {});
-            }
-
-            let mut strategy_info = strategy_info_option.unwrap();
-            strategy_info.is_active = true;
-            Ok(strategy_info)
-        },
-    )?;
+    STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
+        state.strategy_counter += 1;
+        Ok(state)
+    })?;
 
     Ok(Response::default())
 }
@@ -923,14 +868,14 @@ pub fn try_remove_strategy(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    strategy_name: String,
+    strategy_id: u64,
 ) -> Result<Response, ContractError> {
     let state = STATE.load(deps.storage)?;
     if info.sender != state.manager {
         return Err(ContractError::Unauthorized {});
     }
 
-    STRATEGY_MAP.remove(deps.storage, &*strategy_name);
+    STRATEGY_MAP.remove(deps.storage, U64Key::new(strategy_id));
 
     Ok(Response::default())
 }
@@ -947,10 +892,10 @@ pub fn try_update_user_portfolio(
     // do bunch of sanity checks
     let mut total_deposit_fraction = Decimal::zero();
     for portfolio in &user_portfolio {
-        let strategy_name = portfolio.strategy_name.to_string();
+        let strategy_id = portfolio.strategy_id;
 
         if STRATEGY_MAP
-            .may_load(deps.storage, &*strategy_name)?
+            .may_load(deps.storage, U64Key::new(strategy_id))?
             .is_none()
         {
             return Err(ContractError::StrategyInfoDoesNotExist {});
@@ -997,14 +942,14 @@ pub fn try_update_user_rewards(
     let mut inactive_strategies: Vec<String> = vec![];
     let mut users_with_zero_deposits: Vec<String> = vec![];
     // cache for the S/T ratio per strategy. We fetch it once and cache it up.
-    let mut strategy_to_s_t_ratio: HashMap<String, Decimal> = HashMap::new();
+    let mut strategy_to_s_t_ratio: HashMap<u64, Decimal> = HashMap::new();
     let mut strategy_to_funds: HashMap<Addr, Uint128> = HashMap::new();
     let mut total_surplus_rewards: Uint128 = Uint128::zero();
     let mut messages: Vec<WasmMsg> = vec![];
     for update_user_rewards_request in update_user_rewards_requests {
         let user_addr = update_user_rewards_request.user;
         let funds = update_user_rewards_request.funds;
-        let strategy_opt = update_user_rewards_request.strategy_name;
+        let strategy_opt = update_user_rewards_request.strategy_id;
 
         if funds.is_zero() {
             users_with_zero_deposits.push(user_addr.to_string());
@@ -1017,7 +962,7 @@ pub fn try_update_user_rewards(
             .unwrap_or_else(|| UserRewardInfo::new(config.default_user_portfolio));
 
         // this is the amount to be split per strategy
-        let strategy_split: Vec<(String, Uint128)>;
+        let strategy_split: Vec<(u64, Uint128)>;
         // surplus is the amount of rewards which does not go into any strategy and just sits in SCC.
         // surplus is basically retain rewards
         let mut surplus: Uint128 = Uint128::zero();
@@ -1028,9 +973,9 @@ pub fn try_update_user_rewards(
                 strategy_split = strategy_split_with_surplus.0;
                 surplus = strategy_split_with_surplus.1;
             }
-            // if strategy_name is given, it overrides the user portfolio distribution.
-            Some(strategy_name) => {
-                strategy_split = vec![(strategy_name, funds)];
+            // if strategy_id is given, it overrides the user portfolio distribution.
+            Some(strategy_id) => {
+                strategy_split = vec![(strategy_id, funds)];
             }
         }
 
@@ -1042,7 +987,7 @@ pub fn try_update_user_rewards(
         total_surplus_rewards = total_surplus_rewards.checked_add(surplus).unwrap();
 
         for split in strategy_split {
-            let strategy_name = split.0;
+            let strategy_id = split.0;
             let amount = split.1;
 
             if amount.is_zero() {
@@ -1050,17 +995,17 @@ pub fn try_update_user_rewards(
             }
 
             let mut strategy_info = if let Some(strategy_info) =
-                STRATEGY_MAP.may_load(deps.storage, &*strategy_name)?
+                STRATEGY_MAP.may_load(deps.storage, U64Key::new(strategy_id))?
             {
                 strategy_info
             } else {
                 // TODO: bchain99 - will cause duplicates
-                failed_strategies.push(strategy_name);
+                failed_strategies.push(strategy_id.to_string());
                 continue;
             };
 
             if !strategy_info.is_active {
-                inactive_strategies.push(strategy_name);
+                inactive_strategies.push(strategy_id.to_string());
                 continue;
             }
 
@@ -1068,7 +1013,7 @@ pub fn try_update_user_rewards(
             // compute the S/T ratio only once as we are batching up reward transfer messages. Jus' cache
             // it up in a map like we always do.
             let current_strategy_shares_per_token_ratio: Decimal;
-            if !strategy_to_s_t_ratio.contains_key(&strategy_name) {
+            if !strategy_to_s_t_ratio.contains_key(&strategy_id) {
                 match get_strategy_shares_per_token_ratio(deps.querier, &strategy_info) {
                     Ok(result) => {
                         current_strategy_shares_per_token_ratio = result;
@@ -1079,24 +1024,19 @@ pub fn try_update_user_rewards(
                     }
                 }
                 strategy_info.shares_per_token_ratio = current_strategy_shares_per_token_ratio;
-                strategy_to_s_t_ratio.insert(
-                    strategy_name.clone(),
-                    current_strategy_shares_per_token_ratio,
-                );
+                strategy_to_s_t_ratio.insert(strategy_id, current_strategy_shares_per_token_ratio);
             } else {
                 current_strategy_shares_per_token_ratio =
-                    *strategy_to_s_t_ratio.get(&strategy_name).unwrap();
+                    *strategy_to_s_t_ratio.get(&strategy_id).unwrap();
             }
 
-            // println!("shares_per_token_ratio is {:?}", current_strategy_shares_per_token_ratio);
             let mut user_strategy_info = if let Some(i) = (0..user_reward_info.strategies.len())
-                .find(|&i| {
-                    user_reward_info.strategies[i].strategy_name == strategy_info.name.clone()
-                }) {
+                .find(|&i| user_reward_info.strategies[i].strategy_id.eq(&strategy_id))
+            {
                 &mut user_reward_info.strategies[i]
             } else {
                 let new_user_strategy_info: UserStrategyInfo =
-                    UserStrategyInfo::new(strategy_info.name.clone(), vec![]);
+                    UserStrategyInfo::new(strategy_id, vec![]);
                 user_reward_info.strategies.push(new_user_strategy_info);
                 user_reward_info.strategies.last_mut().unwrap()
             };
@@ -1139,7 +1079,7 @@ pub fn try_update_user_rewards(
                 })
                 .or_insert(amount);
 
-            STRATEGY_MAP.save(deps.storage, &*strategy_name, &strategy_info)?;
+            STRATEGY_MAP.save(deps.storage, U64Key::new(strategy_id), &strategy_info)?;
         }
 
         USER_REWARD_INFO_MAP.save(deps.storage, &user_addr, &user_reward_info)?;
@@ -1240,18 +1180,14 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetState {} => to_binary(&query_state(deps)?),
         QueryMsg::GetConfig {} => to_binary(&query_config(deps)?),
-        QueryMsg::GetStrategyInfo { strategy_name } => {
-            to_binary(&query_strategy_info(deps, strategy_name)?)
+        QueryMsg::GetStrategyInfo { strategy_id } => {
+            to_binary(&query_strategy_info(deps, strategy_id)?)
         }
         QueryMsg::GetUserRewardInfo { user } => to_binary(&query_user_reward_info(deps, user)?),
         QueryMsg::GetUndelegationBatchInfo {
-            strategy_name,
+            strategy_id,
             batch_id,
-        } => to_binary(&query_undelegation_batch_info(
-            deps,
-            strategy_name,
-            batch_id,
-        )?),
+        } => to_binary(&query_undelegation_batch_info(deps, strategy_id, batch_id)?),
         QueryMsg::GetStrategiesList {} => to_binary(&query_strategies_list(deps)?),
         QueryMsg::GetAllStrategies {} => to_binary(&query_get_all_strategies(deps)?),
         QueryMsg::GetUser { user } => to_binary(&query_user(deps, user)?),
@@ -1277,14 +1213,15 @@ fn query_user(deps: Deps, user: Addr) -> StdResult<GetUserResponse> {
     let mut user_strategy_info: Vec<UserStrategyQueryInfo> = vec![];
     let mut total_airdrops: Vec<Coin> = vec![];
     for user_strategy in user_reward_info.strategies {
-        let strategy_name = user_strategy.strategy_name.clone();
+        let strategy_id = user_strategy.strategy_id;
 
-        let strategy_info =
-            if let Some(strategy_info) = STRATEGY_MAP.may_load(deps.storage, &*strategy_name)? {
-                strategy_info
-            } else {
-                continue;
-            };
+        let strategy_info = if let Some(strategy_info) =
+            STRATEGY_MAP.may_load(deps.storage, U64Key::new(strategy_id))?
+        {
+            strategy_info
+        } else {
+            continue;
+        };
 
         let user_shares = user_strategy.shares;
         let user_airdrop_pointer = &user_strategy.airdrop_pointer;
@@ -1307,7 +1244,8 @@ fn query_user(deps: Deps, user: Addr) -> StdResult<GetUserResponse> {
         .unwrap_or_default();
 
         user_strategy_info.push(UserStrategyQueryInfo {
-            strategy_name,
+            strategy_id,
+            strategy_name: strategy_info.name,
             total_rewards: user_rewards,
             total_airdrops: user_airdrops.clone(),
         });
@@ -1334,6 +1272,7 @@ fn query_get_all_strategies(deps: Deps) -> StdResult<GetAllStrategiesResponse> {
 
     // seed with retain-rewards
     let mut all_strategies_info: Vec<StrategyInfoQuery> = vec![StrategyInfoQuery {
+        strategy_id: 0,
         strategy_name: "retain_rewards".to_string(),
         total_rewards: state.rewards_in_scc,
         rewards_in_undelegation: Uint128::zero(),
@@ -1345,41 +1284,39 @@ fn query_get_all_strategies(deps: Deps) -> StdResult<GetAllStrategiesResponse> {
         sic_contract_address: Addr::unchecked(""),
     }];
 
-    STRATEGY_MAP
-        .range(deps.storage, None, None, Order::Ascending)
-        .for_each(|x_wrapped| {
-            if x_wrapped.is_err() {
-                return;
-            }
-
-            let x = x_wrapped.unwrap();
-            let strategy_name = String::from_utf8(x.0).unwrap_or_default();
-            let strategy_info = x.1;
-
-            let mut strategy_s_t_ratio = if let Ok(strategy_s_t_ratio) =
-                get_strategy_shares_per_token_ratio(deps.querier, &strategy_info)
-            {
-                strategy_s_t_ratio
+    for i in 1..state.strategy_counter {
+        let strategy_info =
+            if let Some(strategy_info) = STRATEGY_MAP.may_load(deps.storage, U64Key::new(i))? {
+                strategy_info
             } else {
-                Decimal::from_ratio(10_u128, 1_u128)
+                continue;
             };
 
-            let total_strategy_tokens =
-                get_staked_amount(strategy_s_t_ratio, strategy_info.total_shares);
-            let total_tokens_in_undelegation =
-                get_staked_amount(strategy_s_t_ratio, strategy_info.current_undelegated_shares);
+        let mut strategy_s_t_ratio = if let Ok(strategy_s_t_ratio) =
+            get_strategy_shares_per_token_ratio(deps.querier, &strategy_info)
+        {
+            strategy_s_t_ratio
+        } else {
+            Decimal::from_ratio(10_u128, 1_u128)
+        };
 
-            all_strategies_info.push(StrategyInfoQuery {
-                strategy_name,
-                total_rewards: total_strategy_tokens,
-                rewards_in_undelegation: total_tokens_in_undelegation,
-                is_active: strategy_info.is_active,
-                total_airdrops_accumulated: strategy_info.total_airdrops_accumulated,
-                unbonding_period: strategy_info.unbonding_period,
-                unbonding_buffer: strategy_info.unbonding_buffer,
-                sic_contract_address: strategy_info.sic_contract_address,
-            });
+        let total_strategy_tokens =
+            get_staked_amount(strategy_s_t_ratio, strategy_info.total_shares);
+        let total_tokens_in_undelegation =
+            get_staked_amount(strategy_s_t_ratio, strategy_info.current_undelegated_shares);
+
+        all_strategies_info.push(StrategyInfoQuery {
+            strategy_id: i,
+            strategy_name: strategy_info.name,
+            total_rewards: total_strategy_tokens,
+            rewards_in_undelegation: total_tokens_in_undelegation,
+            is_active: strategy_info.is_active,
+            total_airdrops_accumulated: strategy_info.total_airdrops_accumulated,
+            unbonding_period: strategy_info.unbonding_period,
+            unbonding_buffer: strategy_info.unbonding_buffer,
+            sic_contract_address: strategy_info.sic_contract_address,
         });
+    }
 
     Ok(GetAllStrategiesResponse {
         all_strategies: Some(all_strategies_info),
@@ -1388,23 +1325,32 @@ fn query_get_all_strategies(deps: Deps) -> StdResult<GetAllStrategiesResponse> {
 
 fn query_undelegation_batch_info(
     deps: Deps,
-    strategy_name: String,
+    strategy_id: u64,
     batch_id: u64,
 ) -> StdResult<GetUndelegationBatchInfoResponse> {
-    let undelegation_batch_info =
-        UNDELEGATION_BATCH_MAP.may_load(deps.storage, (U64Key::new(batch_id), &*strategy_name))?;
+    let undelegation_batch_info = UNDELEGATION_BATCH_MAP.may_load(
+        deps.storage,
+        (U64Key::new(batch_id), U64Key::new(strategy_id)),
+    )?;
     Ok(GetUndelegationBatchInfoResponse {
         undelegation_batch_info,
     })
 }
 
 fn query_strategies_list(deps: Deps) -> StdResult<GetStrategiesListResponse> {
+    let state = STATE.load(deps.storage)?;
     let mut strategies_list: Vec<String> = vec![];
-    STRATEGY_MAP
-        .keys(deps.storage, None, None, Order::Ascending)
-        .for_each(|x| {
-            strategies_list.push(String::from_utf8(x).unwrap_or_default());
-        });
+
+    for i in 1..state.strategy_counter {
+        let strategy_info =
+            if let Some(strategy_info) = STRATEGY_MAP.may_load(deps.storage, U64Key::new(i))? {
+                strategy_info
+            } else {
+                continue;
+            };
+
+        strategies_list.push(strategy_info.name);
+    }
 
     Ok(GetStrategiesListResponse {
         strategies_list: Some(strategies_list),
@@ -1423,8 +1369,8 @@ fn query_user_reward_info(deps: Deps, user: Addr) -> StdResult<GetUserRewardInfo
     Ok(GetUserRewardInfo { user_reward_info })
 }
 
-fn query_strategy_info(deps: Deps, strategy_name: String) -> StdResult<GetStrategyInfoResponse> {
-    let strategy_info = STRATEGY_MAP.may_load(deps.storage, &*strategy_name)?;
+fn query_strategy_info(deps: Deps, strategy_id: u64) -> StdResult<GetStrategyInfoResponse> {
+    let strategy_info = STRATEGY_MAP.may_load(deps.storage, U64Key::new(strategy_id))?;
     Ok(GetStrategyInfoResponse { strategy_info })
 }
 

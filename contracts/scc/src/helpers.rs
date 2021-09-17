@@ -93,13 +93,13 @@ pub fn get_staked_amount(shares_per_token_ratio: Decimal, total_shares: Decimal)
 pub fn get_strategy_split(
     user_reward_info: &UserRewardInfo,
     amount: Uint128,
-) -> (Vec<(String, Uint128)>, Uint128) {
+) -> (Vec<(u64, Uint128)>, Uint128) {
     let user_portfolio = &user_reward_info.user_portfolio;
 
-    let mut strategy_split: Vec<(String, Uint128)> = vec![];
+    let mut strategy_split: Vec<(u64, Uint128)> = vec![];
     let mut surplus = amount;
     for u in user_portfolio {
-        let strategy_name = u.strategy_name.clone();
+        let strategy_id = u.strategy_id.clone();
         let deposit_fraction = u.deposit_fraction;
 
         let deposit_amount = uint128_from_decimal(decimal_multiplication_in_256(
@@ -107,7 +107,7 @@ pub fn get_strategy_split(
             get_decimal_from_uint128(amount),
         ));
 
-        strategy_split.push((strategy_name, deposit_amount));
+        strategy_split.push((strategy_id, deposit_amount));
 
         surplus = surplus.checked_sub(deposit_amount).unwrap();
     }
@@ -130,6 +130,7 @@ mod tests {
         Addr, Coin, Decimal, Empty, Env, Fraction, MessageInfo, OwnedDeps, Response, StdResult,
         Uint128,
     };
+    use cw_storage_plus::U64Key;
     use stader_utils::coin_utils::{decimal_division_in_256, decimal_subtraction_in_256};
     use stader_utils::mock::{
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
@@ -172,7 +173,7 @@ mod tests {
 
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid1",
+            U64Key::new(1),
             &StrategyInfo {
                 name: "sid1".to_string(),
                 sic_contract_address: sic1_address.clone(),
@@ -190,7 +191,7 @@ mod tests {
         );
 
         let strategy_info = STRATEGY_MAP
-            .may_load(deps.as_mut().storage, "sid1")
+            .may_load(deps.as_mut().storage, U64Key::new(1))
             .unwrap()
             .unwrap();
         let s_t_ratio =
@@ -207,7 +208,7 @@ mod tests {
 
         STRATEGY_MAP.save(
             deps.as_mut().storage,
-            "sid1",
+            U64Key::new(1),
             &StrategyInfo {
                 name: "sid1".to_string(),
                 sic_contract_address: sic1_address.clone(),
@@ -225,7 +226,7 @@ mod tests {
         );
 
         let strategy_info = STRATEGY_MAP
-            .may_load(deps.as_mut().storage, "sid1")
+            .may_load(deps.as_mut().storage, U64Key::new(1))
             .unwrap()
             .unwrap();
         let s_t_ratio =
@@ -242,15 +243,15 @@ mod tests {
         let user_reward_info = UserRewardInfo {
             user_portfolio: vec![
                 UserStrategyPortfolio {
-                    strategy_name: "sid1".to_string(),
+                    strategy_id: 1,
                     deposit_fraction: Decimal::from_ratio(1_u128, 4_u128),
                 },
                 UserStrategyPortfolio {
-                    strategy_name: "sid2".to_string(),
+                    strategy_id: 2,
                     deposit_fraction: Decimal::from_ratio(1_u128, 2_u128),
                 },
                 UserStrategyPortfolio {
-                    strategy_name: "sid3".to_string(),
+                    strategy_id: 3,
                     deposit_fraction: Decimal::from_ratio(1_u128, 4_u128),
                 },
             ],
@@ -268,9 +269,9 @@ mod tests {
         assert!(check_equal_vec(
             strategy_split,
             vec![
-                ("sid1".to_string(), Uint128::new(25_u128)),
-                ("sid2".to_string(), Uint128::new(50_u128)),
-                ("sid3".to_string(), Uint128::new(25_u128))
+                (1, Uint128::new(25_u128)),
+                (2, Uint128::new(50_u128)),
+                (3, Uint128::new(25_u128))
             ]
         ));
 
@@ -281,11 +282,11 @@ mod tests {
         let user_reward_info = UserRewardInfo {
             user_portfolio: vec![
                 UserStrategyPortfolio {
-                    strategy_name: "sid1".to_string(),
+                    strategy_id: 1,
                     deposit_fraction: Decimal::from_ratio(1_u128, 4_u128),
                 },
                 UserStrategyPortfolio {
-                    strategy_name: "sid3".to_string(),
+                    strategy_id: 2,
                     deposit_fraction: Decimal::from_ratio(1_u128, 4_u128),
                 },
             ],
@@ -302,10 +303,7 @@ mod tests {
         assert_eq!(surplus, Uint128::new(50_u128));
         assert!(check_equal_vec(
             strategy_split,
-            vec![
-                ("sid1".to_string(), Uint128::new(25_u128)),
-                ("sid3".to_string(), Uint128::new(25_u128))
-            ]
+            vec![(1, Uint128::new(25_u128)), (2, Uint128::new(25_u128))]
         ));
 
         /*

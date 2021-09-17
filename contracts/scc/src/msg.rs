@@ -22,7 +22,7 @@ pub struct UpdateUserRewardsRequest {
     // one of the registered strategies
     // if the strategy is provided then that means the user is depositing only to that strategy
     // if no strategy is provided then we iterate over the user portfolio
-    pub strategy_name: Option<String>,
+    pub strategy_id: Option<u64>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -33,6 +33,7 @@ pub struct UpdateUserAirdropsRequest {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct StrategyInfoQuery {
+    pub strategy_id: u64,
     pub strategy_name: String,
     pub total_rewards: Uint128,
     pub rewards_in_undelegation: Uint128,
@@ -45,6 +46,7 @@ pub struct StrategyInfoQuery {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct UserStrategyQueryInfo {
+    pub strategy_id: u64,
     pub strategy_name: String,
     pub total_rewards: Uint128,
     pub total_airdrops: Vec<Coin>,
@@ -74,19 +76,11 @@ pub enum ExecuteMsg {
         unbonding_buffer: Option<u64>,
         unbonding_period: Option<u64>,
     },
-    // TODO: bchain99 - Add an UpdateStrategy message rather than having different messages to activate/deactivate. Pick this up once SCC is merged
-    // as other PRs will introduce new strategy params
-    ActivateStrategy {
-        strategy_name: String,
-    },
-    DeactivateStrategy {
-        strategy_name: String,
-    },
     RemoveStrategy {
-        strategy_name: String,
+        strategy_id: u64,
     },
     UpdateStrategy {
-        strategy_name: String,
+        strategy_id: u64,
         unbonding_period: u64,
         unbonding_buffer: u64,
         is_active: bool,
@@ -102,12 +96,12 @@ pub enum ExecuteMsg {
     // undelegate all the queued up undelegation from all strategies. This takes into account
     // a cooling period for the strategy. Certain strategies cannot be undelegate
     UndelegateFromStrategies {
-        strategies: Vec<String>,
+        strategies: Vec<u64>,
     },
     // called by manager, this message goes to the SICs and fetches the undelegated rewards which are
     // sitting in the SIC.
     FetchUndelegatedRewardsFromStrategies {
-        strategies: Vec<String>,
+        strategies: Vec<u64>,
     },
     /*
        Pools contract messages
@@ -130,18 +124,18 @@ pub enum ExecuteMsg {
     // called by user to undelegate his rewards from a strategy
     UndelegateRewards {
         amount: Uint128,
-        strategy_name: String,
+        strategy_id: u64,
     },
     // called by scc manager to periodically claim airdrops for a particular strategy if it supported
     ClaimAirdrops {
         amount: Uint128,
         denom: String,
         claim_msg: Binary,
-        strategy_name: String,
+        strategy_id: u64,
     },
     WithdrawRewards {
         undelegation_id: String,
-        strategy_name: String,
+        strategy_id: u64,
         amount: Uint128,
     },
     // called by the user to withdraw pending rewards i.e rewards which are not in any strategy
@@ -153,23 +147,14 @@ pub enum ExecuteMsg {
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     GetState {},
-    GetStrategyInfo {
-        strategy_name: String,
-    },
-    GetUndelegationBatchInfo {
-        strategy_name: String,
-        batch_id: u64,
-    },
-    GetUserRewardInfo {
-        user: Addr,
-    },
+    GetStrategyInfo { strategy_id: u64 },
+    GetUndelegationBatchInfo { strategy_id: u64, batch_id: u64 },
+    GetUserRewardInfo { user: Addr },
     GetConfig {},
     GetStrategiesList {},
     // rewards in SCC(retain rewards) + rewards in all strategies
     GetAllStrategies {},
-    GetUser {
-        user: Addr,
-    },
+    GetUser { user: Addr },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

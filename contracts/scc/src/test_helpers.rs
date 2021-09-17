@@ -12,14 +12,14 @@ pub fn check_equal_user_strategies(a: Vec<UserStrategyInfo>, b: Vec<UserStrategy
         && a.iter().all(|x| {
             b.iter().any(|y| {
                 y.shares.eq(&x.shares)
-                    && y.strategy_name.eq(&x.strategy_name)
+                    && y.strategy_id.eq(&x.strategy_id)
                     && check_equal_vec(y.airdrop_pointer.clone(), x.airdrop_pointer.clone())
             })
         })
         && b.iter().all(|x| {
             a.iter().any(|y| {
                 y.shares.eq(&x.shares)
-                    && y.strategy_name.eq(&x.strategy_name)
+                    && y.strategy_id.eq(&x.strategy_id)
                     && check_equal_vec(y.airdrop_pointer.clone(), x.airdrop_pointer.clone())
             })
         })
@@ -44,14 +44,16 @@ pub fn check_equal_user_strategy_query_info(
     a.len() == b.len()
         && a.iter().all(|x| {
             b.iter().any(|y| {
-                y.strategy_name.eq(&x.strategy_name)
+                y.strategy_id.eq(&x.strategy_id)
+                    && y.strategy_name.eq(&x.strategy_name)
                     && y.total_rewards.eq(&x.total_rewards)
                     && check_equal_vec(y.total_airdrops.clone(), x.total_airdrops.clone())
             })
         })
         && b.iter().all(|x| {
             a.iter().any(|y| {
-                y.strategy_name.eq(&x.strategy_name)
+                y.strategy_id.eq(&x.strategy_id)
+                    && y.strategy_name.eq(&x.strategy_name)
                     && y.total_rewards.eq(&x.total_rewards)
                     && check_equal_vec(y.total_airdrops.clone(), x.total_airdrops.clone())
             })
