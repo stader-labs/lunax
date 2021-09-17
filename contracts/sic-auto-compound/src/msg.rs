@@ -13,6 +13,8 @@ pub struct InstantiateMsg {
     pub strategy_denom: String,
     // initial set of validators who make up the validator pool
     pub initial_validators: Vec<Addr>,
+    // minimum number of validators in a pool
+    pub min_validator_pool_size: Option<u64>,
     // amount of funds sic-manager has seeded the sic with
     pub manager_seed_funds: Uint128,
 }
@@ -39,6 +41,17 @@ pub enum ExecuteMsg {
         airdrop_token: String,
         amount: Uint128,
         claim_msg: Binary,
+    },
+    // Called by manager to add a validator to the current pool
+    AddValidator {
+        validator: Addr,
+    },
+    ReplaceValidator {
+        src_validator: Addr,
+        dst_validator: Addr,
+    },
+    RemoveValidator {
+        validator: Addr,
     },
 }
 

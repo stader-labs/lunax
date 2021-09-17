@@ -3746,19 +3746,6 @@ mod tests {
             ]
         ));
 
-        let state_response: GetStateResponse =
-            from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::GetState {}).unwrap())
-                .unwrap();
-        assert_ne!(state_response.state, None);
-        let state = state_response.state.unwrap();
-        assert!(check_equal_vec(
-            state.total_accumulated_airdrops,
-            vec![
-                Coin::new(0_u128, "anc".to_string()),
-                Coin::new(500_u128, "mir".to_string())
-            ]
-        ));
-
         let user_reward_info_opt = USER_REWARD_INFO_MAP
             .may_load(deps.as_mut().storage, &user1.clone())
             .unwrap();
@@ -3875,21 +3862,6 @@ mod tests {
                 }),
             ]
         ));
-
-        let state_response: GetStateResponse =
-            from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::GetState {}).unwrap())
-                .unwrap();
-        assert_ne!(state_response.state, None);
-        let state = state_response.state.unwrap();
-        assert!(check_equal_vec(
-            state.total_accumulated_airdrops,
-            vec![
-                Coin::new(0_u128, "anc".to_string()),
-                Coin::new(500_u128, "mir".to_string()),
-                Coin::new(400_u128, "pyl".to_string())
-            ]
-        ));
-
         let user_reward_info_opt = USER_REWARD_INFO_MAP
             .may_load(deps.as_mut().storage, &user1.clone())
             .unwrap();

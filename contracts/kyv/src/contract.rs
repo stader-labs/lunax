@@ -252,7 +252,7 @@ fn add_validator(
     })?;
 
     Ok(Response::new()
-        .add_messages([msg])
+        .add_messages(vec![msg])
         .add_attribute("method", "add_validator"))
 }
 
