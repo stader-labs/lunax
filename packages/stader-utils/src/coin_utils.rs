@@ -144,13 +144,13 @@ pub fn merge_dec_coin_vector(deccoins: &Vec<DecCoin>, deccoin_vec_op: DecCoinVec
 
 // Jumbles the order of the vector
 // (Coins + CoinVecOp.fund) and (Coins - CoinVecOp.fund) [Element wise operation but Sub is stricter than set operation]
-pub fn merge_coin_vector(coins: Vec<Coin>, coin_vec_op: CoinVecOp) -> Vec<Coin> {
+pub fn merge_coin_vector(coins: &Vec<Coin>, coin_vec_op: CoinVecOp) -> Vec<Coin> {
     let fund = coin_vec_op.fund;
     let operation = coin_vec_op.operation;
 
     match operation {
-        Operation::Add => add_coin_vectors(&coins, &fund),
-        Operation::Sub => subtract_coin_vectors(&coins, &fund),
+        Operation::Add => add_coin_vectors(coins, &fund),
+        Operation::Sub => subtract_coin_vectors(coins, &fund),
         Operation::Replace => fund,
     }
 }
@@ -185,6 +185,14 @@ pub fn decimal_subtraction_in_256(a: Decimal, b: Decimal) -> Decimal {
     let b_u256: Decimal256 = b.into();
     let c_u256: Decimal = (a_u256 - b_u256).into();
     c_u256
+}
+
+pub fn u128_from_decimal(a: Decimal) -> u128 {
+    a.numerator() / a.denominator()
+}
+
+pub fn uint128_from_decimal(a: Decimal) -> Uint128 {
+    Uint128::new(u128_from_decimal(a))
 }
 
 pub fn get_decimal_from_uint128(a: Uint128) -> Decimal {

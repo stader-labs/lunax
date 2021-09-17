@@ -13,17 +13,42 @@ pub enum ContractError {
     #[error("Strategy info already exists")]
     StrategyInfoAlreadyExists {},
 
-    #[error("Strategy info does not exist `{0}`")]
-    StrategyInfoDoesNotExist(String),
+    #[error("Strategy info does not exist")]
+    StrategyInfoDoesNotExist {},
 
     #[error("Strategy does not support airdrops")]
     StrategyDoesNotSupportAirdrop {},
 
     #[error("Airdrop not registered")]
     AirdropNotRegistered {},
+
+    #[error("Cannot undelegate zero funds")]
+    CannotUndelegateZeroFunds {},
+
+    #[error("User does not have rewards in the strategy")]
+    UserNotInStrategy {},
+
+    #[error("User does not have enough rewards to undelegate")]
+    UserDoesNotHaveEnoughRewards {},
+
+    #[error("Undelegation record not found")]
+    UndelegationRecordNotFound {},
+
+    #[error("Undelegation batch not found")]
+    UndelegationBatchNotFound {},
+
+    #[error("Undelegation in unbonding period")]
+    UndelegationInUnbondingPeriod {},
+
+    #[error("Slashing has not been checked for undelegation batch")]
+    SlashingNotChecked {},
+
     #[error("User reward info does not exist")]
     UserRewardInfoDoesNotExist {},
 
     #[error("User portfolio fraction is greater than one")]
     InvalidPortfolioDepositFraction {},
+
+    #[error("SIC failed to return a result")]
+    SICFailedToReturnResult {},
 }

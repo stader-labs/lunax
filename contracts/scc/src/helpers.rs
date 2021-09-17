@@ -1,13 +1,17 @@
-use crate::state::{StrategyInfo, UserRewardInfo};
-use cosmwasm_std::{Addr, Decimal, Fraction, QuerierWrapper, Timestamp, Uint128};
-use sic_base::msg::{GetTotalTokensResponse, QueryMsg as sic_msg};
+use crate::state::{StrategyInfo, UserRewardInfo, UserStrategyInfo, USER_REWARD_INFO_MAP};
+use crate::user::get_user_airdrops;
+use cosmwasm_std::{
+    Addr, Coin, Decimal, Fraction, QuerierWrapper, Response, StdResult, Storage, Timestamp, Uint128,
+};
+use sic_base::msg::{
+    GetFulfillableUndelegatedFundsResponse, GetTotalTokensResponse, QueryMsg as sic_msg,
+};
 use stader_utils::coin_utils::{
     decimal_division_in_256, decimal_multiplication_in_256, decimal_subtraction_in_256,
-    get_decimal_from_uint128,
+    get_decimal_from_uint128, merge_coin_vector, uint128_from_decimal,
 };
-use stader_utils::helpers::uint128_from_decimal;
 
-pub fn get_vault_apr(
+pub fn get_strategy_apr(
     current_shares_per_token_ratio: Decimal,
     contract_genesis_shares_per_token_ratio: Decimal,
     contract_genesis_timestamp: Timestamp,
@@ -34,33 +38,56 @@ pub fn get_vault_apr(
     decimal_multiplication_in_256(decimal_apr, Decimal::from_ratio(100_u128, 1_u128))
 }
 
-pub fn get_sic_total_tokens(querier: QuerierWrapper, sic_address: &Addr) -> GetTotalTokensResponse {
-    // TODO: bchain99 - we should handle this gracefully. cannot assume anything about external SICs
-    querier
-        .query_wasm_smart(sic_address, &sic_msg::GetTotalTokens {})
-        .unwrap()
+// TODO: bchain99 - we can probably make these generic
+pub fn get_sic_total_tokens(
+    querier: QuerierWrapper,
+    sic_address: &Addr,
+) -> StdResult<GetTotalTokensResponse> {
+    querier.query_wasm_smart(sic_address, &sic_msg::GetTotalTokens {})
+}
+
+// tells us how much the sic contract can gave back for an undelegation of "amount". Ideally it should be equal to "amount"
+// but if there is an undelegation slashing event or any other such event, then SCC can account for such events.
+pub fn get_sic_fulfillable_undelegated_funds(
+    querier: QuerierWrapper,
+    amount: Uint128,
+    sic_address: &Addr,
+) -> StdResult<GetFulfillableUndelegatedFundsResponse> {
+    querier.query_wasm_smart(
+        sic_address,
+        &sic_msg::GetFulfillableUndelegatedFunds { amount },
+    )
 }
 
 pub fn get_strategy_shares_per_token_ratio(
     querier: QuerierWrapper,
     strategy_info: &StrategyInfo,
-) -> Decimal {
+) -> StdResult<Decimal> {
     let sic_address = &strategy_info.sic_contract_address;
     let default_s_t_ratio = Decimal::from_ratio(10_u128, 1_u128);
 
-    let total_sic_tokens = get_sic_total_tokens(querier, sic_address)
+    let total_sic_tokens_res = get_sic_total_tokens(querier, sic_address)?;
+    let total_sic_tokens = total_sic_tokens_res
         .total_tokens
         .unwrap_or_else(Uint128::zero);
+
     if total_sic_tokens.is_zero() {
-        return default_s_t_ratio;
+        return Ok(default_s_t_ratio);
     }
 
     let total_strategy_shares = strategy_info.total_shares;
 
-    decimal_division_in_256(
+    Ok(decimal_division_in_256(
         total_strategy_shares,
         get_decimal_from_uint128(total_sic_tokens),
-    )
+    ))
+}
+
+pub fn get_staked_amount(shares_per_token_ratio: Decimal, total_shares: Decimal) -> Uint128 {
+    uint128_from_decimal(decimal_division_in_256(
+        total_shares,
+        shares_per_token_ratio,
+    ))
 }
 
 pub fn get_strategy_split(
@@ -91,21 +118,24 @@ pub fn get_strategy_split(
 #[cfg(test)]
 mod tests {
     use crate::contract::instantiate;
-    use crate::helpers::{get_strategy_split, get_vault_apr};
+    use crate::helpers::{
+        get_strategy_apr, get_strategy_shares_per_token_ratio, get_strategy_split,
+    };
     use crate::msg::InstantiateMsg;
     use crate::state::{
-        UserRewardInfo, UserStrategyInfo, UserStrategyPortfolio, STATE, USER_REWARD_INFO_MAP,
-    };
-    use cosmwasm_std::testing::{
-        mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
-        MOCK_CONTRACT_ADDR,
+        StrategyInfo, UserRewardInfo, UserStrategyInfo, UserStrategyPortfolio, STATE, STRATEGY_MAP,
+        USER_REWARD_INFO_MAP,
     };
     use cosmwasm_std::{
         Addr, Coin, Decimal, Empty, Env, Fraction, MessageInfo, OwnedDeps, Response, StdResult,
         Uint128,
     };
-    use stader_utils::coin_utils::decimal_division_in_256;
+    use stader_utils::coin_utils::{decimal_division_in_256, decimal_subtraction_in_256};
+    use stader_utils::mock::{
+        mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
+    };
     use stader_utils::test_helpers::check_equal_vec;
+    use std::collections::HashMap;
     use std::ops::Div;
 
     pub fn instantiate_contract(
@@ -121,6 +151,87 @@ mod tests {
         };
 
         return instantiate(deps.as_mut(), env.clone(), info.clone(), instantiate_msg).unwrap();
+    }
+
+    #[test]
+    fn test__get_strategy_shares_per_token_ratio() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &[]);
+        let env = mock_env();
+
+        let res = instantiate_contract(&mut deps, &info, &env, None);
+
+        let sic1_address = Addr::unchecked("sic1_address");
+
+        /*
+           Test - 1. S_T ratio is less than 10
+        */
+        let mut contracts_to_tokens: HashMap<Addr, Uint128> = HashMap::new();
+        contracts_to_tokens.insert(sic1_address.clone(), Uint128::new(500_u128));
+        deps.querier.update_wasm(Some(contracts_to_tokens), None);
+
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            "sid1",
+            &StrategyInfo {
+                name: "sid1".to_string(),
+                sic_contract_address: sic1_address.clone(),
+                unbonding_period: 3600,
+                unbonding_buffer: 3600,
+                undelegation_batch_id_pointer: 0,
+                reconciled_batch_id_pointer: 0,
+                is_active: false,
+                total_shares: Decimal::from_ratio(1000_u128, 1_u128),
+                current_undelegated_shares: Default::default(),
+                global_airdrop_pointer: vec![],
+                total_airdrops_accumulated: vec![],
+                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+            },
+        );
+
+        let strategy_info = STRATEGY_MAP
+            .may_load(deps.as_mut().storage, "sid1")
+            .unwrap()
+            .unwrap();
+        let s_t_ratio =
+            get_strategy_shares_per_token_ratio(deps.as_ref().querier, &strategy_info).unwrap();
+
+        assert_eq!(s_t_ratio, Decimal::from_ratio(2_u128, 1_u128));
+
+        /*
+           Test - 2. S_T ratio is greater than 10
+        */
+        let mut contracts_to_tokens: HashMap<Addr, Uint128> = HashMap::new();
+        contracts_to_tokens.insert(sic1_address.clone(), Uint128::new(50_u128));
+        deps.querier.update_wasm(Some(contracts_to_tokens), None);
+
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            "sid1",
+            &StrategyInfo {
+                name: "sid1".to_string(),
+                sic_contract_address: sic1_address.clone(),
+                unbonding_period: 3600,
+                unbonding_buffer: 3600,
+                undelegation_batch_id_pointer: 0,
+                reconciled_batch_id_pointer: 0,
+                is_active: false,
+                total_shares: Decimal::from_ratio(1000_u128, 1_u128),
+                current_undelegated_shares: Default::default(),
+                global_airdrop_pointer: vec![],
+                total_airdrops_accumulated: vec![],
+                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+            },
+        );
+
+        let strategy_info = STRATEGY_MAP
+            .may_load(deps.as_mut().storage, "sid1")
+            .unwrap()
+            .unwrap();
+        let s_t_ratio =
+            get_strategy_shares_per_token_ratio(deps.as_ref().querier, &strategy_info).unwrap();
+
+        assert_eq!(s_t_ratio, Decimal::from_ratio(20_u128, 1_u128));
     }
 
     #[test]
@@ -145,6 +256,7 @@ mod tests {
             ],
             strategies: vec![],
             pending_airdrops: vec![],
+            undelegation_records: vec![],
             pending_rewards: Uint128::zero(),
         };
         let amount = Uint128::new(100_u128);
@@ -179,6 +291,7 @@ mod tests {
             ],
             strategies: vec![],
             pending_airdrops: vec![],
+            undelegation_records: vec![],
             pending_rewards: Uint128::zero(),
         };
         let amount = Uint128::new(100_u128);
@@ -203,6 +316,7 @@ mod tests {
             user_portfolio: vec![],
             strategies: vec![],
             pending_airdrops: vec![],
+            undelegation_records: vec![],
             pending_rewards: Uint128::zero(),
         };
         let amount = Uint128::new(100_u128);
@@ -215,7 +329,7 @@ mod tests {
     }
 
     #[test]
-    fn test__get_vault_apr() {
+    fn test__get_strategy_apr() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -229,7 +343,7 @@ mod tests {
            Test - 1. Vault apr when shares_per_token_ratio is still 1
         */
         let state = STATE.load(deps.as_mut().storage).unwrap();
-        let apr = get_vault_apr(
+        let apr = get_strategy_apr(
             Decimal::from_ratio(1_000_000_00_u128, 1_u128),
             initial_shares_per_token_ratio,
             state.contract_genesis_timestamp,
@@ -241,7 +355,7 @@ mod tests {
            Test - 2. Vault apr when shares_per_token_ratio becomes 0 ( will never happen )
         */
         let state = STATE.load(deps.as_mut().storage).unwrap();
-        let apr = get_vault_apr(
+        let apr = get_strategy_apr(
             Decimal::zero(),
             initial_shares_per_token_ratio,
             state.contract_genesis_timestamp,
@@ -253,7 +367,7 @@ mod tests {
             Test - 3. Vault apr when shares_per_token_ratio becomes 0.9 after 1000s
         */
         let state = STATE.load(deps.as_mut().storage).unwrap();
-        let apr = get_vault_apr(
+        let apr = get_strategy_apr(
             Decimal::from_ratio(9_000_000_00_u128, 10_u128),
             initial_shares_per_token_ratio,
             state.contract_genesis_timestamp,
@@ -265,7 +379,7 @@ mod tests {
             Test - 4. Vault apr when shares_per_token_ratio becomes 0.8 after 5000s
         */
         let state = STATE.load(deps.as_mut().storage).unwrap();
-        let apr = get_vault_apr(
+        let apr = get_strategy_apr(
             Decimal::from_ratio(8_000_000_00_u128, 10_u128),
             initial_shares_per_token_ratio,
             state.contract_genesis_timestamp,
@@ -277,7 +391,7 @@ mod tests {
            Test - 5. Vault apr when shares_per_token_ratio becomes 0.009 after 10000s.
         */
         let state = STATE.load(deps.as_mut().storage).unwrap();
-        let apr = get_vault_apr(
+        let apr = get_strategy_apr(
             Decimal::from_ratio(9_000_000_00_u128, 1000_u128),
             initial_shares_per_token_ratio,
             state.contract_genesis_timestamp,
@@ -289,7 +403,7 @@ mod tests {
            Test - 6. Vault apr when shares_per_token_ratio becomes 0.94 after 1 year
         */
         let state = STATE.load(deps.as_mut().storage).unwrap();
-        let apr = get_vault_apr(
+        let apr = get_strategy_apr(
             Decimal::from_ratio(94_000_000_00_u128, 100_u128),
             initial_shares_per_token_ratio,
             state.contract_genesis_timestamp,
@@ -303,7 +417,7 @@ mod tests {
             Test - 7. Vault apr when shares_per_token_ratio becomes 0.90 after 2 year
         */
         let state = STATE.load(deps.as_mut().storage).unwrap();
-        let apr = get_vault_apr(
+        let apr = get_strategy_apr(
             Decimal::from_ratio(9_000_000_000_u128, 100_u128),
             initial_shares_per_token_ratio,
             state.contract_genesis_timestamp,
@@ -317,7 +431,7 @@ mod tests {
             Test - 8. Vault apr when shares_per_token_ratio becomes 0.90 after half a year
         */
         let state = STATE.load(deps.as_mut().storage).unwrap();
-        let apr = get_vault_apr(
+        let apr = get_strategy_apr(
             Decimal::from_ratio(9_000_000_000_u128, 100_u128),
             initial_shares_per_token_ratio,
             state.contract_genesis_timestamp,

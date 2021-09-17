@@ -1,4 +1,5 @@
 use crate::error::ContractError::UserRewardInfoDoesNotExist;
+use crate::msg::UserStrategyQueryInfo;
 use crate::state::{
     StrategyInfo, UserRewardInfo, UserStrategyInfo, STRATEGY_MAP, USER_REWARD_INFO_MAP,
 };
@@ -9,7 +10,7 @@ use stader_utils::coin_utils::{
 };
 
 pub fn allocate_user_airdrops_across_strategies(
-    storage: &mut dyn Storage,
+    storage: &dyn Storage,
     user_reward_info: &mut UserRewardInfo,
 ) {
     let mut total_allocated_airdrops: Vec<Coin> = user_reward_info.pending_airdrops.clone();
@@ -34,7 +35,7 @@ pub fn allocate_user_airdrops_across_strategies(
 
         if let Some(user_airdrops) = user_airdrops_for_strategy {
             total_allocated_airdrops = merge_coin_vector(
-                total_allocated_airdrops,
+                &total_allocated_airdrops,
                 CoinVecOp {
                     fund: user_airdrops,
                     operation: Operation::Add,

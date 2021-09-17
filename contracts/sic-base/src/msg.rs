@@ -17,6 +17,11 @@ pub enum ExecuteMsg {
     TransferRewards {},
     // called by SCC to undelegate 'amount' from SIC strategy back to SIC contract
     // All the batching for the undelegations is handled in the SCC
+    // The undelegate rewards can choose to create a batch if it has to handle unbonding slashing (unfortunately)
+    // or any form of slashing at the strategy end when unbonding the rewards from the strategy.
+    // In order to attribute the user to the undelegation slashing, we need to keep track of an undelegation batch id
+    // which is a unique id representing the batch.
+    // The GetCurrentUndelegationBatchId query returns the undelegation batch id
     UndelegateRewards {
         amount: Uint128,
     },

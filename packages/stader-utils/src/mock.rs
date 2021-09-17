@@ -12,6 +12,7 @@ use cosmwasm_std::{
     SystemError, SystemResult, Timestamp, Uint128, Validator, ValidatorResponse, VerificationError,
     WasmQuery,
 };
+use sic_base::msg::QueryMsg::{GetTotalTokens, GetFulfillableUndelegatedFunds};
 use sic_base::msg::{GetFulfillableUndelegatedFundsResponse, GetTotalTokensResponse, QueryMsg};
 use std::cmp::min;
 
@@ -302,7 +303,7 @@ struct NoWasmQuerier {
     // FIXME: actually provide a way to call out
     pub contract_to_tokens: HashMap<Addr, Uint128>,
     pub contract_to_fulfillable_undelegations: HashMap<Addr, Uint128>,
-}
+ }
 
 impl NoWasmQuerier {
     fn default() -> Self {
@@ -339,15 +340,16 @@ impl NoWasmQuerier {
                     }
                     QueryMsg::GetState { .. } => default_output,
                     QueryMsg::GetFulfillableUndelegatedFunds { amount } => {
-                        let contract_fulfillable_undelegation = *self
+                        let fulfillable_amount = self
                             .contract_to_fulfillable_undelegations
                             .get(&Addr::unchecked(contract_addr))
-                            .unwrap();
+                            .unwrap()
+                            .clone();
                         let res = GetFulfillableUndelegatedFundsResponse {
-                            undelegated_funds: Some(min(amount, contract_fulfillable_undelegation)),
+                            undelegated_funds: Some(min(amount, fulfillable_amount)),
                         };
                         to_binary(&res).unwrap()
-                    }
+                    },
                 }
             }
             WasmQuery::Raw { .. } => default_output,
