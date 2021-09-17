@@ -59,6 +59,7 @@ pub struct UserRewardInfoQuery {
     pub user_portfolio: Vec<UserStrategyPortfolio>,
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct MigrateMsg {}
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

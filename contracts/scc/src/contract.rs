@@ -1342,7 +1342,7 @@ fn query_get_all_strategies(deps: Deps) -> StdResult<GetAllStrategiesResponse> {
 
     // seed with retain-rewards
     let mut all_strategies_info: Vec<StrategyInfoQuery> = vec![StrategyInfoQuery {
-        strategy_name: "retain-rewards".to_string(),
+        strategy_name: "retain_rewards".to_string(),
         total_rewards: state.rewards_in_scc,
         rewards_in_undelegation: Uint128::zero(),
         is_active: true,
