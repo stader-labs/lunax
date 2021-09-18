@@ -12,3 +12,7 @@ Cargo.lock
 artifacts/
 
 .DS_Store
+
+scripts-delegator
+scripts-pools
+scripts-validator
