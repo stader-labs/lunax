@@ -30,7 +30,19 @@ pub fn check_equal_reward_info(a: UserRewardInfo, b: UserRewardInfo) -> bool {
         return false;
     }
 
+    if !check_equal_vec(a.user_portfolio, b.user_portfolio) {
+        return false;
+    }
+
     if !check_equal_vec(a.pending_airdrops, b.pending_airdrops) {
+        return false;
+    }
+
+    if !check_equal_vec(a.undelegation_records, b.undelegation_records) {
+        return false;
+    }
+
+    if a.pending_rewards.ne(&b.pending_rewards) {
         return false;
     }
 

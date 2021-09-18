@@ -142,6 +142,10 @@ pub enum ExecuteMsg {
     // called by the user to withdraw pending rewards i.e rewards which are not in any strategy
     WithdrawPendingRewards {},
     WithdrawAirdrops {},
+    // called by user to directly deposit to SICs according to portfolio or give a strategy override
+    DepositFunds {
+        strategy_override: Option<u64>,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
