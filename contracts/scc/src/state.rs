@@ -17,7 +17,7 @@ pub struct Config {
 pub struct State {
     pub manager: CanonicalAddr,
 
-    pub pool_contract: CanonicalAddr,
+    pub pools_contract: CanonicalAddr,
     pub scc_denom: String,
     pub contract_genesis_block_height: u64,
     pub contract_genesis_timestamp: Timestamp,
