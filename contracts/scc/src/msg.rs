@@ -119,6 +119,9 @@ pub enum ExecuteMsg {
     UpdateUserAirdrops {
         update_user_airdrops_requests: Vec<UpdateUserAirdropsRequest>,
     },
+    UpdateConfig {
+        pools_contract: Addr,
+    },
     /*
        User messages
     */

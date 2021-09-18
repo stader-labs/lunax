@@ -170,7 +170,30 @@ pub fn execute(
         ExecuteMsg::DepositFunds { strategy_override } => {
             try_deposit_funds(deps, _env, info, strategy_override)
         }
+        ExecuteMsg::UpdateConfig { pools_contract } => {
+            try_update_config(deps, _env, info, pools_contract)
+        }
     }
+}
+
+pub fn try_update_config(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    pools_contract: Addr,
+) -> Result<Response, ContractError> {
+    let state = STATE.load(deps.storage)?;
+    if deps.api.addr_canonicalize(info.sender.as_str())? != state.manager {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    let pools_address_canonical = deps.api.addr_canonicalize(pools_contract.as_str())?;
+    STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
+        state.pools_contract = pools_address_canonical;
+        Ok(state)
+    })?;
+
+    Ok(Response::default())
 }
 
 pub fn try_update_strategy(

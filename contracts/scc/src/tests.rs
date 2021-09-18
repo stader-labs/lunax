@@ -627,6 +627,91 @@ mod tests {
     }
 
     #[test]
+    fn test__try_update_config_fail() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &coins(1000, "earth"));
+        let env = mock_env();
+
+        let res = instantiate_contract(
+            &mut deps,
+            &info,
+            &env,
+            Some(String::from("uluna")),
+            Some(String::from("pools_contract")),
+            None,
+        );
+
+        /*
+           Test - 1. Unauthorized
+        */
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("not-creator", &[]),
+            ExecuteMsg::UpdateConfig {
+                pools_contract: Addr::unchecked("abc"),
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::Unauthorized {}));
+    }
+
+    #[test]
+    fn test__try_update_config_success() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &coins(1000, "earth"));
+        let env = mock_env();
+
+        let res = instantiate_contract(
+            &mut deps,
+            &info,
+            &env,
+            Some(String::from("uluna")),
+            Some(String::from("pools_contract")),
+            None,
+        );
+
+        let old_pools_contract = Addr::unchecked("old_pools_contract");
+        let new_pools_contract = Addr::unchecked("new_pools_contract");
+
+        /*
+           Test - 1. Unauthorized
+        */
+        let old_pools_contract_canon = deps
+            .api
+            .addr_canonicalize(old_pools_contract.as_str())
+            .unwrap();
+        STATE.update(
+            deps.as_mut().storage,
+            |mut state| -> Result<_, ContractError> {
+                state.pools_contract = old_pools_contract_canon;
+                Ok(state)
+            },
+        );
+
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::UpdateConfig {
+                pools_contract: new_pools_contract.clone(),
+            },
+        )
+        .unwrap();
+        let state_response: GetStateResponse =
+            from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::GetState {}).unwrap())
+                .unwrap();
+        assert_ne!(state_response.state, None);
+        let state = state_response.state.unwrap();
+        assert_eq!(
+            state.pools_contract,
+            deps.api
+                .addr_canonicalize(new_pools_contract.as_str())
+                .unwrap()
+        )
+    }
+
+    #[test]
     fn test__try_deposit_funds_fail() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &coins(1000, "earth"));
