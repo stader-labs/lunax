@@ -54,7 +54,7 @@ pub fn instantiate(
     };
 
     let state = State {
-        manager: info.sender.clone(),
+        manager: deps.api.addr_canonicalize(info.sender.clone().as_str())?,
         pool_contract: deps.api.addr_canonicalize(msg.pools_contract.as_str())?,
         scc_denom: msg.strategy_denom,
         contract_genesis_block_height: _env.block.height,
@@ -183,7 +183,7 @@ pub fn try_update_strategy(
     is_active: bool,
 ) -> Result<Response, ContractError> {
     let state = STATE.load(deps.storage)?;
-    if info.sender != state.manager {
+    if deps.api.addr_canonicalize(info.sender.as_str())? != state.manager {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -245,7 +245,7 @@ pub fn try_fetch_undelegated_rewards_from_strategies(
     strategies: Vec<u64>,
 ) -> Result<Response, ContractError> {
     let state = STATE.load(deps.storage)?;
-    if info.sender != state.manager {
+    if deps.api.addr_canonicalize(info.sender.as_str())? != state.manager {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -388,7 +388,7 @@ pub fn try_undelegate_from_strategies(
     strategies: Vec<u64>,
 ) -> Result<Response, ContractError> {
     let state = STATE.load(deps.storage)?;
-    if info.sender != state.manager {
+    if deps.api.addr_canonicalize(info.sender.as_str())? != state.manager {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -496,7 +496,7 @@ pub fn try_update_cw20_contracts_registry(
     airdrop_contract: Addr,
 ) -> Result<Response, ContractError> {
     let state = STATE.load(deps.storage)?;
-    if state.manager != info.sender {
+    if deps.api.addr_canonicalize(info.sender.as_str())? != state.manager {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -628,7 +628,7 @@ pub fn try_claim_airdrops(
     claim_msg: Binary,
 ) -> Result<Response, ContractError> {
     let state = STATE.load(deps.storage)?;
-    if info.sender != state.manager {
+    if deps.api.addr_canonicalize(info.sender.as_str())? != state.manager {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -849,7 +849,7 @@ pub fn try_register_strategy(
     unbonding_buffer: Option<u64>,
 ) -> Result<Response, ContractError> {
     let state = STATE.load(deps.storage)?;
-    if info.sender != state.manager {
+    if deps.api.addr_canonicalize(info.sender.as_str())? != state.manager {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -881,7 +881,7 @@ pub fn try_remove_strategy(
     strategy_id: u64,
 ) -> Result<Response, ContractError> {
     let state = STATE.load(deps.storage)?;
-    if info.sender != state.manager {
+    if deps.api.addr_canonicalize(info.sender.as_str())? != state.manager {
         return Err(ContractError::Unauthorized {});
     }
 

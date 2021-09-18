@@ -14,7 +14,7 @@ pub struct StakeQuota {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct State {
-    pub manager: Addr,
+    pub manager: CanonicalAddr,
     pub scc_address: CanonicalAddr,
     pub manager_seed_funds: Uint128,
     pub min_validator_pool_size: u64,

@@ -84,7 +84,7 @@ mod tests {
         assert_eq!(
             state,
             State {
-                manager: info.sender,
+                manager: deps.api.addr_canonicalize(info.sender.as_str()).unwrap(),
                 pool_contract: deps
                     .api
                     .addr_canonicalize(Addr::unchecked("pools_contract").as_str())

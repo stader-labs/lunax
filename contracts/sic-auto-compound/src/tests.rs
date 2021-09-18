@@ -112,7 +112,7 @@ mod tests {
         assert_eq!(
             state_response.state.unwrap(),
             State {
-                manager: info.sender,
+                manager: deps.api.addr_canonicalize(info.sender.as_str()).unwrap(),
                 scc_address: deps.api.addr_canonicalize(scc_address.as_str()).unwrap(),
                 manager_seed_funds: Uint128::new(1000_u128),
                 min_validator_pool_size: 2,

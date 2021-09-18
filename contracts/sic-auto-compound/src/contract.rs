@@ -32,7 +32,7 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     let state = State {
-        manager: info.sender.clone(),
+        manager: deps.api.addr_canonicalize(info.sender.clone().as_str())?,
         scc_address: deps.api.addr_canonicalize(msg.scc_address.as_str())?,
         manager_seed_funds: msg.manager_seed_funds,
         min_validator_pool_size: msg.min_validator_pool_size.unwrap_or(3),
@@ -115,7 +115,7 @@ pub fn try_remove_validator(
     validator: Addr,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let state = STATE.load(deps.storage)?;
-    if info.sender != state.manager {
+    if deps.api.addr_canonicalize(info.sender.as_str())? != state.manager {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -230,7 +230,7 @@ pub fn try_replace_validator(
     dst_validator: Addr,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let state = STATE.load(deps.storage)?;
-    if info.sender != state.manager {
+    if deps.api.addr_canonicalize(info.sender.as_str())? != state.manager {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -331,7 +331,7 @@ pub fn try_add_validator(
     validator: Addr,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let state = STATE.load(deps.storage)?;
-    if info.sender != state.manager {
+    if deps.api.addr_canonicalize(info.sender.as_str())? != state.manager {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -402,7 +402,7 @@ pub fn try_swap(
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let state = STATE.load(deps.storage)?;
 
-    if info.sender != state.manager && info.sender != _env.contract.address {
+    if deps.api.addr_canonicalize(info.sender.as_str())? != state.manager {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -656,7 +656,10 @@ pub fn try_reinvest(
     let state = STATE.load(deps.storage)?;
 
     // TODO - bchain99: add validation templates. discuss with gm about pushing it to stader-utils
-    if info.sender != state.manager && info.sender != _env.contract.address {
+    if deps.api.addr_canonicalize(info.sender.as_str())? != state.manager
+        && deps.api.addr_canonicalize(info.sender.as_str())?
+            != deps.api.addr_canonicalize(_env.contract.address.as_str())?
+    {
         return Err(ContractError::Unauthorized {});
     }
 
