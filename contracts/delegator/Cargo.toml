@@ -40,6 +40,7 @@ schemars = "0.8.3"
 serde = { version = "1.0.127", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.26" }
 stader-utils = { version = "0.1.0", path = "./../../packages/stader-utils"}
+scc = { version = "0.1.0", path = "./../scc", features = ["library"] }
 terra-cosmwasm = { version = "2.1.0" }
 cw20 = "0.8.0"
 

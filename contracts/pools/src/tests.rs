@@ -16,7 +16,7 @@ mod tests {
     use cw_storage_plus::U64Key;
     use delegator::msg::ExecuteMsg as DelegatorMsg;
     use validator::msg::ExecuteMsg as ValidatorMsg;
-    use stader_utils::event_constants::{POOLS_VALIDATOR_EVENT_SWAP_ID, EVENT_SWAP_KEY_AMOUNT, EVENT_KEY_IDENTIFIER};
+    use stader_utils::event_constants::{EVENT_SWAP_KEY_AMOUNT, EVENT_KEY_IDENTIFIER, EVENT_SWAP_TYPE};
 
     fn get_validators() -> Vec<Validator> {
         vec![
@@ -1130,7 +1130,7 @@ mod tests {
                         SubMsgExecutionResponse {
                             events:
                             vec![
-                                Event::new(format!("wasm-{}", POOLS_VALIDATOR_EVENT_SWAP_ID)) // Events are automatically prepended with a `wasm-`
+                                Event::new(format!("wasm-{}", EVENT_SWAP_TYPE)) // Events are automatically prepended with a `wasm-`
                                     .add_attribute(
                                         EVENT_SWAP_KEY_AMOUNT,
                                         "1400",

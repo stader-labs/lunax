@@ -31,6 +31,7 @@ use stader_utils::event_constants::{EVENT_SWAP_TYPE, EVENT_SWAP_KEY_AMOUNT, EVEN
 const CONTRACT_NAME: &str = "validator";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
+#[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
     env: Env,
@@ -57,6 +58,7 @@ pub fn instantiate(
     Ok(Response::default())
 }
 
+#[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(
     deps: DepsMut,
     env: Env,
@@ -65,6 +67,7 @@ pub fn migrate(
     Ok(Response::default())
 }
 
+#[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
     env: Env,
@@ -108,6 +111,7 @@ pub fn execute(
         ExecuteMsg::RemoveSlashingFunds { amount } => {
             remove_slashing_funds(deps, info, env, amount)
         }
+        ExecuteMsg::UpdateConfig { pools_contract, scc_contract, delegator_contract } => update_config(deps, info, env, pools_contract, scc_contract, delegator_contract),
     }
 }
 
@@ -223,7 +227,7 @@ pub fn stake_to_validator(
                 .checked_add(stake_amount.amount.clone())
                 .unwrap(),
             accrued_rewards: merge_coin_vector(
-                val_meta.accrued_rewards,
+                &val_meta.accrued_rewards,
                 CoinVecOp {
                     fund: accrued_rewards.clone(),
                     operation: Operation::Add,
@@ -234,7 +238,7 @@ pub fn stake_to_validator(
 
     STATE.update(deps.storage, |mut state| -> StdResult<_> {
         state.unswapped_rewards = merge_coin_vector(
-            state.unswapped_rewards,
+            &state.unswapped_rewards,
             CoinVecOp {
                 fund: accrued_rewards,
                 operation: Operation::Add,
@@ -299,14 +303,14 @@ pub fn redeem_rewards(
             }));
         }
         total_rewards = merge_coin_vector(
-            total_rewards,
+            &total_rewards,
             CoinVecOp {
                 fund: full_delegation.accumulated_rewards.clone(),
                 operation: Operation::Add,
             },
         );
         val_meta.accrued_rewards = merge_coin_vector(
-            val_meta.accrued_rewards.clone(),
+            &val_meta.accrued_rewards.clone(),
             CoinVecOp {
                 fund: full_delegation.accumulated_rewards,
                 operation: Operation::Add,
@@ -326,7 +330,7 @@ pub fn redeem_rewards(
             .checked_sub(total_slashing_difference)
             .unwrap();
         state.unswapped_rewards = merge_coin_vector(
-            state.unswapped_rewards,
+            &state.unswapped_rewards,
             CoinVecOp {
                 fund: total_rewards,
                 operation: Operation::Add,
@@ -379,7 +383,7 @@ pub fn redelegate(
         src_delegation_opt.unwrap().accumulated_rewards
     };
     src_meta.accrued_rewards = merge_coin_vector(
-        src_meta.accrued_rewards,
+        &src_meta.accrued_rewards,
         CoinVecOp {
             operation: Operation::Add,
             fund: src_rewards.clone(),
@@ -395,7 +399,7 @@ pub fn redelegate(
         dst_delegation_opt.unwrap().accumulated_rewards
     };
     dst_meta.accrued_rewards = merge_coin_vector(
-        dst_meta.accrued_rewards,
+        &dst_meta.accrued_rewards,
         CoinVecOp {
             operation: Operation::Add,
             fund: dst_rewards.clone(),
@@ -407,14 +411,14 @@ pub fn redelegate(
 
     STATE.update(deps.storage, |mut state| -> StdResult<_> {
         let total_redeemed_rewards = merge_coin_vector(
-            src_rewards,
+            &src_rewards,
             CoinVecOp {
                 operation: Operation::Add,
                 fund: dst_rewards,
             },
         );
         state.unswapped_rewards = merge_coin_vector(
-            state.unswapped_rewards,
+            &state.unswapped_rewards,
             CoinVecOp {
                 operation: Operation::Add,
                 fund: total_redeemed_rewards,
@@ -475,7 +479,7 @@ pub fn undelegate(
     };
     val_meta.staked = val_meta.staked.checked_sub(amount).unwrap();
     val_meta.accrued_rewards = merge_coin_vector(
-        val_meta.accrued_rewards,
+        &val_meta.accrued_rewards,
         CoinVecOp {
             operation: Operation::Add,
             fund: acc_rewards.clone(),
@@ -485,7 +489,7 @@ pub fn undelegate(
 
     STATE.update(deps.storage, |mut state| -> StdResult<_> {
         state.unswapped_rewards = merge_coin_vector(
-            state.unswapped_rewards.clone(),
+            &state.unswapped_rewards.clone(),
             CoinVecOp {
                 fund: acc_rewards,
                 operation: Operation::Add,
@@ -592,7 +596,7 @@ pub fn swap_and_transfer(
 
         let val_meta = val_meta_opt.unwrap();
         total_rewards = merge_coin_vector(
-            total_rewards,
+            &total_rewards,
             CoinVecOp {
                 fund: val_meta.accrued_rewards,
                 operation: Operation::Add,
@@ -620,7 +624,7 @@ pub fn swap_and_transfer(
             continue;
         } else if coin.denom.eq(&config.vault_denom) {
             rewards_swapped = merge_coin_vector(
-                rewards_swapped,
+                &rewards_swapped,
                 CoinVecOp {
                     operation: Operation::Add,
                     fund: vec![Coin::new(coin.amount.u128(), coin.denom.clone())], // Coin does not have copy
@@ -657,7 +661,7 @@ pub fn swap_and_transfer(
             ));
 
             rewards_swapped = merge_coin_vector(
-                rewards_swapped,
+                &rewards_swapped,
                 CoinVecOp {
                     operation: Operation::Add,
                     fund: vec![Coin::new(coin.amount.u128(), coin.denom.clone())], // Coin does not have copy
@@ -690,7 +694,7 @@ pub fn swap_and_transfer(
     // TODO - GM. This should be a map entry with a pool_id as key.
     STATE.update(deps.storage, |mut state| -> StdResult<_> {
         state.unswapped_rewards = merge_coin_vector(
-            state.unswapped_rewards,
+            &state.unswapped_rewards,
             CoinVecOp {
                 operation: Operation::Sub,
                 fund: rewards_swapped,
@@ -833,6 +837,29 @@ pub fn remove_slashing_funds(
     )))
 }
 
+// TODO - GM. Add tests
+pub fn update_config(
+    deps: DepsMut,
+    info: MessageInfo,
+    env: Env,
+    pools_contract: Option<Addr>,
+    scc_contract: Option<Addr>,
+    delegator_contract: Option<Addr>,
+)-> Result<Response<TerraMsgWrapper>, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    validate(&config, &info, &env, vec![Verify::SenderManager, Verify::NoFunds])?;
+
+    CONFIG.update(deps.storage, |mut config| -> StdResult<_> {
+        config.pools_contract = pools_contract.unwrap_or(config.pools_contract.clone());
+        config.scc_contract = scc_contract.unwrap_or(config.pools_contract.clone());
+        config.delegator_contract = delegator_contract.unwrap_or(config.delegator_contract.clone());
+        Ok(config)
+    })?;
+
+    Ok(Response::default())
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetConfig {} => to_binary(&query_config(deps)?),
@@ -872,7 +899,7 @@ pub fn query_airdrop_meta(deps: Deps, token: String) -> StdResult<GetAirdropMeta
     SubMessage Signals
 */
 
-#[entry_point]
+#[cfg_attr(not(feature = "library"), entry_point)]
 pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractError> {
     match msg.id {
         // Called for remove_validator clean up.
@@ -928,7 +955,7 @@ pub fn reply_remove_validator(
 
     // Staked fields would be taken care of redelegate message. Update accrued rewards field as well.
     dst_val_meta.accrued_rewards = merge_coin_vector(
-        dst_val_meta.accrued_rewards.clone(),
+        &dst_val_meta.accrued_rewards.clone(),
         CoinVecOp {
             fund: src_val_meta.accrued_rewards.clone(),
             operation: Operation::Add,
