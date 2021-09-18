@@ -4,7 +4,7 @@ use cosmwasm_std::{Env, MessageInfo, Addr, DepsMut, Response, Uint128, Storage, 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use cw_storage_plus::U64Key;
-use stader_utils::coin_utils::{merge_dec_coin_vector, DecCoinVecOp, Operation, deccoin_vec_to_coin_vec, multiply_deccoin_vector_with_uint128, multiply_u128_with_decimal, decimal_subtraction_in_256, DecCoin};
+use stader_utils::coin_utils::{merge_dec_coin_vector, DecCoinVecOp, Operation, deccoin_vec_to_coin_vec, multiply_deccoin_vector_with_uint128, multiply_u128_with_decimal, decimal_subtraction_in_256, DecCoin, merge_coin_vector, CoinVecOp};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub enum Verify {
@@ -66,10 +66,13 @@ pub fn update_user_pointers(user_info: &mut UserPoolInfo, airdrops_pointer: Vec<
         operation: Operation::Sub,
         fund: user_info.airdrops_pointer.clone()
     });
-    user_info.pending_airdrops = deccoin_vec_to_coin_vec(&multiply_deccoin_vector_with_uint128(&airdrop_pointer_difference, user_info.deposit.staked));
+    user_info.pending_airdrops = merge_coin_vector(&user_info.pending_airdrops, CoinVecOp {
+        fund: deccoin_vec_to_coin_vec(&multiply_deccoin_vector_with_uint128(&airdrop_pointer_difference, user_info.deposit.staked)),
+        operation: Operation::Add,
+    });
     user_info.airdrops_pointer = airdrops_pointer;
-    user_info.pending_rewards = Uint128::new(multiply_u128_with_decimal(
-        user_info.deposit.staked.u128(), decimal_subtraction_in_256(rewards_pointer.clone(), user_info.rewards_pointer)));
+    user_info.pending_rewards = user_info.pending_rewards.checked_add(Uint128::new(multiply_u128_with_decimal(
+        user_info.deposit.staked.u128(), decimal_subtraction_in_256(rewards_pointer.clone(), user_info.rewards_pointer)))).unwrap();
     user_info.rewards_pointer = rewards_pointer;
 }
 

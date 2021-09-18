@@ -9,6 +9,7 @@ use crate::ContractError;
 use crate::state::{Config, State, CONFIG, STATE, USER_REGISTRY, UserPoolInfo, DepositInfo, RedelegationInfo, UndelegationInfo};
 use crate::request_validation::{validate, Verify, update_user_pointers};
 use cw_storage_plus::U64Key;
+use scc::msg::{ExecuteMsg as SccMsg, UpdateUserRewardsRequest};
 use stader_utils::coin_utils::{decimal_subtraction_in_256, multiply_coin_with_decimal, multiply_u128_with_decimal, DecCoin, merge_dec_coin_vector, DecCoinVecOp, Operation, multiply_deccoin_vector_with_uint128, deccoin_vec_to_coin_vec};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -51,7 +52,9 @@ pub fn execute(
             undelegate(deps, info, env, user_addr, batch_id, from_pool, amount, pool_rewards_pointer, pool_airdrops_pointer),
         ExecuteMsg::WithdrawFunds { user_addr, pool_id, undelegate_id, amount } =>
             withdraw_funds(deps, info, env, user_addr, pool_id, undelegate_id, amount),
-        ExecuteMsg::AllocateRewards { user_addr } => allocate_rewards(deps, info, env, user_addr),
+        ExecuteMsg::AllocateRewards { user_addrs } => allocate_rewards(deps, info, env, user_addrs),
+
+        ExecuteMsg::UpdateConfig { pools_contract, scc_contract } => update_config(deps, info, env, pools_contract, scc_contract),
     }
 }
 
@@ -243,9 +246,45 @@ pub fn allocate_rewards(
     deps: DepsMut,
     info: MessageInfo,
     env: Env,
-    user_addr: Addr,
+    user_addrs: Vec<Addr>,
 )-> Result<Response<TerraMsgWrapper>, ContractError> {
-    Err(ContractError::NotImplemented {})
+    let config = CONFIG.load(deps.storage)?;
+    validate(&config, &info, &env, vec![Verify::SenderManager, Verify::NoFunds])?;
+
+    // let mut messages = vec![];
+    // let mut scc_user_reward_requests = vec![];
+    // for user_addr in user_addrs {
+    //
+    //     let user_req = UpdateUserRewardsRequest {
+    //         user: user_addr,
+    //         funds: Default::default(),
+    //         strategy_id: None
+    //     };
+    // }
+
+
+    Ok(Response::new())
+
+}
+
+// TODO - GM. Add tests
+pub fn update_config(
+    deps: DepsMut,
+    info: MessageInfo,
+    env: Env,
+    pools_contract: Option<Addr>,
+    scc_contract: Option<Addr>,
+)-> Result<Response<TerraMsgWrapper>, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    validate(&config, &info, &env, vec![Verify::SenderManager, Verify::NoFunds])?;
+
+    CONFIG.update(deps.storage, |mut config| -> StdResult<_> {
+        config.pools_contract = pools_contract.unwrap_or(config.pools_contract.clone());
+        config.scc_contract = scc_contract.unwrap_or(config.pools_contract.clone());
+        Ok(config)
+    })?;
+
+    Ok(Response::default())
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -273,17 +312,30 @@ pub fn query_user_pool(deps: Deps, user_addr: Addr, pool_id: u64) -> StdResult<U
     Ok(UserPoolResponse { info: user_pool_opt })
 }
 
-pub fn query_user(deps: Deps, user_addr: Addr) -> StdResult<UserResponse> {
-    let x = USER_REGISTRY.prefix(&user_addr).range(deps.storage, None, None, Order::Ascending);
-    let mut res = vec![];
-    for y in x {
-        let z = y.unwrap();
-        let a = String::from_utf8(z.0).unwrap().parse::<u64>().unwrap();
-        let b = z.1;
-        res.push(QueryUserInfo {
-            pool_id: a,
-            pool_info: b
-        })
-    }
-    Ok(UserResponse { info: res })
+pub fn query_user(deps: Deps, user_addr: Addr) -> StdResult<Vec<(Vec<u8>, UserPoolInfo)>> {
+        USER_REGISTRY
+            .prefix(&user_addr)
+            .range(deps.storage, None, None, Order::Ascending)
+            .collect()
+
 }
+
+// pub fn query_user(deps: Deps, user_addr: Addr) -> StdResult<UserResponse> {
+//     let x: StdResult<Vec<(Vec<u8>, UserPoolInfo)>> =
+//         USER_REGISTRY
+//             .prefix(&user_addr)
+//             .range(deps.storage, None, None, Order::Ascending)
+//             .collect();
+//
+//     let x = x.unwrap();
+//     let mut res: Vec<QueryUserInfo> = vec![];
+//     for y in x {
+//         let a = String::from_utf8(y.0).unwrap().parse::<u64>().unwrap();
+//         let b = y.1;
+//         res.push(QueryUserInfo {
+//             pool_id: a,
+//             pool_info: b
+//         })
+//     }
+//     Ok(UserResponse { info: res })
+// }

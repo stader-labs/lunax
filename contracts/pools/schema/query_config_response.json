@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "GetConfigResponse",
+  "title": "QueryConfigResponse",
   "type": "object",
   "required": [
     "config"
@@ -20,6 +20,8 @@
       "required": [
         "delegator_contract",
         "manager",
+        "unbonding_buffer",
+        "unbonding_period",
         "validator_contract",
         "vault_denom"
       ],
@@ -29,6 +31,16 @@
         },
         "manager": {
           "$ref": "#/definitions/Addr"
+        },
+        "unbonding_buffer": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "unbonding_period": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
         },
         "validator_contract": {
           "$ref": "#/definitions/Addr"
