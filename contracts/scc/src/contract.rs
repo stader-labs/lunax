@@ -1036,11 +1036,11 @@ pub fn try_deposit_funds(
             &user_strategy_info.airdrop_pointer,
             user_strategy_info.shares,
         ) {
+            user_strategy_info.airdrop_pointer = strategy_info.global_airdrop_pointer.clone();
             user_airdrops
         } else {
             vec![]
         };
-        user_strategy_info.airdrop_pointer = strategy_info.global_airdrop_pointer.clone();
         user_reward_info.pending_airdrops = merge_coin_vector(
             &user_reward_info.pending_airdrops,
             CoinVecOp {
@@ -1199,12 +1199,11 @@ pub fn try_update_user_rewards(
                 &user_strategy_info.airdrop_pointer,
                 user_strategy_info.shares,
             ) {
+                user_strategy_info.airdrop_pointer = strategy_info.global_airdrop_pointer.clone();
                 user_airdrops
             } else {
                 vec![]
             };
-
-            user_strategy_info.airdrop_pointer = strategy_info.global_airdrop_pointer.clone();
             user_reward_info.pending_airdrops = merge_coin_vector(
                 &user_reward_info.pending_airdrops,
                 CoinVecOp {
