@@ -8,6 +8,9 @@ use stader_utils::coin_utils::DecCoin;
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
     pub default_user_portfolio: Vec<UserStrategyPortfolio>,
+    // this is the strategy we will fallback to, if the strategy
+    // in the user portfolio doesn't exist or is deactivated.
+    pub fallback_strategy: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

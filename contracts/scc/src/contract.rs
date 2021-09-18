@@ -27,6 +27,7 @@ use crate::state::{
 use crate::user::{allocate_user_airdrops_across_strategies, get_user_airdrops};
 use cw2::set_contract_version;
 use cw_storage_plus::U64Key;
+use serde::de::Unexpected::Str;
 use serde::Serialize;
 use sic_base::msg::{ExecuteMsg as sic_execute_msg, QueryMsg as sic_query_msg};
 use stader_utils::coin_utils::{
@@ -49,6 +50,7 @@ pub fn instantiate(
 ) -> Result<Response, ContractError> {
     let config = Config {
         default_user_portfolio: msg.default_user_portfolio.unwrap_or_default(),
+        fallback_strategy: msg.default_fallback_strategy.unwrap_or_default(),
     };
 
     let state = State {
@@ -63,6 +65,14 @@ pub fn instantiate(
     };
     STATE.save(deps.storage, &state)?;
     CONFIG.save(deps.storage, &config)?;
+
+    // create strategy_id 0 which is "retain_rewards". It's a special strategy where rewards
+    // of the user just sit in SCC
+    STRATEGY_MAP.save(
+        deps.storage,
+        U64Key::new(0),
+        &StrategyInfo::default("RETAIN_REWARDS".to_string()),
+    )?;
 
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
@@ -939,17 +949,16 @@ pub fn try_update_user_rewards(
 
     let mut failed_strategies: Vec<String> = vec![];
     let mut failed_sics: Vec<String> = vec![];
-    let mut inactive_strategies: Vec<String> = vec![];
     let mut users_with_zero_deposits: Vec<String> = vec![];
     // cache for the S/T ratio per strategy. We fetch it once and cache it up.
     let mut strategy_to_s_t_ratio: HashMap<u64, Decimal> = HashMap::new();
     let mut strategy_to_funds: HashMap<Addr, Uint128> = HashMap::new();
-    let mut total_surplus_rewards: Uint128 = Uint128::zero();
+    let mut total_rewards_in_scc: Uint128 = Uint128::zero();
     let mut messages: Vec<WasmMsg> = vec![];
     for update_user_rewards_request in update_user_rewards_requests {
         let user_addr = update_user_rewards_request.user;
         let funds = update_user_rewards_request.funds;
-        let strategy_opt = update_user_rewards_request.strategy_id;
+        let strategy_override = update_user_rewards_request.strategy_id;
 
         if funds.is_zero() {
             users_with_zero_deposits.push(user_addr.to_string());
@@ -959,38 +968,31 @@ pub fn try_update_user_rewards(
         let config = CONFIG.load(deps.storage)?;
         let mut user_reward_info = USER_REWARD_INFO_MAP
             .may_load(deps.storage, &user_addr)?
-            .unwrap_or_else(|| UserRewardInfo::new(config.default_user_portfolio));
+            .unwrap_or_else(|| UserRewardInfo::new(config.default_user_portfolio.clone()));
 
-        // this is the amount to be split per strategy
-        let strategy_split: Vec<(u64, Uint128)>;
-        // surplus is the amount of rewards which does not go into any strategy and just sits in SCC.
-        // surplus is basically retain rewards
-        let mut surplus: Uint128 = Uint128::zero();
+        let strategy_split = get_strategy_split(
+            deps.storage,
+            &config,
+            strategy_override,
+            &user_reward_info,
+            funds,
+        )?;
 
-        match strategy_opt {
-            None => {
-                let strategy_split_with_surplus = get_strategy_split(&user_reward_info, funds);
-                strategy_split = strategy_split_with_surplus.0;
-                surplus = strategy_split_with_surplus.1;
-            }
-            // if strategy_id is given, it overrides the user portfolio distribution.
-            Some(strategy_id) => {
-                strategy_split = vec![(strategy_id, funds)];
-            }
-        }
-
-        // add the surplus to the pending rewards
-        user_reward_info.pending_rewards = user_reward_info
-            .pending_rewards
-            .checked_add(surplus)
-            .unwrap();
-        total_surplus_rewards = total_surplus_rewards.checked_add(surplus).unwrap();
-
-        for split in strategy_split {
-            let strategy_id = split.0;
-            let amount = split.1;
+        for s2a in strategy_split.iter() {
+            let strategy_id = *s2a.0;
+            let amount = *s2a.1;
 
             if amount.is_zero() {
+                continue;
+            }
+
+            // this is the retain rewards strategy
+            if strategy_id.eq(&0) {
+                user_reward_info.pending_rewards = user_reward_info
+                    .pending_rewards
+                    .checked_add(amount)
+                    .unwrap();
+                total_rewards_in_scc = total_rewards_in_scc.checked_add(amount).unwrap();
                 continue;
             }
 
@@ -999,15 +1001,11 @@ pub fn try_update_user_rewards(
             {
                 strategy_info
             } else {
-                // TODO: bchain99 - will cause duplicates
+                // this ideally won't happen as non-existing strategies funds will be pushed
+                // to the fall back strategy
                 failed_strategies.push(strategy_id.to_string());
                 continue;
             };
-
-            if !strategy_info.is_active {
-                inactive_strategies.push(strategy_id.to_string());
-                continue;
-            }
 
             // fetch the total tokens from the SIC contract and update the S/T ratio for the strategy
             // compute the S/T ratio only once as we are batching up reward transfer messages. Jus' cache
@@ -1099,7 +1097,7 @@ pub fn try_update_user_rewards(
     STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
         state.rewards_in_scc = state
             .rewards_in_scc
-            .checked_add(total_surplus_rewards)
+            .checked_add(total_rewards_in_scc)
             .unwrap();
         Ok(state)
     })?;
@@ -1107,7 +1105,6 @@ pub fn try_update_user_rewards(
     Ok(Response::new()
         .add_messages(messages)
         .add_attribute("failed_strategies", failed_strategies.join(","))
-        .add_attribute("inactive_strategies", inactive_strategies.join(","))
         .add_attribute(
             "users_with_zero_deposits",
             users_with_zero_deposits.join(","),

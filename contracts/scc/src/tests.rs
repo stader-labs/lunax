@@ -48,6 +48,7 @@ mod tests {
             strategy_denom: strategy_denom.unwrap_or("uluna".to_string()),
             pools_contract: Addr::unchecked(pools_contract.unwrap_or("pools_contract".to_string())),
             default_user_portfolio,
+            default_fallback_strategy: None,
         };
 
         return instantiate(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
@@ -101,9 +102,21 @@ mod tests {
         assert_eq!(
             config,
             Config {
-                default_user_portfolio: vec![]
+                default_user_portfolio: vec![],
+                fallback_strategy: 0
             }
-        )
+        );
+
+        // check whether RETAIN_REWARDS strategy has been created
+        let retain_rewards_strategy_opt = STRATEGY_MAP
+            .may_load(deps.as_mut().storage, U64Key::new(0))
+            .unwrap();
+        assert_ne!(retain_rewards_strategy_opt, None);
+        let retain_rewards_strategy = retain_rewards_strategy_opt.unwrap();
+        assert_eq!(
+            retain_rewards_strategy,
+            StrategyInfo::default("RETAIN_REWARDS".to_string())
+        );
     }
 
     #[test]
@@ -4315,121 +4328,18 @@ mod tests {
             },
         )
         .unwrap();
-        assert_eq!(res.attributes.len(), 4);
+        assert_eq!(res.attributes.len(), 3);
         assert_eq!(res.messages.len(), 0);
         assert!(check_equal_vec(
             res.attributes,
             vec![
                 Attribute {
                     key: "failed_strategies".to_string(),
-                    value: "".to_string()
-                },
-                Attribute {
-                    key: "inactive_strategies".to_string(),
                     value: "".to_string()
                 },
                 Attribute {
                     key: "users_with_zero_deposits".to_string(),
                     value: "user1".to_string()
-                },
-                Attribute {
-                    key: "failed_sics".to_string(),
-                    value: "".to_string()
-                }
-            ]
-        ));
-
-        /*
-           Test - 4. Strategy not found
-        */
-        let res = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info(get_pools_contract_address().as_ref(), &[]),
-            ExecuteMsg::UpdateUserRewards {
-                update_user_rewards_requests: vec![UpdateUserRewardsRequest {
-                    user: user1.clone(),
-                    funds: Uint128::new(100_u128),
-                    strategy_id: Some(1),
-                }],
-            },
-        )
-        .unwrap();
-        assert_eq!(res.attributes.len(), 4);
-        assert_eq!(res.messages.len(), 0);
-        assert!(check_equal_vec(
-            res.attributes,
-            vec![
-                Attribute {
-                    key: "failed_strategies".to_string(),
-                    value: "1".to_string()
-                },
-                Attribute {
-                    key: "inactive_strategies".to_string(),
-                    value: "".to_string()
-                },
-                Attribute {
-                    key: "users_with_zero_deposits".to_string(),
-                    value: "".to_string()
-                },
-                Attribute {
-                    key: "failed_sics".to_string(),
-                    value: "".to_string()
-                }
-            ]
-        ));
-
-        /*
-           Test - 5. Inactive strategy
-        */
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(1),
-            &StrategyInfo {
-                name: "sid1".to_string(),
-                sic_contract_address: sic1_address,
-                unbonding_period: 3600,
-                unbonding_buffer: 0,
-                undelegation_batch_id_pointer: 0,
-                reconciled_batch_id_pointer: 0,
-                is_active: false,
-                total_shares: Default::default(),
-                current_undelegated_shares: Default::default(),
-                global_airdrop_pointer: vec![],
-                total_airdrops_accumulated: vec![],
-                shares_per_token_ratio: Default::default(),
-            },
-        );
-
-        let res = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info(get_pools_contract_address().as_ref(), &[]),
-            ExecuteMsg::UpdateUserRewards {
-                update_user_rewards_requests: vec![UpdateUserRewardsRequest {
-                    user: user1.clone(),
-                    funds: Uint128::new(100_u128),
-                    strategy_id: Some(1),
-                }],
-            },
-        )
-        .unwrap();
-        assert_eq!(res.attributes.len(), 4);
-        assert_eq!(res.messages.len(), 0);
-        assert!(check_equal_vec(
-            res.attributes,
-            vec![
-                Attribute {
-                    key: "failed_strategies".to_string(),
-                    value: "".to_string()
-                },
-                Attribute {
-                    key: "inactive_strategies".to_string(),
-                    value: "1".to_string()
-                },
-                Attribute {
-                    key: "users_with_zero_deposits".to_string(),
-                    value: "".to_string()
                 },
                 Attribute {
                     key: "failed_sics".to_string(),

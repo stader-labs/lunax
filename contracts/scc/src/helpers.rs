@@ -1,8 +1,11 @@
-use crate::state::{StrategyInfo, UserRewardInfo, UserStrategyInfo, USER_REWARD_INFO_MAP};
+use crate::state::{
+    Config, StrategyInfo, UserRewardInfo, UserStrategyInfo, STRATEGY_MAP, USER_REWARD_INFO_MAP,
+};
 use crate::user::get_user_airdrops;
 use cosmwasm_std::{
     Addr, Coin, Decimal, Fraction, QuerierWrapper, Response, StdResult, Storage, Timestamp, Uint128,
 };
+use cw_storage_plus::U64Key;
 use sic_base::msg::{
     GetFulfillableUndelegatedFundsResponse, GetTotalTokensResponse, QueryMsg as sic_msg,
 };
@@ -10,6 +13,8 @@ use stader_utils::coin_utils::{
     decimal_division_in_256, decimal_multiplication_in_256, decimal_subtraction_in_256,
     get_decimal_from_uint128, merge_coin_vector, uint128_from_decimal,
 };
+use std::collections::HashMap;
+use std::hash::Hash;
 
 pub fn get_strategy_apr(
     current_shares_per_token_ratio: Decimal,
@@ -90,42 +95,102 @@ pub fn get_staked_amount(shares_per_token_ratio: Decimal, total_shares: Decimal)
     ))
 }
 
+pub fn get_expected_strategy_or_default(
+    storage: &mut dyn Storage,
+    strategy_id: u64,
+    default_strategy: u64,
+) -> StdResult<u64> {
+    match STRATEGY_MAP.may_load(storage, U64Key::new(strategy_id))? {
+        None => Ok(default_strategy),
+        Some(strategy_info) => {
+            if !strategy_info.is_active {
+                return Ok(default_strategy);
+            }
+
+            Ok(strategy_id)
+        }
+    }
+}
+
+// Gets the split for the user portfolio
+// if a strategy in the user portfolio is non-existent, removed or is inactive, we fall back to
+// the default strategy in config.
+// the return value is a map of strategy id to the amount to invest in the strategy
+// checks for amount.is_zero() should be done outside the function.
 pub fn get_strategy_split(
+    storage: &mut dyn Storage,
+    config: &Config,
+    strategy_override: Option<u64>,
     user_reward_info: &UserRewardInfo,
     amount: Uint128,
-) -> (Vec<(u64, Uint128)>, Uint128) {
+) -> StdResult<HashMap<u64, Uint128>> {
+    let mut strategy_to_amount: HashMap<u64, Uint128> = HashMap::new();
     let user_portfolio = &user_reward_info.user_portfolio;
 
-    let mut strategy_split: Vec<(u64, Uint128)> = vec![];
-    let mut surplus = amount;
-    for u in user_portfolio {
-        let strategy_id = u.strategy_id.clone();
-        let deposit_fraction = u.deposit_fraction;
+    match strategy_override {
+        None => {
+            let mut surplus_amount = amount;
+            for u in user_portfolio {
+                let mut strategy_id = u.strategy_id;
+                let deposit_fraction = u.deposit_fraction;
 
-        let deposit_amount = uint128_from_decimal(decimal_multiplication_in_256(
-            deposit_fraction,
-            get_decimal_from_uint128(amount),
-        ));
+                let deposit_amount = uint128_from_decimal(decimal_multiplication_in_256(
+                    deposit_fraction,
+                    get_decimal_from_uint128(amount),
+                ));
 
-        strategy_split.push((strategy_id, deposit_amount));
+                strategy_id = get_expected_strategy_or_default(
+                    storage,
+                    strategy_id,
+                    config.fallback_strategy,
+                )?;
 
-        surplus = surplus.checked_sub(deposit_amount).unwrap();
+                strategy_to_amount
+                    .entry(strategy_id)
+                    .and_modify(|x| {
+                        *x = x.checked_add(deposit_amount).unwrap();
+                    })
+                    .or_insert(deposit_amount);
+
+                surplus_amount = surplus_amount
+                    .checked_sub(deposit_amount)
+                    .unwrap_or(Uint128::zero());
+            }
+
+            // add the left out amount to retain rewards strategy.(strategy_id 0)
+            strategy_to_amount
+                .entry(0)
+                .and_modify(|x| {
+                    *x = x.checked_add(surplus_amount).unwrap();
+                })
+                .or_insert(surplus_amount);
+        }
+        Some(strategy_override) => {
+            let strategy_id = get_expected_strategy_or_default(
+                storage,
+                strategy_override,
+                config.fallback_strategy,
+            )?;
+            strategy_to_amount.insert(strategy_id, amount);
+        }
     }
 
-    (strategy_split, surplus)
+    Ok(strategy_to_amount)
 }
 
 #[cfg(test)]
 mod tests {
     use crate::contract::instantiate;
     use crate::helpers::{
-        get_strategy_apr, get_strategy_shares_per_token_ratio, get_strategy_split,
+        get_expected_strategy_or_default, get_strategy_apr, get_strategy_shares_per_token_ratio,
+        get_strategy_split,
     };
     use crate::msg::InstantiateMsg;
     use crate::state::{
-        StrategyInfo, UserRewardInfo, UserStrategyInfo, UserStrategyPortfolio, STATE, STRATEGY_MAP,
-        USER_REWARD_INFO_MAP,
+        Config, StrategyInfo, UserRewardInfo, UserStrategyInfo, UserStrategyPortfolio, CONFIG,
+        STATE, STRATEGY_MAP, USER_REWARD_INFO_MAP,
     };
+    use crate::ContractError;
     use cosmwasm_std::{
         Addr, Coin, Decimal, Empty, Env, Fraction, MessageInfo, OwnedDeps, Response, StdResult,
         Uint128,
@@ -149,9 +214,323 @@ mod tests {
             strategy_denom: strategy_denom.unwrap_or_else(|| "uluna".to_string()),
             pools_contract: Addr::unchecked("abc"),
             default_user_portfolio: None,
+            default_fallback_strategy: None,
         };
 
         return instantiate(deps.as_mut(), env.clone(), info.clone(), instantiate_msg).unwrap();
+    }
+
+    macro_rules! hashmap {
+        ($( $key: expr => $val: expr ),*) => {{
+             let mut map = ::std::collections::HashMap::new();
+             $( map.insert($key, $val); )*
+             map
+        }}
+    }
+
+    #[test]
+    fn test__get_expected_strategy_or_default() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &[]);
+        let env = mock_env();
+
+        let res = instantiate_contract(&mut deps, &info, &env, None);
+
+        /*
+           Test - 1. Strategy does not exist or is removed
+        */
+        let strategy_id = get_expected_strategy_or_default(deps.as_mut().storage, 1, 0).unwrap();
+        assert_eq!(strategy_id, 0);
+
+        /*
+           Test - 2. Strategy is not active
+        */
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            U64Key::new(1),
+            &StrategyInfo {
+                name: "sid1".to_string(),
+                sic_contract_address: Addr::unchecked("abc"),
+                unbonding_period: 0,
+                unbonding_buffer: 0,
+                undelegation_batch_id_pointer: 0,
+                reconciled_batch_id_pointer: 0,
+                is_active: false,
+                total_shares: Default::default(),
+                current_undelegated_shares: Default::default(),
+                global_airdrop_pointer: vec![],
+                total_airdrops_accumulated: vec![],
+                shares_per_token_ratio: Default::default(),
+            },
+        );
+        let strategy_id = get_expected_strategy_or_default(deps.as_mut().storage, 1, 0).unwrap();
+        assert_eq!(strategy_id, 0);
+
+        /*
+           Test - 3. Strategy is good
+        */
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            U64Key::new(1),
+            &StrategyInfo {
+                name: "sid1".to_string(),
+                sic_contract_address: Addr::unchecked("abc"),
+                unbonding_period: 0,
+                unbonding_buffer: 0,
+                undelegation_batch_id_pointer: 0,
+                reconciled_batch_id_pointer: 0,
+                is_active: true,
+                total_shares: Default::default(),
+                current_undelegated_shares: Default::default(),
+                global_airdrop_pointer: vec![],
+                total_airdrops_accumulated: vec![],
+                shares_per_token_ratio: Default::default(),
+            },
+        );
+        let strategy_id = get_expected_strategy_or_default(deps.as_mut().storage, 1, 0).unwrap();
+        assert_eq!(strategy_id, 1);
+    }
+
+    #[test]
+    fn test__get_strategy_split() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &[]);
+        let env = mock_env();
+
+        let res = instantiate_contract(&mut deps, &info, &env, None);
+
+        /*
+           Test - 1. There is a strategy override and the strategy is not active
+        */
+        let config = CONFIG.load(deps.as_mut().storage).unwrap();
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            U64Key::new(1),
+            &StrategyInfo::default("sid1".to_string()),
+        );
+
+        let split = get_strategy_split(
+            deps.as_mut().storage,
+            &config,
+            Some(1),
+            &UserRewardInfo::default(),
+            Uint128::new(100_u128),
+        )
+        .unwrap();
+
+        assert_eq!(split, hashmap![0 => Uint128::new(100_u128)]);
+
+        /*
+            Test - 2. There is a strategy override and the strategy is active
+        */
+        let config = CONFIG.load(deps.as_mut().storage).unwrap();
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            U64Key::new(1),
+            &StrategyInfo {
+                name: "sid1".to_string(),
+                sic_contract_address: Addr::unchecked("abc"),
+                unbonding_period: 0,
+                unbonding_buffer: 0,
+                undelegation_batch_id_pointer: 0,
+                reconciled_batch_id_pointer: 0,
+                is_active: true,
+                total_shares: Default::default(),
+                current_undelegated_shares: Default::default(),
+                global_airdrop_pointer: vec![],
+                total_airdrops_accumulated: vec![],
+                shares_per_token_ratio: Default::default(),
+            },
+        );
+
+        let split = get_strategy_split(
+            deps.as_mut().storage,
+            &config,
+            Some(1),
+            &UserRewardInfo::default(),
+            Uint128::new(100_u128),
+        )
+        .unwrap();
+
+        assert_eq!(split, hashmap![1 => Uint128::new(100_u128)]);
+
+        /*
+            Test - 3. There is no strategy override and all strategies are active
+        */
+        let config = CONFIG.load(deps.as_mut().storage).unwrap();
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            U64Key::new(1),
+            &StrategyInfo {
+                name: "sid1".to_string(),
+                sic_contract_address: Addr::unchecked("abc"),
+                unbonding_period: 0,
+                unbonding_buffer: 0,
+                undelegation_batch_id_pointer: 0,
+                reconciled_batch_id_pointer: 0,
+                is_active: true,
+                total_shares: Default::default(),
+                current_undelegated_shares: Default::default(),
+                global_airdrop_pointer: vec![],
+                total_airdrops_accumulated: vec![],
+                shares_per_token_ratio: Default::default(),
+            },
+        );
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            U64Key::new(2),
+            &StrategyInfo {
+                name: "sid2".to_string(),
+                sic_contract_address: Addr::unchecked("abc"),
+                unbonding_period: 0,
+                unbonding_buffer: 0,
+                undelegation_batch_id_pointer: 0,
+                reconciled_batch_id_pointer: 0,
+                is_active: true,
+                total_shares: Default::default(),
+                current_undelegated_shares: Default::default(),
+                global_airdrop_pointer: vec![],
+                total_airdrops_accumulated: vec![],
+                shares_per_token_ratio: Default::default(),
+            },
+        );
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            U64Key::new(3),
+            &StrategyInfo {
+                name: "sid3".to_string(),
+                sic_contract_address: Addr::unchecked("abc"),
+                unbonding_period: 0,
+                unbonding_buffer: 0,
+                undelegation_batch_id_pointer: 0,
+                reconciled_batch_id_pointer: 0,
+                is_active: true,
+                total_shares: Default::default(),
+                current_undelegated_shares: Default::default(),
+                global_airdrop_pointer: vec![],
+                total_airdrops_accumulated: vec![],
+                shares_per_token_ratio: Default::default(),
+            },
+        );
+
+        let mut user_reward_info = UserRewardInfo::default();
+        user_reward_info.user_portfolio = vec![
+            UserStrategyPortfolio {
+                strategy_id: 1,
+                deposit_fraction: Decimal::from_ratio(1_u128, 4_u128),
+            },
+            UserStrategyPortfolio {
+                strategy_id: 2,
+                deposit_fraction: Decimal::from_ratio(1_u128, 4_u128),
+            },
+            UserStrategyPortfolio {
+                strategy_id: 3,
+                deposit_fraction: Decimal::from_ratio(1_u128, 4_u128),
+            },
+        ];
+
+        let split = get_strategy_split(
+            deps.as_mut().storage,
+            &config,
+            None,
+            &user_reward_info,
+            Uint128::new(100_u128),
+        )
+        .unwrap();
+
+        assert_eq!(
+            split,
+            hashmap![0 => Uint128::new(25_u128), 1 => Uint128::new(25_u128), 2 => Uint128::new(25_u128), 3 => Uint128::new(25_u128)]
+        );
+
+        /*
+            Test - 4. There is no strategy override and 2/3 strategies are inactive
+        */
+        let config = CONFIG.load(deps.as_mut().storage).unwrap();
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            U64Key::new(1),
+            &StrategyInfo {
+                name: "sid1".to_string(),
+                sic_contract_address: Addr::unchecked("abc"),
+                unbonding_period: 0,
+                unbonding_buffer: 0,
+                undelegation_batch_id_pointer: 0,
+                reconciled_batch_id_pointer: 0,
+                is_active: true,
+                total_shares: Default::default(),
+                current_undelegated_shares: Default::default(),
+                global_airdrop_pointer: vec![],
+                total_airdrops_accumulated: vec![],
+                shares_per_token_ratio: Default::default(),
+            },
+        );
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            U64Key::new(2),
+            &StrategyInfo {
+                name: "sid2".to_string(),
+                sic_contract_address: Addr::unchecked("abc"),
+                unbonding_period: 0,
+                unbonding_buffer: 0,
+                undelegation_batch_id_pointer: 0,
+                reconciled_batch_id_pointer: 0,
+                is_active: false,
+                total_shares: Default::default(),
+                current_undelegated_shares: Default::default(),
+                global_airdrop_pointer: vec![],
+                total_airdrops_accumulated: vec![],
+                shares_per_token_ratio: Default::default(),
+            },
+        );
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            U64Key::new(3),
+            &StrategyInfo {
+                name: "sid3".to_string(),
+                sic_contract_address: Addr::unchecked("abc"),
+                unbonding_period: 0,
+                unbonding_buffer: 0,
+                undelegation_batch_id_pointer: 0,
+                reconciled_batch_id_pointer: 0,
+                is_active: false,
+                total_shares: Default::default(),
+                current_undelegated_shares: Default::default(),
+                global_airdrop_pointer: vec![],
+                total_airdrops_accumulated: vec![],
+                shares_per_token_ratio: Default::default(),
+            },
+        );
+
+        let mut user_reward_info = UserRewardInfo::default();
+        user_reward_info.user_portfolio = vec![
+            UserStrategyPortfolio {
+                strategy_id: 1,
+                deposit_fraction: Decimal::from_ratio(1_u128, 4_u128),
+            },
+            UserStrategyPortfolio {
+                strategy_id: 2,
+                deposit_fraction: Decimal::from_ratio(1_u128, 4_u128),
+            },
+            UserStrategyPortfolio {
+                strategy_id: 3,
+                deposit_fraction: Decimal::from_ratio(1_u128, 4_u128),
+            },
+        ];
+
+        let split = get_strategy_split(
+            deps.as_mut().storage,
+            &config,
+            None,
+            &user_reward_info,
+            Uint128::new(100_u128),
+        )
+        .unwrap();
+
+        assert_eq!(
+            split,
+            hashmap![0 => Uint128::new(75_u128), 1 => Uint128::new(25_u128)]
+        );
     }
 
     #[test]
@@ -233,97 +612,6 @@ mod tests {
             get_strategy_shares_per_token_ratio(deps.as_ref().querier, &strategy_info).unwrap();
 
         assert_eq!(s_t_ratio, Decimal::from_ratio(20_u128, 1_u128));
-    }
-
-    #[test]
-    fn test__get_strategy_split() {
-        /*
-           Test - 1. 100% split in the portfolio. No surplus
-        */
-        let user_reward_info = UserRewardInfo {
-            user_portfolio: vec![
-                UserStrategyPortfolio {
-                    strategy_id: 1,
-                    deposit_fraction: Decimal::from_ratio(1_u128, 4_u128),
-                },
-                UserStrategyPortfolio {
-                    strategy_id: 2,
-                    deposit_fraction: Decimal::from_ratio(1_u128, 2_u128),
-                },
-                UserStrategyPortfolio {
-                    strategy_id: 3,
-                    deposit_fraction: Decimal::from_ratio(1_u128, 4_u128),
-                },
-            ],
-            strategies: vec![],
-            pending_airdrops: vec![],
-            undelegation_records: vec![],
-            pending_rewards: Uint128::zero(),
-        };
-        let amount = Uint128::new(100_u128);
-
-        let res = get_strategy_split(&user_reward_info, amount);
-        let strategy_split = res.0;
-        let surplus = res.1;
-        assert_eq!(surplus, Uint128::zero());
-        assert!(check_equal_vec(
-            strategy_split,
-            vec![
-                (1, Uint128::new(25_u128)),
-                (2, Uint128::new(50_u128)),
-                (3, Uint128::new(25_u128))
-            ]
-        ));
-
-        /*
-           Test - 2. There is some surplus
-        */
-
-        let user_reward_info = UserRewardInfo {
-            user_portfolio: vec![
-                UserStrategyPortfolio {
-                    strategy_id: 1,
-                    deposit_fraction: Decimal::from_ratio(1_u128, 4_u128),
-                },
-                UserStrategyPortfolio {
-                    strategy_id: 2,
-                    deposit_fraction: Decimal::from_ratio(1_u128, 4_u128),
-                },
-            ],
-            strategies: vec![],
-            pending_airdrops: vec![],
-            undelegation_records: vec![],
-            pending_rewards: Uint128::zero(),
-        };
-        let amount = Uint128::new(100_u128);
-
-        let res = get_strategy_split(&user_reward_info, amount);
-        let strategy_split = res.0;
-        let surplus = res.1;
-        assert_eq!(surplus, Uint128::new(50_u128));
-        assert!(check_equal_vec(
-            strategy_split,
-            vec![(1, Uint128::new(25_u128)), (2, Uint128::new(25_u128))]
-        ));
-
-        /*
-           Test - 3. There is no portfolio
-        */
-
-        let user_reward_info = UserRewardInfo {
-            user_portfolio: vec![],
-            strategies: vec![],
-            pending_airdrops: vec![],
-            undelegation_records: vec![],
-            pending_rewards: Uint128::zero(),
-        };
-        let amount = Uint128::new(100_u128);
-
-        let res = get_strategy_split(&user_reward_info, amount);
-        let strategy_split = res.0;
-        let surplus = res.1;
-        assert_eq!(surplus, Uint128::new(100_u128));
-        assert!(check_equal_vec(strategy_split, vec![]));
     }
 
     #[test]

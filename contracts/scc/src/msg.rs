@@ -12,6 +12,7 @@ pub struct InstantiateMsg {
     pub pools_contract: Addr,
 
     pub default_user_portfolio: Option<Vec<UserStrategyPortfolio>>,
+    pub default_fallback_strategy: Option<u64>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
