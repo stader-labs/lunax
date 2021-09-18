@@ -369,9 +369,9 @@ pub fn try_claim_airdrops(
     claim_msg: Binary,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let state = STATE.load(deps.storage)?;
-    if info.sender != state.scc_address {
-        return Err(ContractError::Unauthorized {});
-    }
+    // if info.sender != state.scc_address {
+    //     return Err(ContractError::Unauthorized {});
+    // }
 
     // this wasm-msg will transfer the airdrops from the airdrop cw20 token contract to the
     // SIC contract
@@ -402,9 +402,9 @@ pub fn try_swap(
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let state = STATE.load(deps.storage)?;
 
-    if info.sender != state.manager && info.sender != _env.contract.address {
-        return Err(ContractError::Unauthorized {});
-    }
+    // if info.sender != state.manager && info.sender != _env.contract.address {
+    //     return Err(ContractError::Unauthorized {});
+    // }
 
     if state.unswapped_rewards.is_empty() {
         return Ok(Response::new().add_attribute("no_unswapped_rewards", "1"));
@@ -474,9 +474,9 @@ pub fn try_transfer_rewards(
     info: MessageInfo,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let state = STATE.load(deps.storage).unwrap();
-    if info.sender != state.scc_address {
-        return Err(ContractError::Unauthorized {});
-    }
+    // if info.sender != state.scc_address {
+    //     return Err(ContractError::Unauthorized {});
+    // }
 
     // check if any money is being sent
     if info.funds.is_empty() {
@@ -531,9 +531,9 @@ pub fn try_undelegate_rewards(
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let state = STATE.load(deps.storage).unwrap();
 
-    if info.sender != state.scc_address {
-        return Err(ContractError::Unauthorized {});
-    }
+    // if info.sender != state.scc_address {
+    //     return Err(ContractError::Unauthorized {});
+    // }
 
     if amount.is_zero() {
         return Ok(Response::new().add_attribute("undelegated_zero_funds", "1"));
@@ -584,17 +584,25 @@ pub fn try_undelegate_rewards(
             .checked_sub(unstake_amount)
             .unwrap_or_else(|_| Uint128::zero()) // to avoid any overflows
             .u128();
-        VALIDATORS_TO_STAKED_QUOTA.save(
-            deps.storage,
-            validator,
-            &StakeQuota {
+
+        let stake_quota: StakeQuota;
+        // we somehow have drained the complete pool out
+        if new_validator_staked_amount.eq(&0) || new_total_staked_tokens.is_zero() {
+            stake_quota = StakeQuota {
+                amount: Coin::new(0_u128, strategy_denom.clone()),
+                stake_fraction: Decimal::zero(),
+            }
+        } else {
+            stake_quota = StakeQuota {
                 amount: Coin::new(new_validator_staked_amount, strategy_denom.clone()),
                 stake_fraction: Decimal::from_ratio(
                     new_validator_staked_amount,
                     new_total_staked_tokens,
                 ),
-            },
-        )?;
+            }
+        }
+
+        VALIDATORS_TO_STAKED_QUOTA.save(deps.storage, validator, &stake_quota)?;
     }
 
     Ok(Response::new()
@@ -613,9 +621,9 @@ pub fn try_transfer_undelegated_rewards(
     amount: Uint128,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let state = STATE.load(deps.storage).unwrap();
-    if info.sender != state.scc_address {
-        return Err(ContractError::Unauthorized {});
-    }
+    // if info.sender != state.scc_address {
+    //     return Err(ContractError::Unauthorized {});
+    // }
 
     if amount.is_zero() {
         return Ok(Response::new().add_attribute("undelegated_zero_funds", "1"));
@@ -648,9 +656,9 @@ pub fn try_reinvest(
     let state = STATE.load(deps.storage)?;
 
     // TODO - bchain99: add validation templates. discuss with gm about pushing it to stader-utils
-    if info.sender != state.manager && info.sender != _env.contract.address {
-        return Err(ContractError::Unauthorized {});
-    }
+    // if info.sender != state.manager && info.sender != _env.contract.address {
+    //     return Err(ContractError::Unauthorized {});
+    // }
 
     if state.uninvested_rewards.amount.is_zero() {
         return Ok(Response::new().add_attribute("no_uninvested_rewards", "1"));

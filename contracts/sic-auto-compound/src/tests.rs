@@ -1499,6 +1499,80 @@ mod tests {
             valid2_staked_quota.stake_fraction,
             Decimal::from_ratio(1_u128, 2_u128)
         );
+
+        /*
+           Test - 2. 100% undelegation
+        */
+        VALIDATORS_TO_STAKED_QUOTA.save(
+            deps.as_mut().storage,
+            &valid1,
+            &StakeQuota {
+                amount: Coin::new(500_u128, "uluna"),
+                stake_fraction: Decimal::from_ratio(1_u128, 2_u128),
+            },
+        );
+
+        VALIDATORS_TO_STAKED_QUOTA.save(
+            deps.as_mut().storage,
+            &valid2,
+            &StakeQuota {
+                amount: Coin::new(500_u128, "uluna"),
+                stake_fraction: Decimal::from_ratio(1_u128, 2_u128),
+            },
+        );
+
+        STATE.update(deps.as_mut().storage, |mut state| -> StdResult<_> {
+            state.total_staked_tokens = Uint128::new(1000_u128);
+            Ok(state)
+        });
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info(&*get_scc_contract_address(), &[]),
+            ExecuteMsg::UndelegateRewards {
+                amount: Uint128::new(1000_u128),
+            },
+        )
+        .unwrap();
+        let state_response: GetStateResponse =
+            from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::GetState {}).unwrap())
+                .unwrap();
+        assert_ne!(state_response.state, None);
+        let state = state_response.state.unwrap();
+        assert_eq!(state.total_staked_tokens, Uint128::new(0_u128));
+        assert_eq!(res.messages.len(), 3);
+        assert!(check_equal_vec(
+            res.messages,
+            vec![
+                SubMsg::new(WasmMsg::Execute {
+                    contract_addr: env.contract.address.to_string(),
+                    msg: to_binary(&ExecuteMsg::RedeemRewards {}).unwrap(),
+                    funds: vec![]
+                }),
+                SubMsg::new(StakingMsg::Undelegate {
+                    validator: valid1.to_string(),
+                    amount: Coin::new(500_u128, "uluna")
+                }),
+                SubMsg::new(StakingMsg::Undelegate {
+                    validator: valid2.to_string(),
+                    amount: Coin::new(500_u128, "uluna")
+                })
+            ]
+        ));
+        let valid1_staked_quota_option = VALIDATORS_TO_STAKED_QUOTA
+            .may_load(deps.as_mut().storage, &valid1)
+            .unwrap();
+        let valid2_staked_quota_option = VALIDATORS_TO_STAKED_QUOTA
+            .may_load(deps.as_mut().storage, &valid2)
+            .unwrap();
+        assert_ne!(valid1_staked_quota_option, None);
+        assert_ne!(valid2_staked_quota_option, None);
+        let valid1_staked_quota = valid1_staked_quota_option.unwrap();
+        let valid2_staked_quota = valid2_staked_quota_option.unwrap();
+        assert_eq!(valid1_staked_quota.amount, Coin::new(0_u128, "uluna"));
+        assert_eq!(valid2_staked_quota.amount, Coin::new(0_u128, "uluna"));
+        assert_eq!(valid1_staked_quota.stake_fraction, Decimal::zero());
+        assert_eq!(valid2_staked_quota.stake_fraction, Decimal::zero());
     }
 
     #[test]
