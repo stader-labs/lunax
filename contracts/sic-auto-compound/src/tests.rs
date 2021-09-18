@@ -13,7 +13,7 @@ mod tests {
         MOCK_CONTRACT_ADDR,
     };
     use cosmwasm_std::{
-        coins, from_binary, to_binary, Addr, Attribute, BankMsg, Binary, Coin, Decimal,
+        coins, from_binary, to_binary, Addr, Api, Attribute, BankMsg, Binary, Coin, Decimal,
         DistributionMsg, Empty, Env, FullDelegation, MessageInfo, OwnedDeps, Response, StakingMsg,
         StdResult, SubMsg, Uint128, Validator, WasmMsg,
     };
@@ -113,7 +113,7 @@ mod tests {
             state_response.state.unwrap(),
             State {
                 manager: info.sender,
-                scc_address,
+                scc_address: deps.api.addr_canonicalize(scc_address.as_str()).unwrap(),
                 manager_seed_funds: Uint128::new(1000_u128),
                 min_validator_pool_size: 2,
                 strategy_denom: "uluna".to_string(),
