@@ -557,12 +557,11 @@ pub fn try_undelegate_user_rewards(
         &user_strategy_info.airdrop_pointer,
         user_strategy_info.shares,
     ) {
+        user_strategy_info.airdrop_pointer = strategy_info.global_airdrop_pointer.clone();
         user_airdrops
     } else {
         vec![]
     };
-
-    user_strategy_info.airdrop_pointer = strategy_info.global_airdrop_pointer.clone();
     user_reward_info.pending_airdrops = merge_coin_vector(
         &user_reward_info.pending_airdrops,
         CoinVecOp {
@@ -572,15 +571,13 @@ pub fn try_undelegate_user_rewards(
     );
 
     // subtract the user shares based on how much they want to withdraw.
-    let strategy_shares_per_token_ratio: Decimal;
-    match get_strategy_shares_per_token_ratio(deps.querier, &strategy_info) {
-        Ok(result) => {
-            strategy_shares_per_token_ratio = result;
-        }
-        Err(_) => {
-            return Err(ContractError::SICFailedToReturnResult {});
-        }
-    }
+    let strategy_shares_per_token_ratio =
+        match get_strategy_shares_per_token_ratio(deps.querier, &strategy_info) {
+            Ok(result) => result,
+            Err(_) => {
+                return Err(ContractError::SICFailedToReturnResult {});
+            }
+        };
 
     strategy_info.shares_per_token_ratio = strategy_shares_per_token_ratio;
     let user_total_shares = user_strategy_info.shares;
