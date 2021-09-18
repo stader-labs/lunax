@@ -55,7 +55,7 @@ pub fn instantiate(
 
     let state = State {
         manager: info.sender.clone(),
-        pool_contract: msg.pools_contract,
+        pool_contract: deps.api.addr_canonicalize(msg.pools_contract.as_str())?,
         scc_denom: msg.strategy_denom,
         contract_genesis_block_height: _env.block.height,
         contract_genesis_timestamp: _env.block.time,
@@ -1088,7 +1088,7 @@ pub fn try_update_user_rewards(
     update_user_rewards_requests: Vec<UpdateUserRewardsRequest>,
 ) -> Result<Response, ContractError> {
     let state = STATE.load(deps.storage)?;
-    if info.sender != state.pool_contract {
+    if deps.api.addr_canonicalize(info.sender.as_str())? != state.pool_contract {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -1272,7 +1272,7 @@ pub fn try_update_user_airdrops(
 ) -> Result<Response, ContractError> {
     // check for manager?
     let state = STATE.load(deps.storage)?;
-    if info.sender != state.pool_contract {
+    if deps.api.addr_canonicalize(info.sender.as_str())? != state.pool_contract {
         return Err(ContractError::Unauthorized {});
     }
 

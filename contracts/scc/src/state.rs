@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Addr, Coin, Decimal, Timestamp, Uint128};
+use cosmwasm_std::{Addr, CanonicalAddr, Coin, Decimal, Timestamp, Uint128};
 use cw_storage_plus::{Item, Map, U64Key};
 use stader_utils::coin_utils::DecCoin;
 
@@ -17,7 +17,7 @@ pub struct Config {
 pub struct State {
     pub manager: Addr,
 
-    pub pool_contract: Addr,
+    pub pool_contract: CanonicalAddr,
     pub scc_denom: String,
     pub contract_genesis_block_height: u64,
     pub contract_genesis_timestamp: Timestamp,

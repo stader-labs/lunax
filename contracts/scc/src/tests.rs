@@ -22,9 +22,9 @@ mod tests {
     };
     use crate::ContractError;
     use cosmwasm_std::{
-        coins, from_binary, to_binary, Addr, Attribute, BankMsg, Binary, Coin, Decimal, DepsMut,
-        Empty, Env, MessageInfo, OwnedDeps, QuerierWrapper, Response, StdResult, SubMsg, Timestamp,
-        Uint128, WasmMsg,
+        coins, from_binary, to_binary, Addr, Api, Attribute, BankMsg, Binary, Coin, Decimal,
+        DepsMut, Empty, Env, MessageInfo, OwnedDeps, QuerierWrapper, Response, StdResult, SubMsg,
+        Timestamp, Uint128, WasmMsg,
     };
     use cw_storage_plus::U64Key;
     use serde::de::Unexpected::Str;
@@ -85,7 +85,10 @@ mod tests {
             state,
             State {
                 manager: info.sender,
-                pool_contract: Addr::unchecked("pools_contract"),
+                pool_contract: deps
+                    .api
+                    .addr_canonicalize(Addr::unchecked("pools_contract").as_str())
+                    .unwrap(),
                 scc_denom: "uluna".to_string(),
                 contract_genesis_block_height: env.block.height,
                 contract_genesis_timestamp: env.block.time,
