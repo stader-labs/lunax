@@ -1,48 +1,17 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "State",
+  "title": "GetStateResponse",
   "type": "object",
-  "required": [
-    "contract_genesis_block_height",
-    "contract_genesis_timestamp",
-    "manager",
-    "pools_contract",
-    "rewards_in_scc",
-    "scc_denom",
-    "strategy_counter",
-    "total_accumulated_airdrops"
-  ],
   "properties": {
-    "contract_genesis_block_height": {
-      "type": "integer",
-      "format": "uint64",
-      "minimum": 0.0
-    },
-    "contract_genesis_timestamp": {
-      "$ref": "#/definitions/Timestamp"
-    },
-    "manager": {
-      "$ref": "#/definitions/CanonicalAddr"
-    },
-    "pools_contract": {
-      "$ref": "#/definitions/CanonicalAddr"
-    },
-    "rewards_in_scc": {
-      "$ref": "#/definitions/Uint128"
-    },
-    "scc_denom": {
-      "type": "string"
-    },
-    "strategy_counter": {
-      "type": "integer",
-      "format": "uint64",
-      "minimum": 0.0
-    },
-    "total_accumulated_airdrops": {
-      "type": "array",
-      "items": {
-        "$ref": "#/definitions/Coin"
-      }
+    "state": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/State"
+        },
+        {
+          "type": "null"
+        }
+      ]
     }
   },
   "definitions": {
@@ -65,6 +34,52 @@
         },
         "denom": {
           "type": "string"
+        }
+      }
+    },
+    "State": {
+      "type": "object",
+      "required": [
+        "contract_genesis_block_height",
+        "contract_genesis_timestamp",
+        "manager",
+        "pools_contract",
+        "rewards_in_scc",
+        "scc_denom",
+        "strategy_counter",
+        "total_accumulated_airdrops"
+      ],
+      "properties": {
+        "contract_genesis_block_height": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "contract_genesis_timestamp": {
+          "$ref": "#/definitions/Timestamp"
+        },
+        "manager": {
+          "$ref": "#/definitions/CanonicalAddr"
+        },
+        "pools_contract": {
+          "$ref": "#/definitions/CanonicalAddr"
+        },
+        "rewards_in_scc": {
+          "$ref": "#/definitions/Uint128"
+        },
+        "scc_denom": {
+          "type": "string"
+        },
+        "strategy_counter": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "total_accumulated_airdrops": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Coin"
+          }
         }
       }
     },
