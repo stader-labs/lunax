@@ -4,15 +4,14 @@ use cosmwasm_std::entry_point;
 use stader_utils::helpers::{query_exchange_rates, send_funds_msg};
 use terra_cosmwasm::{create_swap_msg, TerraMsgWrapper};
 use cosmwasm_std::{DepsMut, Env, MessageInfo, Response, Deps, StdResult, Binary, Addr, Reply, ContractResult, SubMsgExecutionResponse, Uint128, SubMsg, WasmMsg, to_binary, Coin, Decimal, attr};
-use crate::msg::{InstantiateMsg, ExecuteMsg, QueryMsg, QueryConfigResponse, QueryStateResponse, GetAirdropMetaResponse};
+use crate::msg::{InstantiateMsg, ExecuteMsg, QueryMsg, QueryConfigResponse, QueryStateResponse, GetAirdropMetaResponse, QueryPoolResponse, QueryValidatorResponse, QueryBatchUndelegationResponse};
 use crate::ContractError;
 use crate::state::{Config, State, CONFIG, STATE, AIRDROP_REGISTRY, POOL_REGISTRY, PoolRegistryInfo, VALIDATOR_REGISTRY, ValInfo, BATCH_UNDELEGATION_REGISTRY, BatchUndelegationRecord, AirdropRate};
 use crate::request_validation::{validate, Verify, get_verified_pool, get_validator_for_deposit, get_validator_for_undelegate, create_new_undelegation_batch};
 use delegator::msg::ExecuteMsg as DelegatorMsg;
 use validator::msg::ExecuteMsg as ValidatorMsg;
 use cw_storage_plus::U64Key;
-use stader_utils::event_constants::{POOLS_VALIDATOR_EVENT_SWAP_ID, EVENT_SWAP_KEY_AMOUNT, EVENT_KEY_IDENTIFIER};
-use std::convert::TryFrom;
+use stader_utils::event_constants::{EVENT_SWAP_KEY_AMOUNT, EVENT_KEY_IDENTIFIER, EVENT_SWAP_TYPE};
 use stader_utils::coin_utils::{decimal_summation_in_256, merge_coin_vector, CoinVecOp, Operation, merge_dec_coin_vector, DecCoinVecOp, DecCoin};
 
 pub const MESSAGE_REPLY_SWAP_ID: u64 = 0;
@@ -20,12 +19,12 @@ pub const MESSAGE_REPLY_SWAP_ID: u64 = 0;
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let config = Config {
-        manager: info.sender,
+        manager: info.sender.clone(),
         vault_denom: msg.vault_denom,
         validator_contract: msg.validator_contract,
         delegator_contract: msg.delegator_contract,
@@ -34,6 +33,7 @@ pub fn instantiate(
     };
     let state = State { next_pool_id: 0_u64 };
     CONFIG.save(deps.storage, &config)?;
+    validate(&config, &info, &env, vec![Verify::NoFunds])?;
     STATE.save(deps.storage, &state)?;
     Ok(Response::default())
 }
@@ -330,7 +330,8 @@ pub fn undelegate_from_pool(
             Ok(val_meta)
         }).unwrap();
     }
-    pool_meta.staked = pool_meta.staked.checked_sub(undel_amount).unwrap();
+
+    // pool_meta.staked = pool_meta.staked.checked_sub(undel_amount).unwrap(); - ALREADY SUBTRACTED WHEN QUEUE_UNDELEGATE
     create_new_undelegation_batch(deps.storage, env, pool_id, &mut pool_meta)?;
 
     Ok(Response::new().add_messages(messages)
@@ -453,6 +454,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => to_binary(&query_config(deps)?),
         QueryMsg::State {} => to_binary(&query_state(deps)?),
+        QueryMsg::Pool { pool_id } => to_binary(&query_pool(deps, pool_id)?),
+        QueryMsg::Validator { val_addr } => to_binary(&query_validator(deps, val_addr)?),
+        QueryMsg::BatchUndelegation { pool_id, batch_id } => to_binary(&query_batch_undelegate(deps, pool_id, batch_id)?),
     }
 }
 
@@ -464,6 +468,21 @@ pub fn query_config(deps: Deps) -> StdResult<QueryConfigResponse> {
 pub fn query_state(deps: Deps) -> StdResult<QueryStateResponse> {
     let state: State = STATE.load(deps.storage)?;
     Ok(QueryStateResponse { state: state })
+}
+
+pub fn query_pool(deps: Deps, pool_id: u64) -> StdResult<QueryPoolResponse> {
+    let pool_meta = POOL_REGISTRY.may_load(deps.storage, U64Key::new(pool_id))?;
+    Ok(QueryPoolResponse { pool: pool_meta })
+}
+
+pub fn query_validator(deps: Deps, val_addr: Addr) -> StdResult<QueryValidatorResponse> {
+    let val_meta = VALIDATOR_REGISTRY.may_load(deps.storage, &val_addr)?;
+    Ok(QueryValidatorResponse { val: val_meta })
+}
+
+pub fn query_batch_undelegate(deps: Deps, pool_id: u64, batch_id: u64) -> StdResult<QueryBatchUndelegationResponse> {
+    let batch_meta = BATCH_UNDELEGATION_REGISTRY.may_load(deps.storage, (U64Key::new(pool_id), U64Key::new(batch_id)))?;
+    Ok(QueryBatchUndelegationResponse { batch: batch_meta })
 }
 
 pub fn query_airdrop_meta(deps: Deps, token: String) -> StdResult<GetAirdropMetaResponse> {
@@ -478,7 +497,7 @@ pub fn query_airdrop_meta(deps: Deps, token: String) -> StdResult<GetAirdropMeta
 */
 
 
-#[entry_point]
+#[cfg_attr(not(feature = "library"), entry_point)]
 pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractError> {
     match msg.id {
         // Called for remove_validator clean up.
@@ -506,7 +525,7 @@ pub fn reply_swap(
         keys.push(event.ty);
     }
 
-    let event_name = format!("wasm-{}", POOLS_VALIDATOR_EVENT_SWAP_ID);
+    let event_name = format!("wasm-{}", EVENT_SWAP_TYPE);
     let event_opt = res
         .events
         .clone()

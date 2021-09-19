@@ -11,6 +11,22 @@
     "delegator_contract": {
       "$ref": "#/definitions/Addr"
     },
+    "unbonding_buffer": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "uint64",
+      "minimum": 0.0
+    },
+    "unbonding_period": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "uint64",
+      "minimum": 0.0
+    },
     "validator_contract": {
       "$ref": "#/definitions/Addr"
     },

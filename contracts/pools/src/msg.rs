@@ -1,4 +1,4 @@
-use crate::state::{AirdropRegistryInfo, Config, State, AirdropRate};
+use crate::state::{AirdropRegistryInfo, Config, State, AirdropRate, ValInfo, BatchUndelegationRecord, PoolRegistryInfo};
 use cosmwasm_std::{Addr, Binary, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -33,6 +33,9 @@ pub enum ExecuteMsg {
 pub enum QueryMsg {
     Config {},
     State {},
+    Pool { pool_id: u64 },
+    Validator { val_addr: Addr },
+    BatchUndelegation { pool_id: u64, batch_id: u64 },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -43,6 +46,18 @@ pub struct QueryConfigResponse {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct QueryStateResponse {
     pub state: State,
+}
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct QueryPoolResponse {
+    pub pool: Option<PoolRegistryInfo>,
+}
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct QueryValidatorResponse {
+    pub val: Option<ValInfo>,
+}
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct QueryBatchUndelegationResponse {
+    pub batch: Option<BatchUndelegationRecord>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
