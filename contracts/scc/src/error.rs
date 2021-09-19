@@ -60,4 +60,7 @@ pub enum ContractError {
 
     #[error("SCC can accept only luna")]
     WrongDenomSent {},
+
+    #[error("User portfolio is invalid")]
+    InvalidUserPortfolio {},
 }

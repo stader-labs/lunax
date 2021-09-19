@@ -3,14 +3,15 @@ use cosmwasm_std::entry_point;
 
 use stader_utils::helpers::{query_exchange_rates, send_funds_msg};
 use terra_cosmwasm::{create_swap_msg, TerraMsgWrapper};
-use cosmwasm_std::{DepsMut, Env, MessageInfo, Response, Deps, StdResult, Binary, Addr, Reply, ContractResult, SubMsgExecutionResponse, Uint128, SubMsg, WasmMsg, to_binary, attr, Timestamp, Decimal, Coin, Order};
-use crate::msg::{InstantiateMsg, ExecuteMsg, QueryMsg, GetConfigResponse, GetStateResponse, UserPoolResponse, UserResponse, QueryUserInfo};
+use cosmwasm_std::{DepsMut, Env, MessageInfo, Response, Deps, StdResult, Binary, Addr, Reply, ContractResult, SubMsgExecutionResponse, Uint128, SubMsg, WasmMsg, to_binary, attr, Timestamp, Decimal, Coin, Order, Storage};
+use crate::msg::{InstantiateMsg, ExecuteMsg, QueryMsg, GetConfigResponse, GetStateResponse, UserPoolResponse, UserResponse};
 use crate::ContractError;
-use crate::state::{Config, State, CONFIG, STATE, USER_REGISTRY, UserPoolInfo, DepositInfo, RedelegationInfo, UndelegationInfo};
+use crate::state::{Config, State, CONFIG, STATE, USER_REGISTRY, UserPoolInfo, DepositInfo, RedelegationInfo, UndelegationInfo, PoolPointerInfo};
 use crate::request_validation::{validate, Verify, update_user_pointers};
 use cw_storage_plus::U64Key;
-use scc::msg::{ExecuteMsg as SccMsg, UpdateUserRewardsRequest};
+use scc::msg::{ExecuteMsg as SccMsg, UpdateUserRewardsRequest, UpdateUserAirdropsRequest};
 use stader_utils::coin_utils::{decimal_subtraction_in_256, multiply_coin_with_decimal, multiply_u128_with_decimal, DecCoin, merge_dec_coin_vector, DecCoinVecOp, Operation, multiply_deccoin_vector_with_uint128, deccoin_vec_to_coin_vec};
+use std::collections::HashMap;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -52,7 +53,7 @@ pub fn execute(
             undelegate(deps, info, env, user_addr, batch_id, from_pool, amount, pool_rewards_pointer, pool_airdrops_pointer),
         ExecuteMsg::WithdrawFunds { user_addr, pool_id, undelegate_id, amount } =>
             withdraw_funds(deps, info, env, user_addr, pool_id, undelegate_id, amount),
-        ExecuteMsg::AllocateRewards { user_addrs } => allocate_rewards(deps, info, env, user_addrs),
+        ExecuteMsg::AllocateRewards { user_addrs, pool_pointers } => allocate_rewards(deps, info, env, user_addrs, pool_pointers),
 
         ExecuteMsg::UpdateConfig { pools_contract, scc_contract } => update_config(deps, info, env, pools_contract, scc_contract),
     }
@@ -77,6 +78,7 @@ pub fn deposit(
 
     USER_REGISTRY.update(deps.storage, (&user_addr, U64Key::new(pool_id)), |mut user_info_opt| -> StdResult<_> {
         let mut user_info = user_info_opt.unwrap_or_else(|| UserPoolInfo {
+            pool_id,
             deposit: DepositInfo { staked: Uint128::zero() },
             airdrops_pointer: pool_airdrops_pointer.clone(),
             pending_airdrops: vec![],
@@ -247,24 +249,62 @@ pub fn allocate_rewards(
     info: MessageInfo,
     env: Env,
     user_addrs: Vec<Addr>,
+    pool_pointers: Vec<PoolPointerInfo>,
 )-> Result<Response<TerraMsgWrapper>, ContractError> {
     let config = CONFIG.load(deps.storage)?;
     validate(&config, &info, &env, vec![Verify::SenderManager, Verify::NoFunds])?;
 
-    // let mut messages = vec![];
-    // let mut scc_user_reward_requests = vec![];
-    // for user_addr in user_addrs {
-    //
-    //     let user_req = UpdateUserRewardsRequest {
-    //         user: user_addr,
-    //         funds: Default::default(),
-    //         strategy_id: None
-    //     };
-    // }
+    let mut pool_info_map: HashMap<u64, PoolPointerInfo> = HashMap::new();
+    for info in pool_pointers {
+        pool_info_map.insert(info.pool_id, info);
+    }
 
+    let mut logs = vec![];
+    let mut messages = vec![];
+    let mut scc_user_reward_requests = vec![];
+    let mut scc_user_airdrop_requests = vec![];
+    for user_addr in user_addrs {
+        let user_pools = query_user(deps.storage, user_addr.clone()).unwrap().info;
+        for mut user_pool_info in user_pools {
+            let pool_id = user_pool_info.pool_id;
+            if !pool_info_map.contains_key(&pool_id) {
+                continue;
+            }
+            let pool_pointer_info = pool_info_map.get(&pool_id).unwrap().clone();
+            update_user_pointers(&mut user_pool_info, pool_pointer_info.airdrops_pointer, pool_pointer_info.rewards_pointer);
+            scc_user_reward_requests.push(UpdateUserRewardsRequest {
+                user: user_addr.clone(),
+                funds: user_pool_info.pending_rewards,
+                strategy_id: None
+            });
+            logs.push(attr(user_addr.to_string(), user_pool_info.pending_rewards.to_string()));
+            scc_user_airdrop_requests.push(UpdateUserAirdropsRequest {
+                user: user_addr.clone(),
+                pool_airdrops: user_pool_info.pending_airdrops.clone()
+            });
+            logs.push(attr(user_addr.to_string(), user_pool_info.pending_airdrops.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(",")));
+            user_pool_info.pending_airdrops = vec![];
+            user_pool_info.pending_rewards = Uint128::zero();
+            USER_REGISTRY.save(deps.storage, (&user_addr, U64Key::new(pool_id)), &user_pool_info)?;
+        }
+    }
 
-    Ok(Response::new())
+    messages.push(WasmMsg::Execute {
+        contract_addr: config.scc_contract.to_string(),
+        msg: to_binary(&SccMsg::UpdateUserRewards {
+            update_user_rewards_requests: scc_user_reward_requests.clone()
+        }).unwrap(),
+        funds: vec![]
+    });
+    messages.push(WasmMsg::Execute {
+        contract_addr: config.scc_contract.to_string(),
+        msg: to_binary(&SccMsg::UpdateUserAirdrops {
+            update_user_airdrops_requests: scc_user_airdrop_requests.clone(),
+        }).unwrap(),
+        funds: vec![]
+    });
 
+    Ok(Response::new().add_messages(messages).add_attributes(logs))
 }
 
 // TODO - GM. Add tests
@@ -280,7 +320,7 @@ pub fn update_config(
 
     CONFIG.update(deps.storage, |mut config| -> StdResult<_> {
         config.pools_contract = pools_contract.unwrap_or(config.pools_contract.clone());
-        config.scc_contract = scc_contract.unwrap_or(config.pools_contract.clone());
+        config.scc_contract = scc_contract.unwrap_or(config.scc_contract.clone());
         Ok(config)
     })?;
 
@@ -293,7 +333,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::Config {} => to_binary(&query_config(deps)?),
         QueryMsg::State {} => to_binary(&query_state(deps)?),
         QueryMsg::UserPool { user_addr, pool_id } => to_binary(&query_user_pool(deps, user_addr, pool_id)?),
-        QueryMsg::User { user_addr } => to_binary(&query_user(deps, user_addr)?),
+        QueryMsg::User { user_addr } => to_binary(&query_user(deps.storage, user_addr)?),
     }
 }
 
@@ -312,30 +352,13 @@ pub fn query_user_pool(deps: Deps, user_addr: Addr, pool_id: u64) -> StdResult<U
     Ok(UserPoolResponse { info: user_pool_opt })
 }
 
-pub fn query_user(deps: Deps, user_addr: Addr) -> StdResult<Vec<(Vec<u8>, UserPoolInfo)>> {
-        USER_REGISTRY
-            .prefix(&user_addr)
-            .range(deps.storage, None, None, Order::Ascending)
-            .collect()
-
+pub fn query_user<'a>(storage: &'a dyn Storage, user_addr: Addr) -> StdResult<UserResponse> {
+    let mut res = vec![];
+    USER_REGISTRY
+        .prefix(&user_addr)
+        .range(storage, None, None, Order::Ascending)
+        .for_each(|x| {
+            res.push(x.unwrap().1);
+    });
+    Ok(UserResponse { info: res })
 }
-
-// pub fn query_user(deps: Deps, user_addr: Addr) -> StdResult<UserResponse> {
-//     let x: StdResult<Vec<(Vec<u8>, UserPoolInfo)>> =
-//         USER_REGISTRY
-//             .prefix(&user_addr)
-//             .range(deps.storage, None, None, Order::Ascending)
-//             .collect();
-//
-//     let x = x.unwrap();
-//     let mut res: Vec<QueryUserInfo> = vec![];
-//     for y in x {
-//         let a = String::from_utf8(y.0).unwrap().parse::<u64>().unwrap();
-//         let b = y.1;
-//         res.push(QueryUserInfo {
-//             pool_id: a,
-//             pool_info: b
-//         })
-//     }
-//     Ok(UserResponse { info: res })
-// }

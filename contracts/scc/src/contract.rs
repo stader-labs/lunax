@@ -9,7 +9,7 @@ use cosmwasm_std::{
 use crate::error::ContractError;
 use crate::helpers::{
     get_sic_fulfillable_undelegated_funds, get_staked_amount, get_strategy_shares_per_token_ratio,
-    get_strategy_split,
+    get_strategy_split, validate_user_portfolio,
 };
 use crate::msg::{
     ExecuteMsg, GetAllStrategiesResponse, GetConfigResponse, GetStateResponse,
@@ -55,8 +55,8 @@ pub fn instantiate(
     };
 
     let state = State {
-        manager: deps.api.addr_canonicalize(info.sender.clone().as_str())?,
-        pools_contract: deps.api.addr_canonicalize(msg.pools_contract.as_str())?,
+        manager: info.sender.clone(),
+        delegator_contract: msg.delegator_contract,
         scc_denom: msg.strategy_denom,
         contract_genesis_block_height: _env.block.height,
         contract_genesis_timestamp: _env.block.time,
@@ -173,9 +173,18 @@ pub fn execute(
         ExecuteMsg::DepositFunds { strategy_override } => {
             try_deposit_funds(deps, _env, info, strategy_override)
         }
-        ExecuteMsg::UpdateConfig { pools_contract } => {
-            try_update_config(deps, _env, info, pools_contract)
-        }
+        ExecuteMsg::UpdateConfig {
+            delegator_contract,
+            default_user_portfolio,
+            fallback_strategy,
+        } => try_update_config(
+            deps,
+            _env,
+            info,
+            delegator_contract,
+            default_user_portfolio,
+            fallback_strategy,
+        ),
     }
 }
 
@@ -183,18 +192,43 @@ pub fn try_update_config(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    pools_contract: Addr,
+    delegator_contract: Option<Addr>,
+    default_user_portfolio: Option<Vec<UserStrategyPortfolio>>,
+    fallback_strategy: Option<u64>,
 ) -> Result<Response, ContractError> {
-    let state = STATE.load(deps.storage)?;
-    if deps.api.addr_canonicalize(info.sender.as_str())? != state.manager {
+    let mut state = STATE.load(deps.storage)?;
+    let mut config = CONFIG.load(deps.storage)?;
+    if info.sender != state.manager {
         return Err(ContractError::Unauthorized {});
     }
 
-    let pools_address_canonical = deps.api.addr_canonicalize(pools_contract.as_str())?;
-    STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
-        state.pools_contract = pools_address_canonical;
-        Ok(state)
-    })?;
+    if delegator_contract.is_some() {
+        state.delegator_contract = delegator_contract.unwrap();
+    }
+
+    if fallback_strategy.is_some() {
+        // check if strategy exists
+        if STRATEGY_MAP
+            .may_load(deps.storage, U64Key::new(fallback_strategy.unwrap()))?
+            .is_none()
+        {
+            return Err(ContractError::StrategyInfoDoesNotExist {});
+        }
+
+        config.fallback_strategy = fallback_strategy.unwrap();
+    }
+
+    if default_user_portfolio.is_some() {
+        let default_user_portfolio_unwrapped = default_user_portfolio.unwrap();
+        if validate_user_portfolio(deps.storage, &default_user_portfolio_unwrapped).is_err() {
+            return Err(ContractError::InvalidUserPortfolio {});
+        }
+
+        config.default_user_portfolio = default_user_portfolio_unwrapped;
+    }
+
+    STATE.save(deps.storage, &state)?;
+    CONFIG.save(deps.storage, &config)?;
 
     Ok(Response::default())
 }
@@ -209,7 +243,7 @@ pub fn try_update_strategy(
     is_active: Option<bool>,
 ) -> Result<Response, ContractError> {
     let state = STATE.load(deps.storage)?;
-    if deps.api.addr_canonicalize(info.sender.as_str())? != state.manager {
+    if info.sender != state.manager {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -273,7 +307,7 @@ pub fn try_fetch_undelegated_rewards_from_strategies(
     strategies: Vec<u64>,
 ) -> Result<Response, ContractError> {
     let state = STATE.load(deps.storage)?;
-    if deps.api.addr_canonicalize(info.sender.as_str())? != state.manager {
+    if info.sender != state.manager {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -411,7 +445,7 @@ pub fn try_undelegate_from_strategies(
     strategies: Vec<u64>,
 ) -> Result<Response, ContractError> {
     let state = STATE.load(deps.storage)?;
-    if deps.api.addr_canonicalize(info.sender.as_str())? != state.manager {
+    if info.sender != state.manager {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -519,7 +553,7 @@ pub fn try_update_cw20_contracts_registry(
     airdrop_contract: Addr,
 ) -> Result<Response, ContractError> {
     let state = STATE.load(deps.storage)?;
-    if deps.api.addr_canonicalize(info.sender.as_str())? != state.manager {
+    if info.sender != state.manager {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -651,7 +685,7 @@ pub fn try_claim_airdrops(
     claim_msg: Binary,
 ) -> Result<Response, ContractError> {
     let state = STATE.load(deps.storage)?;
-    if deps.api.addr_canonicalize(info.sender.as_str())? != state.manager {
+    if info.sender != state.manager {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -868,7 +902,7 @@ pub fn try_register_strategy(
     unbonding_buffer: Option<u64>,
 ) -> Result<Response, ContractError> {
     let state = STATE.load(deps.storage)?;
-    if deps.api.addr_canonicalize(info.sender.as_str())? != state.manager {
+    if info.sender != state.manager {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -900,7 +934,7 @@ pub fn try_remove_strategy(
     strategy_id: u64,
 ) -> Result<Response, ContractError> {
     let state = STATE.load(deps.storage)?;
-    if deps.api.addr_canonicalize(info.sender.as_str())? != state.manager {
+    if info.sender != state.manager {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -919,23 +953,8 @@ pub fn try_update_user_portfolio(
 
     // check if the entire portfolio deposit fraction is less than 1. else abort the tx
     // do bunch of sanity checks
-    let mut total_deposit_fraction = Decimal::zero();
-    for portfolio in &user_portfolio {
-        let strategy_id = portfolio.strategy_id;
-
-        if STRATEGY_MAP
-            .may_load(deps.storage, U64Key::new(strategy_id))?
-            .is_none()
-        {
-            return Err(ContractError::StrategyInfoDoesNotExist {});
-        }
-
-        total_deposit_fraction =
-            decimal_summation_in_256(total_deposit_fraction, portfolio.deposit_fraction);
-    }
-
-    if total_deposit_fraction > Decimal::one() {
-        return Err(ContractError::InvalidPortfolioDepositFraction {});
+    if validate_user_portfolio(deps.storage, &user_portfolio).is_err() {
+        return Err(ContractError::InvalidUserPortfolio {});
     }
 
     USER_REWARD_INFO_MAP.update(
@@ -1107,7 +1126,7 @@ pub fn try_update_user_rewards(
     update_user_rewards_requests: Vec<UpdateUserRewardsRequest>,
 ) -> Result<Response, ContractError> {
     let state = STATE.load(deps.storage)?;
-    if deps.api.addr_canonicalize(info.sender.as_str())? != state.pools_contract {
+    if info.sender != state.delegator_contract {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -1291,7 +1310,7 @@ pub fn try_update_user_airdrops(
 ) -> Result<Response, ContractError> {
     // check for manager?
     let state = STATE.load(deps.storage)?;
-    if deps.api.addr_canonicalize(info.sender.as_str())? != state.pools_contract {
+    if info.sender != state.delegator_contract {
         return Err(ContractError::Unauthorized {});
     }
 

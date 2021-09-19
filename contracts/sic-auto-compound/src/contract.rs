@@ -32,8 +32,8 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     let state = State {
-        manager: deps.api.addr_canonicalize(info.sender.clone().as_str())?,
-        scc_address: deps.api.addr_canonicalize(msg.scc_address.as_str())?,
+        manager: info.sender.clone(),
+        scc_address: msg.scc_address,
         manager_seed_funds: msg.manager_seed_funds,
         min_validator_pool_size: msg.min_validator_pool_size.unwrap_or(3),
         strategy_denom: msg.strategy_denom.clone(),
@@ -115,7 +115,7 @@ pub fn try_remove_validator(
     validator: Addr,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let state = STATE.load(deps.storage)?;
-    if deps.api.addr_canonicalize(info.sender.as_str())? != state.manager {
+    if info.sender != state.manager {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -230,7 +230,7 @@ pub fn try_replace_validator(
     dst_validator: Addr,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let state = STATE.load(deps.storage)?;
-    if deps.api.addr_canonicalize(info.sender.as_str())? != state.manager {
+    if info.sender != state.manager {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -331,7 +331,7 @@ pub fn try_add_validator(
     validator: Addr,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let state = STATE.load(deps.storage)?;
-    if deps.api.addr_canonicalize(info.sender.as_str())? != state.manager {
+    if info.sender != state.manager {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -369,7 +369,7 @@ pub fn try_claim_airdrops(
     claim_msg: Binary,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let state = STATE.load(deps.storage)?;
-    if deps.api.addr_canonicalize(info.sender.as_str())? != state.scc_address {
+    if info.sender != state.scc_address {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -385,7 +385,7 @@ pub fn try_claim_airdrops(
     messages.push(WasmMsg::Execute {
         contract_addr: cw20_token_contract.to_string(),
         msg: to_binary(&cw20::Cw20ExecuteMsg::Transfer {
-            recipient: deps.api.addr_humanize(&state.scc_address)?.to_string(),
+            recipient: state.scc_address.to_string(),
             amount,
         })
         .unwrap(),
@@ -402,7 +402,7 @@ pub fn try_swap(
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let state = STATE.load(deps.storage)?;
 
-    if deps.api.addr_canonicalize(info.sender.as_str())? != state.manager {
+    if info.sender != state.manager {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -474,7 +474,7 @@ pub fn try_transfer_rewards(
     info: MessageInfo,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let state = STATE.load(deps.storage).unwrap();
-    if deps.api.addr_canonicalize(info.sender.as_str())? != state.scc_address {
+    if info.sender != state.scc_address {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -531,7 +531,7 @@ pub fn try_undelegate_rewards(
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let state = STATE.load(deps.storage).unwrap();
 
-    if deps.api.addr_canonicalize(info.sender.as_str())? != state.scc_address {
+    if info.sender != state.scc_address {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -621,7 +621,7 @@ pub fn try_transfer_undelegated_rewards(
     amount: Uint128,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let state = STATE.load(deps.storage).unwrap();
-    if deps.api.addr_canonicalize(info.sender.as_str())? != state.scc_address {
+    if info.sender != state.scc_address {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -643,7 +643,7 @@ pub fn try_transfer_undelegated_rewards(
 
     // no need to account for the undelegated funds separately as it will be deducted from the contract balance
     Ok(Response::new().add_message(send_funds_msg(
-        &deps.api.addr_humanize(&state.scc_address)?,
+        &state.scc_address,
         &vec![Coin::new(total_funds_to_send.u128(), state.strategy_denom)],
     )))
 }
@@ -656,10 +656,7 @@ pub fn try_reinvest(
     let state = STATE.load(deps.storage)?;
 
     // TODO - bchain99: add validation templates. discuss with gm about pushing it to stader-utils
-    if deps.api.addr_canonicalize(info.sender.as_str())? != state.manager
-        && deps.api.addr_canonicalize(info.sender.as_str())?
-            != deps.api.addr_canonicalize(_env.contract.address.as_str())?
-    {
+    if info.sender != state.manager && info.sender != _env.contract.address {
         return Err(ContractError::Unauthorized {});
     }
 

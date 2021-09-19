@@ -13,7 +13,7 @@ mod tests {
     };
     use crate::state::{
         BatchUndelegationRecord, Config, Cw20TokenContractsInfo, State, StrategyInfo,
-        UserRewardInfo, UserStrategyInfo, UserStrategyPortfolio, UserUndelegationRecord,
+        UserRewardInfo, UserStrategyInfo, UserStrategyPortfolio, UserUndelegationRecord, CONFIG,
         CW20_TOKEN_CONTRACTS_REGISTRY, STATE, STRATEGY_MAP, UNDELEGATION_BATCH_MAP,
         USER_REWARD_INFO_MAP,
     };
@@ -42,12 +42,14 @@ mod tests {
         info: &MessageInfo,
         env: &Env,
         strategy_denom: Option<String>,
-        pools_contract: Option<String>,
+        delegator_contract: Option<String>,
         default_user_portfolio: Option<Vec<UserStrategyPortfolio>>,
     ) -> Response<Empty> {
         let msg = InstantiateMsg {
             strategy_denom: strategy_denom.unwrap_or("uluna".to_string()),
-            pools_contract: Addr::unchecked(pools_contract.unwrap_or("pools_contract".to_string())),
+            delegator_contract: Addr::unchecked(
+                delegator_contract.unwrap_or("delegator_contract".to_string()),
+            ),
             default_user_portfolio,
             default_fallback_strategy: None,
         };
@@ -55,8 +57,8 @@ mod tests {
         return instantiate(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
     }
 
-    fn get_pools_contract_address() -> Addr {
-        Addr::unchecked("pools_contract")
+    fn get_delegator_contract_address() -> Addr {
+        Addr::unchecked("delegator_contract")
     }
 
     #[test]
@@ -71,7 +73,7 @@ mod tests {
             &info,
             &env,
             Some(String::from("uluna")),
-            Some(String::from("pools_contract")),
+            Some(String::from("delegator_contract")),
             None,
         );
 
@@ -84,11 +86,8 @@ mod tests {
         assert_eq!(
             state,
             State {
-                manager: deps.api.addr_canonicalize(info.sender.as_str()).unwrap(),
-                pools_contract: deps
-                    .api
-                    .addr_canonicalize(Addr::unchecked("pools_contract").as_str())
-                    .unwrap(),
+                manager: info.sender,
+                delegator_contract: Addr::unchecked("delegator_contract"),
                 scc_denom: "uluna".to_string(),
                 contract_genesis_block_height: env.block.height,
                 contract_genesis_timestamp: env.block.time,
@@ -134,7 +133,7 @@ mod tests {
             &info,
             &env,
             Some(String::from("uluna")),
-            Some(String::from("pools_contract")),
+            Some(String::from("delegator_contract")),
             None,
         );
 
@@ -385,7 +384,7 @@ mod tests {
             &info,
             &env,
             Some(String::from("uluna")),
-            Some(String::from("pools_contract")),
+            Some(String::from("delegator_contract")),
             None,
         );
 
@@ -562,7 +561,7 @@ mod tests {
             &info,
             &env,
             Some(String::from("uluna")),
-            Some(String::from("pools_contract")),
+            Some(String::from("delegator_contract")),
             None,
         );
 
@@ -637,7 +636,7 @@ mod tests {
             &info,
             &env,
             Some(String::from("uluna")),
-            Some(String::from("pools_contract")),
+            Some(String::from("delegator_contract")),
             None,
         );
 
@@ -649,11 +648,90 @@ mod tests {
             env.clone(),
             mock_info("not-creator", &[]),
             ExecuteMsg::UpdateConfig {
-                pools_contract: Addr::unchecked("abc"),
+                delegator_contract: None,
+                default_user_portfolio: None,
+                fallback_strategy: None,
             },
         )
         .unwrap_err();
         assert!(matches!(err, ContractError::Unauthorized {}));
+
+        /*
+           Test - 2. Invalid fallback strategy
+        */
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::UpdateConfig {
+                delegator_contract: None,
+                default_user_portfolio: None,
+                fallback_strategy: Some(1),
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::StrategyInfoDoesNotExist {}));
+
+        /*
+            Test - 3. Invalid user portfolio - non existent strategy
+        */
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::UpdateConfig {
+                delegator_contract: None,
+                default_user_portfolio: Some(vec![
+                    UserStrategyPortfolio {
+                        strategy_id: 1,
+                        deposit_fraction: Decimal::from_ratio(1_u128, 2_u128),
+                    },
+                    UserStrategyPortfolio {
+                        strategy_id: 2,
+                        deposit_fraction: Decimal::from_ratio(3_u128, 4_u128),
+                    },
+                ]),
+                fallback_strategy: None,
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::InvalidUserPortfolio {}));
+
+        /*
+           Test - 4. Invalid user portfolio - invalid deposit fraction
+        */
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            U64Key::new(1),
+            &StrategyInfo::default("sid1".to_string()),
+        );
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            U64Key::new(2),
+            &StrategyInfo::default("sid2".to_string()),
+        );
+
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::UpdateConfig {
+                delegator_contract: None,
+                default_user_portfolio: Some(vec![
+                    UserStrategyPortfolio {
+                        strategy_id: 1,
+                        deposit_fraction: Decimal::from_ratio(1_u128, 2_u128),
+                    },
+                    UserStrategyPortfolio {
+                        strategy_id: 2,
+                        deposit_fraction: Decimal::from_ratio(3_u128, 4_u128),
+                    },
+                ]),
+                fallback_strategy: None,
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::InvalidUserPortfolio {}));
     }
 
     #[test]
@@ -667,25 +745,40 @@ mod tests {
             &info,
             &env,
             Some(String::from("uluna")),
-            Some(String::from("pools_contract")),
+            Some(String::from("delegator_contract")),
             None,
         );
 
-        let old_pools_contract = Addr::unchecked("old_pools_contract");
-        let new_pools_contract = Addr::unchecked("new_pools_contract");
+        let old_delegator_contract = Addr::unchecked("old_delegator_contract");
+        let new_delegator_contract = Addr::unchecked("new_delegator_contract");
 
         /*
-           Test - 1. Unauthorized
+           Test - 1. successful
         */
-        let old_pools_contract_canon = deps
-            .api
-            .addr_canonicalize(old_pools_contract.as_str())
-            .unwrap();
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            U64Key::new(1),
+            &StrategyInfo::default("sid1".to_string()),
+        );
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            U64Key::new(2),
+            &StrategyInfo::default("sid2".to_string()),
+        );
+
         STATE.update(
             deps.as_mut().storage,
             |mut state| -> Result<_, ContractError> {
-                state.pools_contract = old_pools_contract_canon;
+                state.delegator_contract = old_delegator_contract;
                 Ok(state)
+            },
+        );
+        CONFIG.update(
+            deps.as_mut().storage,
+            |mut config| -> Result<_, ContractError> {
+                config.fallback_strategy = 0;
+                config.default_user_portfolio = vec![];
+                Ok(config)
             },
         );
 
@@ -694,7 +787,18 @@ mod tests {
             env.clone(),
             mock_info("creator", &[]),
             ExecuteMsg::UpdateConfig {
-                pools_contract: new_pools_contract.clone(),
+                delegator_contract: Some(new_delegator_contract.clone()),
+                default_user_portfolio: Some(vec![
+                    UserStrategyPortfolio {
+                        strategy_id: 1,
+                        deposit_fraction: Decimal::from_ratio(1_u128, 4_u128),
+                    },
+                    UserStrategyPortfolio {
+                        strategy_id: 2,
+                        deposit_fraction: Decimal::from_ratio(1_u128, 4_u128),
+                    },
+                ]),
+                fallback_strategy: Some(1),
             },
         )
         .unwrap();
@@ -703,12 +807,27 @@ mod tests {
                 .unwrap();
         assert_ne!(state_response.state, None);
         let state = state_response.state.unwrap();
-        assert_eq!(
-            state.pools_contract,
-            deps.api
-                .addr_canonicalize(new_pools_contract.as_str())
-                .unwrap()
-        )
+        assert_eq!(state.delegator_contract, new_delegator_contract);
+
+        let config_response: GetConfigResponse =
+            from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::GetConfig {}).unwrap())
+                .unwrap();
+        assert_ne!(config_response.config, None);
+        let config = config_response.config.unwrap();
+        assert_eq!(config.fallback_strategy, 1);
+        assert!(check_equal_vec(
+            config.default_user_portfolio,
+            vec![
+                UserStrategyPortfolio {
+                    strategy_id: 1,
+                    deposit_fraction: Decimal::from_ratio(1_u128, 4_u128)
+                },
+                UserStrategyPortfolio {
+                    strategy_id: 2,
+                    deposit_fraction: Decimal::from_ratio(1_u128, 4_u128)
+                },
+            ]
+        ));
     }
 
     #[test]
@@ -722,7 +841,7 @@ mod tests {
             &info,
             &env,
             Some(String::from("uluna")),
-            Some(String::from("pools_contract")),
+            Some(String::from("delegator_contract")),
             None,
         );
 
@@ -809,7 +928,7 @@ mod tests {
             &info,
             &env,
             Some(String::from("uluna")),
-            Some(String::from("pools_contract")),
+            Some(String::from("delegator_contract")),
             Some(vec![UserStrategyPortfolio {
                 strategy_id: 1,
                 deposit_fraction: Decimal::one(),
@@ -1194,7 +1313,7 @@ mod tests {
             &info,
             &env,
             Some(String::from("uluna")),
-            Some(String::from("pools_contract")),
+            Some(String::from("delegator_contract")),
             None,
         );
 
@@ -1244,7 +1363,7 @@ mod tests {
             &info,
             &env,
             Some(String::from("uluna")),
-            Some(String::from("pools_contract")),
+            Some(String::from("delegator_contract")),
             None,
         );
 
@@ -1301,7 +1420,7 @@ mod tests {
             &info,
             &env,
             Some(String::from("uluna")),
-            Some(String::from("pools_contract")),
+            Some(String::from("delegator_contract")),
             None,
         );
 
@@ -1333,7 +1452,7 @@ mod tests {
             &info,
             &env,
             Some(String::from("uluna")),
-            Some(String::from("pools_contract")),
+            Some(String::from("delegator_contract")),
             None,
         );
 
@@ -1369,7 +1488,7 @@ mod tests {
             &info,
             &env,
             Some(String::from("uluna")),
-            Some(String::from("pools_contract")),
+            Some(String::from("delegator_contract")),
             None,
         );
 
@@ -1750,7 +1869,7 @@ mod tests {
             &info,
             &env,
             Some(String::from("uluna")),
-            Some(String::from("pools_contract")),
+            Some(String::from("delegator_contract")),
             None,
         );
 
@@ -2450,7 +2569,7 @@ mod tests {
             &info,
             &env,
             Some(String::from("uluna")),
-            Some(String::from("pools_contract")),
+            Some(String::from("delegator_contract")),
             None,
         );
 
@@ -2480,7 +2599,7 @@ mod tests {
             &info,
             &env,
             Some(String::from("uluna")),
-            Some(String::from("pools_contract")),
+            Some(String::from("delegator_contract")),
             None,
         );
 
@@ -3128,7 +3247,7 @@ mod tests {
             &info,
             &env,
             Some(String::from("uluna")),
-            Some(String::from("pools_contract")),
+            Some(String::from("delegator_contract")),
             None,
         );
 
@@ -3347,7 +3466,7 @@ mod tests {
             &info,
             &env,
             Some(String::from("uluna")),
-            Some(String::from("pools_contract")),
+            Some(String::from("delegator_contract")),
             None,
         );
 
@@ -3540,7 +3659,7 @@ mod tests {
             &info,
             &env,
             Some(String::from("uluna")),
-            Some(String::from("pools_contract")),
+            Some(String::from("delegator_contract")),
             None,
         );
 
@@ -3686,7 +3805,7 @@ mod tests {
             &info,
             &env,
             Some(String::from("uluna")),
-            Some(String::from("pools_contract")),
+            Some(String::from("delegator_contract")),
             None,
         );
 
@@ -3923,7 +4042,7 @@ mod tests {
             &info,
             &env,
             Some(String::from("uluna")),
-            Some(String::from("pools_contract")),
+            Some(String::from("delegator_contract")),
             None,
         );
 
@@ -4003,7 +4122,7 @@ mod tests {
             &info,
             &env,
             Some(String::from("uluna")),
-            Some(String::from("pools_contract")),
+            Some(String::from("delegator_contract")),
             None,
         );
 
@@ -4206,7 +4325,7 @@ mod tests {
             &info,
             &env,
             Some(String::from("uluna")),
-            Some(String::from("pools_contract")),
+            Some(String::from("delegator_contract")),
             None,
         );
 
@@ -4234,7 +4353,7 @@ mod tests {
             &info,
             &env,
             Some(String::from("uluna")),
-            Some(String::from("pools_contract")),
+            Some(String::from("delegator_contract")),
             None,
         );
 
@@ -4488,7 +4607,7 @@ mod tests {
             &info,
             &env,
             Some(String::from("uluna")),
-            Some(String::from("pools_contract")),
+            Some(String::from("delegator_contract")),
             None,
         );
 
@@ -4520,7 +4639,7 @@ mod tests {
             &info,
             &env,
             Some(String::from("uluna")),
-            Some(String::from("pools_contract")),
+            Some(String::from("delegator_contract")),
             None,
         );
         let user1 = Addr::unchecked("user1");
@@ -4610,7 +4729,7 @@ mod tests {
             &info,
             &env,
             Some(String::from("uluna")),
-            Some(String::from("pools_contract")),
+            Some(String::from("delegator_contract")),
             None,
         );
 
@@ -4630,7 +4749,7 @@ mod tests {
             },
         )
         .unwrap_err();
-        assert!(matches!(err, ContractError::StrategyInfoDoesNotExist {}));
+        assert!(matches!(err, ContractError::InvalidUserPortfolio {}));
 
         /*
            Test - 2. Adding an invalid portfolio which causes the entire deposit fraction to go beyond 1
@@ -4672,10 +4791,7 @@ mod tests {
             },
         )
         .unwrap_err();
-        assert!(matches!(
-            err,
-            ContractError::InvalidPortfolioDepositFraction {}
-        ));
+        assert!(matches!(err, ContractError::InvalidUserPortfolio {}));
 
         /*
             Test - 3. Updating an existing portfolio which causes the entire deposit fraction to go beyond 1
@@ -4728,10 +4844,7 @@ mod tests {
             },
         )
         .unwrap_err();
-        assert!(matches!(
-            err,
-            ContractError::InvalidPortfolioDepositFraction {}
-        ));
+        assert!(matches!(err, ContractError::InvalidUserPortfolio {}));
     }
 
     #[test]
@@ -4745,7 +4858,7 @@ mod tests {
             &info,
             &env,
             Some(String::from("uluna")),
-            Some(String::from("pools_contract")),
+            Some(String::from("delegator_contract")),
             None,
         );
 
@@ -4827,7 +4940,7 @@ mod tests {
             &info,
             &env,
             Some(String::from("uluna")),
-            Some(String::from("pools_contract")),
+            Some(String::from("delegator_contract")),
             None,
         );
 
@@ -4858,7 +4971,7 @@ mod tests {
         let res = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info(get_pools_contract_address().as_ref(), &[]),
+            mock_info(get_delegator_contract_address().as_ref(), &[]),
             ExecuteMsg::UpdateUserRewards {
                 update_user_rewards_requests: vec![],
             },
@@ -4879,7 +4992,7 @@ mod tests {
         let res = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info(get_pools_contract_address().as_ref(), &[]),
+            mock_info(get_delegator_contract_address().as_ref(), &[]),
             ExecuteMsg::UpdateUserRewards {
                 update_user_rewards_requests: vec![UpdateUserRewardsRequest {
                     user: user1.clone(),
@@ -4921,7 +5034,7 @@ mod tests {
             &info,
             &env,
             Some(String::from("uluna")),
-            Some(String::from("pools_contract")),
+            Some(String::from("delegator_contract")),
             None,
         );
 
@@ -4960,7 +5073,7 @@ mod tests {
         let res = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info(get_pools_contract_address().as_ref(), &[]),
+            mock_info(get_delegator_contract_address().as_ref(), &[]),
             ExecuteMsg::UpdateUserRewards {
                 update_user_rewards_requests: vec![UpdateUserRewardsRequest {
                     user: user1.clone(),
@@ -5138,7 +5251,7 @@ mod tests {
         let res = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info(get_pools_contract_address().as_ref(), &[]),
+            mock_info(get_delegator_contract_address().as_ref(), &[]),
             ExecuteMsg::UpdateUserRewards {
                 update_user_rewards_requests: vec![UpdateUserRewardsRequest {
                     user: user1.clone(),
@@ -5355,7 +5468,7 @@ mod tests {
         let res = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info(get_pools_contract_address().as_ref(), &[]),
+            mock_info(get_delegator_contract_address().as_ref(), &[]),
             ExecuteMsg::UpdateUserRewards {
                 update_user_rewards_requests: vec![UpdateUserRewardsRequest {
                     user: user1.clone(),
@@ -5535,7 +5648,7 @@ mod tests {
         let res = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info(get_pools_contract_address().as_ref(), &[]),
+            mock_info(get_delegator_contract_address().as_ref(), &[]),
             ExecuteMsg::UpdateUserRewards {
                 update_user_rewards_requests: vec![UpdateUserRewardsRequest {
                     user: user1.clone(),
@@ -5700,7 +5813,7 @@ mod tests {
         let res = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info(get_pools_contract_address().as_ref(), &[]),
+            mock_info(get_delegator_contract_address().as_ref(), &[]),
             ExecuteMsg::UpdateUserRewards {
                 update_user_rewards_requests: vec![UpdateUserRewardsRequest {
                     user: user1.clone(),
@@ -5819,7 +5932,7 @@ mod tests {
         let res = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info(get_pools_contract_address().as_ref(), &[]),
+            mock_info(get_delegator_contract_address().as_ref(), &[]),
             ExecuteMsg::UpdateUserRewards {
                 update_user_rewards_requests: vec![UpdateUserRewardsRequest {
                     user: user1.clone(),
@@ -5969,7 +6082,7 @@ mod tests {
         let res = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info(get_pools_contract_address().as_ref(), &[]),
+            mock_info(get_delegator_contract_address().as_ref(), &[]),
             ExecuteMsg::UpdateUserRewards {
                 update_user_rewards_requests: vec![UpdateUserRewardsRequest {
                     user: user1.clone(),
@@ -6260,7 +6373,7 @@ mod tests {
         let res = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info(get_pools_contract_address().as_ref(), &[]),
+            mock_info(get_delegator_contract_address().as_ref(), &[]),
             ExecuteMsg::UpdateUserRewards {
                 update_user_rewards_requests: vec![
                     UpdateUserRewardsRequest {
@@ -6479,7 +6592,7 @@ mod tests {
             &info,
             &env,
             Some(String::from("uluna")),
-            Some(String::from("pools_contract")),
+            Some(String::from("delegator_contract")),
             None,
         );
 
@@ -6507,7 +6620,7 @@ mod tests {
             &info,
             &env,
             Some(String::from("uluna")),
-            Some(String::from("pools_contract")),
+            Some(String::from("delegator_contract")),
             None,
         );
 
@@ -6541,7 +6654,7 @@ mod tests {
             &info,
             &env,
             Some(String::from("uluna")),
-            Some(String::from("pools_contract")),
+            Some(String::from("delegator_contract")),
             None,
         );
 
@@ -6574,7 +6687,7 @@ mod tests {
             &info,
             &env,
             Some(String::from("uluna")),
-            Some(String::from("pools_contract")),
+            Some(String::from("delegator_contract")),
             None,
         );
 
@@ -6662,7 +6775,7 @@ mod tests {
             &info,
             &env,
             Some(String::from("uluna")),
-            Some(String::from("pools_contract")),
+            Some(String::from("delegator_contract")),
             None,
         );
 
@@ -6686,7 +6799,7 @@ mod tests {
         let res = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info("pools_contract", &[]),
+            mock_info("delegator_contract", &[]),
             ExecuteMsg::UpdateUserAirdrops {
                 update_user_airdrops_requests: vec![],
             },
@@ -6713,7 +6826,7 @@ mod tests {
             &info,
             &env,
             Some(String::from("uluna")),
-            Some(String::from("pools_contract")),
+            Some(String::from("delegator_contract")),
             None,
         );
 
@@ -6728,7 +6841,7 @@ mod tests {
         let res = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info("pools_contract", &[]),
+            mock_info("delegator_contract", &[]),
             ExecuteMsg::UpdateUserAirdrops {
                 update_user_airdrops_requests: vec![
                     UpdateUserAirdropsRequest {
@@ -6854,7 +6967,7 @@ mod tests {
         let res = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info("pools_contract", &[]),
+            mock_info("delegator_contract", &[]),
             ExecuteMsg::UpdateUserAirdrops {
                 update_user_airdrops_requests: vec![
                     UpdateUserAirdropsRequest {
