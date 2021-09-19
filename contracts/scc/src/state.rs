@@ -15,9 +15,9 @@ pub struct Config {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct State {
-    pub manager: CanonicalAddr,
+    pub manager: Addr,
 
-    pub pools_contract: CanonicalAddr,
+    pub delegator_contract: Addr,
     pub scc_denom: String,
     pub contract_genesis_block_height: u64,
     pub contract_genesis_timestamp: Timestamp,

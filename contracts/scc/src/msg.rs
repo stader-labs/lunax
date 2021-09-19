@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
     pub strategy_denom: String,
-    pub pools_contract: Addr,
+    pub delegator_contract: Addr,
 
     pub default_user_portfolio: Option<Vec<UserStrategyPortfolio>>,
     pub default_fallback_strategy: Option<u64>,
@@ -120,7 +120,9 @@ pub enum ExecuteMsg {
         update_user_airdrops_requests: Vec<UpdateUserAirdropsRequest>,
     },
     UpdateConfig {
-        pools_contract: Addr,
+        delegator_contract: Option<Addr>,
+        default_user_portfolio: Option<Vec<UserStrategyPortfolio>>,
+        fallback_strategy: Option<u64>,
     },
     /*
        User messages

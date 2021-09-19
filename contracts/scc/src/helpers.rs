@@ -1,9 +1,12 @@
 use crate::state::{
-    Config, StrategyInfo, UserRewardInfo, UserStrategyInfo, STRATEGY_MAP, USER_REWARD_INFO_MAP,
+    Config, StrategyInfo, UserRewardInfo, UserStrategyInfo, UserStrategyPortfolio, STRATEGY_MAP,
+    USER_REWARD_INFO_MAP,
 };
 use crate::user::get_user_airdrops;
+use crate::ContractError;
 use cosmwasm_std::{
-    Addr, Coin, Decimal, Fraction, QuerierWrapper, Response, StdResult, Storage, Timestamp, Uint128,
+    Addr, Coin, Decimal, Fraction, QuerierWrapper, Response, StdError, StdResult, Storage,
+    Timestamp, Uint128,
 };
 use cw_storage_plus::U64Key;
 use sic_base::msg::{
@@ -11,7 +14,7 @@ use sic_base::msg::{
 };
 use stader_utils::coin_utils::{
     decimal_division_in_256, decimal_multiplication_in_256, decimal_subtraction_in_256,
-    get_decimal_from_uint128, merge_coin_vector, uint128_from_decimal,
+    decimal_summation_in_256, get_decimal_from_uint128, merge_coin_vector, uint128_from_decimal,
 };
 use std::collections::HashMap;
 use std::hash::Hash;
@@ -178,12 +181,37 @@ pub fn get_strategy_split(
     Ok(strategy_to_amount)
 }
 
+pub fn validate_user_portfolio(
+    storage: &mut dyn Storage,
+    user_portfolio: &Vec<UserStrategyPortfolio>,
+) -> Result<bool, ContractError> {
+    let mut total_deposit_fraction = Decimal::zero();
+    for u in user_portfolio {
+        let strategy_id = u.strategy_id;
+        if STRATEGY_MAP
+            .may_load(storage, U64Key::new(strategy_id))?
+            .is_none()
+        {
+            return Err(ContractError::StrategyInfoDoesNotExist {});
+        }
+
+        total_deposit_fraction =
+            decimal_summation_in_256(total_deposit_fraction, u.deposit_fraction);
+    }
+
+    if total_deposit_fraction > Decimal::one() {
+        return Err(ContractError::InvalidPortfolioDepositFraction {});
+    }
+
+    Ok(true)
+}
+
 #[cfg(test)]
 mod tests {
     use crate::contract::instantiate;
     use crate::helpers::{
         get_expected_strategy_or_default, get_strategy_apr, get_strategy_shares_per_token_ratio,
-        get_strategy_split,
+        get_strategy_split, validate_user_portfolio,
     };
     use crate::msg::InstantiateMsg;
     use crate::state::{
@@ -212,7 +240,7 @@ mod tests {
     ) -> Response<Empty> {
         let instantiate_msg = InstantiateMsg {
             strategy_denom: strategy_denom.unwrap_or_else(|| "uluna".to_string()),
-            pools_contract: Addr::unchecked("abc"),
+            delegator_contract: Addr::unchecked("abc"),
             default_user_portfolio: None,
             default_fallback_strategy: None,
         };
@@ -226,6 +254,91 @@ mod tests {
              $( map.insert($key, $val); )*
              map
         }}
+    }
+
+    #[test]
+    fn test__validate_user_portfolio() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &[]);
+        let env = mock_env();
+
+        let res = instantiate_contract(&mut deps, &info, &env, None);
+
+        /*
+           Test - 1. Non-existent strategy
+        */
+        let err = validate_user_portfolio(
+            deps.as_mut().storage,
+            &vec![UserStrategyPortfolio {
+                strategy_id: 1,
+                deposit_fraction: Decimal::from_ratio(1_u128, 2_u128),
+            }],
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::StrategyInfoDoesNotExist {}));
+
+        /*
+            Test - 2. Invalid deposit fraction
+        */
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            U64Key::new(1),
+            &StrategyInfo::default("sid1".to_string()),
+        );
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            U64Key::new(2),
+            &StrategyInfo::default("sid2".to_string()),
+        );
+
+        let err = validate_user_portfolio(
+            deps.as_mut().storage,
+            &vec![
+                UserStrategyPortfolio {
+                    strategy_id: 1,
+                    deposit_fraction: Decimal::from_ratio(1_u128, 2_u128),
+                },
+                UserStrategyPortfolio {
+                    strategy_id: 2,
+                    deposit_fraction: Decimal::from_ratio(3_u128, 4_u128),
+                },
+            ],
+        )
+        .unwrap_err();
+        assert!(matches!(
+            err,
+            ContractError::InvalidPortfolioDepositFraction {}
+        ));
+
+        /*
+            Test - 3. Valid portfolio
+        */
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            U64Key::new(1),
+            &StrategyInfo::default("sid1".to_string()),
+        );
+        STRATEGY_MAP.save(
+            deps.as_mut().storage,
+            U64Key::new(2),
+            &StrategyInfo::default("sid2".to_string()),
+        );
+
+        let res = validate_user_portfolio(
+            deps.as_mut().storage,
+            &vec![
+                UserStrategyPortfolio {
+                    strategy_id: 1,
+                    deposit_fraction: Decimal::from_ratio(1_u128, 2_u128),
+                },
+                UserStrategyPortfolio {
+                    strategy_id: 2,
+                    deposit_fraction: Decimal::from_ratio(1_u128, 2_u128),
+                },
+            ],
+        )
+        .unwrap();
+        assert!(res);
     }
 
     #[test]
