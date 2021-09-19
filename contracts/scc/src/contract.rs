@@ -285,7 +285,6 @@ pub fn try_fetch_undelegated_rewards_from_strategies(
     let mut failed_undelegation_batches: Vec<String> = vec![];
     let mut undelegation_batches_in_unbonding_period: Vec<String> = vec![];
     let mut undelegation_batches_slashing_checked: Vec<String> = vec![];
-    let mut total_funds_transferred_to_scc: Uint128 = Uint128::zero();
     for strategy_id in strategies {
         let mut strategy_info = if let Some(strategy_info) =
             STRATEGY_MAP.may_load(deps.storage, U64Key::new(strategy_id))?
@@ -362,10 +361,6 @@ pub fn try_fetch_undelegated_rewards_from_strategies(
 
             undelegation_batch.unbonding_slashing_ratio = unbonding_slashing_ratio;
             undelegation_batch.slashing_checked = true;
-
-            total_funds_transferred_to_scc = total_funds_transferred_to_scc
-                .checked_add(fulfillable_amount)
-                .unwrap();
 
             messages.push(WasmMsg::Execute {
                 contract_addr: strategy_info.sic_contract_address.to_string(),
