@@ -46,6 +46,7 @@ pub struct RedelegationInfo {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct UserPoolInfo {
+    pub pool_id: u64, // redundant but avoids converting Vec<u8> on query_user.
     pub deposit: DepositInfo,
     pub airdrops_pointer: Vec<DecCoin>,
     pub pending_airdrops: Vec<Coin>,
@@ -53,6 +54,13 @@ pub struct UserPoolInfo {
     pub pending_rewards: Uint128,
     pub redelegations: Vec<RedelegationInfo>,
     pub undelegations: Vec<UndelegationInfo>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct PoolPointerInfo {
+    pub pool_id: u64,
+    pub airdrops_pointer: Vec<DecCoin>,
+    pub rewards_pointer: Decimal,
 }
 
 // (User_Addr, Pool_id) -> UserPoolInfo

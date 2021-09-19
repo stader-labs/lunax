@@ -1,20 +1,21 @@
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::contract::{execute, instantiate, query, reply, reply_remove_validator};
+    use crate::contract::{execute, instantiate, query};
     use crate::error::ContractError;
     use crate::msg::{ExecuteMsg, GetConfigResponse, InstantiateMsg, QueryMsg};
-    use crate::state::{Config, State, CONFIG, STATE, USER_REGISTRY, DepositInfo, UserPoolInfo, UndelegationInfo};
+    use crate::state::{Config, State, CONFIG, STATE, USER_REGISTRY, DepositInfo, UserPoolInfo, UndelegationInfo, PoolPointerInfo};
     use cosmwasm_std::testing::{
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
         MOCK_CONTRACT_ADDR,
     };
-    use cosmwasm_std::{coins, from_binary, to_binary, Addr, Attribute, BankMsg, Binary, Coin, ContractResult, Decimal, DistributionMsg, Empty, Env, Event, FullDelegation, MessageInfo, OwnedDeps, Reply, Response, StakingMsg, SubMsg, SubMsgExecutionResponse, Uint128, Validator, WasmMsg, attr};
+    use cosmwasm_std::{coins, from_binary, to_binary, Addr, Attribute, BankMsg, Binary, Coin, ContractResult, Decimal, DistributionMsg, Empty, Env, Event, FullDelegation, MessageInfo, OwnedDeps, Uint128, Validator, WasmMsg, attr, SubMsg, Response};
     use cw20::Cw20ExecuteMsg;
     use stader_utils::coin_utils::{check_equal_coin_vector, DecCoin, check_equal_deccoin_vector};
     use terra_cosmwasm::{TerraMsg, TerraMsgWrapper};
     use cw_storage_plus::U64Key;
     use crate::msg::ExecuteMsg::Deposit;
+    use scc::msg::{ExecuteMsg as SccMsg, UpdateUserRewardsRequest, UpdateUserAirdropsRequest};
 
     fn get_validators() -> Vec<Validator> {
         vec![
@@ -302,6 +303,7 @@ mod tests {
 
 
         let mut init_user_info = UserPoolInfo {
+            pool_id: 22,
             deposit: DepositInfo { staked: Uint128::new(10) },
             airdrops_pointer: initial_airdrop_pointer.clone(),
             pending_airdrops: vec![],
@@ -402,6 +404,7 @@ mod tests {
         assert!(matches!(err, ContractError::UserNotFound {}));
 
         let mut init_user_info = UserPoolInfo {
+            pool_id: 22,
             deposit: DepositInfo { staked: Uint128::new(10) },
             airdrops_pointer: vec![],
             pending_airdrops: vec![],
@@ -470,5 +473,196 @@ mod tests {
             amount: Uint128::new(10),
             pool_id: 22
         });
+    }
+
+    #[test]
+    fn test_allocate_rewards() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &[]);
+        let env = mock_env();
+        let pools_info = mock_info("pools_addr", &[]);
+        let user1 = Addr::unchecked("user0001");
+        let user2 = Addr::unchecked("user0002");
+        let user3 = Addr::unchecked("user0003");
+
+        instantiate_contract(&mut deps, &info, &env, None);
+
+        let initial_msg = ExecuteMsg::AllocateRewards {
+            user_addrs: vec![user1.clone(), user2.clone(), user3.clone()],
+            pool_pointers: vec![]
+        };
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("other", &[]),
+            initial_msg.clone(),
+        )
+            .unwrap_err();
+        assert!(matches!(err, ContractError::Unauthorized {}));
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[Coin::new(14, "utest")]),
+            initial_msg.clone(),
+        )
+            .unwrap_err();
+
+        assert!(matches!(err, ContractError::FundsNotExpected {}));
+
+        let airdrop1_p = DecCoin::new(Decimal::from_ratio(9_u128, 100_u128), "uair1");
+        let airdrop2_p = DecCoin::new(Decimal::from_ratio(27_u128, 100_u128), "uair1");
+        let airdrop3_p = DecCoin::new(Decimal::from_ratio(27_u128, 100_u128), "uair2");
+        let airdrop4_p = DecCoin::new(Decimal::from_ratio(45_u128, 100_u128), "uair2");
+
+        let airdrop1 = Coin::new(10, "uair1");
+        let airdrop2 = Coin::new(20, "uair1");
+        let airdrop3 = Coin::new(30, "uair2");
+        let airdrop4 = Coin::new(40, "uair2");
+
+        let reward1_p = Decimal::from_ratio(12_u128, 100_u128);
+        let reward2_p = Decimal::from_ratio(24_u128, 100_u128);
+        let reward3_p = Decimal::from_ratio(36_u128, 100_u128);
+
+        let reward1 = Uint128::new(5);
+        let reward2 = Uint128::new(15);
+        let reward3 = Uint128::new(25);
+
+
+        let mut init_user_info1_1 = UserPoolInfo {
+            pool_id: 1,
+            deposit: DepositInfo { staked: Uint128::new(10) },
+            airdrops_pointer: vec![airdrop1_p.clone(), airdrop3_p.clone()],
+            pending_airdrops: vec![airdrop1.clone(), airdrop3.clone()],
+            rewards_pointer: reward1_p,
+            pending_rewards: reward1,
+            redelegations: vec![],
+            undelegations: vec![]
+        };
+        let mut init_user_info1_2 = UserPoolInfo {
+            pool_id: 2,
+            deposit: DepositInfo { staked: Uint128::new(20) },
+            airdrops_pointer: vec![airdrop1_p.clone()],
+            pending_airdrops: vec![airdrop1.clone()],
+            rewards_pointer: reward1_p,
+            pending_rewards: reward1,
+            redelegations: vec![],
+            undelegations: vec![]
+        };
+        let mut init_user_info2_1 = UserPoolInfo {
+            pool_id: 1,
+            deposit: DepositInfo { staked: Uint128::new(30) },
+            airdrops_pointer: vec![airdrop1_p.clone()],
+            pending_airdrops: vec![airdrop1.clone()],
+            rewards_pointer: reward2_p,
+            pending_rewards: reward2,
+            redelegations: vec![],
+            undelegations: vec![]
+        };
+        let mut init_user_info2_3 = UserPoolInfo {
+            pool_id: 3,
+            deposit: DepositInfo { staked: Uint128::new(40) },
+            airdrops_pointer: vec![airdrop3_p.clone()],
+            pending_airdrops: vec![airdrop3.clone()],
+            rewards_pointer: reward1_p,
+            pending_rewards: reward2,
+            redelegations: vec![],
+            undelegations: vec![]
+        };
+        let mut init_user_info3_3 = UserPoolInfo {
+            pool_id: 3,
+            deposit: DepositInfo { staked: Uint128::new(50) },
+            airdrops_pointer: vec![airdrop3_p.clone()],
+            pending_airdrops: vec![airdrop3.clone()],
+            rewards_pointer: reward1_p,
+            pending_rewards: reward2,
+            redelegations: vec![],
+            undelegations: vec![]
+        };
+
+        USER_REGISTRY.save(deps.as_mut().storage, (&user1, U64Key::new(1)), &init_user_info1_1);
+        USER_REGISTRY.save(deps.as_mut().storage, (&user1, U64Key::new(2)), &init_user_info1_2);
+        USER_REGISTRY.save(deps.as_mut().storage, (&user2, U64Key::new(1)), &init_user_info2_1);
+        USER_REGISTRY.save(deps.as_mut().storage, (&user2, U64Key::new(3)), &init_user_info2_3);
+        USER_REGISTRY.save(deps.as_mut().storage, (&user3, U64Key::new(3)), &init_user_info3_3);
+
+        let initial_msg = ExecuteMsg::AllocateRewards {
+            user_addrs: vec![user1.clone(), user2.clone(), user3.clone()],
+            pool_pointers: vec![PoolPointerInfo {
+                pool_id: 1,
+                airdrops_pointer: vec![airdrop2_p.clone(), airdrop4_p.clone()],
+                rewards_pointer: reward3_p.clone()
+            }, PoolPointerInfo {
+                pool_id: 2,
+                airdrops_pointer: vec![airdrop2_p.clone(), airdrop4_p.clone()],
+                rewards_pointer: reward3_p.clone()
+            }]
+        };
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            initial_msg.clone(),
+        ).unwrap();
+        assert_eq!(res.messages.len(), 2);
+
+        let user_info1_1 = USER_REGISTRY.load(deps.as_mut().storage, (&user1, U64Key::new(1))).unwrap();
+        assert!(user_info1_1.pending_rewards.is_zero());
+        assert!(user_info1_1.pending_airdrops.is_empty());
+
+        let user_info1_2 = USER_REGISTRY.load(deps.as_mut().storage, (&user1, U64Key::new(2))).unwrap();
+        assert!(user_info1_2.pending_rewards.is_zero());
+        assert!(user_info1_2.pending_airdrops.is_empty());
+
+        let user_info2_1 = USER_REGISTRY.load(deps.as_mut().storage, (&user2, U64Key::new(1))).unwrap();
+        assert!(user_info2_1.pending_rewards.is_zero());
+        assert!(user_info2_1.pending_airdrops.is_empty());
+
+        let user_info2_3 = USER_REGISTRY.load(deps.as_mut().storage, (&user2, U64Key::new(3))).unwrap();
+        assert!(!user_info2_3.pending_rewards.is_zero());
+        assert!(!user_info2_3.pending_airdrops.is_empty());
+
+        let user_info3_3 = USER_REGISTRY.load(deps.as_mut().storage, (&user3, U64Key::new(3))).unwrap();
+        assert!(!user_info3_3.pending_rewards.is_zero());
+        assert!(!user_info3_3.pending_airdrops.is_empty());
+
+        /* Please verify by printing this out. Cannot check for binary equality */
+
+        // assert_eq!(res.messages[1], SubMsg::new(WasmMsg::Execute {
+        //     contract_addr: "scc_addr".to_string(),
+        //     msg: to_binary(&SccMsg::UpdateUserAirdrops {
+        //         update_user_airdrops_requests: vec![UpdateUserAirdropsRequest { // Pool 1
+        //             user: user1.clone(),
+        //             pool_airdrops: vec![Coin::new(11, "uair1"), Coin::new(31, "uair2")]
+        //         }, UpdateUserAirdropsRequest { // Pool 2
+        //             user: user1.clone(),
+        //             pool_airdrops: vec![Coin::new(13, "uair1"), Coin::new(9, "uair2")]
+        //         }, UpdateUserAirdropsRequest { // Pool 1
+        //             user: user2.clone(),
+        //             pool_airdrops: vec![Coin::new(15, "uair1"), Coin::new(13, "uair2")]
+        //         }]
+        //     }).unwrap(),
+        //     funds: vec![]
+        // }));
+        //
+        // assert_eq!(res.messages[0], SubMsg::new(WasmMsg::Execute {
+        //     contract_addr: "scc_addr".to_string(),
+        //     msg: to_binary(&SccMsg::UpdateUserRewards {
+        //         update_user_rewards_requests: vec![UpdateUserRewardsRequest { // Pool 1
+        //             user: user1.clone(),
+        //             funds: Uint128::new(7),
+        //             strategy_id: None
+        //         }, UpdateUserRewardsRequest { // Pool 2
+        //             user: user1.clone(),
+        //             funds: Uint128::new(9),
+        //             strategy_id: None
+        //         }, UpdateUserRewardsRequest { // Pool 1
+        //             user: user2.clone(),
+        //             funds: Uint128::new(18),
+        //             strategy_id: None
+        //         }]
+        //     }).unwrap(),
+        //     funds: vec![]
+        // }));
+
     }
 }

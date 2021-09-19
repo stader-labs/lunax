@@ -851,7 +851,7 @@ pub fn update_config(
 
     CONFIG.update(deps.storage, |mut config| -> StdResult<_> {
         config.pools_contract = pools_contract.unwrap_or(config.pools_contract.clone());
-        config.scc_contract = scc_contract.unwrap_or(config.pools_contract.clone());
+        config.scc_contract = scc_contract.unwrap_or(config.scc_contract.clone());
         config.delegator_contract = delegator_contract.unwrap_or(config.delegator_contract.clone());
         Ok(config)
     })?;

@@ -1,4 +1,4 @@
-use crate::state::{Config, State, UserPoolInfo};
+use crate::state::{Config, State, UserPoolInfo, PoolPointerInfo};
 use cosmwasm_std::{Addr, Binary, Uint128, Timestamp, Decimal};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -18,7 +18,7 @@ pub enum ExecuteMsg {
     Redelegate { user_addr: Addr, batch_id: u64, from_pool: u64, to_pool: u64, amount: Uint128, eta: Option<Timestamp>, pool_rewards_pointer: Decimal, pool_airdrops_pointer: Vec<DecCoin> },
     Undelegate { user_addr: Addr, batch_id: u64, from_pool: u64, amount: Uint128, pool_rewards_pointer: Decimal, pool_airdrops_pointer: Vec<DecCoin> },
     WithdrawFunds { user_addr: Addr, pool_id: u64, undelegate_id: u64, amount: Uint128 },
-    AllocateRewards { user_addrs: Vec<Addr> },
+    AllocateRewards { user_addrs: Vec<Addr>, pool_pointers: Vec<PoolPointerInfo> },
     UpdateConfig { pools_contract: Option<Addr>, scc_contract: Option<Addr> }
 }
 
@@ -47,14 +47,8 @@ pub struct UserPoolResponse {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct QueryUserInfo {
-    pub pool_id: u64,
-    pub pool_info: UserPoolInfo,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct UserResponse {
-    pub info: Vec<QueryUserInfo>,
+    pub info: Vec<UserPoolInfo>,
 }
 
 
