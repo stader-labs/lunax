@@ -27,6 +27,7 @@ use crate::state::{
 use crate::user::{allocate_user_airdrops_across_strategies, get_user_airdrops};
 use cw2::set_contract_version;
 use cw_storage_plus::U64Key;
+use serde::de::Unexpected::Str;
 use serde::Serialize;
 use sic_base::msg::{ExecuteMsg as sic_execute_msg, QueryMsg as sic_query_msg};
 use stader_utils::coin_utils::{
@@ -50,11 +51,12 @@ pub fn instantiate(
 ) -> Result<Response, ContractError> {
     let config = Config {
         default_user_portfolio: msg.default_user_portfolio.unwrap_or_default(),
+        fallback_strategy: msg.default_fallback_strategy.unwrap_or_default(),
     };
 
     let state = State {
-        manager: info.sender.clone(),
-        pool_contract: msg.pools_contract,
+        manager: deps.api.addr_canonicalize(info.sender.clone().as_str())?,
+        pools_contract: deps.api.addr_canonicalize(msg.pools_contract.as_str())?,
         scc_denom: msg.strategy_denom,
         contract_genesis_block_height: _env.block.height,
         contract_genesis_timestamp: _env.block.time,
@@ -64,6 +66,14 @@ pub fn instantiate(
     };
     STATE.save(deps.storage, &state)?;
     CONFIG.save(deps.storage, &config)?;
+
+    // create strategy_id 0 which is "retain_rewards". It's a special strategy where rewards
+    // of the user just sit in SCC
+    STRATEGY_MAP.save(
+        deps.storage,
+        U64Key::new(0),
+        &StrategyInfo::default("RETAIN_REWARDS".to_string()),
+    )?;
 
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
@@ -160,7 +170,33 @@ pub fn execute(
             try_fetch_undelegated_rewards_from_strategies(deps, _env, info, strategies)
         }
         ExecuteMsg::WithdrawPendingRewards {} => try_withdraw_pending_rewards(deps, _env, info),
+        ExecuteMsg::DepositFunds { strategy_override } => {
+            try_deposit_funds(deps, _env, info, strategy_override)
+        }
+        ExecuteMsg::UpdateConfig { pools_contract } => {
+            try_update_config(deps, _env, info, pools_contract)
+        }
     }
+}
+
+pub fn try_update_config(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    pools_contract: Addr,
+) -> Result<Response, ContractError> {
+    let state = STATE.load(deps.storage)?;
+    if deps.api.addr_canonicalize(info.sender.as_str())? != state.manager {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    let pools_address_canonical = deps.api.addr_canonicalize(pools_contract.as_str())?;
+    STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
+        state.pools_contract = pools_address_canonical;
+        Ok(state)
+    })?;
+
+    Ok(Response::default())
 }
 
 pub fn try_update_strategy(
@@ -168,12 +204,12 @@ pub fn try_update_strategy(
     _env: Env,
     info: MessageInfo,
     strategy_id: u64,
-    unbonding_period: u64,
-    unbonding_buffer: u64,
-    is_active: bool,
+    unbonding_period: Option<u64>,
+    unbonding_buffer: Option<u64>,
+    is_active: Option<bool>,
 ) -> Result<Response, ContractError> {
     let state = STATE.load(deps.storage)?;
-    if info.sender != state.manager {
+    if deps.api.addr_canonicalize(info.sender.as_str())? != state.manager {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -186,9 +222,11 @@ pub fn try_update_strategy(
             }
 
             let mut strategy_info = wrapped_strategy.unwrap();
-            strategy_info.unbonding_period = unbonding_period;
-            strategy_info.unbonding_buffer = unbonding_buffer;
-            strategy_info.is_active = is_active;
+            strategy_info.unbonding_period =
+                unbonding_period.unwrap_or(strategy_info.unbonding_period);
+            strategy_info.unbonding_buffer =
+                unbonding_buffer.unwrap_or(strategy_info.unbonding_buffer);
+            strategy_info.is_active = is_active.unwrap_or(strategy_info.is_active);
 
             Ok(strategy_info)
         },
@@ -235,7 +273,7 @@ pub fn try_fetch_undelegated_rewards_from_strategies(
     strategies: Vec<u64>,
 ) -> Result<Response, ContractError> {
     let state = STATE.load(deps.storage)?;
-    if info.sender != state.manager {
+    if deps.api.addr_canonicalize(info.sender.as_str())? != state.manager {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -250,7 +288,6 @@ pub fn try_fetch_undelegated_rewards_from_strategies(
     let mut failed_undelegation_batches: Vec<String> = vec![];
     let mut undelegation_batches_in_unbonding_period: Vec<String> = vec![];
     let mut undelegation_batches_slashing_checked: Vec<String> = vec![];
-    let mut total_funds_transferred_to_scc: Uint128 = Uint128::zero();
     for strategy_id in strategies {
         let mut strategy_info = if let Some(strategy_info) =
             STRATEGY_MAP.may_load(deps.storage, U64Key::new(strategy_id))?
@@ -328,10 +365,6 @@ pub fn try_fetch_undelegated_rewards_from_strategies(
             undelegation_batch.unbonding_slashing_ratio = unbonding_slashing_ratio;
             undelegation_batch.slashing_checked = true;
 
-            total_funds_transferred_to_scc = total_funds_transferred_to_scc
-                .checked_add(fulfillable_amount)
-                .unwrap();
-
             messages.push(WasmMsg::Execute {
                 contract_addr: strategy_info.sic_contract_address.to_string(),
                 msg: to_binary(&sic_execute_msg::TransferUndelegatedRewards {
@@ -378,7 +411,7 @@ pub fn try_undelegate_from_strategies(
     strategies: Vec<u64>,
 ) -> Result<Response, ContractError> {
     let state = STATE.load(deps.storage)?;
-    if info.sender != state.manager {
+    if deps.api.addr_canonicalize(info.sender.as_str())? != state.manager {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -486,7 +519,7 @@ pub fn try_update_cw20_contracts_registry(
     airdrop_contract: Addr,
 ) -> Result<Response, ContractError> {
     let state = STATE.load(deps.storage)?;
-    if state.manager != info.sender {
+    if deps.api.addr_canonicalize(info.sender.as_str())? != state.manager {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -547,12 +580,11 @@ pub fn try_undelegate_user_rewards(
         &user_strategy_info.airdrop_pointer,
         user_strategy_info.shares,
     ) {
+        user_strategy_info.airdrop_pointer = strategy_info.global_airdrop_pointer.clone();
         user_airdrops
     } else {
         vec![]
     };
-
-    user_strategy_info.airdrop_pointer = strategy_info.global_airdrop_pointer.clone();
     user_reward_info.pending_airdrops = merge_coin_vector(
         &user_reward_info.pending_airdrops,
         CoinVecOp {
@@ -562,15 +594,13 @@ pub fn try_undelegate_user_rewards(
     );
 
     // subtract the user shares based on how much they want to withdraw.
-    let strategy_shares_per_token_ratio: Decimal;
-    match get_strategy_shares_per_token_ratio(deps.querier, &strategy_info) {
-        Ok(result) => {
-            strategy_shares_per_token_ratio = result;
-        }
-        Err(_) => {
-            return Err(ContractError::SICFailedToReturnResult {});
-        }
-    }
+    let strategy_shares_per_token_ratio =
+        match get_strategy_shares_per_token_ratio(deps.querier, &strategy_info) {
+            Ok(result) => result,
+            Err(_) => {
+                return Err(ContractError::SICFailedToReturnResult {});
+            }
+        };
 
     strategy_info.shares_per_token_ratio = strategy_shares_per_token_ratio;
     let user_total_shares = user_strategy_info.shares;
@@ -621,7 +651,7 @@ pub fn try_claim_airdrops(
     claim_msg: Binary,
 ) -> Result<Response, ContractError> {
     let state = STATE.load(deps.storage)?;
-    if info.sender != state.manager {
+    if deps.api.addr_canonicalize(info.sender.as_str())? != state.manager {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -842,7 +872,7 @@ pub fn try_register_strategy(
     unbonding_buffer: Option<u64>,
 ) -> Result<Response, ContractError> {
     let state = STATE.load(deps.storage)?;
-    if info.sender != state.manager {
+    if deps.api.addr_canonicalize(info.sender.as_str())? != state.manager {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -874,7 +904,7 @@ pub fn try_remove_strategy(
     strategy_id: u64,
 ) -> Result<Response, ContractError> {
     let state = STATE.load(deps.storage)?;
-    if info.sender != state.manager {
+    if deps.api.addr_canonicalize(info.sender.as_str())? != state.manager {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -925,6 +955,155 @@ pub fn try_update_user_portfolio(
     Ok(Response::default())
 }
 
+pub fn try_deposit_funds(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    strategy_override: Option<u64>,
+) -> Result<Response, ContractError> {
+    let state = STATE.load(deps.storage)?;
+
+    // auth checks
+    if info.funds.is_empty() {
+        return Err(ContractError::NoFundsSent {});
+    }
+
+    if info.funds.len() > 1 {
+        return Err(ContractError::MultipleCoinsSent {});
+    }
+
+    let funds = info.funds[0].clone();
+    if state.scc_denom != funds.denom {
+        return Err(ContractError::WrongDenomSent {});
+    }
+
+    if funds.amount.is_zero() {
+        return Ok(Response::new().add_attribute("0 funds sent", "1"));
+    }
+
+    let user_addr = info.sender;
+    let config = CONFIG.load(deps.storage)?;
+    let mut user_reward_info = USER_REWARD_INFO_MAP
+        .may_load(deps.storage, &user_addr)?
+        .unwrap_or(UserRewardInfo::new(config.default_user_portfolio.clone()));
+
+    let strategy_split = get_strategy_split(
+        deps.storage,
+        &config,
+        strategy_override,
+        &user_reward_info,
+        funds.amount,
+    )?;
+
+    let mut total_rewards_in_scc: Uint128 = Uint128::zero();
+    let mut failed_sics: Vec<String> = vec![];
+    let mut messages: Vec<WasmMsg> = vec![];
+    for s2a in strategy_split.iter() {
+        let strategy_id = *s2a.0;
+        let amount = *s2a.1;
+
+        if amount.is_zero() {
+            continue;
+        }
+
+        // this is the retain rewards strategy
+        if strategy_id.eq(&0) {
+            user_reward_info.pending_rewards = user_reward_info
+                .pending_rewards
+                .checked_add(amount)
+                .unwrap();
+            total_rewards_in_scc = total_rewards_in_scc.checked_add(amount).unwrap();
+            continue;
+        }
+
+        let mut strategy_info = if let Some(strategy_info) =
+            STRATEGY_MAP.may_load(deps.storage, U64Key::new(strategy_id))?
+        {
+            strategy_info
+        } else {
+            // this ideally won't happen as non-existing strategies funds will be pushed
+            // to the fall back strategy
+            continue;
+        };
+
+        // fetch the total tokens from the SIC contract and update the S/T ratio for the strategy
+        // compute the S/T ratio only once as we are batching up reward transfer messages. Jus' cache
+        // it up in a map like we always do.
+        let strategy_shares_per_token_ratio: Decimal =
+            match get_strategy_shares_per_token_ratio(deps.querier, &strategy_info) {
+                Ok(result) => result,
+                Err(_) => {
+                    failed_sics.push(strategy_info.name);
+                    continue;
+                }
+            };
+        strategy_info.shares_per_token_ratio = strategy_shares_per_token_ratio;
+
+        let mut user_strategy_info = if let Some(i) = (0..user_reward_info.strategies.len())
+            .find(|&i| user_reward_info.strategies[i].strategy_id.eq(&strategy_id))
+        {
+            &mut user_reward_info.strategies[i]
+        } else {
+            let new_user_strategy_info: UserStrategyInfo =
+                UserStrategyInfo::new(strategy_id, strategy_info.global_airdrop_pointer.clone());
+            user_reward_info.strategies.push(new_user_strategy_info);
+            user_reward_info.strategies.last_mut().unwrap()
+        };
+
+        // update the user airdrop pointer and allocate the user pending airdrops for the strategy
+        let mut user_airdrops = if let Some(user_airdrops) = get_user_airdrops(
+            &strategy_info.global_airdrop_pointer,
+            &user_strategy_info.airdrop_pointer,
+            user_strategy_info.shares,
+        ) {
+            user_strategy_info.airdrop_pointer = strategy_info.global_airdrop_pointer.clone();
+            user_airdrops
+        } else {
+            vec![]
+        };
+        user_reward_info.pending_airdrops = merge_coin_vector(
+            &user_reward_info.pending_airdrops,
+            CoinVecOp {
+                fund: user_airdrops,
+                operation: Operation::Add,
+            },
+        );
+
+        // update user shares based on the S/T ratio
+        let user_shares = decimal_multiplication_in_256(
+            strategy_shares_per_token_ratio,
+            get_decimal_from_uint128(amount),
+        );
+        user_strategy_info.shares =
+            decimal_summation_in_256(user_strategy_info.shares, user_shares);
+        // update total strategy shares by adding up the user_shares
+        strategy_info.total_shares =
+            decimal_summation_in_256(strategy_info.total_shares, user_shares);
+
+        messages.push(WasmMsg::Execute {
+            contract_addr: strategy_info.sic_contract_address.to_string(),
+            msg: to_binary(&sic_execute_msg::TransferRewards {}).unwrap(),
+            funds: vec![Coin::new(amount.u128(), state.scc_denom.clone())],
+        });
+
+        STRATEGY_MAP.save(deps.storage, U64Key::new(strategy_id), &strategy_info)?;
+    }
+
+    USER_REWARD_INFO_MAP.save(deps.storage, &user_addr, &user_reward_info)?;
+
+    STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
+        state.rewards_in_scc = state
+            .rewards_in_scc
+            .checked_add(total_rewards_in_scc)
+            .unwrap();
+        Ok(state)
+    })?;
+
+    Ok(Response::new()
+        .add_messages(messages)
+        .add_attribute("failed_sics", failed_sics.join(",")))
+}
+
 pub fn try_update_user_rewards(
     deps: DepsMut,
     _env: Env,
@@ -932,7 +1111,7 @@ pub fn try_update_user_rewards(
     update_user_rewards_requests: Vec<UpdateUserRewardsRequest>,
 ) -> Result<Response, ContractError> {
     let state = STATE.load(deps.storage)?;
-    if info.sender != state.pool_contract {
+    if deps.api.addr_canonicalize(info.sender.as_str())? != state.pools_contract {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -942,17 +1121,16 @@ pub fn try_update_user_rewards(
 
     let mut failed_strategies: Vec<String> = vec![];
     let mut failed_sics: Vec<String> = vec![];
-    let mut inactive_strategies: Vec<String> = vec![];
     let mut users_with_zero_deposits: Vec<String> = vec![];
     // cache for the S/T ratio per strategy. We fetch it once and cache it up.
     let mut strategy_to_s_t_ratio: HashMap<u64, Decimal> = HashMap::new();
     let mut strategy_to_funds: HashMap<Addr, Uint128> = HashMap::new();
-    let mut total_surplus_rewards: Uint128 = Uint128::zero();
+    let mut total_rewards_in_scc: Uint128 = Uint128::zero();
     let mut messages: Vec<WasmMsg> = vec![];
     for update_user_rewards_request in update_user_rewards_requests {
         let user_addr = update_user_rewards_request.user;
         let funds = update_user_rewards_request.funds;
-        let strategy_opt = update_user_rewards_request.strategy_id;
+        let strategy_override = update_user_rewards_request.strategy_id;
 
         if funds.is_zero() {
             users_with_zero_deposits.push(user_addr.to_string());
@@ -962,38 +1140,31 @@ pub fn try_update_user_rewards(
         let config = CONFIG.load(deps.storage)?;
         let mut user_reward_info = USER_REWARD_INFO_MAP
             .may_load(deps.storage, &user_addr)?
-            .unwrap_or_else(|| UserRewardInfo::new(config.default_user_portfolio));
+            .unwrap_or_else(|| UserRewardInfo::new(config.default_user_portfolio.clone()));
 
-        // this is the amount to be split per strategy
-        let strategy_split: Vec<(u64, Uint128)>;
-        // surplus is the amount of rewards which does not go into any strategy and just sits in SCC.
-        // surplus is basically retain rewards
-        let mut surplus: Uint128 = Uint128::zero();
+        let strategy_split = get_strategy_split(
+            deps.storage,
+            &config,
+            strategy_override,
+            &user_reward_info,
+            funds,
+        )?;
 
-        match strategy_opt {
-            None => {
-                let strategy_split_with_surplus = get_strategy_split(&user_reward_info, funds);
-                strategy_split = strategy_split_with_surplus.0;
-                surplus = strategy_split_with_surplus.1;
-            }
-            // if strategy_id is given, it overrides the user portfolio distribution.
-            Some(strategy_id) => {
-                strategy_split = vec![(strategy_id, funds)];
-            }
-        }
-
-        // add the surplus to the pending rewards
-        user_reward_info.pending_rewards = user_reward_info
-            .pending_rewards
-            .checked_add(surplus)
-            .unwrap();
-        total_surplus_rewards = total_surplus_rewards.checked_add(surplus).unwrap();
-
-        for split in strategy_split {
-            let strategy_id = split.0;
-            let amount = split.1;
+        for s2a in strategy_split.iter() {
+            let strategy_id = *s2a.0;
+            let amount = *s2a.1;
 
             if amount.is_zero() {
+                continue;
+            }
+
+            // this is the retain rewards strategy
+            if strategy_id.eq(&0) {
+                user_reward_info.pending_rewards = user_reward_info
+                    .pending_rewards
+                    .checked_add(amount)
+                    .unwrap();
+                total_rewards_in_scc = total_rewards_in_scc.checked_add(amount).unwrap();
                 continue;
             }
 
@@ -1002,15 +1173,11 @@ pub fn try_update_user_rewards(
             {
                 strategy_info
             } else {
-                // TODO: bchain99 - will cause duplicates
+                // this ideally won't happen as non-existing strategies funds will be pushed
+                // to the fall back strategy
                 failed_strategies.push(strategy_id.to_string());
                 continue;
             };
-
-            if !strategy_info.is_active {
-                inactive_strategies.push(strategy_id.to_string());
-                continue;
-            }
 
             // fetch the total tokens from the SIC contract and update the S/T ratio for the strategy
             // compute the S/T ratio only once as we are batching up reward transfer messages. Jus' cache
@@ -1038,8 +1205,10 @@ pub fn try_update_user_rewards(
             {
                 &mut user_reward_info.strategies[i]
             } else {
-                let new_user_strategy_info: UserStrategyInfo =
-                    UserStrategyInfo::new(strategy_id, vec![]);
+                let new_user_strategy_info: UserStrategyInfo = UserStrategyInfo::new(
+                    strategy_id,
+                    strategy_info.global_airdrop_pointer.clone(),
+                );
                 user_reward_info.strategies.push(new_user_strategy_info);
                 user_reward_info.strategies.last_mut().unwrap()
             };
@@ -1050,12 +1219,11 @@ pub fn try_update_user_rewards(
                 &user_strategy_info.airdrop_pointer,
                 user_strategy_info.shares,
             ) {
+                user_strategy_info.airdrop_pointer = strategy_info.global_airdrop_pointer.clone();
                 user_airdrops
             } else {
                 vec![]
             };
-
-            user_strategy_info.airdrop_pointer = strategy_info.global_airdrop_pointer.clone();
             user_reward_info.pending_airdrops = merge_coin_vector(
                 &user_reward_info.pending_airdrops,
                 CoinVecOp {
@@ -1102,7 +1270,7 @@ pub fn try_update_user_rewards(
     STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
         state.rewards_in_scc = state
             .rewards_in_scc
-            .checked_add(total_surplus_rewards)
+            .checked_add(total_rewards_in_scc)
             .unwrap();
         Ok(state)
     })?;
@@ -1110,7 +1278,6 @@ pub fn try_update_user_rewards(
     Ok(Response::new()
         .add_messages(messages)
         .add_attribute("failed_strategies", failed_strategies.join(","))
-        .add_attribute("inactive_strategies", inactive_strategies.join(","))
         .add_attribute(
             "users_with_zero_deposits",
             users_with_zero_deposits.join(","),
@@ -1128,7 +1295,7 @@ pub fn try_update_user_airdrops(
 ) -> Result<Response, ContractError> {
     // check for manager?
     let state = STATE.load(deps.storage)?;
-    if info.sender != state.pool_contract {
+    if deps.api.addr_canonicalize(info.sender.as_str())? != state.pools_contract {
         return Err(ContractError::Unauthorized {});
     }
 

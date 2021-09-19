@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Addr, Coin, Decimal, Timestamp, Uint128};
+use cosmwasm_std::{Addr, CanonicalAddr, Coin, Decimal, Timestamp, Uint128};
 use cw_storage_plus::{Item, Map};
 
 // Store the delegation related info specific to a validator
@@ -14,8 +14,8 @@ pub struct StakeQuota {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct State {
-    pub manager: Addr,
-    pub scc_address: Addr,
+    pub manager: CanonicalAddr,
+    pub scc_address: CanonicalAddr,
     pub manager_seed_funds: Uint128,
     pub min_validator_pool_size: u64,
 

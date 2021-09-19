@@ -12,6 +12,7 @@ pub struct InstantiateMsg {
     pub pools_contract: Addr,
 
     pub default_user_portfolio: Option<Vec<UserStrategyPortfolio>>,
+    pub default_fallback_strategy: Option<u64>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -81,9 +82,9 @@ pub enum ExecuteMsg {
     },
     UpdateStrategy {
         strategy_id: u64,
-        unbonding_period: u64,
-        unbonding_buffer: u64,
-        is_active: bool,
+        unbonding_period: Option<u64>,
+        unbonding_buffer: Option<u64>,
+        is_active: Option<bool>,
     },
     UpdateUserPortfolio {
         user_portfolio: Vec<UserStrategyPortfolio>,
@@ -118,6 +119,9 @@ pub enum ExecuteMsg {
     UpdateUserAirdrops {
         update_user_airdrops_requests: Vec<UpdateUserAirdropsRequest>,
     },
+    UpdateConfig {
+        pools_contract: Addr,
+    },
     /*
        User messages
     */
@@ -141,6 +145,10 @@ pub enum ExecuteMsg {
     // called by the user to withdraw pending rewards i.e rewards which are not in any strategy
     WithdrawPendingRewards {},
     WithdrawAirdrops {},
+    // called by user to directly deposit to SICs according to portfolio or give a strategy override
+    DepositFunds {
+        strategy_override: Option<u64>,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

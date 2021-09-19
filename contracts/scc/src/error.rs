@@ -51,4 +51,13 @@ pub enum ContractError {
 
     #[error("SIC failed to return a result")]
     SICFailedToReturnResult {},
+
+    #[error("No funds were sent")]
+    NoFundsSent {},
+
+    #[error("Multiple coins sent, only luna is accepted")]
+    MultipleCoinsSent {},
+
+    #[error("SCC can accept only luna")]
+    WrongDenomSent {},
 }
