@@ -201,9 +201,9 @@ pub fn try_update_strategy(
     _env: Env,
     info: MessageInfo,
     strategy_id: u64,
-    unbonding_period: u64,
-    unbonding_buffer: u64,
-    is_active: bool,
+    unbonding_period: Option<u64>,
+    unbonding_buffer: Option<u64>,
+    is_active: Option<bool>,
 ) -> Result<Response, ContractError> {
     let state = STATE.load(deps.storage)?;
     if deps.api.addr_canonicalize(info.sender.as_str())? != state.manager {
@@ -219,9 +219,11 @@ pub fn try_update_strategy(
             }
 
             let mut strategy_info = wrapped_strategy.unwrap();
-            strategy_info.unbonding_period = unbonding_period;
-            strategy_info.unbonding_buffer = unbonding_buffer;
-            strategy_info.is_active = is_active;
+            strategy_info.unbonding_period =
+                unbonding_period.unwrap_or(strategy_info.unbonding_period);
+            strategy_info.unbonding_buffer =
+                unbonding_buffer.unwrap_or(strategy_info.unbonding_buffer);
+            strategy_info.is_active = is_active.unwrap_or(strategy_info.is_active);
 
             Ok(strategy_info)
         },

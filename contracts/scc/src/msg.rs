@@ -82,9 +82,9 @@ pub enum ExecuteMsg {
     },
     UpdateStrategy {
         strategy_id: u64,
-        unbonding_period: u64,
-        unbonding_buffer: u64,
-        is_active: bool,
+        unbonding_period: Option<u64>,
+        unbonding_buffer: Option<u64>,
+        is_active: Option<bool>,
     },
     UpdateUserPortfolio {
         user_portfolio: Vec<UserStrategyPortfolio>,

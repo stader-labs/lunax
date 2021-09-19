@@ -1207,9 +1207,9 @@ mod tests {
             mock_info("not-creator", &[]),
             ExecuteMsg::UpdateStrategy {
                 strategy_id: 2,
-                unbonding_period: 0,
-                unbonding_buffer: 0,
-                is_active: false,
+                unbonding_period: Some(0),
+                unbonding_buffer: Some(0),
+                is_active: Some(false),
             },
         )
         .unwrap_err();
@@ -1224,9 +1224,9 @@ mod tests {
             mock_info("creator", &[]),
             ExecuteMsg::UpdateStrategy {
                 strategy_id: 1,
-                unbonding_period: 0,
-                unbonding_buffer: 0,
-                is_active: false,
+                unbonding_period: None,
+                unbonding_buffer: None,
+                is_active: None,
             },
         )
         .unwrap_err();
@@ -1273,9 +1273,9 @@ mod tests {
             mock_info("creator", &[]),
             ExecuteMsg::UpdateStrategy {
                 strategy_id: 1,
-                unbonding_period: 10000,
-                unbonding_buffer: 15000,
-                is_active: true,
+                unbonding_period: Some(10000),
+                unbonding_buffer: Some(15000),
+                is_active: Some(true),
             },
         )
         .unwrap();
