@@ -453,7 +453,7 @@ pub fn try_undelegate_from_strategies(
         ));
 
         let current_undelegation_batch_id = strategy_info.undelegation_batch_id_pointer;
-        let new_undelegation_batch_id = current_undelegation_batch_id + 1;
+        let next_undelegation_batch_id = current_undelegation_batch_id + 1;
 
         UNDELEGATION_BATCH_MAP.save(
             deps.storage,
@@ -478,7 +478,7 @@ pub fn try_undelegate_from_strategies(
             },
         )?;
 
-        strategy_info.undelegation_batch_id_pointer = new_undelegation_batch_id;
+        strategy_info.undelegation_batch_id_pointer = next_undelegation_batch_id;
         strategy_info.total_shares = decimal_subtraction_in_256(
             strategy_info.total_shares,
             strategy_info.current_undelegated_shares,
@@ -663,7 +663,6 @@ pub fn try_claim_airdrops(
     let mut strategy_info = if let Some(strategy_info) =
         STRATEGY_MAP.may_load(deps.storage, U64Key::new(strategy_id))?
     {
-        // while registering the strategy, we need to update the airdrops the strategy supports.
         strategy_info
     } else {
         return Err(ContractError::StrategyInfoDoesNotExist {});
