@@ -736,7 +736,6 @@ pub fn try_withdraw_airdrops(
     allocate_user_airdrops_across_strategies(deps.storage, &mut user_reward_info);
 
     let mut messages: Vec<WasmMsg> = vec![];
-    let mut transfered_airdrops: Vec<Coin> = vec![];
     // iterate thru all airdrops and transfer ownership to them to the user
     user_reward_info
         .pending_airdrops
@@ -765,8 +764,6 @@ pub fn try_withdraw_airdrops(
 
             // the airdrop is completely transferred back to the user
             user_airdrop.amount = Uint128::zero();
-
-            transfered_airdrops.push(Coin::new(airdrop_amount.u128(), airdrop_denom));
         });
 
     USER_REWARD_INFO_MAP.save(deps.storage, &user_addr, &user_reward_info)?;
