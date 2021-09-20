@@ -60,7 +60,7 @@ pub fn instantiate(
         scc_denom: msg.strategy_denom,
         contract_genesis_block_height: _env.block.height,
         contract_genesis_timestamp: _env.block.time,
-        strategy_counter: 1,
+        next_strategy_id: 1,
         rewards_in_scc: Uint128::zero(),
         total_accumulated_airdrops: vec![],
     };
@@ -906,7 +906,7 @@ pub fn try_register_strategy(
         return Err(ContractError::Unauthorized {});
     }
 
-    let strategy_id: u64 = state.strategy_counter;
+    let strategy_id: u64 = state.next_strategy_id;
 
     STRATEGY_MAP.save(
         deps.storage,
@@ -920,7 +920,7 @@ pub fn try_register_strategy(
     )?;
 
     STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
-        state.strategy_counter += 1;
+        state.next_strategy_id += 1;
         Ok(state)
     })?;
 
@@ -1470,7 +1470,7 @@ fn query_get_all_strategies(deps: Deps) -> StdResult<GetAllStrategiesResponse> {
         sic_contract_address: Addr::unchecked(""),
     }];
 
-    for i in 1..state.strategy_counter {
+    for i in 1..state.next_strategy_id {
         let strategy_info =
             if let Some(strategy_info) = STRATEGY_MAP.may_load(deps.storage, U64Key::new(i))? {
                 strategy_info
@@ -1527,7 +1527,7 @@ fn query_strategies_list(deps: Deps) -> StdResult<GetStrategiesListResponse> {
     let state = STATE.load(deps.storage)?;
     let mut strategies_list: Vec<String> = vec![];
 
-    for i in 1..state.strategy_counter {
+    for i in 1..state.next_strategy_id {
         let strategy_info =
             if let Some(strategy_info) = STRATEGY_MAP.may_load(deps.storage, U64Key::new(i))? {
                 strategy_info

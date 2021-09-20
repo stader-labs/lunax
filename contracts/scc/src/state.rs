@@ -22,7 +22,7 @@ pub struct State {
     pub contract_genesis_block_height: u64,
     pub contract_genesis_timestamp: Timestamp,
 
-    pub strategy_counter: u64,
+    pub next_strategy_id: u64,
 
     // sum of all the retained rewards in scc
     pub rewards_in_scc: Uint128,

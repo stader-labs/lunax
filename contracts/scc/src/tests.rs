@@ -91,7 +91,7 @@ mod tests {
                 scc_denom: "uluna".to_string(),
                 contract_genesis_block_height: env.block.height,
                 contract_genesis_timestamp: env.block.time,
-                strategy_counter: 1,
+                next_strategy_id: 1,
                 rewards_in_scc: Uint128::zero(),
                 total_accumulated_airdrops: vec![],
             }
@@ -403,7 +403,7 @@ mod tests {
             deps.as_mut().storage,
             |mut state| -> Result<_, ContractError> {
                 state.rewards_in_scc = Uint128::new(1000_u128);
-                state.strategy_counter = 4;
+                state.next_strategy_id = 4;
                 Ok(state)
             },
         );
@@ -582,7 +582,7 @@ mod tests {
         STATE.update(
             deps.as_mut().storage,
             |mut state| -> Result<_, ContractError> {
-                state.strategy_counter = 6;
+                state.next_strategy_id = 6;
                 Ok(state)
             },
         );
