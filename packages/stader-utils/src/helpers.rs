@@ -34,17 +34,13 @@ pub fn query_exchange_rates(
             er_map.insert(denom.clone(), Decimal::one());
             continue;
         }
-        let result =
-            querier.query_exchange_rates(denom.clone(), vec![base_denom.to_string()]);
+        let result = querier.query_exchange_rates(denom.clone(), vec![base_denom.to_string()]);
         if result.is_err() {
             continue;
         }
         let exchange_rate_response = result.unwrap();
         let exchange_rate_item = exchange_rate_response.exchange_rates.first().unwrap();
-        er_map.insert(
-            denom.clone(),
-            exchange_rate_item.exchange_rate,
-        );
+        er_map.insert(denom.clone(), exchange_rate_item.exchange_rate);
     }
     er_map
 }
