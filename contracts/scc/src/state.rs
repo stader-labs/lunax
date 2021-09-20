@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Addr, CanonicalAddr, Coin, Decimal, Timestamp, Uint128};
+use cosmwasm_std::{Addr, Coin, Decimal, Timestamp, Uint128};
 use cw_storage_plus::{Item, Map, U64Key};
 use stader_utils::coin_utils::DecCoin;
 
@@ -22,7 +22,8 @@ pub struct State {
     pub contract_genesis_block_height: u64,
     pub contract_genesis_timestamp: Timestamp,
 
-    pub strategy_counter: u64,
+    pub next_undelegation_id: u64,
+    pub next_strategy_id: u64,
 
     // sum of all the retained rewards in scc
     pub rewards_in_scc: Uint128,
@@ -50,14 +51,14 @@ impl StrategyInfo {
     pub(crate) fn new(
         strategy_name: String,
         sic_contract_address: Addr,
-        unbonding_period: Option<u64>,
-        unbonding_buffer: Option<u64>,
+        unbonding_period: u64,
+        unbonding_buffer: u64,
     ) -> Self {
         StrategyInfo {
             name: strategy_name,
             sic_contract_address,
-            unbonding_period: unbonding_period.unwrap_or(21 * 24 * 3600),
-            unbonding_buffer: unbonding_buffer.unwrap_or(3600),
+            unbonding_period,
+            unbonding_buffer,
             undelegation_batch_id_pointer: 0,
             reconciled_batch_id_pointer: 0,
             is_active: false,
@@ -147,10 +148,10 @@ impl UserRewardInfo {
     }
 }
 
+// estimated release time is fetched from the undelegation batch id
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct UserUndelegationRecord {
-    pub id: Timestamp,
-    pub est_release_time: Timestamp,
+    pub id: u64,
     pub amount: Uint128,
     pub shares: Decimal,
     pub strategy_id: u64,
@@ -160,11 +161,12 @@ pub struct UserUndelegationRecord {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct UserStrategyPortfolio {
     pub strategy_id: u64,
-    pub deposit_fraction: Decimal,
+    // deposit_fraction is always b/w 0 and 100
+    pub deposit_fraction: Uint128,
 }
 
 impl UserStrategyPortfolio {
-    pub fn new(strategy_id: u64, deposit_fraction: Decimal) -> Self {
+    pub fn new(strategy_id: u64, deposit_fraction: Uint128) -> Self {
         UserStrategyPortfolio {
             strategy_id,
             deposit_fraction,
@@ -179,6 +181,14 @@ pub struct Cw20TokenContractsInfo {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum UndelegationBatchStatus {
+    Pending,
+    InProgress,
+    Done,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct BatchUndelegationRecord {
     pub amount: Uint128,
     pub shares: Decimal,
@@ -186,7 +196,8 @@ pub struct BatchUndelegationRecord {
     pub undelegation_s_t_ratio: Decimal,
     pub create_time: Timestamp,
     pub est_release_time: Timestamp,
-    pub slashing_checked: bool,
+    pub undelegation_batch_status: UndelegationBatchStatus,
+    pub released: bool,
 }
 
 pub const STATE: Item<State> = Item::new("state");

@@ -40,8 +40,8 @@ pub enum ContractError {
     #[error("Undelegation in unbonding period")]
     UndelegationInUnbondingPeriod {},
 
-    #[error("Slashing has not been checked for undelegation batch")]
-    SlashingNotChecked {},
+    #[error("Undelegation batch has not been released yet")]
+    UndelegationBatchNotReleased {},
 
     #[error("User reward info does not exist")]
     UserRewardInfoDoesNotExist {},

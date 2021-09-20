@@ -2,7 +2,7 @@ use crate::state::{
     BatchUndelegationRecord, Config, State, StrategyInfo, UserRewardInfo, UserStrategyPortfolio,
     UserUndelegationRecord,
 };
-use cosmwasm_std::{Addr, Binary, Coin, Decimal, Timestamp, Uint128};
+use cosmwasm_std::{Addr, Binary, Coin, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -74,8 +74,8 @@ pub enum ExecuteMsg {
     RegisterStrategy {
         strategy_name: String,
         sic_contract_address: Addr,
-        unbonding_buffer: Option<u64>,
-        unbonding_period: Option<u64>,
+        unbonding_buffer: u64,
+        unbonding_period: u64,
     },
     RemoveStrategy {
         strategy_id: u64,
@@ -140,9 +140,8 @@ pub enum ExecuteMsg {
         strategy_id: u64,
     },
     WithdrawRewards {
-        undelegation_id: String,
+        undelegation_id: u64,
         strategy_id: u64,
-        amount: Uint128,
     },
     // called by the user to withdraw pending rewards i.e rewards which are not in any strategy
     WithdrawPendingRewards {},

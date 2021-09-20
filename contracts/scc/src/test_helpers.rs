@@ -1,10 +1,9 @@
-#![allow(clippy)]
+#![allow(dead_code)]
 
 // test_helpers specific to scc
 
 use crate::msg::UserStrategyQueryInfo;
 use crate::state::{UserRewardInfo, UserStrategyInfo};
-use stader_utils::coin_utils::DecCoin;
 use stader_utils::test_helpers::check_equal_vec;
 
 pub fn check_equal_user_strategies(a: Vec<UserStrategyInfo>, b: Vec<UserStrategyInfo>) -> bool {

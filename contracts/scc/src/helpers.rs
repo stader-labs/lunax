@@ -1,12 +1,9 @@
-use crate::state::{
-    Config, StrategyInfo, UserRewardInfo, UserStrategyInfo, UserStrategyPortfolio, STRATEGY_MAP,
-    USER_REWARD_INFO_MAP,
-};
-use crate::user::get_user_airdrops;
+#![allow(dead_code)]
+
+use crate::state::{Config, StrategyInfo, UserRewardInfo, UserStrategyPortfolio, STRATEGY_MAP};
 use crate::ContractError;
 use cosmwasm_std::{
-    Addr, Coin, Decimal, Fraction, QuerierWrapper, Response, StdError, StdResult, Storage,
-    Timestamp, Uint128,
+    Addr, Decimal, Fraction, QuerierWrapper, StdResult, Storage, Timestamp, Uint128,
 };
 use cw_storage_plus::U64Key;
 use sic_base::msg::{
@@ -14,10 +11,9 @@ use sic_base::msg::{
 };
 use stader_utils::coin_utils::{
     decimal_division_in_256, decimal_multiplication_in_256, decimal_subtraction_in_256,
-    decimal_summation_in_256, get_decimal_from_uint128, merge_coin_vector, uint128_from_decimal,
+    get_decimal_from_uint128, uint128_from_decimal,
 };
 use std::collections::HashMap;
-use std::hash::Hash;
 
 pub fn get_strategy_apr(
     current_shares_per_token_ratio: Decimal,
@@ -138,7 +134,7 @@ pub fn get_strategy_split(
                 let deposit_fraction = u.deposit_fraction;
 
                 let deposit_amount = uint128_from_decimal(decimal_multiplication_in_256(
-                    deposit_fraction,
+                    Decimal::from_ratio(deposit_fraction, 100_u128),
                     get_decimal_from_uint128(amount),
                 ));
 
@@ -155,9 +151,10 @@ pub fn get_strategy_split(
                     })
                     .or_insert(deposit_amount);
 
-                surplus_amount = surplus_amount
-                    .checked_sub(deposit_amount)
-                    .unwrap_or(Uint128::zero());
+                // we will ideally never underflow here as the underflow can happen
+                // if the user portfolio fraction is somehow greater than 1 which we validate
+                // for before creating the portfolio.
+                surplus_amount = surplus_amount.checked_sub(deposit_amount).unwrap();
             }
 
             // add the left out amount to retain rewards strategy.(strategy_id 0)
@@ -185,7 +182,7 @@ pub fn validate_user_portfolio(
     storage: &mut dyn Storage,
     user_portfolio: &Vec<UserStrategyPortfolio>,
 ) -> Result<bool, ContractError> {
-    let mut total_deposit_fraction = Decimal::zero();
+    let mut total_deposit_fraction = Uint128::zero();
     for u in user_portfolio {
         let strategy_id = u.strategy_id;
         if STRATEGY_MAP
@@ -195,11 +192,12 @@ pub fn validate_user_portfolio(
             return Err(ContractError::StrategyInfoDoesNotExist {});
         }
 
-        total_deposit_fraction =
-            decimal_summation_in_256(total_deposit_fraction, u.deposit_fraction);
+        total_deposit_fraction = total_deposit_fraction
+            .checked_add(u.deposit_fraction)
+            .unwrap();
     }
 
-    if total_deposit_fraction > Decimal::one() {
+    if total_deposit_fraction > Uint128::new(100_u128) {
         return Err(ContractError::InvalidPortfolioDepositFraction {});
     }
 
@@ -271,7 +269,7 @@ mod tests {
             deps.as_mut().storage,
             &vec![UserStrategyPortfolio {
                 strategy_id: 1,
-                deposit_fraction: Decimal::from_ratio(1_u128, 2_u128),
+                deposit_fraction: Uint128::new(50_u128),
             }],
         )
         .unwrap_err();
@@ -296,11 +294,11 @@ mod tests {
             &vec![
                 UserStrategyPortfolio {
                     strategy_id: 1,
-                    deposit_fraction: Decimal::from_ratio(1_u128, 2_u128),
+                    deposit_fraction: Uint128::new(50_u128),
                 },
                 UserStrategyPortfolio {
                     strategy_id: 2,
-                    deposit_fraction: Decimal::from_ratio(3_u128, 4_u128),
+                    deposit_fraction: Uint128::new(75_u128),
                 },
             ],
         )
@@ -329,11 +327,11 @@ mod tests {
             &vec![
                 UserStrategyPortfolio {
                     strategy_id: 1,
-                    deposit_fraction: Decimal::from_ratio(1_u128, 2_u128),
+                    deposit_fraction: Uint128::new(50_u128),
                 },
                 UserStrategyPortfolio {
                     strategy_id: 2,
-                    deposit_fraction: Decimal::from_ratio(1_u128, 2_u128),
+                    deposit_fraction: Uint128::new(50_u128),
                 },
             ],
         )
@@ -530,15 +528,15 @@ mod tests {
         user_reward_info.user_portfolio = vec![
             UserStrategyPortfolio {
                 strategy_id: 1,
-                deposit_fraction: Decimal::from_ratio(1_u128, 4_u128),
+                deposit_fraction: Uint128::new(25_u128),
             },
             UserStrategyPortfolio {
                 strategy_id: 2,
-                deposit_fraction: Decimal::from_ratio(1_u128, 4_u128),
+                deposit_fraction: Uint128::new(25_u128),
             },
             UserStrategyPortfolio {
                 strategy_id: 3,
-                deposit_fraction: Decimal::from_ratio(1_u128, 4_u128),
+                deposit_fraction: Uint128::new(25_u128),
             },
         ];
 
@@ -619,15 +617,15 @@ mod tests {
         user_reward_info.user_portfolio = vec![
             UserStrategyPortfolio {
                 strategy_id: 1,
-                deposit_fraction: Decimal::from_ratio(1_u128, 4_u128),
+                deposit_fraction: Uint128::new(25_u128),
             },
             UserStrategyPortfolio {
                 strategy_id: 2,
-                deposit_fraction: Decimal::from_ratio(1_u128, 4_u128),
+                deposit_fraction: Uint128::new(25_u128),
             },
             UserStrategyPortfolio {
                 strategy_id: 3,
-                deposit_fraction: Decimal::from_ratio(1_u128, 4_u128),
+                deposit_fraction: Uint128::new(25_u128),
             },
         ];
 

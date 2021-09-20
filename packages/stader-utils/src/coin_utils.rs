@@ -1,11 +1,10 @@
 use cosmwasm_bignumber::Decimal256;
-use cosmwasm_std::{Coin, Decimal, Fraction, Storage, Uint128};
+use cosmwasm_std::{Coin, Decimal, Fraction, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::fmt::Display;
-use std::ops::Add;
 
 #[derive(Serialize, Deserialize, Clone, Default, Debug, PartialEq, JsonSchema)]
 pub struct DecCoin {
@@ -131,7 +130,10 @@ pub fn map_to_deccoin_vec(coin_map: HashMap<String, Decimal>) -> Vec<DecCoin> {
 
 // Jumbles the order of the vector
 // (Coins + CoinVecOp.fund) and (Coins - CoinVecOp.fund) [Element wise operation but Sub is stricter than set operation]
-pub fn merge_dec_coin_vector(deccoins: &Vec<DecCoin>, deccoin_vec_op: DecCoinVecOp) -> Vec<DecCoin> {
+pub fn merge_dec_coin_vector(
+    deccoins: &Vec<DecCoin>,
+    deccoin_vec_op: DecCoinVecOp,
+) -> Vec<DecCoin> {
     let fund = deccoin_vec_op.fund;
     let operation = deccoin_vec_op.operation;
 
@@ -434,7 +436,7 @@ pub fn multiply_coin_with_decimal(coin: &Coin, ratio: Decimal) -> Coin {
     )
 }
 pub fn multiply_u128_with_decimal(num: u128, dec: Decimal) -> u128 {
-    return (num * dec.numerator() / dec.denominator()) as u128;
+    (num * dec.numerator() / dec.denominator()) as u128
 }
 
 pub fn coin_to_deccoin(coin: Coin) -> DecCoin {
@@ -464,8 +466,6 @@ pub fn deccoin_vec_to_coin_vec(deccoins: &Vec<DecCoin>) -> Vec<Coin> {
         .map(|deccoin| deccoin_to_coin(deccoin.clone()))
         .collect()
 }
-
-
 
 #[cfg(test)]
 mod tests {

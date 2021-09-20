@@ -1,9 +1,6 @@
-use crate::error::ContractError::UserRewardInfoDoesNotExist;
-use crate::msg::UserStrategyQueryInfo;
-use crate::state::{
-    StrategyInfo, UserRewardInfo, UserStrategyInfo, STRATEGY_MAP, USER_REWARD_INFO_MAP,
-};
-use cosmwasm_std::{Addr, Coin, Decimal, Env, Storage};
+#![allow(dead_code)]
+use crate::state::{UserRewardInfo, STRATEGY_MAP};
+use cosmwasm_std::{Coin, Decimal, Storage};
 use cw_storage_plus::U64Key;
 use stader_utils::coin_utils::{
     check_equal_deccoin_vector, deccoin_vec_to_coin_vec, merge_coin_vector, merge_dec_coin_vector,
@@ -16,7 +13,7 @@ pub fn allocate_user_airdrops_across_strategies(
 ) {
     let mut total_allocated_airdrops: Vec<Coin> = user_reward_info.pending_airdrops.clone();
     for user_strategy_info in &mut user_reward_info.strategies {
-        let strategy_id = user_strategy_info.strategy_id.clone();
+        let strategy_id = user_strategy_info.strategy_id;
         let user_shares = user_strategy_info.shares;
 
         let strategy_info = if let Some(strategy_info) = STRATEGY_MAP
