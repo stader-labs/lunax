@@ -1,13 +1,11 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, to_binary, Addr, Attribute, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut,
-    DistributionMsg, Env, Fraction, FullDelegation, MessageInfo, Response, StakingMsg, StdResult,
-    SubMsg, Uint128, WasmMsg,
+    attr, to_binary, Addr, Attribute, Binary, Coin, Decimal, Deps, DepsMut, DistributionMsg, Env,
+    Fraction, MessageInfo, Response, StakingMsg, StdResult, Uint128, WasmMsg,
 };
 
 use crate::error::ContractError;
-use crate::error::ContractError::UndelegationBatchInUnbondingPeriod;
 use crate::helpers::get_unaccounted_funds;
 use crate::msg::{
     ExecuteMsg, GetFulfillableUndelegatedFundsResponse, GetStateResponse, GetTotalTokensResponse,
@@ -21,8 +19,8 @@ use std::cmp::min;
 use std::collections::HashMap;
 use terra_cosmwasm::{create_swap_msg, SwapResponse, TerraMsgWrapper, TerraQuerier};
 
-// const CONTRACT_NAME: &str = "sic-auto-compound";
-// const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
+const CONTRACT_NAME: &str = "sic-auto-compound";
+const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -49,7 +47,7 @@ pub fn instantiate(
 
     STATE.save(deps.storage, &state)?;
 
-    // set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     Ok(Response::new()
         .add_attribute("method", "instantiate")
@@ -57,9 +55,9 @@ pub fn instantiate(
 }
 
 pub fn migrate(
-    deps: DepsMut,
+    _deps: DepsMut,
     _env: Env,
-    msg: MigrateMsg,
+    _msg: MigrateMsg,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     Ok(Response::default())
 }
@@ -82,7 +80,6 @@ pub fn execute(
         ExecuteMsg::ClaimAirdrops {
             airdrop_token_contract,
             cw20_token_contract,
-            airdrop_token,
             amount,
             claim_msg,
         } => try_claim_airdrops(
@@ -91,7 +88,6 @@ pub fn execute(
             info,
             airdrop_token_contract,
             cw20_token_contract,
-            airdrop_token,
             amount,
             claim_msg,
         ),
@@ -266,8 +262,7 @@ pub fn try_replace_validator(
     let mut rewards_msgs: Vec<DistributionMsg> = vec![];
     let mut src_validator_staked_amount = Uint128::zero();
     let mut src_validator_rewards: Vec<Coin> = vec![];
-    if src_validator_delegation_opt.is_some() {
-        let src_validator_delegation = src_validator_delegation_opt.unwrap();
+    if let Some(src_validator_delegation) = src_validator_delegation_opt {
         src_validator_staked_amount = src_validator_staked_amount
             .checked_add(src_validator_delegation.amount.amount)
             .unwrap();
@@ -365,7 +360,6 @@ pub fn try_claim_airdrops(
     info: MessageInfo,
     airdrop_token_contract: Addr,
     cw20_token_contract: Addr,
-    _airdrop_token: String,
     amount: Uint128,
     claim_msg: Binary,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
