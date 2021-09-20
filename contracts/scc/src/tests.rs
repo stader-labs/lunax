@@ -3479,7 +3479,7 @@ mod tests {
         STRATEGY_MAP.save(
             deps.as_mut().storage,
             U64Key::new(1),
-            &StrategyInfo::new("sid1".to_string(), sic1_address.clone(), None, None),
+            &StrategyInfo::new("sid1".to_string(), sic1_address.clone(), 10, 10),
         );
         USER_REWARD_INFO_MAP.save(
             deps.as_mut().storage,
@@ -3552,7 +3552,7 @@ mod tests {
         STRATEGY_MAP.save(
             deps.as_mut().storage,
             U64Key::new(1),
-            &StrategyInfo::new("sid1".to_string(), sic1_address.clone(), None, None),
+            &StrategyInfo::new("sid1".to_string(), sic1_address.clone(), 10, 10),
         );
         USER_REWARD_INFO_MAP.save(
             deps.as_mut().storage,
@@ -4157,8 +4157,7 @@ mod tests {
         /*
            Test - 1. Claiming airdrops from the sic for the first time
         */
-        let mut strategy_info =
-            StrategyInfo::new("sid1".to_string(), sic_contract.clone(), None, None);
+        let mut strategy_info = StrategyInfo::new("sid1".to_string(), sic_contract.clone(), 10, 10);
         strategy_info.total_shares = Decimal::from_ratio(100_000_000_u128, 1_u128);
         STRATEGY_MAP.save(deps.as_mut().storage, U64Key::new(1), &strategy_info);
 
@@ -4222,8 +4221,7 @@ mod tests {
         /*
             Test - 2. Claiming airdrops a mir airdrop with anc airdrop
         */
-        let mut strategy_info =
-            StrategyInfo::new("sid1".to_string(), sic_contract.clone(), None, None);
+        let mut strategy_info = StrategyInfo::new("sid1".to_string(), sic_contract.clone(), 10, 10);
         strategy_info.total_shares = Decimal::from_ratio(100_000_000_u128, 1_u128);
         strategy_info.global_airdrop_pointer = vec![DecCoin::new(
             Decimal::from_ratio(100_u128, 100_000_000_u128),
@@ -6668,8 +6666,8 @@ mod tests {
             ExecuteMsg::RegisterStrategy {
                 strategy_name: "sid".to_string(),
                 sic_contract_address: Addr::unchecked("abc"),
-                unbonding_buffer: None,
-                unbonding_period: None,
+                unbonding_buffer: 10,
+                unbonding_period: 10,
             },
         )
         .unwrap_err();
@@ -6698,8 +6696,8 @@ mod tests {
             ExecuteMsg::RegisterStrategy {
                 strategy_name: "sid1".to_string(),
                 sic_contract_address: Addr::unchecked("abc"),
-                unbonding_buffer: Some(100u64),
-                unbonding_period: Some(100u64),
+                unbonding_buffer: 100u64,
+                unbonding_period: 100u64,
             },
         )
         .unwrap();
@@ -6734,8 +6732,8 @@ mod tests {
             ExecuteMsg::RegisterStrategy {
                 strategy_name: "sid2".to_string(),
                 sic_contract_address: Addr::unchecked("abc"),
-                unbonding_buffer: Some(100u64),
-                unbonding_period: Some(100u64),
+                unbonding_buffer: 100u64,
+                unbonding_period: 100u64,
             },
         )
         .unwrap();

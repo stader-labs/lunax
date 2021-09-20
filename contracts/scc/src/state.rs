@@ -50,14 +50,14 @@ impl StrategyInfo {
     pub(crate) fn new(
         strategy_name: String,
         sic_contract_address: Addr,
-        unbonding_period: Option<u64>,
-        unbonding_buffer: Option<u64>,
+        unbonding_period: u64,
+        unbonding_buffer: u64,
     ) -> Self {
         StrategyInfo {
             name: strategy_name,
             sic_contract_address,
-            unbonding_period: unbonding_period.unwrap_or(21 * 24 * 3600),
-            unbonding_buffer: unbonding_buffer.unwrap_or(3600),
+            unbonding_period,
+            unbonding_buffer,
             undelegation_batch_id_pointer: 0,
             reconciled_batch_id_pointer: 0,
             is_active: false,

@@ -74,8 +74,8 @@ pub enum ExecuteMsg {
     RegisterStrategy {
         strategy_name: String,
         sic_contract_address: Addr,
-        unbonding_buffer: Option<u64>,
-        unbonding_period: Option<u64>,
+        unbonding_buffer: u64,
+        unbonding_period: u64,
     },
     RemoveStrategy {
         strategy_id: u64,

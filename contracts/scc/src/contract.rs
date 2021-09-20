@@ -898,8 +898,8 @@ pub fn try_register_strategy(
     info: MessageInfo,
     strategy_name: String,
     sic_contract_address: Addr,
-    unbonding_period: Option<u64>,
-    unbonding_buffer: Option<u64>,
+    unbonding_period: u64,
+    unbonding_buffer: u64,
 ) -> Result<Response, ContractError> {
     let state = STATE.load(deps.storage)?;
     if info.sender != state.manager {
