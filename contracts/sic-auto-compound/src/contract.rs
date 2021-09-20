@@ -19,12 +19,12 @@ use stader_utils::coin_utils::{merge_coin, merge_coin_vector, CoinOp, CoinVecOp,
 use stader_utils::helpers::send_funds_msg;
 use std::cmp::min;
 use std::collections::HashMap;
-use std::sync::mpsc::TrySendError::Full;
 use terra_cosmwasm::{create_swap_msg, SwapResponse, TerraMsgWrapper, TerraQuerier};
 
-const CONTRACT_NAME: &str = "sic-auto-compound";
-const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
+// const CONTRACT_NAME: &str = "sic-auto-compound";
+// const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
+#[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
     _env: Env,
@@ -49,7 +49,7 @@ pub fn instantiate(
 
     STATE.save(deps.storage, &state)?;
 
-    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+    // set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     Ok(Response::new()
         .add_attribute("method", "instantiate")
@@ -64,6 +64,7 @@ pub fn migrate(
     Ok(Response::default())
 }
 
+#[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
     _env: Env,
@@ -796,6 +797,7 @@ pub fn try_redeem_rewards(
     Ok(Response::new().add_messages(messages))
 }
 
+#[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetTotalTokens {} => to_binary(&query_total_tokens(deps, _env)?),

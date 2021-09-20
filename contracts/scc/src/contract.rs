@@ -490,7 +490,7 @@ pub fn try_undelegate_from_strategies(
         ));
 
         let current_undelegation_batch_id = strategy_info.undelegation_batch_id_pointer;
-        let new_undelegation_batch_id = current_undelegation_batch_id + 1;
+        let next_undelegation_batch_id = current_undelegation_batch_id + 1;
 
         UNDELEGATION_BATCH_MAP.save(
             deps.storage,
@@ -515,7 +515,7 @@ pub fn try_undelegate_from_strategies(
             },
         )?;
 
-        strategy_info.undelegation_batch_id_pointer = new_undelegation_batch_id;
+        strategy_info.undelegation_batch_id_pointer = next_undelegation_batch_id;
         strategy_info.total_shares = decimal_subtraction_in_256(
             strategy_info.total_shares,
             strategy_info.current_undelegated_shares,
@@ -700,7 +700,6 @@ pub fn try_claim_airdrops(
     let mut strategy_info = if let Some(strategy_info) =
         STRATEGY_MAP.may_load(deps.storage, U64Key::new(strategy_id))?
     {
-        // while registering the strategy, we need to update the airdrops the strategy supports.
         strategy_info
     } else {
         return Err(ContractError::StrategyInfoDoesNotExist {});
@@ -774,7 +773,6 @@ pub fn try_withdraw_airdrops(
     allocate_user_airdrops_across_strategies(deps.storage, &mut user_reward_info);
 
     let mut messages: Vec<WasmMsg> = vec![];
-    let mut transfered_airdrops: Vec<Coin> = vec![];
     // iterate thru all airdrops and transfer ownership to them to the user
     user_reward_info
         .pending_airdrops
@@ -803,8 +801,6 @@ pub fn try_withdraw_airdrops(
 
             // the airdrop is completely transferred back to the user
             user_airdrop.amount = Uint128::zero();
-
-            transfered_airdrops.push(Coin::new(airdrop_amount.u128(), airdrop_denom));
         });
 
     USER_REWARD_INFO_MAP.save(deps.storage, &user_addr, &user_reward_info)?;
