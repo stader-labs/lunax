@@ -281,7 +281,6 @@ mod tests {
                 pending_airdrops: vec![],
                 undelegation_records: vec![UserUndelegationRecord {
                     id: Timestamp::from_seconds(123),
-                    est_release_time: Timestamp::from_seconds(126),
                     amount: Uint128::new(100_u128),
                     shares: Decimal::from_ratio(1000_u128, 1_u128),
                     strategy_id: 1,
@@ -314,7 +313,6 @@ mod tests {
             user.undelegation_records,
             vec![UserUndelegationRecord {
                 id: Timestamp::from_seconds(123),
-                est_release_time: Timestamp::from_seconds(126),
                 amount: Uint128::new(100_u128),
                 shares: Decimal::from_ratio(1000_u128, 1_u128),
                 strategy_id: 1,
@@ -1553,7 +1551,7 @@ mod tests {
                     value: "".to_string()
                 },
                 Attribute {
-                    key: "undelegation_batches_slashing_checked".to_string(),
+                    key: "undelegation_batches_released".to_string(),
                     value: "".to_string()
                 }
             ]
@@ -1625,7 +1623,7 @@ mod tests {
                     value: "".to_string()
                 },
                 Attribute {
-                    key: "undelegation_batches_slashing_checked".to_string(),
+                    key: "undelegation_batches_released".to_string(),
                     value: "".to_string()
                 }
             ]
@@ -1690,7 +1688,7 @@ mod tests {
                 undelegation_s_t_ratio: Decimal::from_ratio(10_u128, 1_u128),
                 create_time: Timestamp::from_seconds(1631094920),
                 est_release_time: Timestamp::from_seconds(1631094990),
-                slashing_checked: false,
+                released: false,
             },
         );
         UNDELEGATION_BATCH_MAP.save(
@@ -1703,7 +1701,7 @@ mod tests {
                 undelegation_s_t_ratio: Decimal::from_ratio(10_u128, 1_u128),
                 create_time: Timestamp::from_seconds(1631094920),
                 est_release_time: Timestamp::from_seconds(1631095990),
-                slashing_checked: false,
+                released: false,
             },
         );
 
@@ -1733,7 +1731,7 @@ mod tests {
                     value: "1:1,2:2".to_string()
                 },
                 Attribute {
-                    key: "undelegation_batches_slashing_checked".to_string(),
+                    key: "undelegation_batches_released".to_string(),
                     value: "".to_string()
                 }
             ]
@@ -1798,7 +1796,7 @@ mod tests {
                 undelegation_s_t_ratio: Decimal::from_ratio(10_u128, 1_u128),
                 create_time: Timestamp::from_seconds(123),
                 est_release_time: Timestamp::from_seconds(125),
-                slashing_checked: true,
+                released: true,
             },
         );
         UNDELEGATION_BATCH_MAP.save(
@@ -1811,7 +1809,7 @@ mod tests {
                 undelegation_s_t_ratio: Decimal::from_ratio(10_u128, 1_u128),
                 create_time: Timestamp::from_seconds(123),
                 est_release_time: Timestamp::from_seconds(125),
-                slashing_checked: true,
+                released: true,
             },
         );
 
@@ -1841,7 +1839,7 @@ mod tests {
                     value: "".to_string()
                 },
                 Attribute {
-                    key: "undelegation_batches_slashing_checked".to_string(),
+                    key: "undelegation_batches_released".to_string(),
                     value: "1:1,2:2".to_string()
                 }
             ]
@@ -1931,7 +1929,7 @@ mod tests {
                 undelegation_s_t_ratio: Default::default(),
                 create_time: Timestamp::from_seconds(123),
                 est_release_time: Timestamp::from_seconds(125),
-                slashing_checked: false,
+                released: false,
             },
         );
         UNDELEGATION_BATCH_MAP.save(
@@ -1944,7 +1942,7 @@ mod tests {
                 undelegation_s_t_ratio: Default::default(),
                 create_time: Timestamp::from_seconds(123),
                 est_release_time: Timestamp::from_seconds(125),
-                slashing_checked: false,
+                released: false,
             },
         );
 
@@ -1974,7 +1972,7 @@ mod tests {
                     value: "".to_string()
                 },
                 Attribute {
-                    key: "undelegation_batches_slashing_checked".to_string(),
+                    key: "undelegation_batches_released".to_string(),
                     value: "".to_string()
                 }
             ]
@@ -2026,8 +2024,8 @@ mod tests {
         assert_ne!(sid2_undelegation_batch_opt, None);
         let sid1_undelegation_batch = sid1_undelegation_batch_opt.unwrap();
         let sid2_undelegation_batch = sid2_undelegation_batch_opt.unwrap();
-        assert!(sid1_undelegation_batch.slashing_checked);
-        assert!(sid2_undelegation_batch.slashing_checked);
+        assert!(sid1_undelegation_batch.released);
+        assert!(sid2_undelegation_batch.released);
         assert_eq!(
             sid1_undelegation_batch.unbonding_slashing_ratio,
             Decimal::one()
@@ -2096,7 +2094,7 @@ mod tests {
                 undelegation_s_t_ratio: Default::default(),
                 create_time: Timestamp::from_seconds(123),
                 est_release_time: Timestamp::from_seconds(125),
-                slashing_checked: false,
+                released: false,
             },
         );
         UNDELEGATION_BATCH_MAP.save(
@@ -2109,7 +2107,7 @@ mod tests {
                 undelegation_s_t_ratio: Default::default(),
                 create_time: Timestamp::from_seconds(123),
                 est_release_time: Timestamp::from_seconds(125),
-                slashing_checked: false,
+                released: false,
             },
         );
 
@@ -2139,7 +2137,7 @@ mod tests {
                     value: "".to_string()
                 },
                 Attribute {
-                    key: "undelegation_batches_slashing_checked".to_string(),
+                    key: "undelegation_batches_released".to_string(),
                     value: "".to_string()
                 }
             ]
@@ -2191,8 +2189,8 @@ mod tests {
         assert_ne!(sid2_undelegation_batch_opt, None);
         let sid1_undelegation_batch = sid1_undelegation_batch_opt.unwrap();
         let sid2_undelegation_batch = sid2_undelegation_batch_opt.unwrap();
-        assert!(sid1_undelegation_batch.slashing_checked);
-        assert!(sid2_undelegation_batch.slashing_checked);
+        assert!(sid1_undelegation_batch.released);
+        assert!(sid2_undelegation_batch.released);
         assert_eq!(
             sid1_undelegation_batch.unbonding_slashing_ratio,
             Decimal::from_ratio(3_u128, 4_u128)
@@ -2257,7 +2255,7 @@ mod tests {
                 undelegation_s_t_ratio: Default::default(),
                 create_time: Timestamp::from_seconds(123),
                 est_release_time: Timestamp::from_seconds(125),
-                slashing_checked: false,
+                released: false,
             },
         );
         UNDELEGATION_BATCH_MAP.save(
@@ -2270,7 +2268,7 @@ mod tests {
                 undelegation_s_t_ratio: Default::default(),
                 create_time: Timestamp::from_seconds(123),
                 est_release_time: Timestamp::from_seconds(125),
-                slashing_checked: false,
+                released: false,
             },
         );
 
@@ -2300,7 +2298,7 @@ mod tests {
                     value: "".to_string()
                 },
                 Attribute {
-                    key: "undelegation_batches_slashing_checked".to_string(),
+                    key: "undelegation_batches_released".to_string(),
                     value: "".to_string()
                 }
             ]
@@ -2352,8 +2350,8 @@ mod tests {
         assert_ne!(sid2_undelegation_batch_opt, None);
         let sid1_undelegation_batch = sid1_undelegation_batch_opt.unwrap();
         let sid2_undelegation_batch = sid2_undelegation_batch_opt.unwrap();
-        assert!(sid1_undelegation_batch.slashing_checked);
-        assert!(sid2_undelegation_batch.slashing_checked);
+        assert!(sid1_undelegation_batch.released);
+        assert!(sid2_undelegation_batch.released);
         assert_eq!(
             sid1_undelegation_batch.unbonding_slashing_ratio,
             Decimal::one()
@@ -2417,7 +2415,7 @@ mod tests {
                 undelegation_s_t_ratio: Decimal::from_ratio(10_u128, 1_u128),
                 create_time: Timestamp::from_seconds(1631094920),
                 est_release_time: Timestamp::from_seconds(1631094990),
-                slashing_checked: false,
+                released: false,
             },
         );
         UNDELEGATION_BATCH_MAP.save(
@@ -2430,7 +2428,7 @@ mod tests {
                 undelegation_s_t_ratio: Decimal::from_ratio(10_u128, 1_u128),
                 create_time: Timestamp::from_seconds(150),
                 est_release_time: Timestamp::from_seconds(155),
-                slashing_checked: false,
+                released: false,
             },
         );
         UNDELEGATION_BATCH_MAP.save(
@@ -2443,7 +2441,7 @@ mod tests {
                 undelegation_s_t_ratio: Decimal::from_ratio(10_u128, 1_u128),
                 create_time: Timestamp::from_seconds(123),
                 est_release_time: Timestamp::from_seconds(126),
-                slashing_checked: true,
+                released: true,
             },
         );
         UNDELEGATION_BATCH_MAP.save(
@@ -2456,7 +2454,7 @@ mod tests {
                 undelegation_s_t_ratio: Decimal::from_ratio(10_u128, 1_u128),
                 create_time: Timestamp::from_seconds(140),
                 est_release_time: Timestamp::from_seconds(145),
-                slashing_checked: false,
+                released: false,
             },
         );
         UNDELEGATION_BATCH_MAP.save(
@@ -2469,7 +2467,7 @@ mod tests {
                 undelegation_s_t_ratio: Decimal::from_ratio(10_u128, 1_u128),
                 create_time: Timestamp::from_seconds(1631094920),
                 est_release_time: Timestamp::from_seconds(1631095990),
-                slashing_checked: false,
+                released: false,
             },
         );
 
@@ -2499,7 +2497,7 @@ mod tests {
                     value: "1:2,2:4".to_string()
                 },
                 Attribute {
-                    key: "undelegation_batches_slashing_checked".to_string(),
+                    key: "undelegation_batches_released".to_string(),
                     value: "2:2".to_string()
                 }
             ]
@@ -2541,7 +2539,7 @@ mod tests {
             .unwrap();
         assert_ne!(sid1_undelegation_batch_opt, None);
         let sid1_undelegation_batch = sid1_undelegation_batch_opt.unwrap();
-        assert!(sid1_undelegation_batch.slashing_checked);
+        assert!(sid1_undelegation_batch.released);
         assert_eq!(
             sid1_undelegation_batch.unbonding_slashing_ratio,
             Decimal::one()
@@ -2551,7 +2549,7 @@ mod tests {
             .unwrap();
         assert_ne!(sid2_undelegation_batch_opt, None);
         let sid2_undelegation_batch = sid2_undelegation_batch_opt.unwrap();
-        assert!(sid2_undelegation_batch.slashing_checked);
+        assert!(sid2_undelegation_batch.released);
         assert_eq!(
             sid2_undelegation_batch.unbonding_slashing_ratio,
             Decimal::one()
@@ -2828,7 +2826,7 @@ mod tests {
                     .block
                     .time
                     .plus_seconds(sid1_strategy_info.unbonding_period),
-                slashing_checked: false
+                released: false
             }
         );
         assert_eq!(
@@ -2843,7 +2841,7 @@ mod tests {
                     .block
                     .time
                     .plus_seconds(sid2_strategy_info.unbonding_period),
-                slashing_checked: false
+                released: false
             }
         );
         assert_eq!(
@@ -2858,7 +2856,7 @@ mod tests {
                     .block
                     .time
                     .plus_seconds(sid3_strategy_info.unbonding_period),
-                slashing_checked: false
+                released: false
             }
         );
 
@@ -3033,7 +3031,7 @@ mod tests {
                     .block
                     .time
                     .plus_seconds(sid1_strategy_info.unbonding_period),
-                slashing_checked: false
+                released: false
             }
         );
         assert_eq!(
@@ -3048,7 +3046,7 @@ mod tests {
                     .block
                     .time
                     .plus_seconds(sid2_strategy_info.unbonding_period),
-                slashing_checked: false
+                released: false
             }
         );
         assert_eq!(
@@ -3063,7 +3061,7 @@ mod tests {
                     .block
                     .time
                     .plus_seconds(sid3_strategy_info.unbonding_period),
-                slashing_checked: false
+                released: false
             }
         );
 
@@ -3216,7 +3214,7 @@ mod tests {
                     .block
                     .time
                     .plus_seconds(sid1_strategy_info.unbonding_period),
-                slashing_checked: false
+                released: false
             }
         );
         assert_eq!(
@@ -3231,7 +3229,7 @@ mod tests {
                     .block
                     .time
                     .plus_seconds(sid2_strategy_info.unbonding_period),
-                slashing_checked: false
+                released: false
             }
         );
     }
@@ -3317,7 +3315,6 @@ mod tests {
                 pending_airdrops: vec![],
                 undelegation_records: vec![UserUndelegationRecord {
                     id: Timestamp::from_seconds(123),
-                    est_release_time: Default::default(),
                     amount: Uint128::new(100_u128),
                     shares: Default::default(),
                     strategy_id: 1,
@@ -3333,7 +3330,6 @@ mod tests {
             ExecuteMsg::WithdrawRewards {
                 undelegation_id: "123000000000".to_string(),
                 strategy_id: 1,
-                amount: Uint128::new(100_u128),
             },
         )
         .unwrap_err();
@@ -3360,7 +3356,6 @@ mod tests {
                 pending_airdrops: vec![],
                 undelegation_records: vec![UserUndelegationRecord {
                     id: Timestamp::from_seconds(123),
-                    est_release_time: env.block.time.plus_seconds(5000),
                     amount: Uint128::new(100_u128),
                     shares: Default::default(),
                     strategy_id: 1,
@@ -3379,7 +3374,7 @@ mod tests {
                 undelegation_s_t_ratio: Default::default(),
                 create_time: Timestamp::from_seconds(150),
                 est_release_time: Timestamp::from_seconds(1831013565),
-                slashing_checked: false,
+                released: false,
             },
         );
         let mut err = execute(
@@ -3389,7 +3384,6 @@ mod tests {
             ExecuteMsg::WithdrawRewards {
                 undelegation_id: "123000000000".to_string(),
                 strategy_id: 1,
-                amount: Uint128::new(100_u128),
             },
         )
         .unwrap_err();
@@ -3419,7 +3413,6 @@ mod tests {
                 pending_airdrops: vec![],
                 undelegation_records: vec![UserUndelegationRecord {
                     id: Timestamp::from_seconds(123),
-                    est_release_time: Timestamp::from_seconds(126),
                     amount: Uint128::new(100_u128),
                     shares: Default::default(),
                     strategy_id: 1,
@@ -3438,7 +3431,7 @@ mod tests {
                 undelegation_s_t_ratio: Default::default(),
                 create_time: Timestamp::from_seconds(150),
                 est_release_time: Timestamp::from_seconds(150 + 7200),
-                slashing_checked: false,
+                released: false,
             },
         );
         let mut err = execute(
@@ -3448,7 +3441,6 @@ mod tests {
             ExecuteMsg::WithdrawRewards {
                 undelegation_id: "123000000000".to_string(),
                 strategy_id: 1,
-                amount: Uint128::new(100_u128),
             },
         )
         .unwrap_err();
@@ -3494,7 +3486,6 @@ mod tests {
                 pending_airdrops: vec![],
                 undelegation_records: vec![UserUndelegationRecord {
                     id: Timestamp::from_seconds(123),
-                    est_release_time: Timestamp::from_seconds(126),
                     amount: Uint128::new(100_u128),
                     shares: Decimal::from_ratio(1000_u128, 1_u128),
                     strategy_id: 1,
@@ -3513,7 +3504,7 @@ mod tests {
                 undelegation_s_t_ratio: Decimal::from_ratio(10_u128, 1_u128),
                 create_time: Timestamp::from_seconds(150),
                 est_release_time: Timestamp::from_seconds(150 + 7200),
-                slashing_checked: true,
+                released: true,
             },
         );
         let res = execute(
@@ -3523,7 +3514,6 @@ mod tests {
             ExecuteMsg::WithdrawRewards {
                 undelegation_id: "123000000000".to_string(),
                 strategy_id: 1,
-                amount: Uint128::new(100_u128),
             },
         )
         .unwrap();
@@ -3575,7 +3565,6 @@ mod tests {
                 undelegation_records: vec![
                     UserUndelegationRecord {
                         id: Timestamp::from_seconds(123),
-                        est_release_time: Default::default(),
                         amount: Uint128::new(100_u128),
                         shares: Decimal::from_ratio(1000_u128, 1_u128),
                         strategy_id: 1,
@@ -3583,7 +3572,6 @@ mod tests {
                     },
                     UserUndelegationRecord {
                         id: Timestamp::from_seconds(126),
-                        est_release_time: Timestamp::from_seconds(130),
                         amount: Uint128::new(100_u128),
                         shares: Decimal::from_ratio(1000_u128, 1_u128),
                         strategy_id: 2,
@@ -3603,7 +3591,7 @@ mod tests {
                 undelegation_s_t_ratio: Decimal::from_ratio(10_u128, 1_u128),
                 create_time: Timestamp::from_seconds(150),
                 est_release_time: Timestamp::from_seconds(150 + 7200),
-                slashing_checked: true,
+                released: true,
             },
         );
         let res = execute(
@@ -3613,7 +3601,6 @@ mod tests {
             ExecuteMsg::WithdrawRewards {
                 undelegation_id: "123000000000".to_string(),
                 strategy_id: 1,
-                amount: Uint128::new(100_u128),
             },
         )
         .unwrap();
@@ -3639,7 +3626,6 @@ mod tests {
             user1_reward_info.undelegation_records,
             vec![UserUndelegationRecord {
                 id: Timestamp::from_seconds(126),
-                est_release_time: Timestamp::from_seconds(130),
                 amount: Uint128::new(100_u128),
                 shares: Decimal::from_ratio(1000_u128, 1_u128),
                 strategy_id: 2,
@@ -3904,7 +3890,6 @@ mod tests {
             user1_reward_info.undelegation_records,
             vec![UserUndelegationRecord {
                 id: env.block.time,
-                est_release_time: env.block.time.plus_seconds(3600 + 3600),
                 amount: Uint128::new(200_u128),
                 shares: Decimal::from_ratio(2000_u128, 1_u128),
                 strategy_id: 1,
@@ -3955,7 +3940,6 @@ mod tests {
                 ],
                 undelegation_records: vec![UserUndelegationRecord {
                     id: env.block.time,
-                    est_release_time: env.block.time.plus_seconds(3600 + 3600),
                     amount: Uint128::new(200_u128),
                     shares: Decimal::from_ratio(2000_u128, 1_u128),
                     strategy_id: 1,
@@ -4013,7 +3997,6 @@ mod tests {
             vec![
                 UserUndelegationRecord {
                     id: env.block.time,
-                    est_release_time: env.block.time.plus_seconds(3600 + 3600),
                     amount: Uint128::new(200_u128),
                     shares: Decimal::from_ratio(2000_u128, 1_u128),
                     strategy_id: 1,
@@ -4021,7 +4004,6 @@ mod tests {
                 },
                 UserUndelegationRecord {
                     id: env.block.time,
-                    est_release_time: env.block.time.plus_seconds(3600 + 3600),
                     amount: Uint128::new(50_u128),
                     shares: Decimal::from_ratio(500_u128, 1_u128),
                     strategy_id: 1,

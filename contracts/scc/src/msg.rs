@@ -140,9 +140,8 @@ pub enum ExecuteMsg {
         strategy_id: u64,
     },
     WithdrawRewards {
-        undelegation_id: String,
+        undelegation_id: u64,
         strategy_id: u64,
-        amount: Uint128,
     },
     // called by the user to withdraw pending rewards i.e rewards which are not in any strategy
     WithdrawPendingRewards {},

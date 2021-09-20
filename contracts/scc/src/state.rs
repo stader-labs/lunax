@@ -22,6 +22,7 @@ pub struct State {
     pub contract_genesis_block_height: u64,
     pub contract_genesis_timestamp: Timestamp,
 
+    pub next_undelegation_id: u64,
     pub next_strategy_id: u64,
 
     // sum of all the retained rewards in scc
@@ -147,10 +148,10 @@ impl UserRewardInfo {
     }
 }
 
+// estimated release time is fetched from the undelegation batch id
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct UserUndelegationRecord {
-    pub id: Timestamp,
-    pub est_release_time: Timestamp,
+    pub id: u64,
     pub amount: Uint128,
     pub shares: Decimal,
     pub strategy_id: u64,
@@ -180,6 +181,14 @@ pub struct Cw20TokenContractsInfo {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum UndelegationBatchStatus {
+    Pending,
+    InProgress,
+    Done,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct BatchUndelegationRecord {
     pub amount: Uint128,
     pub shares: Decimal,
@@ -187,7 +196,8 @@ pub struct BatchUndelegationRecord {
     pub undelegation_s_t_ratio: Decimal,
     pub create_time: Timestamp,
     pub est_release_time: Timestamp,
-    pub slashing_checked: bool,
+    pub undelegation_batch_status: UndelegationBatchStatus,
+    pub released: bool,
 }
 
 pub const STATE: Item<State> = Item::new("state");
