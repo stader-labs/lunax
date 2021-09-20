@@ -1,12 +1,9 @@
-use crate::state::{
-    Config, StrategyInfo, UserRewardInfo, UserStrategyInfo, UserStrategyPortfolio, STRATEGY_MAP,
-    USER_REWARD_INFO_MAP,
-};
-use crate::user::get_user_airdrops;
+#![allow(dead_code)]
+
+use crate::state::{Config, StrategyInfo, UserRewardInfo, UserStrategyPortfolio, STRATEGY_MAP};
 use crate::ContractError;
 use cosmwasm_std::{
-    Addr, Coin, Decimal, Fraction, QuerierWrapper, Response, StdError, StdResult, Storage,
-    Timestamp, Uint128,
+    Addr, Decimal, Fraction, QuerierWrapper, StdResult, Storage, Timestamp, Uint128,
 };
 use cw_storage_plus::U64Key;
 use sic_base::msg::{
@@ -14,10 +11,9 @@ use sic_base::msg::{
 };
 use stader_utils::coin_utils::{
     decimal_division_in_256, decimal_multiplication_in_256, decimal_subtraction_in_256,
-    decimal_summation_in_256, get_decimal_from_uint128, merge_coin_vector, uint128_from_decimal,
+    get_decimal_from_uint128, uint128_from_decimal,
 };
 use std::collections::HashMap;
-use std::hash::Hash;
 
 pub fn get_strategy_apr(
     current_shares_per_token_ratio: Decimal,

@@ -1,5 +1,3 @@
-#![allow(clippy)]
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2807,7 +2805,7 @@ mod tests {
             .unwrap();
         assert_ne!(sid1_strategy_info_opt, None);
         let sid1_strategy_info = sid1_strategy_info_opt.unwrap();
-        assert_eq!(sid1_strategy_info.undelegation_batch_id_pointer, 4);
+        assert_eq!(sid1_strategy_info.undelegation_batch_id_pointer, 5);
         assert_eq!(
             sid1_strategy_info.current_undelegated_shares,
             Decimal::zero()
@@ -2821,7 +2819,7 @@ mod tests {
             .unwrap();
         assert_ne!(sid2_strategy_info_opt, None);
         let sid2_strategy_info = sid2_strategy_info_opt.unwrap();
-        assert_eq!(sid2_strategy_info.undelegation_batch_id_pointer, 4);
+        assert_eq!(sid2_strategy_info.undelegation_batch_id_pointer, 5);
         assert_eq!(
             sid2_strategy_info.current_undelegated_shares,
             Decimal::zero()
@@ -2839,7 +2837,7 @@ mod tests {
             sid3_strategy_info.current_undelegated_shares,
             Decimal::zero()
         );
-        assert_eq!(sid3_strategy_info.undelegation_batch_id_pointer, 4);
+        assert_eq!(sid3_strategy_info.undelegation_batch_id_pointer, 5);
         assert_eq!(
             sid3_strategy_info.total_shares,
             Decimal::from_ratio(2000_u128, 1_u128)
@@ -3067,7 +3065,7 @@ mod tests {
             .unwrap();
         assert_ne!(sid1_strategy_info_opt, None);
         let sid1_strategy_info = sid1_strategy_info_opt.unwrap();
-        assert_eq!(sid1_strategy_info.undelegation_batch_id_pointer, 4);
+        assert_eq!(sid1_strategy_info.undelegation_batch_id_pointer, 5);
         assert_eq!(
             sid1_strategy_info.current_undelegated_shares,
             Decimal::zero()
@@ -3077,7 +3075,7 @@ mod tests {
             .unwrap();
         assert_ne!(sid2_strategy_info_opt, None);
         let sid2_strategy_info = sid2_strategy_info_opt.unwrap();
-        assert_eq!(sid2_strategy_info.undelegation_batch_id_pointer, 4);
+        assert_eq!(sid2_strategy_info.undelegation_batch_id_pointer, 5);
         assert_eq!(
             sid2_strategy_info.current_undelegated_shares,
             Decimal::zero()
@@ -3091,7 +3089,7 @@ mod tests {
             sid3_strategy_info.current_undelegated_shares,
             Decimal::zero()
         );
-        assert_eq!(sid3_strategy_info.undelegation_batch_id_pointer, 4);
+        assert_eq!(sid3_strategy_info.undelegation_batch_id_pointer, 5);
         let undelegation_batch_sid1_opt = UNDELEGATION_BATCH_MAP
             .may_load(deps.as_mut().storage, (U64Key::new(4), U64Key::new(1)))
             .unwrap();
@@ -3306,7 +3304,7 @@ mod tests {
             .unwrap();
         assert_ne!(sid1_strategy_info_opt, None);
         let sid1_strategy_info = sid1_strategy_info_opt.unwrap();
-        assert_eq!(sid1_strategy_info.undelegation_batch_id_pointer, 4);
+        assert_eq!(sid1_strategy_info.undelegation_batch_id_pointer, 5);
         assert_eq!(
             sid1_strategy_info.current_undelegated_shares,
             Decimal::zero()
@@ -3316,7 +3314,7 @@ mod tests {
             .unwrap();
         assert_ne!(sid2_strategy_info_opt, None);
         let sid2_strategy_info = sid2_strategy_info_opt.unwrap();
-        assert_eq!(sid2_strategy_info.undelegation_batch_id_pointer, 4);
+        assert_eq!(sid2_strategy_info.undelegation_batch_id_pointer, 5);
         assert_eq!(
             sid2_strategy_info.current_undelegated_shares,
             Decimal::zero()
@@ -3960,6 +3958,12 @@ mod tests {
                 released: false
             }
         );
+        let state_response: GetStateResponse =
+            from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::GetState {}).unwrap())
+                .unwrap();
+        assert_ne!(state_response.state, None);
+        let state = state_response.state.unwrap();
+        assert_eq!(state.next_undelegation_id, 1);
 
         /*
            Test - 2. User undelegates again
@@ -4100,6 +4104,12 @@ mod tests {
                 released: false
             }
         );
+        let state_response: GetStateResponse =
+            from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::GetState {}).unwrap())
+                .unwrap();
+        assert_ne!(state_response.state, None);
+        let state = state_response.state.unwrap();
+        assert_eq!(state.next_undelegation_id, 2);
     }
 
     #[test]

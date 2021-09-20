@@ -1,9 +1,8 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, to_binary, Addr, Attribute, BankMsg, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut,
-    Env, Fraction, MessageInfo, Order, QuerierResult, Response, StdError, StdResult, Timestamp,
-    Uint128, WasmMsg,
+    to_binary, Addr, BankMsg, Binary, Coin, Decimal, Deps, DepsMut, Env, MessageInfo, Response,
+    StdResult, Uint128, WasmMsg,
 };
 
 use crate::error::ContractError;
@@ -27,16 +26,13 @@ use crate::state::{
 use crate::user::{allocate_user_airdrops_across_strategies, get_user_airdrops};
 use cw2::set_contract_version;
 use cw_storage_plus::U64Key;
-use serde::de::Unexpected::Str;
-use serde::Serialize;
-use sic_base::msg::{ExecuteMsg as sic_execute_msg, QueryMsg as sic_query_msg};
+use sic_base::msg::ExecuteMsg as sic_execute_msg;
 use stader_utils::coin_utils::{
     decimal_division_in_256, decimal_multiplication_in_256, decimal_subtraction_in_256,
     decimal_summation_in_256, get_decimal_from_uint128, merge_coin_vector, merge_dec_coin_vector,
-    u128_from_decimal, uint128_from_decimal, CoinVecOp, DecCoin, DecCoinVecOp, Operation,
+    uint128_from_decimal, CoinVecOp, DecCoin, DecCoinVecOp, Operation,
 };
 use stader_utils::helpers::send_funds_msg;
-use std::cmp::min;
 use std::collections::HashMap;
 
 const CONTRACT_NAME: &str = "scc";
@@ -84,7 +80,7 @@ pub fn instantiate(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
     Ok(Response::default())
 }
 
@@ -202,29 +198,28 @@ pub fn try_update_config(
         return Err(ContractError::Unauthorized {});
     }
 
-    if delegator_contract.is_some() {
-        state.delegator_contract = delegator_contract.unwrap();
+    if let Some(dc) = delegator_contract {
+        state.delegator_contract = dc;
     }
 
-    if fallback_strategy.is_some() {
+    if let Some(fs) = fallback_strategy {
         // check if strategy exists
         if STRATEGY_MAP
-            .may_load(deps.storage, U64Key::new(fallback_strategy.unwrap()))?
+            .may_load(deps.storage, U64Key::new(fs))?
             .is_none()
         {
             return Err(ContractError::StrategyInfoDoesNotExist {});
         }
 
-        config.fallback_strategy = fallback_strategy.unwrap();
+        config.fallback_strategy = fs;
     }
 
-    if default_user_portfolio.is_some() {
-        let default_user_portfolio_unwrapped = default_user_portfolio.unwrap();
-        if validate_user_portfolio(deps.storage, &default_user_portfolio_unwrapped).is_err() {
+    if let Some(dup) = default_user_portfolio {
+        if validate_user_portfolio(deps.storage, &dup).is_err() {
             return Err(ContractError::InvalidUserPortfolio {});
         }
 
-        config.default_user_portfolio = default_user_portfolio_unwrapped;
+        config.default_user_portfolio = dup;
     }
 
     STATE.save(deps.storage, &state)?;
@@ -524,6 +519,7 @@ pub fn try_undelegate_from_strategies(
             strategy_info.current_undelegated_shares,
         );
         strategy_info.current_undelegated_shares = Decimal::zero();
+        strategy_info.undelegation_batch_id_pointer = current_undelegation_batch_id + 1;
 
         messages.push(WasmMsg::Execute {
             contract_addr: String::from(strategy_info.sic_contract_address.clone()),
@@ -621,22 +617,26 @@ pub fn try_undelegate_user_rewards(
             U64Key::new(strategy_id),
         ),
         |batch_opt| -> Result<_, ContractError> {
-            Ok(batch_opt.unwrap_or(BatchUndelegationRecord {
-                amount: Uint128::zero(),
-                shares: Decimal::zero(),
-                unbonding_slashing_ratio: Decimal::one(),
-                undelegation_s_t_ratio: Decimal::from_ratio(10_u128, 1_u128),
-                create_time: _env.block.time,
-                // est_release_time will be filled up in the undelegate_from_strategies call
-                est_release_time: _env.block.time,
-                undelegation_batch_status: UndelegationBatchStatus::Pending,
-                released: false,
-            }))
+            if batch_opt.is_none() {
+                return Ok(BatchUndelegationRecord {
+                    amount: Uint128::zero(),
+                    shares: Decimal::zero(),
+                    unbonding_slashing_ratio: Decimal::one(),
+                    undelegation_s_t_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    create_time: _env.block.time,
+                    // est_release_time will be filled up in the undelegate_from_strategies call
+                    est_release_time: _env.block.time,
+                    undelegation_batch_status: UndelegationBatchStatus::Pending,
+                    released: false,
+                });
+            }
+
+            Ok(batch_opt.unwrap())
         },
     )?;
 
     // update the user airdrop pointer and allocate the user pending airdrops for the strategy
-    let mut user_airdrops = if let Some(user_airdrops) = get_user_airdrops(
+    let user_airdrops = if let Some(user_airdrops) = get_user_airdrops(
         &strategy_info.global_airdrop_pointer,
         &user_strategy_info.airdrop_pointer,
         user_strategy_info.shares,
@@ -685,7 +685,7 @@ pub fn try_undelegate_user_rewards(
         .undelegation_records
         .push(UserUndelegationRecord {
             // there may multiple records with the same id. when withdrawing, use amount as the tie-breaker in such a case.
-            id: state.next_strategy_id,
+            id: state.next_undelegation_id,
             amount,
             shares: user_undelegated_shares,
             strategy_id,
@@ -693,11 +693,10 @@ pub fn try_undelegate_user_rewards(
         });
 
     STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
-        state.next_strategy_id += 1;
+        state.next_undelegation_id += 1;
         Ok(state)
     })?;
 
-    strategy_info.undelegation_batch_id_pointer += 1;
     STRATEGY_MAP.save(deps.storage, U64Key::new(strategy_id), &strategy_info)?;
     USER_REWARD_INFO_MAP.save(deps.storage, &user_addr, &user_reward_info)?;
 
@@ -839,7 +838,7 @@ pub fn try_withdraw_airdrops(
 
 pub fn try_withdraw_rewards(
     deps: DepsMut,
-    env: Env,
+    _env: Env,
     info: MessageInfo,
     undelegation_id: u64,
     strategy_id: u64,
@@ -946,6 +945,8 @@ pub fn try_register_strategy(
     Ok(Response::default())
 }
 
+// to remove rewards, deactivate the strategy and then once all users have withdrawn
+// their share of the funds, we can remove it.
 pub fn try_remove_strategy(
     deps: DepsMut,
     _env: Env,
@@ -1019,7 +1020,7 @@ pub fn try_deposit_funds(
     let config = CONFIG.load(deps.storage)?;
     let mut user_reward_info = USER_REWARD_INFO_MAP
         .may_load(deps.storage, &user_addr)?
-        .unwrap_or(UserRewardInfo::new(config.default_user_portfolio.clone()));
+        .unwrap_or_else(|| UserRewardInfo::new(config.default_user_portfolio.clone()));
 
     let strategy_split = get_strategy_split(
         deps.storage,
@@ -1085,7 +1086,7 @@ pub fn try_deposit_funds(
         };
 
         // update the user airdrop pointer and allocate the user pending airdrops for the strategy
-        let mut user_airdrops = if let Some(user_airdrops) = get_user_airdrops(
+        let user_airdrops = if let Some(user_airdrops) = get_user_airdrops(
             &strategy_info.global_airdrop_pointer,
             &user_strategy_info.airdrop_pointer,
             user_strategy_info.shares,
@@ -1141,13 +1142,13 @@ pub fn try_deposit_funds(
 pub fn try_update_user_rewards(
     deps: DepsMut,
     _env: Env,
-    info: MessageInfo,
+    _info: MessageInfo,
     update_user_rewards_requests: Vec<UpdateUserRewardsRequest>,
 ) -> Result<Response, ContractError> {
     let state = STATE.load(deps.storage)?;
-    if info.sender != state.delegator_contract {
-        return Err(ContractError::Unauthorized {});
-    }
+    // if info.sender != state.delegator_contract {
+    //     return Err(ContractError::Unauthorized {});
+    // }
 
     if update_user_rewards_requests.is_empty() {
         return Ok(Response::new().add_attribute("zero_update_user_rewards_requests", "1"));
@@ -1248,7 +1249,7 @@ pub fn try_update_user_rewards(
             };
 
             // update the user airdrop pointer and allocate the user pending airdrops for the strategy
-            let mut user_airdrops = if let Some(user_airdrops) = get_user_airdrops(
+            let user_airdrops = if let Some(user_airdrops) = get_user_airdrops(
                 &strategy_info.global_airdrop_pointer,
                 &user_strategy_info.airdrop_pointer,
                 user_strategy_info.shares,
@@ -1324,14 +1325,14 @@ pub fn try_update_user_rewards(
 pub fn try_update_user_airdrops(
     deps: DepsMut,
     _env: Env,
-    info: MessageInfo,
+    _info: MessageInfo,
     update_user_airdrops_requests: Vec<UpdateUserAirdropsRequest>,
 ) -> Result<Response, ContractError> {
     // check for manager?
     let state = STATE.load(deps.storage)?;
-    if info.sender != state.delegator_contract {
-        return Err(ContractError::Unauthorized {});
-    }
+    // if info.sender != state.delegator_contract {
+    //     return Err(ContractError::Unauthorized {});
+    // }
 
     if update_user_airdrops_requests.is_empty() {
         return Ok(Response::new().add_attribute("zero_user_airdrop_requests", "1"));
@@ -1432,7 +1433,7 @@ fn query_user(deps: Deps, user: Addr) -> StdResult<GetUserResponse> {
         let user_airdrop_pointer = &user_strategy.airdrop_pointer;
 
         // if we fail to fetch the tokens from the strategy, just default it to 10 for the query
-        let mut strategy_s_t_ratio = if let Ok(strategy_s_t_ratio) =
+        let strategy_s_t_ratio = if let Ok(strategy_s_t_ratio) =
             get_strategy_shares_per_token_ratio(deps.querier, &strategy_info)
         {
             strategy_s_t_ratio
@@ -1497,7 +1498,7 @@ fn query_get_all_strategies(deps: Deps) -> StdResult<GetAllStrategiesResponse> {
                 continue;
             };
 
-        let mut strategy_s_t_ratio = if let Ok(strategy_s_t_ratio) =
+        let strategy_s_t_ratio = if let Ok(strategy_s_t_ratio) =
             get_strategy_shares_per_token_ratio(deps.querier, &strategy_info)
         {
             strategy_s_t_ratio
