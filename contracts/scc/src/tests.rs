@@ -1407,7 +1407,7 @@ mod tests {
     }
 
     #[test]
-    fn test__try_update_cw20_contracts_registry_fail() {
+    fn test_try_update_cw20_contracts_registry_fail() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -1439,7 +1439,7 @@ mod tests {
     }
 
     #[test]
-    fn test__try_update_cw20_contracts_registry_success() {
+    fn test_try_update_cw20_contracts_registry_success() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -1475,7 +1475,7 @@ mod tests {
     }
 
     #[test]
-    fn test__try_fetch_undelegated_rewards_from_strategies_fail() {
+    fn test_try_fetch_undelegated_rewards_from_strategies_fail() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -1860,7 +1860,7 @@ mod tests {
     }
 
     #[test]
-    fn test__try_fetch_undelegated_rewards_from_strategies_success() {
+    fn test_try_fetch_undelegated_rewards_from_strategies_success() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -2571,7 +2571,7 @@ mod tests {
     }
 
     #[test]
-    fn test__try_undelegate_from_strategies_fail() {
+    fn test_try_undelegate_from_strategies_fail() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -2601,7 +2601,7 @@ mod tests {
     }
 
     #[test]
-    fn test__try_undelegate_from_strategies_success() {
+    fn test_try_undelegate_from_strategies_success() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -3479,7 +3479,7 @@ mod tests {
     }
 
     #[test]
-    fn test__try_withdraw_rewards_success() {
+    fn test_try_withdraw_rewards_success() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -4737,6 +4737,14 @@ mod tests {
                 pending_rewards: Uint128::new(1000_u128),
             },
         );
+        STATE.update(
+            deps.as_mut().storage,
+            |mut state| -> Result<_, ContractError> {
+                state.rewards_in_scc = Uint128::new(2000_u128);
+                Ok(state)
+            },
+        );
+
         let res = execute(
             deps.as_mut(),
             env.clone(),
@@ -4759,6 +4767,13 @@ mod tests {
         let user1_reward_info = user1_reward_info_opt.unwrap();
         assert_eq!(user1_reward_info.pending_rewards, Uint128::zero());
 
+        let state_response: GetStateResponse =
+            from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::GetState {}).unwrap())
+                .unwrap();
+        assert_ne!(state_response.state, None);
+        let state = state_response.state.unwrap();
+        assert_eq!(state.rewards_in_scc, Uint128::new(1000_u128));
+
         /*
             Test - 2. User reward info with zero pending rewards
         */
@@ -4771,6 +4786,13 @@ mod tests {
                 pending_airdrops: vec![],
                 undelegation_records: vec![],
                 pending_rewards: Uint128::new(0_u128),
+            },
+        );
+        STATE.update(
+            deps.as_mut().storage,
+            |mut state| -> Result<_, ContractError> {
+                state.rewards_in_scc = Uint128::new(3000_u128);
+                Ok(state)
             },
         );
         let res = execute(
@@ -4795,6 +4817,13 @@ mod tests {
         assert_ne!(user1_reward_info_opt, None);
         let user1_reward_info = user1_reward_info_opt.unwrap();
         assert_eq!(user1_reward_info.pending_rewards, Uint128::zero());
+
+        let state_response: GetStateResponse =
+            from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::GetState {}).unwrap())
+                .unwrap();
+        assert_ne!(state_response.state, None);
+        let state = state_response.state.unwrap();
+        assert_eq!(state.rewards_in_scc, Uint128::new(3000_u128));
     }
 
     #[test]

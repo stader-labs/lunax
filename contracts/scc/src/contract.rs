@@ -289,6 +289,14 @@ pub fn try_withdraw_pending_rewards(
 
     USER_REWARD_INFO_MAP.save(deps.storage, &user_addr, &user_reward_info)?;
 
+    STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
+        state.rewards_in_scc = state
+            .rewards_in_scc
+            .checked_sub(user_pending_rewards)
+            .unwrap();
+        Ok(state)
+    })?;
+
     Ok(Response::new().add_message(send_funds_msg(
         &user_addr,
         &vec![Coin::new(user_pending_rewards.u128(), state.scc_denom)],
@@ -1142,13 +1150,13 @@ pub fn try_deposit_funds(
 pub fn try_update_user_rewards(
     deps: DepsMut,
     _env: Env,
-    _info: MessageInfo,
+    info: MessageInfo,
     update_user_rewards_requests: Vec<UpdateUserRewardsRequest>,
 ) -> Result<Response, ContractError> {
     let state = STATE.load(deps.storage)?;
-    // if info.sender != state.delegator_contract {
-    //     return Err(ContractError::Unauthorized {});
-    // }
+    if info.sender != state.delegator_contract {
+        return Err(ContractError::Unauthorized {});
+    }
 
     if update_user_rewards_requests.is_empty() {
         return Ok(Response::new().add_attribute("zero_update_user_rewards_requests", "1"));
@@ -1325,14 +1333,14 @@ pub fn try_update_user_rewards(
 pub fn try_update_user_airdrops(
     deps: DepsMut,
     _env: Env,
-    _info: MessageInfo,
+    info: MessageInfo,
     update_user_airdrops_requests: Vec<UpdateUserAirdropsRequest>,
 ) -> Result<Response, ContractError> {
     // check for manager?
     let state = STATE.load(deps.storage)?;
-    // if info.sender != state.delegator_contract {
-    //     return Err(ContractError::Unauthorized {});
-    // }
+    if info.sender != state.delegator_contract {
+        return Err(ContractError::Unauthorized {});
+    }
 
     if update_user_airdrops_requests.is_empty() {
         return Ok(Response::new().add_attribute("zero_user_airdrop_requests", "1"));
