@@ -624,7 +624,7 @@ pub fn try_undelegate_user_rewards(
             Ok(batch_opt.unwrap_or(BatchUndelegationRecord {
                 amount: Uint128::zero(),
                 shares: Decimal::zero(),
-                unbonding_slashing_ratio: Decimal::zero(),
+                unbonding_slashing_ratio: Decimal::one(),
                 undelegation_s_t_ratio: Decimal::from_ratio(10_u128, 1_u128),
                 create_time: _env.block.time,
                 // est_release_time will be filled up in the undelegate_from_strategies call
@@ -634,7 +634,6 @@ pub fn try_undelegate_user_rewards(
             }))
         },
     )?;
-    strategy_info.undelegation_batch_id_pointer += 1;
 
     // update the user airdrop pointer and allocate the user pending airdrops for the strategy
     let mut user_airdrops = if let Some(user_airdrops) = get_user_airdrops(
@@ -697,6 +696,8 @@ pub fn try_undelegate_user_rewards(
         state.next_strategy_id += 1;
         Ok(state)
     })?;
+
+    strategy_info.undelegation_batch_id_pointer += 1;
     STRATEGY_MAP.save(deps.storage, U64Key::new(strategy_id), &strategy_info)?;
     USER_REWARD_INFO_MAP.save(deps.storage, &user_addr, &user_reward_info)?;
 
