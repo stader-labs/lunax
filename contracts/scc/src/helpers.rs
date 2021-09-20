@@ -155,9 +155,10 @@ pub fn get_strategy_split(
                     })
                     .or_insert(deposit_amount);
 
-                surplus_amount = surplus_amount
-                    .checked_sub(deposit_amount)
-                    .unwrap_or(Uint128::zero());
+                // we will ideally never underflow here as the underflow can happen
+                // if the user portfolio fraction is somehow greater than 1 which we validate
+                // for before creating the portfolio.
+                surplus_amount = surplus_amount.checked_sub(deposit_amount).unwrap();
             }
 
             // add the left out amount to retain rewards strategy.(strategy_id 0)
