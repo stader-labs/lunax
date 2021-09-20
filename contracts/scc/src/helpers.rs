@@ -138,7 +138,7 @@ pub fn get_strategy_split(
                 let deposit_fraction = u.deposit_fraction;
 
                 let deposit_amount = uint128_from_decimal(decimal_multiplication_in_256(
-                    deposit_fraction,
+                    Decimal::from_ratio(deposit_fraction, 100_u128),
                     get_decimal_from_uint128(amount),
                 ));
 
@@ -185,7 +185,7 @@ pub fn validate_user_portfolio(
     storage: &mut dyn Storage,
     user_portfolio: &Vec<UserStrategyPortfolio>,
 ) -> Result<bool, ContractError> {
-    let mut total_deposit_fraction = Decimal::zero();
+    let mut total_deposit_fraction = Uint128::zero();
     for u in user_portfolio {
         let strategy_id = u.strategy_id;
         if STRATEGY_MAP
@@ -195,11 +195,12 @@ pub fn validate_user_portfolio(
             return Err(ContractError::StrategyInfoDoesNotExist {});
         }
 
-        total_deposit_fraction =
-            decimal_summation_in_256(total_deposit_fraction, u.deposit_fraction);
+        total_deposit_fraction = total_deposit_fraction
+            .checked_add(u.deposit_fraction)
+            .unwrap();
     }
 
-    if total_deposit_fraction > Decimal::one() {
+    if total_deposit_fraction > Uint128::new(100_u128) {
         return Err(ContractError::InvalidPortfolioDepositFraction {});
     }
 
@@ -271,7 +272,7 @@ mod tests {
             deps.as_mut().storage,
             &vec![UserStrategyPortfolio {
                 strategy_id: 1,
-                deposit_fraction: Decimal::from_ratio(1_u128, 2_u128),
+                deposit_fraction: Uint128::new(50_u128),
             }],
         )
         .unwrap_err();
@@ -296,11 +297,11 @@ mod tests {
             &vec![
                 UserStrategyPortfolio {
                     strategy_id: 1,
-                    deposit_fraction: Decimal::from_ratio(1_u128, 2_u128),
+                    deposit_fraction: Uint128::new(50_u128),
                 },
                 UserStrategyPortfolio {
                     strategy_id: 2,
-                    deposit_fraction: Decimal::from_ratio(3_u128, 4_u128),
+                    deposit_fraction: Uint128::new(75_u128),
                 },
             ],
         )
@@ -329,11 +330,11 @@ mod tests {
             &vec![
                 UserStrategyPortfolio {
                     strategy_id: 1,
-                    deposit_fraction: Decimal::from_ratio(1_u128, 2_u128),
+                    deposit_fraction: Uint128::new(50_u128),
                 },
                 UserStrategyPortfolio {
                     strategy_id: 2,
-                    deposit_fraction: Decimal::from_ratio(1_u128, 2_u128),
+                    deposit_fraction: Uint128::new(50_u128),
                 },
             ],
         )
@@ -530,15 +531,15 @@ mod tests {
         user_reward_info.user_portfolio = vec![
             UserStrategyPortfolio {
                 strategy_id: 1,
-                deposit_fraction: Decimal::from_ratio(1_u128, 4_u128),
+                deposit_fraction: Uint128::new(25_u128),
             },
             UserStrategyPortfolio {
                 strategy_id: 2,
-                deposit_fraction: Decimal::from_ratio(1_u128, 4_u128),
+                deposit_fraction: Uint128::new(25_u128),
             },
             UserStrategyPortfolio {
                 strategy_id: 3,
-                deposit_fraction: Decimal::from_ratio(1_u128, 4_u128),
+                deposit_fraction: Uint128::new(25_u128),
             },
         ];
 
@@ -619,15 +620,15 @@ mod tests {
         user_reward_info.user_portfolio = vec![
             UserStrategyPortfolio {
                 strategy_id: 1,
-                deposit_fraction: Decimal::from_ratio(1_u128, 4_u128),
+                deposit_fraction: Uint128::new(25_u128),
             },
             UserStrategyPortfolio {
                 strategy_id: 2,
-                deposit_fraction: Decimal::from_ratio(1_u128, 4_u128),
+                deposit_fraction: Uint128::new(25_u128),
             },
             UserStrategyPortfolio {
                 strategy_id: 3,
-                deposit_fraction: Decimal::from_ratio(1_u128, 4_u128),
+                deposit_fraction: Uint128::new(25_u128),
             },
         ];
 

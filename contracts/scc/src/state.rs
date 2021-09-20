@@ -160,11 +160,12 @@ pub struct UserUndelegationRecord {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct UserStrategyPortfolio {
     pub strategy_id: u64,
-    pub deposit_fraction: Decimal,
+    // deposit_fraction is always b/w 0 and 100
+    pub deposit_fraction: Uint128,
 }
 
 impl UserStrategyPortfolio {
-    pub fn new(strategy_id: u64, deposit_fraction: Decimal) -> Self {
+    pub fn new(strategy_id: u64, deposit_fraction: Uint128) -> Self {
         UserStrategyPortfolio {
             strategy_id,
             deposit_fraction,
