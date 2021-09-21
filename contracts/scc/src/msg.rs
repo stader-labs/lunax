@@ -101,6 +101,13 @@ pub enum ExecuteMsg {
     FetchUndelegatedRewardsFromStrategies {
         strategies: Vec<u64>,
     },
+    // called by scc manager to periodically claim airdrops for a particular strategy if it supported
+    ClaimAirdrops {
+        amount: Uint128,
+        denom: String,
+        claim_msg: Binary,
+        strategy_id: u64,
+    },
     /*
        Pools contract messages
     */
@@ -125,25 +132,17 @@ pub enum ExecuteMsg {
        User messages
     */
     // called by user to undelegate his rewards from a strategy. This will begin unbonding the rewards
-    // in the strategy.
+    // in the strategy. If the strategy_id is 0, then this will directly send the retained rewards to the
+    // user.
     UndelegateRewards {
         amount: Uint128,
         strategy_id: u64,
     },
-    // called by scc manager to periodically claim airdrops for a particular strategy if it supported
-    ClaimAirdrops {
-        amount: Uint128,
-        denom: String,
-        claim_msg: Binary,
-        strategy_id: u64,
-    },
+    // called by user to withdraw the rewards after the unbonding period
     WithdrawRewards {
         undelegation_id: u64,
         strategy_id: u64,
     },
-    // called by the user to withdraw pending rewards i.e rewards which are not in any strategy. These rewards
-    // fall under the "RETAIN_REWARDS" strategy.
-    WithdrawPendingRewards {},
     // called by the user to withdraw all of her pending airdrops
     WithdrawAirdrops {},
     // called by user to directly deposit to SICs according to portfolio or give a strategy override

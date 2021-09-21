@@ -25,7 +25,7 @@ use crate::state::{
 };
 use crate::user::{compute_user_airdrops_across_strategies, get_user_airdrops};
 use cw2::set_contract_version;
-use cw_storage_plus::U64Key;
+use cw_storage_plus::{Item, U64Key};
 use sic_base::msg::ExecuteMsg as sic_execute_msg;
 use stader_utils::coin_utils::{
     decimal_division_in_256, decimal_multiplication_in_256, decimal_subtraction_in_256,
@@ -157,7 +157,6 @@ pub fn execute(
         ExecuteMsg::FetchUndelegatedRewardsFromStrategies { strategies } => {
             fetch_undelegated_rewards_from_strategies(deps, _env, info, strategies)
         }
-        ExecuteMsg::WithdrawPendingRewards {} => withdraw_pending_rewards(deps, _env, info),
         ExecuteMsg::DepositFunds { strategy_override } => {
             deposit_funds(deps, _env, info, strategy_override)
         }
@@ -254,45 +253,6 @@ pub fn update_strategy(
     )?;
 
     Ok(Response::default())
-}
-
-pub fn withdraw_pending_rewards(
-    deps: DepsMut,
-    _env: Env,
-    info: MessageInfo,
-) -> Result<Response, ContractError> {
-    let state = STATE.load(deps.storage)?;
-
-    let user_addr = info.sender;
-
-    let mut user_reward_info =
-        if let Some(user_reward_info) = USER_REWARD_INFO_MAP.may_load(deps.storage, &user_addr)? {
-            user_reward_info
-        } else {
-            return Err(ContractError::UserRewardInfoDoesNotExist {});
-        };
-
-    let user_pending_rewards = user_reward_info.pending_rewards;
-    if user_pending_rewards.is_zero() {
-        return Ok(Response::new().add_attribute("zero_pending_rewards", "1"));
-    }
-
-    user_reward_info.pending_rewards = Uint128::zero();
-
-    USER_REWARD_INFO_MAP.save(deps.storage, &user_addr, &user_reward_info)?;
-
-    STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
-        state.rewards_in_scc = state
-            .rewards_in_scc
-            .checked_sub(user_pending_rewards)
-            .unwrap();
-        Ok(state)
-    })?;
-
-    Ok(Response::new().add_message(send_funds_msg(
-        &user_addr,
-        &[Coin::new(user_pending_rewards.u128(), state.scc_denom)],
-    )))
 }
 
 pub fn fetch_undelegated_rewards_from_strategies(
@@ -568,6 +528,44 @@ pub fn update_cw20_contracts_registry(
     Ok(Response::default())
 }
 
+pub fn withdraw_pending_rewards(
+    deps: DepsMut,
+    _env: Env,
+    _info: MessageInfo,
+    user_addr: Addr,
+) -> Result<Response, ContractError> {
+    let state = STATE.load(deps.storage)?;
+
+    let mut user_reward_info =
+        if let Some(user_reward_info) = USER_REWARD_INFO_MAP.may_load(deps.storage, &user_addr)? {
+            user_reward_info
+        } else {
+            return Err(ContractError::UserRewardInfoDoesNotExist {});
+        };
+
+    let user_pending_rewards = user_reward_info.pending_rewards;
+    if user_pending_rewards.is_zero() {
+        return Ok(Response::new().add_attribute("zero_pending_rewards", "1"));
+    }
+
+    user_reward_info.pending_rewards = Uint128::zero();
+
+    USER_REWARD_INFO_MAP.save(deps.storage, &user_addr, &user_reward_info)?;
+
+    STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
+        state.rewards_in_scc = state
+            .rewards_in_scc
+            .checked_sub(user_pending_rewards)
+            .unwrap();
+        Ok(state)
+    })?;
+
+    Ok(Response::new().add_message(send_funds_msg(
+        &user_addr,
+        &[Coin::new(user_pending_rewards.u128(), state.scc_denom)],
+    )))
+}
+
 pub fn undelegate_user_rewards(
     deps: DepsMut,
     _env: Env,
@@ -577,11 +575,15 @@ pub fn undelegate_user_rewards(
 ) -> Result<Response, ContractError> {
     let state = STATE.load(deps.storage)?;
 
+    let user_addr = info.sender.clone();
+
+    if strategy_id.eq(&0) {
+        return withdraw_pending_rewards(deps, _env, info, user_addr);
+    }
+
     if amount.is_zero() {
         return Err(ContractError::CannotUndelegateZeroFunds {});
     }
-
-    let user_addr = info.sender;
 
     let mut strategy_info = if let Some(strategy_info) =
         STRATEGY_MAP.may_load(deps.storage, U64Key::new(strategy_id))?

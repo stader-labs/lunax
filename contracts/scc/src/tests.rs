@@ -3977,6 +3977,22 @@ mod tests {
             err,
             ContractError::UserDoesNotHaveEnoughRewards {}
         ));
+
+        /*
+           Test - 6. User withdrew from strategy_id 0 with user reward info not present
+        */
+        let user2 = Addr::unchecked("user2");
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info(user2.as_str(), &[]),
+            ExecuteMsg::UndelegateRewards {
+                amount: Uint128::new(400_u128),
+                strategy_id: 0,
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::UserRewardInfoDoesNotExist {}));
     }
 
     #[test]
@@ -4290,6 +4306,155 @@ mod tests {
         assert_ne!(state_response.state, None);
         let state = state_response.state.unwrap();
         assert_eq!(state.next_undelegation_id, 2);
+
+        /*
+           Test - 3. User undelegates from strategy_id 0 with some pending rewards
+        */
+        STATE
+            .update(
+                deps.as_mut().storage,
+                |mut state| -> Result<_, ContractError> {
+                    state.next_strategy_id = 1;
+                    state.rewards_in_scc = Uint128::new(100_u128);
+                    Ok(state)
+                },
+            )
+            .unwrap();
+        USER_REWARD_INFO_MAP
+            .save(
+                deps.as_mut().storage,
+                &user1,
+                &UserRewardInfo {
+                    user_portfolio: vec![],
+                    strategies: vec![UserStrategyInfo {
+                        strategy_id: 1,
+                        shares: Decimal::from_ratio(1000_u128, 1_u128),
+                        airdrop_pointer: vec![
+                            DecCoin::new(
+                                Decimal::from_ratio(200_u128, 5000_u128),
+                                "anc".to_string(),
+                            ),
+                            DecCoin::new(
+                                Decimal::from_ratio(400_u128, 5000_u128),
+                                "mir".to_string(),
+                            ),
+                        ],
+                    }],
+                    pending_airdrops: vec![
+                        Coin::new(120_u128, "anc".to_string()),
+                        Coin::new(240_u128, "mir".to_string()),
+                    ],
+                    undelegation_records: vec![UserUndelegationRecord {
+                        id: 0,
+                        amount: Uint128::new(200_u128),
+                        shares: Decimal::from_ratio(2000_u128, 1_u128),
+                        strategy_id: 1,
+                        undelegation_batch_id: 0,
+                    }],
+                    pending_rewards: Uint128::new(50_u128),
+                },
+            )
+            .unwrap();
+
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info(user1.as_str(), &[]),
+            ExecuteMsg::UndelegateRewards {
+                amount: Uint128::new(50_u128),
+                strategy_id: 0,
+            },
+        )
+        .unwrap();
+        assert_eq!(res.messages.len(), 1);
+        assert!(check_equal_vec(
+            res.messages,
+            vec![SubMsg::new(BankMsg::Send {
+                to_address: user1.to_string(),
+                amount: vec![Coin::new(50_u128, "uluna".to_string())]
+            })]
+        ));
+
+        let user1_reward_info_opt = USER_REWARD_INFO_MAP
+            .may_load(deps.as_mut().storage, &user1)
+            .unwrap();
+        assert_ne!(user1_reward_info_opt, None);
+        let user1_reward_info = user1_reward_info_opt.unwrap();
+        assert_eq!(user1_reward_info.pending_rewards, Uint128::zero());
+        let state_response: GetStateResponse =
+            from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::GetState {}).unwrap())
+                .unwrap();
+        assert_ne!(state_response.state, None);
+        let state = state_response.state.unwrap();
+        assert_eq!(state.rewards_in_scc, Uint128::new(50_u128));
+
+        /*
+            Test - 4. User undelegates from strategy_id 0 with no pending rewards
+        */
+        STATE
+            .update(
+                deps.as_mut().storage,
+                |mut state| -> Result<_, ContractError> {
+                    state.next_strategy_id = 1;
+                    state.rewards_in_scc = Uint128::new(100_u128);
+                    Ok(state)
+                },
+            )
+            .unwrap();
+        USER_REWARD_INFO_MAP
+            .save(
+                deps.as_mut().storage,
+                &user1,
+                &UserRewardInfo {
+                    user_portfolio: vec![],
+                    strategies: vec![UserStrategyInfo {
+                        strategy_id: 1,
+                        shares: Decimal::from_ratio(1000_u128, 1_u128),
+                        airdrop_pointer: vec![
+                            DecCoin::new(
+                                Decimal::from_ratio(200_u128, 5000_u128),
+                                "anc".to_string(),
+                            ),
+                            DecCoin::new(
+                                Decimal::from_ratio(400_u128, 5000_u128),
+                                "mir".to_string(),
+                            ),
+                        ],
+                    }],
+                    pending_airdrops: vec![
+                        Coin::new(120_u128, "anc".to_string()),
+                        Coin::new(240_u128, "mir".to_string()),
+                    ],
+                    undelegation_records: vec![UserUndelegationRecord {
+                        id: 0,
+                        amount: Uint128::new(200_u128),
+                        shares: Decimal::from_ratio(2000_u128, 1_u128),
+                        strategy_id: 1,
+                        undelegation_batch_id: 0,
+                    }],
+                    pending_rewards: Uint128::zero(),
+                },
+            )
+            .unwrap();
+
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info(user1.as_str(), &[]),
+            ExecuteMsg::UndelegateRewards {
+                amount: Uint128::new(50_u128),
+                strategy_id: 0,
+            },
+        )
+        .unwrap();
+        assert_eq!(res.attributes.len(), 1);
+        assert!(check_equal_vec(
+            res.attributes,
+            vec![Attribute {
+                key: "zero_pending_rewards".to_string(),
+                value: "1".to_string()
+            }]
+        ));
     }
 
     #[test]
@@ -4885,165 +5050,6 @@ mod tests {
                 Coin::new(400_u128, "pyl".to_string())
             ]
         ));
-    }
-
-    #[test]
-    fn test_try_withdraw_pending_rewards_fail() {
-        let mut deps = mock_dependencies(&[]);
-        let info = mock_info("creator", &coins(1000, "earth"));
-        let env = mock_env();
-
-        let _res = instantiate_contract(
-            &mut deps,
-            &info,
-            &env,
-            Some(String::from("uluna")),
-            Some(String::from("delegator_contract")),
-            None,
-        );
-
-        fn get_airdrop_claim_msg() -> Binary {
-            Binary::from(vec![1, 2, 3, 4, 5, 6, 7, 8, 9])
-        }
-
-        /*
-           Test - 1. User reward info not present
-        */
-        let err = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info("user1", &[]),
-            ExecuteMsg::WithdrawPendingRewards {},
-        )
-        .unwrap_err();
-        assert!(matches!(err, ContractError::UserRewardInfoDoesNotExist {}))
-    }
-
-    #[test]
-    fn test_try_withdraw_pending_rewards_success() {
-        let mut deps = mock_dependencies(&[]);
-        let info = mock_info("creator", &coins(1000, "earth"));
-        let env = mock_env();
-
-        let _res = instantiate_contract(
-            &mut deps,
-            &info,
-            &env,
-            Some(String::from("uluna")),
-            Some(String::from("delegator_contract")),
-            None,
-        );
-        let user1 = Addr::unchecked("user1");
-
-        /*
-           Test - 1. User reward info with non-zero pending rewards
-        */
-        USER_REWARD_INFO_MAP
-            .save(
-                deps.as_mut().storage,
-                &user1,
-                &UserRewardInfo {
-                    user_portfolio: vec![],
-                    strategies: vec![],
-                    pending_airdrops: vec![],
-                    undelegation_records: vec![],
-                    pending_rewards: Uint128::new(1000_u128),
-                },
-            )
-            .unwrap();
-        STATE
-            .update(
-                deps.as_mut().storage,
-                |mut state| -> Result<_, ContractError> {
-                    state.rewards_in_scc = Uint128::new(2000_u128);
-                    Ok(state)
-                },
-            )
-            .unwrap();
-
-        let res = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info("user1", &[]),
-            ExecuteMsg::WithdrawPendingRewards {},
-        )
-        .unwrap();
-        assert_eq!(res.messages.len(), 1);
-        assert!(check_equal_vec(
-            res.messages,
-            vec![SubMsg::new(BankMsg::Send {
-                to_address: "user1".to_string(),
-                amount: vec![Coin::new(1000_u128, "uluna".to_string())]
-            })]
-        ));
-        let user1_reward_info_opt = USER_REWARD_INFO_MAP
-            .may_load(deps.as_mut().storage, &user1)
-            .unwrap();
-        assert_ne!(user1_reward_info_opt, None);
-        let user1_reward_info = user1_reward_info_opt.unwrap();
-        assert_eq!(user1_reward_info.pending_rewards, Uint128::zero());
-
-        let state_response: GetStateResponse =
-            from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::GetState {}).unwrap())
-                .unwrap();
-        assert_ne!(state_response.state, None);
-        let state = state_response.state.unwrap();
-        assert_eq!(state.rewards_in_scc, Uint128::new(1000_u128));
-
-        /*
-            Test - 2. User reward info with zero pending rewards
-        */
-        USER_REWARD_INFO_MAP
-            .save(
-                deps.as_mut().storage,
-                &user1,
-                &UserRewardInfo {
-                    user_portfolio: vec![],
-                    strategies: vec![],
-                    pending_airdrops: vec![],
-                    undelegation_records: vec![],
-                    pending_rewards: Uint128::new(0_u128),
-                },
-            )
-            .unwrap();
-        STATE
-            .update(
-                deps.as_mut().storage,
-                |mut state| -> Result<_, ContractError> {
-                    state.rewards_in_scc = Uint128::new(3000_u128);
-                    Ok(state)
-                },
-            )
-            .unwrap();
-        let res = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info("user1", &[]),
-            ExecuteMsg::WithdrawPendingRewards {},
-        )
-        .unwrap();
-        assert_eq!(res.messages.len(), 0);
-        assert_eq!(res.attributes.len(), 1);
-        assert!(check_equal_vec(
-            res.attributes,
-            vec![Attribute {
-                key: "zero_pending_rewards".to_string(),
-                value: "1".to_string()
-            }]
-        ));
-        let user1_reward_info_opt = USER_REWARD_INFO_MAP
-            .may_load(deps.as_mut().storage, &user1)
-            .unwrap();
-        assert_ne!(user1_reward_info_opt, None);
-        let user1_reward_info = user1_reward_info_opt.unwrap();
-        assert_eq!(user1_reward_info.pending_rewards, Uint128::zero());
-
-        let state_response: GetStateResponse =
-            from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::GetState {}).unwrap())
-                .unwrap();
-        assert_ne!(state_response.state, None);
-        let state = state_response.state.unwrap();
-        assert_eq!(state.rewards_in_scc, Uint128::new(3000_u128));
     }
 
     #[test]
