@@ -271,16 +271,20 @@ mod tests {
         /*
             Test - 2. Invalid deposit fraction
         */
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(1),
-            &StrategyInfo::default("sid1".to_string()),
-        );
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(2),
-            &StrategyInfo::default("sid2".to_string()),
-        );
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(1),
+                &StrategyInfo::default("sid1".to_string()),
+            )
+            .unwrap();
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(2),
+                &StrategyInfo::default("sid2".to_string()),
+            )
+            .unwrap();
 
         let err = validate_user_portfolio(
             deps.as_mut().storage,
@@ -304,16 +308,20 @@ mod tests {
         /*
             Test - 3. Valid portfolio
         */
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(1),
-            &StrategyInfo::default("sid1".to_string()),
-        );
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(2),
-            &StrategyInfo::default("sid2".to_string()),
-        );
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(1),
+                &StrategyInfo::default("sid1".to_string()),
+            )
+            .unwrap();
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(2),
+                &StrategyInfo::default("sid2".to_string()),
+            )
+            .unwrap();
 
         let res = validate_user_portfolio(
             deps.as_mut().storage,
@@ -333,7 +341,7 @@ mod tests {
     }
 
     #[test]
-    fn test__get_expected_strategy_or_default() {
+    fn test_get_expected_strategy_or_default() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -349,54 +357,58 @@ mod tests {
         /*
            Test - 2. Strategy is not active
         */
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(1),
-            &StrategyInfo {
-                name: "sid1".to_string(),
-                sic_contract_address: Addr::unchecked("abc"),
-                unbonding_period: 0,
-                unbonding_buffer: 0,
-                undelegation_batch_id_pointer: 0,
-                reconciled_batch_id_pointer: 0,
-                is_active: false,
-                total_shares: Default::default(),
-                current_undelegated_shares: Default::default(),
-                global_airdrop_pointer: vec![],
-                total_airdrops_accumulated: vec![],
-                shares_per_token_ratio: Default::default(),
-            },
-        );
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(1),
+                &StrategyInfo {
+                    name: "sid1".to_string(),
+                    sic_contract_address: Addr::unchecked("abc"),
+                    unbonding_period: 0,
+                    unbonding_buffer: 0,
+                    undelegation_batch_id_pointer: 0,
+                    reconciled_batch_id_pointer: 0,
+                    is_active: false,
+                    total_shares: Default::default(),
+                    current_undelegated_shares: Default::default(),
+                    global_airdrop_pointer: vec![],
+                    total_airdrops_accumulated: vec![],
+                    shares_per_token_ratio: Default::default(),
+                },
+            )
+            .unwrap();
         let strategy_id = get_expected_strategy_or_default(deps.as_mut().storage, 1, 0).unwrap();
         assert_eq!(strategy_id, 0);
 
         /*
            Test - 3. Strategy is good
         */
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(1),
-            &StrategyInfo {
-                name: "sid1".to_string(),
-                sic_contract_address: Addr::unchecked("abc"),
-                unbonding_period: 0,
-                unbonding_buffer: 0,
-                undelegation_batch_id_pointer: 0,
-                reconciled_batch_id_pointer: 0,
-                is_active: true,
-                total_shares: Default::default(),
-                current_undelegated_shares: Default::default(),
-                global_airdrop_pointer: vec![],
-                total_airdrops_accumulated: vec![],
-                shares_per_token_ratio: Default::default(),
-            },
-        );
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(1),
+                &StrategyInfo {
+                    name: "sid1".to_string(),
+                    sic_contract_address: Addr::unchecked("abc"),
+                    unbonding_period: 0,
+                    unbonding_buffer: 0,
+                    undelegation_batch_id_pointer: 0,
+                    reconciled_batch_id_pointer: 0,
+                    is_active: true,
+                    total_shares: Default::default(),
+                    current_undelegated_shares: Default::default(),
+                    global_airdrop_pointer: vec![],
+                    total_airdrops_accumulated: vec![],
+                    shares_per_token_ratio: Default::default(),
+                },
+            )
+            .unwrap();
         let strategy_id = get_expected_strategy_or_default(deps.as_mut().storage, 1, 0).unwrap();
         assert_eq!(strategy_id, 1);
     }
 
     #[test]
-    fn test__get_strategy_split() {
+    fn test_get_strategy_split() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -407,11 +419,13 @@ mod tests {
            Test - 1. There is a strategy override and the strategy is not active
         */
         let config = CONFIG.load(deps.as_mut().storage).unwrap();
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(1),
-            &StrategyInfo::default("sid1".to_string()),
-        );
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(1),
+                &StrategyInfo::default("sid1".to_string()),
+            )
+            .unwrap();
 
         let split = get_strategy_split(
             deps.as_mut().storage,
@@ -428,24 +442,26 @@ mod tests {
             Test - 2. There is a strategy override and the strategy is active
         */
         let config = CONFIG.load(deps.as_mut().storage).unwrap();
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(1),
-            &StrategyInfo {
-                name: "sid1".to_string(),
-                sic_contract_address: Addr::unchecked("abc"),
-                unbonding_period: 0,
-                unbonding_buffer: 0,
-                undelegation_batch_id_pointer: 0,
-                reconciled_batch_id_pointer: 0,
-                is_active: true,
-                total_shares: Default::default(),
-                current_undelegated_shares: Default::default(),
-                global_airdrop_pointer: vec![],
-                total_airdrops_accumulated: vec![],
-                shares_per_token_ratio: Default::default(),
-            },
-        );
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(1),
+                &StrategyInfo {
+                    name: "sid1".to_string(),
+                    sic_contract_address: Addr::unchecked("abc"),
+                    unbonding_period: 0,
+                    unbonding_buffer: 0,
+                    undelegation_batch_id_pointer: 0,
+                    reconciled_batch_id_pointer: 0,
+                    is_active: true,
+                    total_shares: Default::default(),
+                    current_undelegated_shares: Default::default(),
+                    global_airdrop_pointer: vec![],
+                    total_airdrops_accumulated: vec![],
+                    shares_per_token_ratio: Default::default(),
+                },
+            )
+            .unwrap();
 
         let split = get_strategy_split(
             deps.as_mut().storage,
@@ -462,60 +478,66 @@ mod tests {
             Test - 3. There is no strategy override and all strategies are active
         */
         let config = CONFIG.load(deps.as_mut().storage).unwrap();
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(1),
-            &StrategyInfo {
-                name: "sid1".to_string(),
-                sic_contract_address: Addr::unchecked("abc"),
-                unbonding_period: 0,
-                unbonding_buffer: 0,
-                undelegation_batch_id_pointer: 0,
-                reconciled_batch_id_pointer: 0,
-                is_active: true,
-                total_shares: Default::default(),
-                current_undelegated_shares: Default::default(),
-                global_airdrop_pointer: vec![],
-                total_airdrops_accumulated: vec![],
-                shares_per_token_ratio: Default::default(),
-            },
-        );
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(2),
-            &StrategyInfo {
-                name: "sid2".to_string(),
-                sic_contract_address: Addr::unchecked("abc"),
-                unbonding_period: 0,
-                unbonding_buffer: 0,
-                undelegation_batch_id_pointer: 0,
-                reconciled_batch_id_pointer: 0,
-                is_active: true,
-                total_shares: Default::default(),
-                current_undelegated_shares: Default::default(),
-                global_airdrop_pointer: vec![],
-                total_airdrops_accumulated: vec![],
-                shares_per_token_ratio: Default::default(),
-            },
-        );
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(3),
-            &StrategyInfo {
-                name: "sid3".to_string(),
-                sic_contract_address: Addr::unchecked("abc"),
-                unbonding_period: 0,
-                unbonding_buffer: 0,
-                undelegation_batch_id_pointer: 0,
-                reconciled_batch_id_pointer: 0,
-                is_active: true,
-                total_shares: Default::default(),
-                current_undelegated_shares: Default::default(),
-                global_airdrop_pointer: vec![],
-                total_airdrops_accumulated: vec![],
-                shares_per_token_ratio: Default::default(),
-            },
-        );
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(1),
+                &StrategyInfo {
+                    name: "sid1".to_string(),
+                    sic_contract_address: Addr::unchecked("abc"),
+                    unbonding_period: 0,
+                    unbonding_buffer: 0,
+                    undelegation_batch_id_pointer: 0,
+                    reconciled_batch_id_pointer: 0,
+                    is_active: true,
+                    total_shares: Default::default(),
+                    current_undelegated_shares: Default::default(),
+                    global_airdrop_pointer: vec![],
+                    total_airdrops_accumulated: vec![],
+                    shares_per_token_ratio: Default::default(),
+                },
+            )
+            .unwrap();
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(2),
+                &StrategyInfo {
+                    name: "sid2".to_string(),
+                    sic_contract_address: Addr::unchecked("abc"),
+                    unbonding_period: 0,
+                    unbonding_buffer: 0,
+                    undelegation_batch_id_pointer: 0,
+                    reconciled_batch_id_pointer: 0,
+                    is_active: true,
+                    total_shares: Default::default(),
+                    current_undelegated_shares: Default::default(),
+                    global_airdrop_pointer: vec![],
+                    total_airdrops_accumulated: vec![],
+                    shares_per_token_ratio: Default::default(),
+                },
+            )
+            .unwrap();
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(3),
+                &StrategyInfo {
+                    name: "sid3".to_string(),
+                    sic_contract_address: Addr::unchecked("abc"),
+                    unbonding_period: 0,
+                    unbonding_buffer: 0,
+                    undelegation_batch_id_pointer: 0,
+                    reconciled_batch_id_pointer: 0,
+                    is_active: true,
+                    total_shares: Default::default(),
+                    current_undelegated_shares: Default::default(),
+                    global_airdrop_pointer: vec![],
+                    total_airdrops_accumulated: vec![],
+                    shares_per_token_ratio: Default::default(),
+                },
+            )
+            .unwrap();
 
         let mut user_reward_info = UserRewardInfo::default();
         user_reward_info.user_portfolio = vec![
@@ -551,60 +573,66 @@ mod tests {
             Test - 4. There is no strategy override and 2/3 strategies are inactive
         */
         let config = CONFIG.load(deps.as_mut().storage).unwrap();
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(1),
-            &StrategyInfo {
-                name: "sid1".to_string(),
-                sic_contract_address: Addr::unchecked("abc"),
-                unbonding_period: 0,
-                unbonding_buffer: 0,
-                undelegation_batch_id_pointer: 0,
-                reconciled_batch_id_pointer: 0,
-                is_active: true,
-                total_shares: Default::default(),
-                current_undelegated_shares: Default::default(),
-                global_airdrop_pointer: vec![],
-                total_airdrops_accumulated: vec![],
-                shares_per_token_ratio: Default::default(),
-            },
-        );
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(2),
-            &StrategyInfo {
-                name: "sid2".to_string(),
-                sic_contract_address: Addr::unchecked("abc"),
-                unbonding_period: 0,
-                unbonding_buffer: 0,
-                undelegation_batch_id_pointer: 0,
-                reconciled_batch_id_pointer: 0,
-                is_active: false,
-                total_shares: Default::default(),
-                current_undelegated_shares: Default::default(),
-                global_airdrop_pointer: vec![],
-                total_airdrops_accumulated: vec![],
-                shares_per_token_ratio: Default::default(),
-            },
-        );
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(3),
-            &StrategyInfo {
-                name: "sid3".to_string(),
-                sic_contract_address: Addr::unchecked("abc"),
-                unbonding_period: 0,
-                unbonding_buffer: 0,
-                undelegation_batch_id_pointer: 0,
-                reconciled_batch_id_pointer: 0,
-                is_active: false,
-                total_shares: Default::default(),
-                current_undelegated_shares: Default::default(),
-                global_airdrop_pointer: vec![],
-                total_airdrops_accumulated: vec![],
-                shares_per_token_ratio: Default::default(),
-            },
-        );
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(1),
+                &StrategyInfo {
+                    name: "sid1".to_string(),
+                    sic_contract_address: Addr::unchecked("abc"),
+                    unbonding_period: 0,
+                    unbonding_buffer: 0,
+                    undelegation_batch_id_pointer: 0,
+                    reconciled_batch_id_pointer: 0,
+                    is_active: true,
+                    total_shares: Default::default(),
+                    current_undelegated_shares: Default::default(),
+                    global_airdrop_pointer: vec![],
+                    total_airdrops_accumulated: vec![],
+                    shares_per_token_ratio: Default::default(),
+                },
+            )
+            .unwrap();
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(2),
+                &StrategyInfo {
+                    name: "sid2".to_string(),
+                    sic_contract_address: Addr::unchecked("abc"),
+                    unbonding_period: 0,
+                    unbonding_buffer: 0,
+                    undelegation_batch_id_pointer: 0,
+                    reconciled_batch_id_pointer: 0,
+                    is_active: false,
+                    total_shares: Default::default(),
+                    current_undelegated_shares: Default::default(),
+                    global_airdrop_pointer: vec![],
+                    total_airdrops_accumulated: vec![],
+                    shares_per_token_ratio: Default::default(),
+                },
+            )
+            .unwrap();
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(3),
+                &StrategyInfo {
+                    name: "sid3".to_string(),
+                    sic_contract_address: Addr::unchecked("abc"),
+                    unbonding_period: 0,
+                    unbonding_buffer: 0,
+                    undelegation_batch_id_pointer: 0,
+                    reconciled_batch_id_pointer: 0,
+                    is_active: false,
+                    total_shares: Default::default(),
+                    current_undelegated_shares: Default::default(),
+                    global_airdrop_pointer: vec![],
+                    total_airdrops_accumulated: vec![],
+                    shares_per_token_ratio: Default::default(),
+                },
+            )
+            .unwrap();
 
         let mut user_reward_info = UserRewardInfo::default();
         user_reward_info.user_portfolio = vec![
@@ -638,7 +666,7 @@ mod tests {
     }
 
     #[test]
-    fn test__get_strategy_shares_per_token_ratio() {
+    fn test_get_strategy_shares_per_token_ratio() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -654,24 +682,26 @@ mod tests {
         contracts_to_tokens.insert(sic1_address.clone(), Uint128::new(500_u128));
         deps.querier.update_wasm(Some(contracts_to_tokens), None);
 
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(1),
-            &StrategyInfo {
-                name: "sid1".to_string(),
-                sic_contract_address: sic1_address.clone(),
-                unbonding_period: 3600,
-                unbonding_buffer: 3600,
-                undelegation_batch_id_pointer: 0,
-                reconciled_batch_id_pointer: 0,
-                is_active: false,
-                total_shares: Decimal::from_ratio(1000_u128, 1_u128),
-                current_undelegated_shares: Default::default(),
-                global_airdrop_pointer: vec![],
-                total_airdrops_accumulated: vec![],
-                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-            },
-        );
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(1),
+                &StrategyInfo {
+                    name: "sid1".to_string(),
+                    sic_contract_address: sic1_address.clone(),
+                    unbonding_period: 3600,
+                    unbonding_buffer: 3600,
+                    undelegation_batch_id_pointer: 0,
+                    reconciled_batch_id_pointer: 0,
+                    is_active: false,
+                    total_shares: Decimal::from_ratio(1000_u128, 1_u128),
+                    current_undelegated_shares: Default::default(),
+                    global_airdrop_pointer: vec![],
+                    total_airdrops_accumulated: vec![],
+                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                },
+            )
+            .unwrap();
 
         let strategy_info = STRATEGY_MAP
             .may_load(deps.as_mut().storage, U64Key::new(1))
@@ -689,24 +719,26 @@ mod tests {
         contracts_to_tokens.insert(sic1_address.clone(), Uint128::new(50_u128));
         deps.querier.update_wasm(Some(contracts_to_tokens), None);
 
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(1),
-            &StrategyInfo {
-                name: "sid1".to_string(),
-                sic_contract_address: sic1_address.clone(),
-                unbonding_period: 3600,
-                unbonding_buffer: 3600,
-                undelegation_batch_id_pointer: 0,
-                reconciled_batch_id_pointer: 0,
-                is_active: false,
-                total_shares: Decimal::from_ratio(1000_u128, 1_u128),
-                current_undelegated_shares: Default::default(),
-                global_airdrop_pointer: vec![],
-                total_airdrops_accumulated: vec![],
-                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-            },
-        );
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(1),
+                &StrategyInfo {
+                    name: "sid1".to_string(),
+                    sic_contract_address: sic1_address.clone(),
+                    unbonding_period: 3600,
+                    unbonding_buffer: 3600,
+                    undelegation_batch_id_pointer: 0,
+                    reconciled_batch_id_pointer: 0,
+                    is_active: false,
+                    total_shares: Decimal::from_ratio(1000_u128, 1_u128),
+                    current_undelegated_shares: Default::default(),
+                    global_airdrop_pointer: vec![],
+                    total_airdrops_accumulated: vec![],
+                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                },
+            )
+            .unwrap();
 
         let strategy_info = STRATEGY_MAP
             .may_load(deps.as_mut().storage, U64Key::new(1))
@@ -719,7 +751,7 @@ mod tests {
     }
 
     #[test]
-    fn test__get_strategy_apr() {
+    fn test_get_strategy_apr() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();

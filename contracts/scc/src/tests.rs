@@ -162,126 +162,133 @@ mod tests {
 
         deps.querier.update_wasm(Some(contracts_to_token), None);
 
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(1),
-            &StrategyInfo {
-                name: "sid1".to_string(),
-                sic_contract_address: sic1_address.clone(),
-                unbonding_period: 3600,
-                unbonding_buffer: 3600,
-                undelegation_batch_id_pointer: 0,
-                reconciled_batch_id_pointer: 0,
-                is_active: true,
-                total_shares: Decimal::from_ratio(250_u128, 1_u128),
-                current_undelegated_shares: Decimal::zero(),
-                global_airdrop_pointer: vec![
-                    DecCoin::new(Decimal::from_ratio(20_u128, 250_u128), "anc".to_string()),
-                    DecCoin::new(Decimal::from_ratio(30_u128, 250_u128), "mir".to_string()),
-                ],
-                total_airdrops_accumulated: vec![
-                    Coin::new(20_u128, "anc".to_string()),
-                    Coin::new(30_u128, "mir".to_string()),
-                ],
-                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-            },
-        );
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(1),
+                &StrategyInfo {
+                    name: "sid1".to_string(),
+                    sic_contract_address: sic1_address.clone(),
+                    unbonding_period: 3600,
+                    unbonding_buffer: 3600,
+                    undelegation_batch_id_pointer: 0,
+                    reconciled_batch_id_pointer: 0,
+                    is_active: true,
+                    total_shares: Decimal::from_ratio(250_u128, 1_u128),
+                    current_undelegated_shares: Decimal::zero(),
+                    global_airdrop_pointer: vec![
+                        DecCoin::new(Decimal::from_ratio(20_u128, 250_u128), "anc".to_string()),
+                        DecCoin::new(Decimal::from_ratio(30_u128, 250_u128), "mir".to_string()),
+                    ],
+                    total_airdrops_accumulated: vec![
+                        Coin::new(20_u128, "anc".to_string()),
+                        Coin::new(30_u128, "mir".to_string()),
+                    ],
+                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                },
+            )
+            .unwrap();
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(2),
+                &StrategyInfo {
+                    name: "sid2".to_string(),
+                    sic_contract_address: sic2_address.clone(),
+                    unbonding_period: 7200,
+                    unbonding_buffer: 7200,
+                    undelegation_batch_id_pointer: 0,
+                    reconciled_batch_id_pointer: 0,
+                    is_active: true,
+                    total_shares: Decimal::from_ratio(250_u128, 1_u128),
+                    current_undelegated_shares: Decimal::from_ratio(100_u128, 1_u128),
+                    global_airdrop_pointer: vec![
+                        DecCoin::new(Decimal::from_ratio(20_u128, 250_u128), "anc".to_string()),
+                        DecCoin::new(Decimal::from_ratio(30_u128, 250_u128), "mir".to_string()),
+                    ],
+                    total_airdrops_accumulated: vec![
+                        Coin::new(20_u128, "anc".to_string()),
+                        Coin::new(30_u128, "mir".to_string()),
+                    ],
+                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                },
+            )
+            .unwrap();
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(3),
+                &StrategyInfo {
+                    name: "sid3".to_string(),
+                    sic_contract_address: sic3_address.clone(),
+                    unbonding_period: 14400,
+                    unbonding_buffer: 14400,
+                    undelegation_batch_id_pointer: 0,
+                    reconciled_batch_id_pointer: 0,
+                    is_active: true,
+                    total_shares: Decimal::from_ratio(250_u128, 1_u128),
+                    current_undelegated_shares: Decimal::zero(),
+                    global_airdrop_pointer: vec![
+                        DecCoin::new(Decimal::from_ratio(20_u128, 250_u128), "anc".to_string()),
+                        DecCoin::new(Decimal::from_ratio(30_u128, 250_u128), "mir".to_string()),
+                    ],
+                    total_airdrops_accumulated: vec![
+                        Coin::new(20_u128, "anc".to_string()),
+                        Coin::new(30_u128, "mir".to_string()),
+                    ],
+                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                },
+            )
+            .unwrap();
 
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(2),
-            &StrategyInfo {
-                name: "sid2".to_string(),
-                sic_contract_address: sic2_address.clone(),
-                unbonding_period: 7200,
-                unbonding_buffer: 7200,
-                undelegation_batch_id_pointer: 0,
-                reconciled_batch_id_pointer: 0,
-                is_active: true,
-                total_shares: Decimal::from_ratio(250_u128, 1_u128),
-                current_undelegated_shares: Decimal::from_ratio(100_u128, 1_u128),
-                global_airdrop_pointer: vec![
-                    DecCoin::new(Decimal::from_ratio(20_u128, 250_u128), "anc".to_string()),
-                    DecCoin::new(Decimal::from_ratio(30_u128, 250_u128), "mir".to_string()),
-                ],
-                total_airdrops_accumulated: vec![
-                    Coin::new(20_u128, "anc".to_string()),
-                    Coin::new(30_u128, "mir".to_string()),
-                ],
-                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-            },
-        );
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(3),
-            &StrategyInfo {
-                name: "sid3".to_string(),
-                sic_contract_address: sic3_address.clone(),
-                unbonding_period: 14400,
-                unbonding_buffer: 14400,
-                undelegation_batch_id_pointer: 0,
-                reconciled_batch_id_pointer: 0,
-                is_active: true,
-                total_shares: Decimal::from_ratio(250_u128, 1_u128),
-                current_undelegated_shares: Decimal::zero(),
-                global_airdrop_pointer: vec![
-                    DecCoin::new(Decimal::from_ratio(20_u128, 250_u128), "anc".to_string()),
-                    DecCoin::new(Decimal::from_ratio(30_u128, 250_u128), "mir".to_string()),
-                ],
-                total_airdrops_accumulated: vec![
-                    Coin::new(20_u128, "anc".to_string()),
-                    Coin::new(30_u128, "mir".to_string()),
-                ],
-                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-            },
-        );
-
-        USER_REWARD_INFO_MAP.save(
-            deps.as_mut().storage,
-            &user1,
-            &UserRewardInfo {
-                user_portfolio: vec![
-                    UserStrategyPortfolio {
+        USER_REWARD_INFO_MAP
+            .save(
+                deps.as_mut().storage,
+                &user1,
+                &UserRewardInfo {
+                    user_portfolio: vec![
+                        UserStrategyPortfolio {
+                            strategy_id: 1,
+                            deposit_fraction: Uint128::new(25_u128),
+                        },
+                        UserStrategyPortfolio {
+                            strategy_id: 2,
+                            deposit_fraction: Uint128::new(25_u128),
+                        },
+                        UserStrategyPortfolio {
+                            strategy_id: 3,
+                            deposit_fraction: Uint128::new(25_u128),
+                        },
+                    ],
+                    strategies: vec![
+                        UserStrategyInfo {
+                            strategy_id: 1,
+                            shares: Decimal::from_ratio(250_u128, 1_u128),
+                            airdrop_pointer: vec![],
+                        },
+                        UserStrategyInfo {
+                            strategy_id: 2,
+                            shares: Decimal::from_ratio(250_u128, 1_u128),
+                            airdrop_pointer: vec![],
+                        },
+                        UserStrategyInfo {
+                            strategy_id: 3,
+                            shares: Decimal::from_ratio(250_u128, 1_u128),
+                            airdrop_pointer: vec![],
+                        },
+                    ],
+                    pending_airdrops: vec![],
+                    undelegation_records: vec![UserUndelegationRecord {
+                        id: 0,
+                        amount: Uint128::new(100_u128),
+                        shares: Decimal::from_ratio(1000_u128, 1_u128),
                         strategy_id: 1,
-                        deposit_fraction: Uint128::new(25_u128),
-                    },
-                    UserStrategyPortfolio {
-                        strategy_id: 2,
-                        deposit_fraction: Uint128::new(25_u128),
-                    },
-                    UserStrategyPortfolio {
-                        strategy_id: 3,
-                        deposit_fraction: Uint128::new(25_u128),
-                    },
-                ],
-                strategies: vec![
-                    UserStrategyInfo {
-                        strategy_id: 1,
-                        shares: Decimal::from_ratio(250_u128, 1_u128),
-                        airdrop_pointer: vec![],
-                    },
-                    UserStrategyInfo {
-                        strategy_id: 2,
-                        shares: Decimal::from_ratio(250_u128, 1_u128),
-                        airdrop_pointer: vec![],
-                    },
-                    UserStrategyInfo {
-                        strategy_id: 3,
-                        shares: Decimal::from_ratio(250_u128, 1_u128),
-                        airdrop_pointer: vec![],
-                    },
-                ],
-                pending_airdrops: vec![],
-                undelegation_records: vec![UserUndelegationRecord {
-                    id: 0,
-                    amount: Uint128::new(100_u128),
-                    shares: Decimal::from_ratio(1000_u128, 1_u128),
-                    strategy_id: 1,
-                    undelegation_batch_id: 0,
-                }],
-                pending_rewards: Uint128::new(25_u128),
-            },
-        );
+                        undelegation_batch_id: 0,
+                    }],
+                    pending_rewards: Uint128::new(25_u128),
+                },
+            )
+            .unwrap();
 
         let user_response: GetUserResponse = from_binary(
             &query(
@@ -390,90 +397,98 @@ mod tests {
 
         deps.querier.update_wasm(Some(contracts_to_token), None);
 
-        STATE.update(
-            deps.as_mut().storage,
-            |mut state| -> Result<_, ContractError> {
-                state.rewards_in_scc = Uint128::new(1000_u128);
-                state.next_strategy_id = 4;
-                Ok(state)
-            },
-        );
+        STATE
+            .update(
+                deps.as_mut().storage,
+                |mut state| -> Result<_, ContractError> {
+                    state.rewards_in_scc = Uint128::new(1000_u128);
+                    state.next_strategy_id = 4;
+                    Ok(state)
+                },
+            )
+            .unwrap();
 
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(1),
-            &StrategyInfo {
-                name: "sid1".to_string(),
-                sic_contract_address: sic1_address.clone(),
-                unbonding_period: 3600,
-                unbonding_buffer: 3600,
-                undelegation_batch_id_pointer: 0,
-                reconciled_batch_id_pointer: 0,
-                is_active: true,
-                total_shares: Decimal::from_ratio(10000_u128, 1_u128),
-                current_undelegated_shares: Decimal::zero(),
-                global_airdrop_pointer: vec![
-                    DecCoin::new(
-                        Decimal::from_ratio(1000_u128, 10000_u128),
-                        "anc".to_string(),
-                    ),
-                    DecCoin::new(Decimal::from_ratio(500_u128, 10000_u128), "mir".to_string()),
-                ],
-                total_airdrops_accumulated: vec![
-                    Coin::new(1000_u128, "anc".to_string()),
-                    Coin::new(500_u128, "mir".to_string()),
-                ],
-                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-            },
-        );
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(2),
-            &StrategyInfo {
-                name: "sid2".to_string(),
-                sic_contract_address: sic2_address.clone(),
-                unbonding_period: 7200,
-                unbonding_buffer: 7200,
-                undelegation_batch_id_pointer: 0,
-                reconciled_batch_id_pointer: 0,
-                is_active: true,
-                total_shares: Decimal::from_ratio(10000_u128, 1_u128),
-                current_undelegated_shares: Decimal::from_ratio(5000_u128, 1_u128),
-                global_airdrop_pointer: vec![
-                    DecCoin::new(Decimal::from_ratio(500_u128, 10000_u128), "anc".to_string()),
-                    DecCoin::new(Decimal::from_ratio(700_u128, 10000_u128), "mir".to_string()),
-                ],
-                total_airdrops_accumulated: vec![
-                    Coin::new(500_u128, "anc".to_string()),
-                    Coin::new(700_u128, "mir".to_string()),
-                ],
-                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-            },
-        );
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(3),
-            &StrategyInfo {
-                name: "sid3".to_string(),
-                sic_contract_address: sic3_address.clone(),
-                unbonding_period: 14400,
-                unbonding_buffer: 14400,
-                undelegation_batch_id_pointer: 0,
-                reconciled_batch_id_pointer: 0,
-                is_active: true,
-                total_shares: Decimal::from_ratio(7000_u128, 1_u128),
-                current_undelegated_shares: Decimal::zero(),
-                global_airdrop_pointer: vec![
-                    DecCoin::new(Decimal::from_ratio(100_u128, 7000_u128), "anc".to_string()),
-                    DecCoin::new(Decimal::from_ratio(50_u128, 7000_u128), "mir".to_string()),
-                ],
-                total_airdrops_accumulated: vec![
-                    Coin::new(100_u128, "anc".to_string()),
-                    Coin::new(50_u128, "mir".to_string()),
-                ],
-                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-            },
-        );
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(1),
+                &StrategyInfo {
+                    name: "sid1".to_string(),
+                    sic_contract_address: sic1_address.clone(),
+                    unbonding_period: 3600,
+                    unbonding_buffer: 3600,
+                    undelegation_batch_id_pointer: 0,
+                    reconciled_batch_id_pointer: 0,
+                    is_active: true,
+                    total_shares: Decimal::from_ratio(10000_u128, 1_u128),
+                    current_undelegated_shares: Decimal::zero(),
+                    global_airdrop_pointer: vec![
+                        DecCoin::new(
+                            Decimal::from_ratio(1000_u128, 10000_u128),
+                            "anc".to_string(),
+                        ),
+                        DecCoin::new(Decimal::from_ratio(500_u128, 10000_u128), "mir".to_string()),
+                    ],
+                    total_airdrops_accumulated: vec![
+                        Coin::new(1000_u128, "anc".to_string()),
+                        Coin::new(500_u128, "mir".to_string()),
+                    ],
+                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                },
+            )
+            .unwrap();
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(2),
+                &StrategyInfo {
+                    name: "sid2".to_string(),
+                    sic_contract_address: sic2_address.clone(),
+                    unbonding_period: 7200,
+                    unbonding_buffer: 7200,
+                    undelegation_batch_id_pointer: 0,
+                    reconciled_batch_id_pointer: 0,
+                    is_active: true,
+                    total_shares: Decimal::from_ratio(10000_u128, 1_u128),
+                    current_undelegated_shares: Decimal::from_ratio(5000_u128, 1_u128),
+                    global_airdrop_pointer: vec![
+                        DecCoin::new(Decimal::from_ratio(500_u128, 10000_u128), "anc".to_string()),
+                        DecCoin::new(Decimal::from_ratio(700_u128, 10000_u128), "mir".to_string()),
+                    ],
+                    total_airdrops_accumulated: vec![
+                        Coin::new(500_u128, "anc".to_string()),
+                        Coin::new(700_u128, "mir".to_string()),
+                    ],
+                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                },
+            )
+            .unwrap();
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(3),
+                &StrategyInfo {
+                    name: "sid3".to_string(),
+                    sic_contract_address: sic3_address.clone(),
+                    unbonding_period: 14400,
+                    unbonding_buffer: 14400,
+                    undelegation_batch_id_pointer: 0,
+                    reconciled_batch_id_pointer: 0,
+                    is_active: true,
+                    total_shares: Decimal::from_ratio(7000_u128, 1_u128),
+                    current_undelegated_shares: Decimal::zero(),
+                    global_airdrop_pointer: vec![
+                        DecCoin::new(Decimal::from_ratio(100_u128, 7000_u128), "anc".to_string()),
+                        DecCoin::new(Decimal::from_ratio(50_u128, 7000_u128), "mir".to_string()),
+                    ],
+                    total_airdrops_accumulated: vec![
+                        Coin::new(100_u128, "anc".to_string()),
+                        Coin::new(50_u128, "mir".to_string()),
+                    ],
+                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                },
+            )
+            .unwrap();
 
         let all_strategies_response: GetAllStrategiesResponse =
             from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::GetAllStrategies {}).unwrap())
@@ -570,39 +585,51 @@ mod tests {
         /*
            Test - 2. 5 strategies
         */
-        STATE.update(
-            deps.as_mut().storage,
-            |mut state| -> Result<_, ContractError> {
-                state.next_strategy_id = 6;
-                Ok(state)
-            },
-        );
+        STATE
+            .update(
+                deps.as_mut().storage,
+                |mut state| -> Result<_, ContractError> {
+                    state.next_strategy_id = 6;
+                    Ok(state)
+                },
+            )
+            .unwrap();
 
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(1),
-            &StrategyInfo::default("sid1".to_string()),
-        );
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(2),
-            &StrategyInfo::default("sid2".to_string()),
-        );
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(3),
-            &StrategyInfo::default("sid3".to_string()),
-        );
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(4),
-            &StrategyInfo::default("sid4".to_string()),
-        );
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(5),
-            &StrategyInfo::default("sid5".to_string()),
-        );
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(1),
+                &StrategyInfo::default("sid1".to_string()),
+            )
+            .unwrap();
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(2),
+                &StrategyInfo::default("sid2".to_string()),
+            )
+            .unwrap();
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(3),
+                &StrategyInfo::default("sid3".to_string()),
+            )
+            .unwrap();
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(4),
+                &StrategyInfo::default("sid4".to_string()),
+            )
+            .unwrap();
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(5),
+                &StrategyInfo::default("sid5".to_string()),
+            )
+            .unwrap();
 
         let strategies_list_response: GetStrategiesListResponse = from_binary(
             &query(deps.as_ref(), env.clone(), QueryMsg::GetStrategiesList {}).unwrap(),
@@ -691,16 +718,20 @@ mod tests {
         /*
            Test - 4. Invalid user portfolio - invalid deposit fraction
         */
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(1),
-            &StrategyInfo::default("sid1".to_string()),
-        );
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(2),
-            &StrategyInfo::default("sid2".to_string()),
-        );
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(1),
+                &StrategyInfo::default("sid1".to_string()),
+            )
+            .unwrap();
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(2),
+                &StrategyInfo::default("sid2".to_string()),
+            )
+            .unwrap();
 
         let err = execute(
             deps.as_mut(),
@@ -746,32 +777,39 @@ mod tests {
         /*
            Test - 1. successful
         */
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(1),
-            &StrategyInfo::default("sid1".to_string()),
-        );
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(2),
-            &StrategyInfo::default("sid2".to_string()),
-        );
-
-        STATE.update(
-            deps.as_mut().storage,
-            |mut state| -> Result<_, ContractError> {
-                state.delegator_contract = old_delegator_contract;
-                Ok(state)
-            },
-        );
-        CONFIG.update(
-            deps.as_mut().storage,
-            |mut config| -> Result<_, ContractError> {
-                config.fallback_strategy = 0;
-                config.default_user_portfolio = vec![];
-                Ok(config)
-            },
-        );
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(1),
+                &StrategyInfo::default("sid1".to_string()),
+            )
+            .unwrap();
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(2),
+                &StrategyInfo::default("sid2".to_string()),
+            )
+            .unwrap();
+        STATE
+            .update(
+                deps.as_mut().storage,
+                |mut state| -> Result<_, ContractError> {
+                    state.delegator_contract = old_delegator_contract;
+                    Ok(state)
+                },
+            )
+            .unwrap();
+        CONFIG
+            .update(
+                deps.as_mut().storage,
+                |mut config| -> Result<_, ContractError> {
+                    config.fallback_strategy = 0;
+                    config.default_user_portfolio = vec![];
+                    Ok(config)
+                },
+            )
+            .unwrap();
 
         let _res = execute(
             deps.as_mut(),
@@ -938,30 +976,32 @@ mod tests {
         contracts_to_token.insert(sic1_address.clone(), Uint128::new(0_u128));
         deps.querier.update_wasm(Some(contracts_to_token), None);
 
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(1),
-            &StrategyInfo {
-                name: "sid1".to_string(),
-                sic_contract_address: sic1_address.clone(),
-                unbonding_period: 0,
-                unbonding_buffer: 0,
-                undelegation_batch_id_pointer: 0,
-                reconciled_batch_id_pointer: 0,
-                is_active: true,
-                total_shares: Decimal::from_ratio(1000_u128, 1_u128),
-                current_undelegated_shares: Decimal::zero(),
-                global_airdrop_pointer: vec![
-                    DecCoin::new(Decimal::from_ratio(200_u128, 1000_u128), "anc".to_string()),
-                    DecCoin::new(Decimal::from_ratio(300_u128, 1000_u128), "mir".to_string()),
-                ],
-                total_airdrops_accumulated: vec![
-                    Coin::new(200_u128, "anc".to_string()),
-                    Coin::new(300_u128, "mir".to_string()),
-                ],
-                shares_per_token_ratio: Decimal::zero(),
-            },
-        );
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(1),
+                &StrategyInfo {
+                    name: "sid1".to_string(),
+                    sic_contract_address: sic1_address.clone(),
+                    unbonding_period: 0,
+                    unbonding_buffer: 0,
+                    undelegation_batch_id_pointer: 0,
+                    reconciled_batch_id_pointer: 0,
+                    is_active: true,
+                    total_shares: Decimal::from_ratio(1000_u128, 1_u128),
+                    current_undelegated_shares: Decimal::zero(),
+                    global_airdrop_pointer: vec![
+                        DecCoin::new(Decimal::from_ratio(200_u128, 1000_u128), "anc".to_string()),
+                        DecCoin::new(Decimal::from_ratio(300_u128, 1000_u128), "mir".to_string()),
+                    ],
+                    total_airdrops_accumulated: vec![
+                        Coin::new(200_u128, "anc".to_string()),
+                        Coin::new(300_u128, "mir".to_string()),
+                    ],
+                    shares_per_token_ratio: Decimal::zero(),
+                },
+            )
+            .unwrap();
 
         let res = execute(
             deps.as_mut(),
@@ -1026,139 +1066,147 @@ mod tests {
         contracts_to_token.insert(sic3_address.clone(), Uint128::new(0_u128));
         deps.querier.update_wasm(Some(contracts_to_token), None);
 
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(1),
-            &StrategyInfo {
-                name: "sid1".to_string(),
-                sic_contract_address: sic1_address.clone(),
-                unbonding_period: 0,
-                unbonding_buffer: 0,
-                undelegation_batch_id_pointer: 0,
-                reconciled_batch_id_pointer: 0,
-                is_active: true,
-                total_shares: Decimal::from_ratio(1000_u128, 1_u128),
-                current_undelegated_shares: Decimal::zero(),
-                global_airdrop_pointer: vec![
-                    DecCoin::new(Decimal::from_ratio(200_u128, 1000_u128), "anc".to_string()),
-                    DecCoin::new(Decimal::from_ratio(300_u128, 1000_u128), "mir".to_string()),
-                ],
-                total_airdrops_accumulated: vec![
-                    Coin::new(200_u128, "anc".to_string()),
-                    Coin::new(300_u128, "mir".to_string()),
-                ],
-                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-            },
-        );
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(2),
-            &StrategyInfo {
-                name: "sid2".to_string(),
-                sic_contract_address: sic2_address.clone(),
-                unbonding_period: 0,
-                unbonding_buffer: 0,
-                undelegation_batch_id_pointer: 0,
-                reconciled_batch_id_pointer: 0,
-                is_active: true,
-                total_shares: Decimal::from_ratio(2000_u128, 1_u128),
-                current_undelegated_shares: Decimal::zero(),
-                global_airdrop_pointer: vec![
-                    DecCoin::new(Decimal::from_ratio(200_u128, 2000_u128), "anc".to_string()),
-                    DecCoin::new(Decimal::from_ratio(300_u128, 2000_u128), "mir".to_string()),
-                ],
-                total_airdrops_accumulated: vec![
-                    Coin::new(200_u128, "anc".to_string()),
-                    Coin::new(300_u128, "mir".to_string()),
-                ],
-                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-            },
-        );
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(3),
-            &StrategyInfo {
-                name: "sid3".to_string(),
-                sic_contract_address: sic3_address.clone(),
-                unbonding_period: 0,
-                unbonding_buffer: 0,
-                undelegation_batch_id_pointer: 0,
-                reconciled_batch_id_pointer: 0,
-                is_active: true,
-                total_shares: Decimal::from_ratio(4000_u128, 1_u128),
-                current_undelegated_shares: Decimal::zero(),
-                global_airdrop_pointer: vec![
-                    DecCoin::new(Decimal::from_ratio(200_u128, 4000_u128), "anc".to_string()),
-                    DecCoin::new(Decimal::from_ratio(300_u128, 4000_u128), "mir".to_string()),
-                ],
-                total_airdrops_accumulated: vec![
-                    Coin::new(200_u128, "anc".to_string()),
-                    Coin::new(300_u128, "mir".to_string()),
-                ],
-                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-            },
-        );
-        USER_REWARD_INFO_MAP.save(
-            deps.as_mut().storage,
-            &user1,
-            &UserRewardInfo {
-                user_portfolio: vec![
-                    UserStrategyPortfolio {
-                        strategy_id: 1,
-                        deposit_fraction: Uint128::new(25_u128),
-                    },
-                    UserStrategyPortfolio {
-                        strategy_id: 2,
-                        deposit_fraction: Uint128::new(25_u128),
-                    },
-                    UserStrategyPortfolio {
-                        strategy_id: 3,
-                        deposit_fraction: Uint128::new(25_u128),
-                    },
-                ],
-                strategies: vec![
-                    UserStrategyInfo {
-                        strategy_id: 1,
-                        shares: Decimal::from_ratio(500_u128, 1_u128),
-                        airdrop_pointer: vec![
-                            DecCoin::new(
-                                Decimal::from_ratio(100_u128, 1000_u128),
-                                "anc".to_string(),
-                            ),
-                            DecCoin::new(
-                                Decimal::from_ratio(200_u128, 1000_u128),
-                                "mir".to_string(),
-                            ),
-                        ],
-                    },
-                    UserStrategyInfo {
-                        strategy_id: 2,
-                        shares: Decimal::from_ratio(1000_u128, 1_u128),
-                        airdrop_pointer: vec![
-                            DecCoin::new(
-                                Decimal::from_ratio(200_u128, 2000_u128),
-                                "anc".to_string(),
-                            ),
-                            DecCoin::new(
-                                Decimal::from_ratio(300_u128, 2000_u128),
-                                "mir".to_string(),
-                            ),
-                        ],
-                    },
-                    UserStrategyInfo {
-                        strategy_id: 3,
-                        shares: Decimal::from_ratio(500_u128, 1_u128),
-                        airdrop_pointer: vec![],
-                    },
-                ],
-                pending_airdrops: vec![
-                    Coin::new(100_u128, "anc".to_string()),
-                    Coin::new(200_u128, "mir".to_string()),
-                ],
-                undelegation_records: vec![],
-                pending_rewards: Uint128::new(100_u128),
-            },
-        );
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(1),
+                &StrategyInfo {
+                    name: "sid1".to_string(),
+                    sic_contract_address: sic1_address.clone(),
+                    unbonding_period: 0,
+                    unbonding_buffer: 0,
+                    undelegation_batch_id_pointer: 0,
+                    reconciled_batch_id_pointer: 0,
+                    is_active: true,
+                    total_shares: Decimal::from_ratio(1000_u128, 1_u128),
+                    current_undelegated_shares: Decimal::zero(),
+                    global_airdrop_pointer: vec![
+                        DecCoin::new(Decimal::from_ratio(200_u128, 1000_u128), "anc".to_string()),
+                        DecCoin::new(Decimal::from_ratio(300_u128, 1000_u128), "mir".to_string()),
+                    ],
+                    total_airdrops_accumulated: vec![
+                        Coin::new(200_u128, "anc".to_string()),
+                        Coin::new(300_u128, "mir".to_string()),
+                    ],
+                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                },
+            )
+            .unwrap();
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(2),
+                &StrategyInfo {
+                    name: "sid2".to_string(),
+                    sic_contract_address: sic2_address.clone(),
+                    unbonding_period: 0,
+                    unbonding_buffer: 0,
+                    undelegation_batch_id_pointer: 0,
+                    reconciled_batch_id_pointer: 0,
+                    is_active: true,
+                    total_shares: Decimal::from_ratio(2000_u128, 1_u128),
+                    current_undelegated_shares: Decimal::zero(),
+                    global_airdrop_pointer: vec![
+                        DecCoin::new(Decimal::from_ratio(200_u128, 2000_u128), "anc".to_string()),
+                        DecCoin::new(Decimal::from_ratio(300_u128, 2000_u128), "mir".to_string()),
+                    ],
+                    total_airdrops_accumulated: vec![
+                        Coin::new(200_u128, "anc".to_string()),
+                        Coin::new(300_u128, "mir".to_string()),
+                    ],
+                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                },
+            )
+            .unwrap();
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(3),
+                &StrategyInfo {
+                    name: "sid3".to_string(),
+                    sic_contract_address: sic3_address.clone(),
+                    unbonding_period: 0,
+                    unbonding_buffer: 0,
+                    undelegation_batch_id_pointer: 0,
+                    reconciled_batch_id_pointer: 0,
+                    is_active: true,
+                    total_shares: Decimal::from_ratio(4000_u128, 1_u128),
+                    current_undelegated_shares: Decimal::zero(),
+                    global_airdrop_pointer: vec![
+                        DecCoin::new(Decimal::from_ratio(200_u128, 4000_u128), "anc".to_string()),
+                        DecCoin::new(Decimal::from_ratio(300_u128, 4000_u128), "mir".to_string()),
+                    ],
+                    total_airdrops_accumulated: vec![
+                        Coin::new(200_u128, "anc".to_string()),
+                        Coin::new(300_u128, "mir".to_string()),
+                    ],
+                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                },
+            )
+            .unwrap();
+        USER_REWARD_INFO_MAP
+            .save(
+                deps.as_mut().storage,
+                &user1,
+                &UserRewardInfo {
+                    user_portfolio: vec![
+                        UserStrategyPortfolio {
+                            strategy_id: 1,
+                            deposit_fraction: Uint128::new(25_u128),
+                        },
+                        UserStrategyPortfolio {
+                            strategy_id: 2,
+                            deposit_fraction: Uint128::new(25_u128),
+                        },
+                        UserStrategyPortfolio {
+                            strategy_id: 3,
+                            deposit_fraction: Uint128::new(25_u128),
+                        },
+                    ],
+                    strategies: vec![
+                        UserStrategyInfo {
+                            strategy_id: 1,
+                            shares: Decimal::from_ratio(500_u128, 1_u128),
+                            airdrop_pointer: vec![
+                                DecCoin::new(
+                                    Decimal::from_ratio(100_u128, 1000_u128),
+                                    "anc".to_string(),
+                                ),
+                                DecCoin::new(
+                                    Decimal::from_ratio(200_u128, 1000_u128),
+                                    "mir".to_string(),
+                                ),
+                            ],
+                        },
+                        UserStrategyInfo {
+                            strategy_id: 2,
+                            shares: Decimal::from_ratio(1000_u128, 1_u128),
+                            airdrop_pointer: vec![
+                                DecCoin::new(
+                                    Decimal::from_ratio(200_u128, 2000_u128),
+                                    "anc".to_string(),
+                                ),
+                                DecCoin::new(
+                                    Decimal::from_ratio(300_u128, 2000_u128),
+                                    "mir".to_string(),
+                                ),
+                            ],
+                        },
+                        UserStrategyInfo {
+                            strategy_id: 3,
+                            shares: Decimal::from_ratio(500_u128, 1_u128),
+                            airdrop_pointer: vec![],
+                        },
+                    ],
+                    pending_airdrops: vec![
+                        Coin::new(100_u128, "anc".to_string()),
+                        Coin::new(200_u128, "mir".to_string()),
+                    ],
+                    undelegation_records: vec![],
+                    pending_rewards: Uint128::new(100_u128),
+                },
+            )
+            .unwrap();
         let res = execute(
             deps.as_mut(),
             env.clone(),
@@ -1358,24 +1406,26 @@ mod tests {
             None,
         );
 
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(1),
-            &StrategyInfo {
-                name: "sid1".to_string(),
-                sic_contract_address: Addr::unchecked("abc"),
-                unbonding_period: 3600,
-                unbonding_buffer: 3600,
-                undelegation_batch_id_pointer: 0,
-                reconciled_batch_id_pointer: 0,
-                is_active: false,
-                total_shares: Default::default(),
-                current_undelegated_shares: Default::default(),
-                global_airdrop_pointer: vec![],
-                total_airdrops_accumulated: vec![],
-                shares_per_token_ratio: Default::default(),
-            },
-        );
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(1),
+                &StrategyInfo {
+                    name: "sid1".to_string(),
+                    sic_contract_address: Addr::unchecked("abc"),
+                    unbonding_period: 3600,
+                    unbonding_buffer: 3600,
+                    undelegation_batch_id_pointer: 0,
+                    reconciled_batch_id_pointer: 0,
+                    is_active: false,
+                    total_shares: Default::default(),
+                    current_undelegated_shares: Default::default(),
+                    global_airdrop_pointer: vec![],
+                    total_airdrops_accumulated: vec![],
+                    shares_per_token_ratio: Default::default(),
+                },
+            )
+            .unwrap();
 
         let _res = execute(
             deps.as_mut(),
@@ -1553,42 +1603,46 @@ mod tests {
         /*
            Test - 4. Undelegation batches not found
         */
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(1),
-            &StrategyInfo {
-                name: "sid1".to_string(),
-                sic_contract_address: Addr::unchecked("abc"),
-                unbonding_period: 3600,
-                unbonding_buffer: 3600,
-                undelegation_batch_id_pointer: 2,
-                reconciled_batch_id_pointer: 1,
-                is_active: true,
-                total_shares: Decimal::from_ratio(5000_u128, 1_u128),
-                current_undelegated_shares: Decimal::zero(),
-                global_airdrop_pointer: vec![],
-                total_airdrops_accumulated: vec![],
-                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-            },
-        );
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(2),
-            &StrategyInfo {
-                name: "sid2".to_string(),
-                sic_contract_address: Addr::unchecked("def"),
-                unbonding_period: 3600,
-                unbonding_buffer: 3600,
-                undelegation_batch_id_pointer: 3,
-                reconciled_batch_id_pointer: 2,
-                is_active: true,
-                total_shares: Decimal::from_ratio(5000_u128, 1_u128),
-                current_undelegated_shares: Decimal::zero(),
-                global_airdrop_pointer: vec![],
-                total_airdrops_accumulated: vec![],
-                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-            },
-        );
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(1),
+                &StrategyInfo {
+                    name: "sid1".to_string(),
+                    sic_contract_address: Addr::unchecked("abc"),
+                    unbonding_period: 3600,
+                    unbonding_buffer: 3600,
+                    undelegation_batch_id_pointer: 2,
+                    reconciled_batch_id_pointer: 1,
+                    is_active: true,
+                    total_shares: Decimal::from_ratio(5000_u128, 1_u128),
+                    current_undelegated_shares: Decimal::zero(),
+                    global_airdrop_pointer: vec![],
+                    total_airdrops_accumulated: vec![],
+                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                },
+            )
+            .unwrap();
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(2),
+                &StrategyInfo {
+                    name: "sid2".to_string(),
+                    sic_contract_address: Addr::unchecked("def"),
+                    unbonding_period: 3600,
+                    unbonding_buffer: 3600,
+                    undelegation_batch_id_pointer: 3,
+                    reconciled_batch_id_pointer: 2,
+                    is_active: true,
+                    total_shares: Decimal::from_ratio(5000_u128, 1_u128),
+                    current_undelegated_shares: Decimal::zero(),
+                    global_airdrop_pointer: vec![],
+                    total_airdrops_accumulated: vec![],
+                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                },
+            )
+            .unwrap();
 
         let res = execute(
             deps.as_mut(),
@@ -1635,70 +1689,78 @@ mod tests {
         /*
             Test - 5. Undelegation batches in unbonding period
         */
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(1),
-            &StrategyInfo {
-                name: "sid1".to_string(),
-                sic_contract_address: Addr::unchecked("abc"),
-                unbonding_period: 3600,
-                unbonding_buffer: 3600,
-                undelegation_batch_id_pointer: 2,
-                reconciled_batch_id_pointer: 1,
-                is_active: true,
-                total_shares: Decimal::from_ratio(5000_u128, 1_u128),
-                current_undelegated_shares: Decimal::zero(),
-                global_airdrop_pointer: vec![],
-                total_airdrops_accumulated: vec![],
-                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-            },
-        );
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(2),
-            &StrategyInfo {
-                name: "sid2".to_string(),
-                sic_contract_address: Addr::unchecked("def"),
-                unbonding_period: 3600,
-                unbonding_buffer: 3600,
-                undelegation_batch_id_pointer: 3,
-                reconciled_batch_id_pointer: 2,
-                is_active: true,
-                total_shares: Decimal::from_ratio(5000_u128, 1_u128),
-                current_undelegated_shares: Decimal::zero(),
-                global_airdrop_pointer: vec![],
-                total_airdrops_accumulated: vec![],
-                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-            },
-        );
-        UNDELEGATION_BATCH_MAP.save(
-            deps.as_mut().storage,
-            (U64Key::new(1), U64Key::new(1)),
-            &BatchUndelegationRecord {
-                amount: Uint128::new(100_u128),
-                shares: Decimal::from_ratio(1000_u128, 1_u128),
-                unbonding_slashing_ratio: Decimal::one(),
-                undelegation_s_t_ratio: Decimal::from_ratio(10_u128, 1_u128),
-                create_time: Timestamp::from_seconds(1631094920),
-                est_release_time: Timestamp::from_seconds(1631094990),
-                undelegation_batch_status: UndelegationBatchStatus::InProgress,
-                released: false,
-            },
-        );
-        UNDELEGATION_BATCH_MAP.save(
-            deps.as_mut().storage,
-            (U64Key::new(2), U64Key::new(2)),
-            &BatchUndelegationRecord {
-                amount: Uint128::new(400_u128),
-                shares: Decimal::from_ratio(1000_u128, 1_u128),
-                unbonding_slashing_ratio: Decimal::one(),
-                undelegation_s_t_ratio: Decimal::from_ratio(10_u128, 1_u128),
-                create_time: Timestamp::from_seconds(1631094920),
-                est_release_time: Timestamp::from_seconds(1631095990),
-                undelegation_batch_status: UndelegationBatchStatus::InProgress,
-                released: false,
-            },
-        );
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(1),
+                &StrategyInfo {
+                    name: "sid1".to_string(),
+                    sic_contract_address: Addr::unchecked("abc"),
+                    unbonding_period: 3600,
+                    unbonding_buffer: 3600,
+                    undelegation_batch_id_pointer: 2,
+                    reconciled_batch_id_pointer: 1,
+                    is_active: true,
+                    total_shares: Decimal::from_ratio(5000_u128, 1_u128),
+                    current_undelegated_shares: Decimal::zero(),
+                    global_airdrop_pointer: vec![],
+                    total_airdrops_accumulated: vec![],
+                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                },
+            )
+            .unwrap();
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(2),
+                &StrategyInfo {
+                    name: "sid2".to_string(),
+                    sic_contract_address: Addr::unchecked("def"),
+                    unbonding_period: 3600,
+                    unbonding_buffer: 3600,
+                    undelegation_batch_id_pointer: 3,
+                    reconciled_batch_id_pointer: 2,
+                    is_active: true,
+                    total_shares: Decimal::from_ratio(5000_u128, 1_u128),
+                    current_undelegated_shares: Decimal::zero(),
+                    global_airdrop_pointer: vec![],
+                    total_airdrops_accumulated: vec![],
+                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                },
+            )
+            .unwrap();
+        UNDELEGATION_BATCH_MAP
+            .save(
+                deps.as_mut().storage,
+                (U64Key::new(1), U64Key::new(1)),
+                &BatchUndelegationRecord {
+                    amount: Uint128::new(100_u128),
+                    shares: Decimal::from_ratio(1000_u128, 1_u128),
+                    unbonding_slashing_ratio: Decimal::one(),
+                    undelegation_s_t_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    create_time: Timestamp::from_seconds(1631094920),
+                    est_release_time: Timestamp::from_seconds(1631094990),
+                    undelegation_batch_status: UndelegationBatchStatus::InProgress,
+                    released: false,
+                },
+            )
+            .unwrap();
+        UNDELEGATION_BATCH_MAP
+            .save(
+                deps.as_mut().storage,
+                (U64Key::new(2), U64Key::new(2)),
+                &BatchUndelegationRecord {
+                    amount: Uint128::new(400_u128),
+                    shares: Decimal::from_ratio(1000_u128, 1_u128),
+                    unbonding_slashing_ratio: Decimal::one(),
+                    undelegation_s_t_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    create_time: Timestamp::from_seconds(1631094920),
+                    est_release_time: Timestamp::from_seconds(1631095990),
+                    undelegation_batch_status: UndelegationBatchStatus::InProgress,
+                    released: false,
+                },
+            )
+            .unwrap();
 
         let res = execute(
             deps.as_mut(),
@@ -1745,70 +1807,78 @@ mod tests {
         /*
             Test - 6. Undelegation batches have already been accounted for slashing
         */
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(1),
-            &StrategyInfo {
-                name: "sid1".to_string(),
-                sic_contract_address: Addr::unchecked("abc"),
-                unbonding_period: 3600,
-                unbonding_buffer: 3600,
-                undelegation_batch_id_pointer: 2,
-                reconciled_batch_id_pointer: 1,
-                is_active: true,
-                total_shares: Decimal::from_ratio(5000_u128, 1_u128),
-                current_undelegated_shares: Decimal::zero(),
-                global_airdrop_pointer: vec![],
-                total_airdrops_accumulated: vec![],
-                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-            },
-        );
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(2),
-            &StrategyInfo {
-                name: "sid2".to_string(),
-                sic_contract_address: Addr::unchecked("def"),
-                unbonding_period: 3600,
-                unbonding_buffer: 3600,
-                undelegation_batch_id_pointer: 3,
-                reconciled_batch_id_pointer: 2,
-                is_active: true,
-                total_shares: Decimal::from_ratio(5000_u128, 1_u128),
-                current_undelegated_shares: Decimal::zero(),
-                global_airdrop_pointer: vec![],
-                total_airdrops_accumulated: vec![],
-                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-            },
-        );
-        UNDELEGATION_BATCH_MAP.save(
-            deps.as_mut().storage,
-            (U64Key::new(1), U64Key::new(1)),
-            &BatchUndelegationRecord {
-                amount: Uint128::new(100_u128),
-                shares: Decimal::from_ratio(1000_u128, 1_u128),
-                unbonding_slashing_ratio: Decimal::one(),
-                undelegation_s_t_ratio: Decimal::from_ratio(10_u128, 1_u128),
-                create_time: Timestamp::from_seconds(123),
-                est_release_time: Timestamp::from_seconds(125),
-                undelegation_batch_status: UndelegationBatchStatus::Done,
-                released: true,
-            },
-        );
-        UNDELEGATION_BATCH_MAP.save(
-            deps.as_mut().storage,
-            (U64Key::new(2), U64Key::new(2)),
-            &BatchUndelegationRecord {
-                amount: Uint128::new(400_u128),
-                shares: Decimal::from_ratio(4000_u128, 1_u128),
-                unbonding_slashing_ratio: Decimal::one(),
-                undelegation_s_t_ratio: Decimal::from_ratio(10_u128, 1_u128),
-                create_time: Timestamp::from_seconds(123),
-                est_release_time: Timestamp::from_seconds(125),
-                undelegation_batch_status: UndelegationBatchStatus::Done,
-                released: true,
-            },
-        );
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(1),
+                &StrategyInfo {
+                    name: "sid1".to_string(),
+                    sic_contract_address: Addr::unchecked("abc"),
+                    unbonding_period: 3600,
+                    unbonding_buffer: 3600,
+                    undelegation_batch_id_pointer: 2,
+                    reconciled_batch_id_pointer: 1,
+                    is_active: true,
+                    total_shares: Decimal::from_ratio(5000_u128, 1_u128),
+                    current_undelegated_shares: Decimal::zero(),
+                    global_airdrop_pointer: vec![],
+                    total_airdrops_accumulated: vec![],
+                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                },
+            )
+            .unwrap();
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(2),
+                &StrategyInfo {
+                    name: "sid2".to_string(),
+                    sic_contract_address: Addr::unchecked("def"),
+                    unbonding_period: 3600,
+                    unbonding_buffer: 3600,
+                    undelegation_batch_id_pointer: 3,
+                    reconciled_batch_id_pointer: 2,
+                    is_active: true,
+                    total_shares: Decimal::from_ratio(5000_u128, 1_u128),
+                    current_undelegated_shares: Decimal::zero(),
+                    global_airdrop_pointer: vec![],
+                    total_airdrops_accumulated: vec![],
+                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                },
+            )
+            .unwrap();
+        UNDELEGATION_BATCH_MAP
+            .save(
+                deps.as_mut().storage,
+                (U64Key::new(1), U64Key::new(1)),
+                &BatchUndelegationRecord {
+                    amount: Uint128::new(100_u128),
+                    shares: Decimal::from_ratio(1000_u128, 1_u128),
+                    unbonding_slashing_ratio: Decimal::one(),
+                    undelegation_s_t_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    create_time: Timestamp::from_seconds(123),
+                    est_release_time: Timestamp::from_seconds(125),
+                    undelegation_batch_status: UndelegationBatchStatus::Done,
+                    released: true,
+                },
+            )
+            .unwrap();
+        UNDELEGATION_BATCH_MAP
+            .save(
+                deps.as_mut().storage,
+                (U64Key::new(2), U64Key::new(2)),
+                &BatchUndelegationRecord {
+                    amount: Uint128::new(400_u128),
+                    shares: Decimal::from_ratio(4000_u128, 1_u128),
+                    unbonding_slashing_ratio: Decimal::one(),
+                    undelegation_s_t_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    create_time: Timestamp::from_seconds(123),
+                    est_release_time: Timestamp::from_seconds(125),
+                    undelegation_batch_status: UndelegationBatchStatus::Done,
+                    released: true,
+                },
+            )
+            .unwrap();
 
         let res = execute(
             deps.as_mut(),
@@ -1880,70 +1950,78 @@ mod tests {
         deps.querier
             .update_wasm(None, Some(contracts_to_fulfillable_undelegation));
 
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(1),
-            &StrategyInfo {
-                name: "sid1".to_string(),
-                sic_contract_address: sic1_address.clone(),
-                unbonding_period: 3600,
-                unbonding_buffer: 3600,
-                undelegation_batch_id_pointer: 2,
-                reconciled_batch_id_pointer: 1,
-                is_active: true,
-                total_shares: Decimal::from_ratio(5000_u128, 1_u128),
-                current_undelegated_shares: Decimal::zero(),
-                global_airdrop_pointer: vec![],
-                total_airdrops_accumulated: vec![],
-                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-            },
-        );
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(2),
-            &StrategyInfo {
-                name: "sid2".to_string(),
-                sic_contract_address: sic2_address.clone(),
-                unbonding_period: 3600,
-                unbonding_buffer: 3600,
-                undelegation_batch_id_pointer: 3,
-                reconciled_batch_id_pointer: 2,
-                is_active: true,
-                total_shares: Decimal::from_ratio(5000_u128, 1_u128),
-                current_undelegated_shares: Decimal::zero(),
-                global_airdrop_pointer: vec![],
-                total_airdrops_accumulated: vec![],
-                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-            },
-        );
-        UNDELEGATION_BATCH_MAP.save(
-            deps.as_mut().storage,
-            (U64Key::new(1), U64Key::new(1)),
-            &BatchUndelegationRecord {
-                amount: Uint128::new(100_u128),
-                shares: Default::default(),
-                unbonding_slashing_ratio: Decimal::one(),
-                undelegation_s_t_ratio: Default::default(),
-                create_time: Timestamp::from_seconds(123),
-                est_release_time: Timestamp::from_seconds(125),
-                undelegation_batch_status: UndelegationBatchStatus::InProgress,
-                released: false,
-            },
-        );
-        UNDELEGATION_BATCH_MAP.save(
-            deps.as_mut().storage,
-            (U64Key::new(2), U64Key::new(2)),
-            &BatchUndelegationRecord {
-                amount: Uint128::new(400_u128),
-                shares: Default::default(),
-                unbonding_slashing_ratio: Decimal::one(),
-                undelegation_s_t_ratio: Default::default(),
-                create_time: Timestamp::from_seconds(123),
-                est_release_time: Timestamp::from_seconds(125),
-                undelegation_batch_status: UndelegationBatchStatus::InProgress,
-                released: false,
-            },
-        );
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(1),
+                &StrategyInfo {
+                    name: "sid1".to_string(),
+                    sic_contract_address: sic1_address.clone(),
+                    unbonding_period: 3600,
+                    unbonding_buffer: 3600,
+                    undelegation_batch_id_pointer: 2,
+                    reconciled_batch_id_pointer: 1,
+                    is_active: true,
+                    total_shares: Decimal::from_ratio(5000_u128, 1_u128),
+                    current_undelegated_shares: Decimal::zero(),
+                    global_airdrop_pointer: vec![],
+                    total_airdrops_accumulated: vec![],
+                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                },
+            )
+            .unwrap();
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(2),
+                &StrategyInfo {
+                    name: "sid2".to_string(),
+                    sic_contract_address: sic2_address.clone(),
+                    unbonding_period: 3600,
+                    unbonding_buffer: 3600,
+                    undelegation_batch_id_pointer: 3,
+                    reconciled_batch_id_pointer: 2,
+                    is_active: true,
+                    total_shares: Decimal::from_ratio(5000_u128, 1_u128),
+                    current_undelegated_shares: Decimal::zero(),
+                    global_airdrop_pointer: vec![],
+                    total_airdrops_accumulated: vec![],
+                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                },
+            )
+            .unwrap();
+        UNDELEGATION_BATCH_MAP
+            .save(
+                deps.as_mut().storage,
+                (U64Key::new(1), U64Key::new(1)),
+                &BatchUndelegationRecord {
+                    amount: Uint128::new(100_u128),
+                    shares: Default::default(),
+                    unbonding_slashing_ratio: Decimal::one(),
+                    undelegation_s_t_ratio: Default::default(),
+                    create_time: Timestamp::from_seconds(123),
+                    est_release_time: Timestamp::from_seconds(125),
+                    undelegation_batch_status: UndelegationBatchStatus::InProgress,
+                    released: false,
+                },
+            )
+            .unwrap();
+        UNDELEGATION_BATCH_MAP
+            .save(
+                deps.as_mut().storage,
+                (U64Key::new(2), U64Key::new(2)),
+                &BatchUndelegationRecord {
+                    amount: Uint128::new(400_u128),
+                    shares: Default::default(),
+                    unbonding_slashing_ratio: Decimal::one(),
+                    undelegation_s_t_ratio: Default::default(),
+                    create_time: Timestamp::from_seconds(123),
+                    est_release_time: Timestamp::from_seconds(125),
+                    undelegation_batch_status: UndelegationBatchStatus::InProgress,
+                    released: false,
+                },
+            )
+            .unwrap();
 
         let res = execute(
             deps.as_mut(),
@@ -2047,70 +2125,78 @@ mod tests {
         deps.querier
             .update_wasm(None, Some(contracts_to_fulfillable_undelegation));
 
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(1),
-            &StrategyInfo {
-                name: "sid1".to_string(),
-                sic_contract_address: sic1_address.clone(),
-                unbonding_period: 3600,
-                unbonding_buffer: 3600,
-                undelegation_batch_id_pointer: 2,
-                reconciled_batch_id_pointer: 1,
-                is_active: true,
-                total_shares: Decimal::from_ratio(5000_u128, 1_u128),
-                current_undelegated_shares: Decimal::zero(),
-                global_airdrop_pointer: vec![],
-                total_airdrops_accumulated: vec![],
-                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-            },
-        );
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(2),
-            &StrategyInfo {
-                name: "sid2".to_string(),
-                sic_contract_address: sic2_address.clone(),
-                unbonding_period: 3600,
-                unbonding_buffer: 3600,
-                undelegation_batch_id_pointer: 3,
-                reconciled_batch_id_pointer: 2,
-                is_active: true,
-                total_shares: Decimal::from_ratio(5000_u128, 1_u128),
-                current_undelegated_shares: Decimal::zero(),
-                global_airdrop_pointer: vec![],
-                total_airdrops_accumulated: vec![],
-                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-            },
-        );
-        UNDELEGATION_BATCH_MAP.save(
-            deps.as_mut().storage,
-            (U64Key::new(1), U64Key::new(1)),
-            &BatchUndelegationRecord {
-                amount: Uint128::new(100_u128),
-                shares: Default::default(),
-                unbonding_slashing_ratio: Decimal::one(),
-                undelegation_s_t_ratio: Default::default(),
-                create_time: Timestamp::from_seconds(123),
-                est_release_time: Timestamp::from_seconds(125),
-                undelegation_batch_status: UndelegationBatchStatus::InProgress,
-                released: false,
-            },
-        );
-        UNDELEGATION_BATCH_MAP.save(
-            deps.as_mut().storage,
-            (U64Key::new(2), U64Key::new(2)),
-            &BatchUndelegationRecord {
-                amount: Uint128::new(400_u128),
-                shares: Default::default(),
-                unbonding_slashing_ratio: Decimal::one(),
-                undelegation_s_t_ratio: Default::default(),
-                create_time: Timestamp::from_seconds(123),
-                est_release_time: Timestamp::from_seconds(125),
-                undelegation_batch_status: UndelegationBatchStatus::InProgress,
-                released: false,
-            },
-        );
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(1),
+                &StrategyInfo {
+                    name: "sid1".to_string(),
+                    sic_contract_address: sic1_address.clone(),
+                    unbonding_period: 3600,
+                    unbonding_buffer: 3600,
+                    undelegation_batch_id_pointer: 2,
+                    reconciled_batch_id_pointer: 1,
+                    is_active: true,
+                    total_shares: Decimal::from_ratio(5000_u128, 1_u128),
+                    current_undelegated_shares: Decimal::zero(),
+                    global_airdrop_pointer: vec![],
+                    total_airdrops_accumulated: vec![],
+                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                },
+            )
+            .unwrap();
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(2),
+                &StrategyInfo {
+                    name: "sid2".to_string(),
+                    sic_contract_address: sic2_address.clone(),
+                    unbonding_period: 3600,
+                    unbonding_buffer: 3600,
+                    undelegation_batch_id_pointer: 3,
+                    reconciled_batch_id_pointer: 2,
+                    is_active: true,
+                    total_shares: Decimal::from_ratio(5000_u128, 1_u128),
+                    current_undelegated_shares: Decimal::zero(),
+                    global_airdrop_pointer: vec![],
+                    total_airdrops_accumulated: vec![],
+                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                },
+            )
+            .unwrap();
+        UNDELEGATION_BATCH_MAP
+            .save(
+                deps.as_mut().storage,
+                (U64Key::new(1), U64Key::new(1)),
+                &BatchUndelegationRecord {
+                    amount: Uint128::new(100_u128),
+                    shares: Default::default(),
+                    unbonding_slashing_ratio: Decimal::one(),
+                    undelegation_s_t_ratio: Default::default(),
+                    create_time: Timestamp::from_seconds(123),
+                    est_release_time: Timestamp::from_seconds(125),
+                    undelegation_batch_status: UndelegationBatchStatus::InProgress,
+                    released: false,
+                },
+            )
+            .unwrap();
+        UNDELEGATION_BATCH_MAP
+            .save(
+                deps.as_mut().storage,
+                (U64Key::new(2), U64Key::new(2)),
+                &BatchUndelegationRecord {
+                    amount: Uint128::new(400_u128),
+                    shares: Default::default(),
+                    unbonding_slashing_ratio: Decimal::one(),
+                    undelegation_s_t_ratio: Default::default(),
+                    create_time: Timestamp::from_seconds(123),
+                    est_release_time: Timestamp::from_seconds(125),
+                    undelegation_batch_status: UndelegationBatchStatus::InProgress,
+                    released: false,
+                },
+            )
+            .unwrap();
 
         let res = execute(
             deps.as_mut(),
@@ -2210,70 +2296,78 @@ mod tests {
         deps.querier
             .update_wasm(None, Some(contracts_to_fulfillable_undelegation));
 
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(1),
-            &StrategyInfo {
-                name: "sid1".to_string(),
-                sic_contract_address: sic1_address.clone(),
-                unbonding_period: 3600,
-                unbonding_buffer: 3600,
-                undelegation_batch_id_pointer: 2,
-                reconciled_batch_id_pointer: 1,
-                is_active: true,
-                total_shares: Decimal::from_ratio(5000_u128, 1_u128),
-                current_undelegated_shares: Decimal::zero(),
-                global_airdrop_pointer: vec![],
-                total_airdrops_accumulated: vec![],
-                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-            },
-        );
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(2),
-            &StrategyInfo {
-                name: "sid2".to_string(),
-                sic_contract_address: sic2_address.clone(),
-                unbonding_period: 3600,
-                unbonding_buffer: 3600,
-                undelegation_batch_id_pointer: 3,
-                reconciled_batch_id_pointer: 2,
-                is_active: true,
-                total_shares: Decimal::from_ratio(5000_u128, 1_u128),
-                current_undelegated_shares: Decimal::zero(),
-                global_airdrop_pointer: vec![],
-                total_airdrops_accumulated: vec![],
-                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-            },
-        );
-        UNDELEGATION_BATCH_MAP.save(
-            deps.as_mut().storage,
-            (U64Key::new(1), U64Key::new(1)),
-            &BatchUndelegationRecord {
-                amount: Uint128::new(100_u128),
-                shares: Default::default(),
-                unbonding_slashing_ratio: Decimal::one(),
-                undelegation_s_t_ratio: Default::default(),
-                create_time: Timestamp::from_seconds(123),
-                est_release_time: Timestamp::from_seconds(125),
-                undelegation_batch_status: UndelegationBatchStatus::InProgress,
-                released: false,
-            },
-        );
-        UNDELEGATION_BATCH_MAP.save(
-            deps.as_mut().storage,
-            (U64Key::new(2), U64Key::new(2)),
-            &BatchUndelegationRecord {
-                amount: Uint128::new(400_u128),
-                shares: Default::default(),
-                unbonding_slashing_ratio: Decimal::one(),
-                undelegation_s_t_ratio: Default::default(),
-                create_time: Timestamp::from_seconds(123),
-                est_release_time: Timestamp::from_seconds(125),
-                undelegation_batch_status: UndelegationBatchStatus::InProgress,
-                released: false,
-            },
-        );
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(1),
+                &StrategyInfo {
+                    name: "sid1".to_string(),
+                    sic_contract_address: sic1_address.clone(),
+                    unbonding_period: 3600,
+                    unbonding_buffer: 3600,
+                    undelegation_batch_id_pointer: 2,
+                    reconciled_batch_id_pointer: 1,
+                    is_active: true,
+                    total_shares: Decimal::from_ratio(5000_u128, 1_u128),
+                    current_undelegated_shares: Decimal::zero(),
+                    global_airdrop_pointer: vec![],
+                    total_airdrops_accumulated: vec![],
+                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                },
+            )
+            .unwrap();
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(2),
+                &StrategyInfo {
+                    name: "sid2".to_string(),
+                    sic_contract_address: sic2_address.clone(),
+                    unbonding_period: 3600,
+                    unbonding_buffer: 3600,
+                    undelegation_batch_id_pointer: 3,
+                    reconciled_batch_id_pointer: 2,
+                    is_active: true,
+                    total_shares: Decimal::from_ratio(5000_u128, 1_u128),
+                    current_undelegated_shares: Decimal::zero(),
+                    global_airdrop_pointer: vec![],
+                    total_airdrops_accumulated: vec![],
+                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                },
+            )
+            .unwrap();
+        UNDELEGATION_BATCH_MAP
+            .save(
+                deps.as_mut().storage,
+                (U64Key::new(1), U64Key::new(1)),
+                &BatchUndelegationRecord {
+                    amount: Uint128::new(100_u128),
+                    shares: Default::default(),
+                    unbonding_slashing_ratio: Decimal::one(),
+                    undelegation_s_t_ratio: Default::default(),
+                    create_time: Timestamp::from_seconds(123),
+                    est_release_time: Timestamp::from_seconds(125),
+                    undelegation_batch_status: UndelegationBatchStatus::InProgress,
+                    released: false,
+                },
+            )
+            .unwrap();
+        UNDELEGATION_BATCH_MAP
+            .save(
+                deps.as_mut().storage,
+                (U64Key::new(2), U64Key::new(2)),
+                &BatchUndelegationRecord {
+                    amount: Uint128::new(400_u128),
+                    shares: Default::default(),
+                    unbonding_slashing_ratio: Decimal::one(),
+                    undelegation_s_t_ratio: Default::default(),
+                    create_time: Timestamp::from_seconds(123),
+                    est_release_time: Timestamp::from_seconds(125),
+                    undelegation_batch_status: UndelegationBatchStatus::InProgress,
+                    released: false,
+                },
+            )
+            .unwrap();
 
         let res = execute(
             deps.as_mut(),
@@ -2372,112 +2466,126 @@ mod tests {
         contracts_to_fulfillable_undelegation.insert(sic2_address.clone(), Uint128::new(500_u128));
         deps.querier
             .update_wasm(None, Some(contracts_to_fulfillable_undelegation));
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(1),
-            &StrategyInfo {
-                name: "sid1".to_string(),
-                sic_contract_address: sic1_address.clone(),
-                unbonding_period: 3600,
-                unbonding_buffer: 3600,
-                undelegation_batch_id_pointer: 4,
-                reconciled_batch_id_pointer: 1,
-                is_active: true,
-                total_shares: Decimal::from_ratio(5000_u128, 1_u128),
-                current_undelegated_shares: Decimal::zero(),
-                global_airdrop_pointer: vec![],
-                total_airdrops_accumulated: vec![],
-                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-            },
-        );
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(2),
-            &StrategyInfo {
-                name: "sid2".to_string(),
-                sic_contract_address: sic2_address.clone(),
-                unbonding_period: 3600,
-                unbonding_buffer: 3600,
-                undelegation_batch_id_pointer: 6,
-                reconciled_batch_id_pointer: 2,
-                is_active: true,
-                total_shares: Decimal::from_ratio(5000_u128, 1_u128),
-                current_undelegated_shares: Decimal::zero(),
-                global_airdrop_pointer: vec![],
-                total_airdrops_accumulated: vec![],
-                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-            },
-        );
-        UNDELEGATION_BATCH_MAP.save(
-            deps.as_mut().storage,
-            (U64Key::new(2), U64Key::new(1)),
-            &BatchUndelegationRecord {
-                amount: Uint128::new(100_u128),
-                shares: Decimal::from_ratio(1000_u128, 1_u128),
-                unbonding_slashing_ratio: Decimal::one(),
-                undelegation_s_t_ratio: Decimal::from_ratio(10_u128, 1_u128),
-                create_time: Timestamp::from_seconds(1631094920),
-                est_release_time: Timestamp::from_seconds(1631094990),
-                undelegation_batch_status: UndelegationBatchStatus::InProgress,
-                released: false,
-            },
-        );
-        UNDELEGATION_BATCH_MAP.save(
-            deps.as_mut().storage,
-            (U64Key::new(1), U64Key::new(1)),
-            &BatchUndelegationRecord {
-                amount: Uint128::new(100_u128),
-                shares: Decimal::from_ratio(1000_u128, 1_u128),
-                unbonding_slashing_ratio: Decimal::one(),
-                undelegation_s_t_ratio: Decimal::from_ratio(10_u128, 1_u128),
-                create_time: Timestamp::from_seconds(150),
-                est_release_time: Timestamp::from_seconds(155),
-                undelegation_batch_status: UndelegationBatchStatus::InProgress,
-                released: false,
-            },
-        );
-        UNDELEGATION_BATCH_MAP.save(
-            deps.as_mut().storage,
-            (U64Key::new(2), U64Key::new(2)),
-            &BatchUndelegationRecord {
-                amount: Uint128::new(400_u128),
-                shares: Decimal::from_ratio(1000_u128, 1_u128),
-                unbonding_slashing_ratio: Decimal::one(),
-                undelegation_s_t_ratio: Decimal::from_ratio(10_u128, 1_u128),
-                create_time: Timestamp::from_seconds(123),
-                est_release_time: Timestamp::from_seconds(126),
-                undelegation_batch_status: UndelegationBatchStatus::InProgress,
-                released: true,
-            },
-        );
-        UNDELEGATION_BATCH_MAP.save(
-            deps.as_mut().storage,
-            (U64Key::new(3), U64Key::new(2)),
-            &BatchUndelegationRecord {
-                amount: Uint128::new(400_u128),
-                shares: Decimal::from_ratio(1000_u128, 1_u128),
-                unbonding_slashing_ratio: Decimal::one(),
-                undelegation_s_t_ratio: Decimal::from_ratio(10_u128, 1_u128),
-                create_time: Timestamp::from_seconds(140),
-                est_release_time: Timestamp::from_seconds(145),
-                undelegation_batch_status: UndelegationBatchStatus::InProgress,
-                released: false,
-            },
-        );
-        UNDELEGATION_BATCH_MAP.save(
-            deps.as_mut().storage,
-            (U64Key::new(4), U64Key::new(2)),
-            &BatchUndelegationRecord {
-                amount: Uint128::new(400_u128),
-                shares: Decimal::from_ratio(1000_u128, 1_u128),
-                unbonding_slashing_ratio: Decimal::one(),
-                undelegation_s_t_ratio: Decimal::from_ratio(10_u128, 1_u128),
-                create_time: Timestamp::from_seconds(1631094920),
-                est_release_time: Timestamp::from_seconds(1631095990),
-                undelegation_batch_status: UndelegationBatchStatus::InProgress,
-                released: false,
-            },
-        );
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(1),
+                &StrategyInfo {
+                    name: "sid1".to_string(),
+                    sic_contract_address: sic1_address.clone(),
+                    unbonding_period: 3600,
+                    unbonding_buffer: 3600,
+                    undelegation_batch_id_pointer: 4,
+                    reconciled_batch_id_pointer: 1,
+                    is_active: true,
+                    total_shares: Decimal::from_ratio(5000_u128, 1_u128),
+                    current_undelegated_shares: Decimal::zero(),
+                    global_airdrop_pointer: vec![],
+                    total_airdrops_accumulated: vec![],
+                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                },
+            )
+            .unwrap();
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(2),
+                &StrategyInfo {
+                    name: "sid2".to_string(),
+                    sic_contract_address: sic2_address.clone(),
+                    unbonding_period: 3600,
+                    unbonding_buffer: 3600,
+                    undelegation_batch_id_pointer: 6,
+                    reconciled_batch_id_pointer: 2,
+                    is_active: true,
+                    total_shares: Decimal::from_ratio(5000_u128, 1_u128),
+                    current_undelegated_shares: Decimal::zero(),
+                    global_airdrop_pointer: vec![],
+                    total_airdrops_accumulated: vec![],
+                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                },
+            )
+            .unwrap();
+        UNDELEGATION_BATCH_MAP
+            .save(
+                deps.as_mut().storage,
+                (U64Key::new(2), U64Key::new(1)),
+                &BatchUndelegationRecord {
+                    amount: Uint128::new(100_u128),
+                    shares: Decimal::from_ratio(1000_u128, 1_u128),
+                    unbonding_slashing_ratio: Decimal::one(),
+                    undelegation_s_t_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    create_time: Timestamp::from_seconds(1631094920),
+                    est_release_time: Timestamp::from_seconds(1631094990),
+                    undelegation_batch_status: UndelegationBatchStatus::InProgress,
+                    released: false,
+                },
+            )
+            .unwrap();
+        UNDELEGATION_BATCH_MAP
+            .save(
+                deps.as_mut().storage,
+                (U64Key::new(1), U64Key::new(1)),
+                &BatchUndelegationRecord {
+                    amount: Uint128::new(100_u128),
+                    shares: Decimal::from_ratio(1000_u128, 1_u128),
+                    unbonding_slashing_ratio: Decimal::one(),
+                    undelegation_s_t_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    create_time: Timestamp::from_seconds(150),
+                    est_release_time: Timestamp::from_seconds(155),
+                    undelegation_batch_status: UndelegationBatchStatus::InProgress,
+                    released: false,
+                },
+            )
+            .unwrap();
+        UNDELEGATION_BATCH_MAP
+            .save(
+                deps.as_mut().storage,
+                (U64Key::new(2), U64Key::new(2)),
+                &BatchUndelegationRecord {
+                    amount: Uint128::new(400_u128),
+                    shares: Decimal::from_ratio(1000_u128, 1_u128),
+                    unbonding_slashing_ratio: Decimal::one(),
+                    undelegation_s_t_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    create_time: Timestamp::from_seconds(123),
+                    est_release_time: Timestamp::from_seconds(126),
+                    undelegation_batch_status: UndelegationBatchStatus::InProgress,
+                    released: true,
+                },
+            )
+            .unwrap();
+        UNDELEGATION_BATCH_MAP
+            .save(
+                deps.as_mut().storage,
+                (U64Key::new(3), U64Key::new(2)),
+                &BatchUndelegationRecord {
+                    amount: Uint128::new(400_u128),
+                    shares: Decimal::from_ratio(1000_u128, 1_u128),
+                    unbonding_slashing_ratio: Decimal::one(),
+                    undelegation_s_t_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    create_time: Timestamp::from_seconds(140),
+                    est_release_time: Timestamp::from_seconds(145),
+                    undelegation_batch_status: UndelegationBatchStatus::InProgress,
+                    released: false,
+                },
+            )
+            .unwrap();
+        UNDELEGATION_BATCH_MAP
+            .save(
+                deps.as_mut().storage,
+                (U64Key::new(4), U64Key::new(2)),
+                &BatchUndelegationRecord {
+                    amount: Uint128::new(400_u128),
+                    shares: Decimal::from_ratio(1000_u128, 1_u128),
+                    unbonding_slashing_ratio: Decimal::one(),
+                    undelegation_s_t_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    create_time: Timestamp::from_seconds(1631094920),
+                    est_release_time: Timestamp::from_seconds(1631095990),
+                    undelegation_batch_status: UndelegationBatchStatus::InProgress,
+                    released: false,
+                },
+            )
+            .unwrap();
 
         let res = execute(
             deps.as_mut(),
@@ -2641,102 +2749,114 @@ mod tests {
         contracts_to_token.insert(sic3_address.clone(), Uint128::new(0_u128));
         deps.querier.update_wasm(Some(contracts_to_token), None);
 
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(1),
-            &StrategyInfo {
-                name: "sid1".to_string(),
-                sic_contract_address: sic1_address.clone(),
-                unbonding_period: 3600,
-                unbonding_buffer: 3600,
-                undelegation_batch_id_pointer: 4,
-                reconciled_batch_id_pointer: 1,
-                is_active: false,
-                total_shares: Decimal::from_ratio(5000_u128, 1_u128),
-                current_undelegated_shares: Decimal::from_ratio(1000_u128, 1_u128),
-                global_airdrop_pointer: vec![],
-                total_airdrops_accumulated: vec![],
-                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-            },
-        );
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(2),
-            &StrategyInfo {
-                name: "sid2".to_string(),
-                sic_contract_address: sic2_address.clone(),
-                unbonding_period: 3600,
-                unbonding_buffer: 3600,
-                undelegation_batch_id_pointer: 4,
-                reconciled_batch_id_pointer: 1,
-                is_active: false,
-                total_shares: Decimal::from_ratio(5000_u128, 1_u128),
-                current_undelegated_shares: Decimal::from_ratio(2000_u128, 1_u128),
-                global_airdrop_pointer: vec![],
-                total_airdrops_accumulated: vec![],
-                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-            },
-        );
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(3),
-            &StrategyInfo {
-                name: "sid3".to_string(),
-                sic_contract_address: sic3_address.clone(),
-                unbonding_period: 3600,
-                unbonding_buffer: 3600,
-                undelegation_batch_id_pointer: 4,
-                reconciled_batch_id_pointer: 1,
-                is_active: false,
-                total_shares: Decimal::from_ratio(5000_u128, 1_u128),
-                current_undelegated_shares: Decimal::from_ratio(3000_u128, 1_u128),
-                global_airdrop_pointer: vec![],
-                total_airdrops_accumulated: vec![],
-                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-            },
-        );
-        UNDELEGATION_BATCH_MAP.save(
-            deps.as_mut().storage,
-            (U64Key::new(4), U64Key::new(1)),
-            &BatchUndelegationRecord {
-                amount: Uint128::zero(),
-                shares: Decimal::zero(),
-                unbonding_slashing_ratio: Decimal::one(),
-                undelegation_s_t_ratio: Decimal::from_ratio(10_u128, 1_u128),
-                create_time: env.block.time,
-                est_release_time: env.block.time,
-                undelegation_batch_status: UndelegationBatchStatus::Pending,
-                released: false,
-            },
-        );
-        UNDELEGATION_BATCH_MAP.save(
-            deps.as_mut().storage,
-            (U64Key::new(4), U64Key::new(2)),
-            &BatchUndelegationRecord {
-                amount: Uint128::zero(),
-                shares: Decimal::zero(),
-                unbonding_slashing_ratio: Decimal::one(),
-                undelegation_s_t_ratio: Decimal::from_ratio(10_u128, 1_u128),
-                create_time: env.block.time,
-                est_release_time: env.block.time,
-                undelegation_batch_status: UndelegationBatchStatus::Pending,
-                released: false,
-            },
-        );
-        UNDELEGATION_BATCH_MAP.save(
-            deps.as_mut().storage,
-            (U64Key::new(4), U64Key::new(3)),
-            &BatchUndelegationRecord {
-                amount: Uint128::zero(),
-                shares: Decimal::zero(),
-                unbonding_slashing_ratio: Decimal::one(),
-                undelegation_s_t_ratio: Decimal::from_ratio(10_u128, 1_u128),
-                create_time: env.block.time,
-                est_release_time: env.block.time,
-                undelegation_batch_status: UndelegationBatchStatus::Pending,
-                released: false,
-            },
-        );
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(1),
+                &StrategyInfo {
+                    name: "sid1".to_string(),
+                    sic_contract_address: sic1_address.clone(),
+                    unbonding_period: 3600,
+                    unbonding_buffer: 3600,
+                    undelegation_batch_id_pointer: 4,
+                    reconciled_batch_id_pointer: 1,
+                    is_active: false,
+                    total_shares: Decimal::from_ratio(5000_u128, 1_u128),
+                    current_undelegated_shares: Decimal::from_ratio(1000_u128, 1_u128),
+                    global_airdrop_pointer: vec![],
+                    total_airdrops_accumulated: vec![],
+                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                },
+            )
+            .unwrap();
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(2),
+                &StrategyInfo {
+                    name: "sid2".to_string(),
+                    sic_contract_address: sic2_address.clone(),
+                    unbonding_period: 3600,
+                    unbonding_buffer: 3600,
+                    undelegation_batch_id_pointer: 4,
+                    reconciled_batch_id_pointer: 1,
+                    is_active: false,
+                    total_shares: Decimal::from_ratio(5000_u128, 1_u128),
+                    current_undelegated_shares: Decimal::from_ratio(2000_u128, 1_u128),
+                    global_airdrop_pointer: vec![],
+                    total_airdrops_accumulated: vec![],
+                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                },
+            )
+            .unwrap();
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(3),
+                &StrategyInfo {
+                    name: "sid3".to_string(),
+                    sic_contract_address: sic3_address.clone(),
+                    unbonding_period: 3600,
+                    unbonding_buffer: 3600,
+                    undelegation_batch_id_pointer: 4,
+                    reconciled_batch_id_pointer: 1,
+                    is_active: false,
+                    total_shares: Decimal::from_ratio(5000_u128, 1_u128),
+                    current_undelegated_shares: Decimal::from_ratio(3000_u128, 1_u128),
+                    global_airdrop_pointer: vec![],
+                    total_airdrops_accumulated: vec![],
+                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                },
+            )
+            .unwrap();
+        UNDELEGATION_BATCH_MAP
+            .save(
+                deps.as_mut().storage,
+                (U64Key::new(4), U64Key::new(1)),
+                &BatchUndelegationRecord {
+                    amount: Uint128::zero(),
+                    shares: Decimal::zero(),
+                    unbonding_slashing_ratio: Decimal::one(),
+                    undelegation_s_t_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    create_time: env.block.time,
+                    est_release_time: env.block.time,
+                    undelegation_batch_status: UndelegationBatchStatus::Pending,
+                    released: false,
+                },
+            )
+            .unwrap();
+        UNDELEGATION_BATCH_MAP
+            .save(
+                deps.as_mut().storage,
+                (U64Key::new(4), U64Key::new(2)),
+                &BatchUndelegationRecord {
+                    amount: Uint128::zero(),
+                    shares: Decimal::zero(),
+                    unbonding_slashing_ratio: Decimal::one(),
+                    undelegation_s_t_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    create_time: env.block.time,
+                    est_release_time: env.block.time,
+                    undelegation_batch_status: UndelegationBatchStatus::Pending,
+                    released: false,
+                },
+            )
+            .unwrap();
+        UNDELEGATION_BATCH_MAP
+            .save(
+                deps.as_mut().storage,
+                (U64Key::new(4), U64Key::new(3)),
+                &BatchUndelegationRecord {
+                    amount: Uint128::zero(),
+                    shares: Decimal::zero(),
+                    unbonding_slashing_ratio: Decimal::one(),
+                    undelegation_s_t_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    create_time: env.block.time,
+                    est_release_time: env.block.time,
+                    undelegation_batch_status: UndelegationBatchStatus::Pending,
+                    released: false,
+                },
+            )
+            .unwrap();
         let res = execute(
             deps.as_mut(),
             env.clone(),
@@ -2901,102 +3021,114 @@ mod tests {
         /*
            Test - 3. Failed strategies
         */
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(1),
-            &StrategyInfo {
-                name: "sid1".to_string(),
-                sic_contract_address: sic1_address.clone(),
-                unbonding_period: 3600,
-                unbonding_buffer: 3600,
-                undelegation_batch_id_pointer: 4,
-                reconciled_batch_id_pointer: 1,
-                is_active: false,
-                total_shares: Decimal::from_ratio(5000_u128, 1_u128),
-                current_undelegated_shares: Decimal::from_ratio(1000_u128, 1_u128),
-                global_airdrop_pointer: vec![],
-                total_airdrops_accumulated: vec![],
-                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-            },
-        );
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(2),
-            &StrategyInfo {
-                name: "sid2".to_string(),
-                sic_contract_address: sic2_address.clone(),
-                unbonding_period: 3600,
-                unbonding_buffer: 3600,
-                undelegation_batch_id_pointer: 4,
-                reconciled_batch_id_pointer: 1,
-                is_active: false,
-                total_shares: Decimal::from_ratio(5000_u128, 1_u128),
-                current_undelegated_shares: Decimal::from_ratio(2000_u128, 1_u128),
-                global_airdrop_pointer: vec![],
-                total_airdrops_accumulated: vec![],
-                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-            },
-        );
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(3),
-            &StrategyInfo {
-                name: "sid3".to_string(),
-                sic_contract_address: sic3_address.clone(),
-                unbonding_period: 3600,
-                unbonding_buffer: 3600,
-                undelegation_batch_id_pointer: 4,
-                reconciled_batch_id_pointer: 1,
-                is_active: false,
-                total_shares: Decimal::from_ratio(5000_u128, 1_u128),
-                current_undelegated_shares: Decimal::from_ratio(3000_u128, 1_u128),
-                global_airdrop_pointer: vec![],
-                total_airdrops_accumulated: vec![],
-                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-            },
-        );
-        UNDELEGATION_BATCH_MAP.save(
-            deps.as_mut().storage,
-            (U64Key::new(4), U64Key::new(1)),
-            &BatchUndelegationRecord {
-                amount: Uint128::zero(),
-                shares: Decimal::zero(),
-                unbonding_slashing_ratio: Decimal::one(),
-                undelegation_s_t_ratio: Decimal::from_ratio(10_u128, 1_u128),
-                create_time: env.block.time,
-                est_release_time: env.block.time,
-                undelegation_batch_status: UndelegationBatchStatus::Pending,
-                released: false,
-            },
-        );
-        UNDELEGATION_BATCH_MAP.save(
-            deps.as_mut().storage,
-            (U64Key::new(4), U64Key::new(2)),
-            &BatchUndelegationRecord {
-                amount: Uint128::zero(),
-                shares: Decimal::zero(),
-                unbonding_slashing_ratio: Decimal::one(),
-                undelegation_s_t_ratio: Decimal::from_ratio(10_u128, 1_u128),
-                create_time: env.block.time,
-                est_release_time: env.block.time,
-                undelegation_batch_status: UndelegationBatchStatus::Pending,
-                released: false,
-            },
-        );
-        UNDELEGATION_BATCH_MAP.save(
-            deps.as_mut().storage,
-            (U64Key::new(4), U64Key::new(3)),
-            &BatchUndelegationRecord {
-                amount: Uint128::zero(),
-                shares: Decimal::zero(),
-                unbonding_slashing_ratio: Decimal::one(),
-                undelegation_s_t_ratio: Decimal::from_ratio(10_u128, 1_u128),
-                create_time: env.block.time,
-                est_release_time: env.block.time,
-                undelegation_batch_status: UndelegationBatchStatus::Pending,
-                released: false,
-            },
-        );
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(1),
+                &StrategyInfo {
+                    name: "sid1".to_string(),
+                    sic_contract_address: sic1_address.clone(),
+                    unbonding_period: 3600,
+                    unbonding_buffer: 3600,
+                    undelegation_batch_id_pointer: 4,
+                    reconciled_batch_id_pointer: 1,
+                    is_active: false,
+                    total_shares: Decimal::from_ratio(5000_u128, 1_u128),
+                    current_undelegated_shares: Decimal::from_ratio(1000_u128, 1_u128),
+                    global_airdrop_pointer: vec![],
+                    total_airdrops_accumulated: vec![],
+                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                },
+            )
+            .unwrap();
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(2),
+                &StrategyInfo {
+                    name: "sid2".to_string(),
+                    sic_contract_address: sic2_address.clone(),
+                    unbonding_period: 3600,
+                    unbonding_buffer: 3600,
+                    undelegation_batch_id_pointer: 4,
+                    reconciled_batch_id_pointer: 1,
+                    is_active: false,
+                    total_shares: Decimal::from_ratio(5000_u128, 1_u128),
+                    current_undelegated_shares: Decimal::from_ratio(2000_u128, 1_u128),
+                    global_airdrop_pointer: vec![],
+                    total_airdrops_accumulated: vec![],
+                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                },
+            )
+            .unwrap();
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(3),
+                &StrategyInfo {
+                    name: "sid3".to_string(),
+                    sic_contract_address: sic3_address.clone(),
+                    unbonding_period: 3600,
+                    unbonding_buffer: 3600,
+                    undelegation_batch_id_pointer: 4,
+                    reconciled_batch_id_pointer: 1,
+                    is_active: false,
+                    total_shares: Decimal::from_ratio(5000_u128, 1_u128),
+                    current_undelegated_shares: Decimal::from_ratio(3000_u128, 1_u128),
+                    global_airdrop_pointer: vec![],
+                    total_airdrops_accumulated: vec![],
+                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                },
+            )
+            .unwrap();
+        UNDELEGATION_BATCH_MAP
+            .save(
+                deps.as_mut().storage,
+                (U64Key::new(4), U64Key::new(1)),
+                &BatchUndelegationRecord {
+                    amount: Uint128::zero(),
+                    shares: Decimal::zero(),
+                    unbonding_slashing_ratio: Decimal::one(),
+                    undelegation_s_t_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    create_time: env.block.time,
+                    est_release_time: env.block.time,
+                    undelegation_batch_status: UndelegationBatchStatus::Pending,
+                    released: false,
+                },
+            )
+            .unwrap();
+        UNDELEGATION_BATCH_MAP
+            .save(
+                deps.as_mut().storage,
+                (U64Key::new(4), U64Key::new(2)),
+                &BatchUndelegationRecord {
+                    amount: Uint128::zero(),
+                    shares: Decimal::zero(),
+                    unbonding_slashing_ratio: Decimal::one(),
+                    undelegation_s_t_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    create_time: env.block.time,
+                    est_release_time: env.block.time,
+                    undelegation_batch_status: UndelegationBatchStatus::Pending,
+                    released: false,
+                },
+            )
+            .unwrap();
+        UNDELEGATION_BATCH_MAP
+            .save(
+                deps.as_mut().storage,
+                (U64Key::new(4), U64Key::new(3)),
+                &BatchUndelegationRecord {
+                    amount: Uint128::zero(),
+                    shares: Decimal::zero(),
+                    unbonding_slashing_ratio: Decimal::one(),
+                    undelegation_s_t_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    create_time: env.block.time,
+                    est_release_time: env.block.time,
+                    undelegation_batch_status: UndelegationBatchStatus::Pending,
+                    released: false,
+                },
+            )
+            .unwrap();
         let res = execute(
             deps.as_mut(),
             env.clone(),
@@ -3148,102 +3280,114 @@ mod tests {
         /*
             Test - 4. Strategies with no undelegations
         */
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(1),
-            &StrategyInfo {
-                name: "sid1".to_string(),
-                sic_contract_address: sic1_address.clone(),
-                unbonding_period: 3600,
-                unbonding_buffer: 3600,
-                undelegation_batch_id_pointer: 4,
-                reconciled_batch_id_pointer: 1,
-                is_active: false,
-                total_shares: Decimal::from_ratio(5000_u128, 1_u128),
-                current_undelegated_shares: Decimal::from_ratio(1000_u128, 1_u128),
-                global_airdrop_pointer: vec![],
-                total_airdrops_accumulated: vec![],
-                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-            },
-        );
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(2),
-            &StrategyInfo {
-                name: "sid2".to_string(),
-                sic_contract_address: sic2_address.clone(),
-                unbonding_period: 3600,
-                unbonding_buffer: 3600,
-                undelegation_batch_id_pointer: 4,
-                reconciled_batch_id_pointer: 1,
-                is_active: false,
-                total_shares: Decimal::from_ratio(5000_u128, 1_u128),
-                current_undelegated_shares: Decimal::from_ratio(2000_u128, 1_u128),
-                global_airdrop_pointer: vec![],
-                total_airdrops_accumulated: vec![],
-                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-            },
-        );
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(3),
-            &StrategyInfo {
-                name: "sid3".to_string(),
-                sic_contract_address: sic3_address.clone(),
-                unbonding_period: 3600,
-                unbonding_buffer: 3600,
-                undelegation_batch_id_pointer: 4,
-                reconciled_batch_id_pointer: 1,
-                is_active: false,
-                total_shares: Decimal::from_ratio(5000_u128, 1_u128),
-                current_undelegated_shares: Decimal::zero(),
-                global_airdrop_pointer: vec![],
-                total_airdrops_accumulated: vec![],
-                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-            },
-        );
-        UNDELEGATION_BATCH_MAP.save(
-            deps.as_mut().storage,
-            (U64Key::new(4), U64Key::new(1)),
-            &BatchUndelegationRecord {
-                amount: Uint128::zero(),
-                shares: Decimal::zero(),
-                unbonding_slashing_ratio: Decimal::one(),
-                undelegation_s_t_ratio: Decimal::from_ratio(10_u128, 1_u128),
-                create_time: env.block.time,
-                est_release_time: env.block.time,
-                undelegation_batch_status: UndelegationBatchStatus::Pending,
-                released: false,
-            },
-        );
-        UNDELEGATION_BATCH_MAP.save(
-            deps.as_mut().storage,
-            (U64Key::new(4), U64Key::new(2)),
-            &BatchUndelegationRecord {
-                amount: Uint128::zero(),
-                shares: Decimal::zero(),
-                unbonding_slashing_ratio: Decimal::one(),
-                undelegation_s_t_ratio: Decimal::from_ratio(10_u128, 1_u128),
-                create_time: env.block.time,
-                est_release_time: env.block.time,
-                undelegation_batch_status: UndelegationBatchStatus::Pending,
-                released: false,
-            },
-        );
-        UNDELEGATION_BATCH_MAP.save(
-            deps.as_mut().storage,
-            (U64Key::new(4), U64Key::new(3)),
-            &BatchUndelegationRecord {
-                amount: Uint128::zero(),
-                shares: Decimal::zero(),
-                unbonding_slashing_ratio: Decimal::one(),
-                undelegation_s_t_ratio: Decimal::from_ratio(10_u128, 1_u128),
-                create_time: env.block.time,
-                est_release_time: env.block.time,
-                undelegation_batch_status: UndelegationBatchStatus::Pending,
-                released: false,
-            },
-        );
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(1),
+                &StrategyInfo {
+                    name: "sid1".to_string(),
+                    sic_contract_address: sic1_address.clone(),
+                    unbonding_period: 3600,
+                    unbonding_buffer: 3600,
+                    undelegation_batch_id_pointer: 4,
+                    reconciled_batch_id_pointer: 1,
+                    is_active: false,
+                    total_shares: Decimal::from_ratio(5000_u128, 1_u128),
+                    current_undelegated_shares: Decimal::from_ratio(1000_u128, 1_u128),
+                    global_airdrop_pointer: vec![],
+                    total_airdrops_accumulated: vec![],
+                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                },
+            )
+            .unwrap();
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(2),
+                &StrategyInfo {
+                    name: "sid2".to_string(),
+                    sic_contract_address: sic2_address.clone(),
+                    unbonding_period: 3600,
+                    unbonding_buffer: 3600,
+                    undelegation_batch_id_pointer: 4,
+                    reconciled_batch_id_pointer: 1,
+                    is_active: false,
+                    total_shares: Decimal::from_ratio(5000_u128, 1_u128),
+                    current_undelegated_shares: Decimal::from_ratio(2000_u128, 1_u128),
+                    global_airdrop_pointer: vec![],
+                    total_airdrops_accumulated: vec![],
+                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                },
+            )
+            .unwrap();
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(3),
+                &StrategyInfo {
+                    name: "sid3".to_string(),
+                    sic_contract_address: sic3_address.clone(),
+                    unbonding_period: 3600,
+                    unbonding_buffer: 3600,
+                    undelegation_batch_id_pointer: 4,
+                    reconciled_batch_id_pointer: 1,
+                    is_active: false,
+                    total_shares: Decimal::from_ratio(5000_u128, 1_u128),
+                    current_undelegated_shares: Decimal::zero(),
+                    global_airdrop_pointer: vec![],
+                    total_airdrops_accumulated: vec![],
+                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                },
+            )
+            .unwrap();
+        UNDELEGATION_BATCH_MAP
+            .save(
+                deps.as_mut().storage,
+                (U64Key::new(4), U64Key::new(1)),
+                &BatchUndelegationRecord {
+                    amount: Uint128::zero(),
+                    shares: Decimal::zero(),
+                    unbonding_slashing_ratio: Decimal::one(),
+                    undelegation_s_t_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    create_time: env.block.time,
+                    est_release_time: env.block.time,
+                    undelegation_batch_status: UndelegationBatchStatus::Pending,
+                    released: false,
+                },
+            )
+            .unwrap();
+        UNDELEGATION_BATCH_MAP
+            .save(
+                deps.as_mut().storage,
+                (U64Key::new(4), U64Key::new(2)),
+                &BatchUndelegationRecord {
+                    amount: Uint128::zero(),
+                    shares: Decimal::zero(),
+                    unbonding_slashing_ratio: Decimal::one(),
+                    undelegation_s_t_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    create_time: env.block.time,
+                    est_release_time: env.block.time,
+                    undelegation_batch_status: UndelegationBatchStatus::Pending,
+                    released: false,
+                },
+            )
+            .unwrap();
+        UNDELEGATION_BATCH_MAP
+            .save(
+                deps.as_mut().storage,
+                (U64Key::new(4), U64Key::new(3)),
+                &BatchUndelegationRecord {
+                    amount: Uint128::zero(),
+                    shares: Decimal::zero(),
+                    unbonding_slashing_ratio: Decimal::one(),
+                    undelegation_s_t_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    create_time: env.block.time,
+                    est_release_time: env.block.time,
+                    undelegation_batch_status: UndelegationBatchStatus::Pending,
+                    released: false,
+                },
+            )
+            .unwrap();
         let res = execute(
             deps.as_mut(),
             env.clone(),
@@ -3375,11 +3519,13 @@ mod tests {
         /*
             Test - 1. User reward info does not exist
         */
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(1),
-            &StrategyInfo::default("sid1".to_string()),
-        );
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(1),
+                &StrategyInfo::default("sid1".to_string()),
+            )
+            .unwrap();
         let err = execute(
             deps.as_mut(),
             env.clone(),
@@ -3395,12 +3541,16 @@ mod tests {
         /*
             Test - 2. User undelegation record does not exist
         */
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(1),
-            &StrategyInfo::default("sid1".to_string()),
-        );
-        USER_REWARD_INFO_MAP.save(deps.as_mut().storage, &user1, &UserRewardInfo::default());
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(1),
+                &StrategyInfo::default("sid1".to_string()),
+            )
+            .unwrap();
+        USER_REWARD_INFO_MAP
+            .save(deps.as_mut().storage, &user1, &UserRewardInfo::default())
+            .unwrap();
         let err = execute(
             deps.as_mut(),
             env.clone(),
@@ -3416,46 +3566,52 @@ mod tests {
         /*
            Test - 3. Undelegation slashing not checked
         */
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(1),
-            &StrategyInfo::default("sid1".to_string()),
-        );
-        USER_REWARD_INFO_MAP.save(
-            deps.as_mut().storage,
-            &user1,
-            &UserRewardInfo {
-                user_portfolio: vec![],
-                strategies: vec![UserStrategyInfo {
-                    strategy_id: 1,
-                    shares: Decimal::from_ratio(1000_u128, 1_u128),
-                    airdrop_pointer: vec![],
-                }],
-                pending_airdrops: vec![],
-                undelegation_records: vec![UserUndelegationRecord {
-                    id: 0,
-                    amount: Uint128::new(100_u128),
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(1),
+                &StrategyInfo::default("sid1".to_string()),
+            )
+            .unwrap();
+        USER_REWARD_INFO_MAP
+            .save(
+                deps.as_mut().storage,
+                &user1,
+                &UserRewardInfo {
+                    user_portfolio: vec![],
+                    strategies: vec![UserStrategyInfo {
+                        strategy_id: 1,
+                        shares: Decimal::from_ratio(1000_u128, 1_u128),
+                        airdrop_pointer: vec![],
+                    }],
+                    pending_airdrops: vec![],
+                    undelegation_records: vec![UserUndelegationRecord {
+                        id: 0,
+                        amount: Uint128::new(100_u128),
+                        shares: Default::default(),
+                        strategy_id: 1,
+                        undelegation_batch_id: 3,
+                    }],
+                    pending_rewards: Uint128::zero(),
+                },
+            )
+            .unwrap();
+        UNDELEGATION_BATCH_MAP
+            .save(
+                deps.as_mut().storage,
+                (U64Key::new(3), U64Key::new(1)),
+                &BatchUndelegationRecord {
+                    amount: Uint128::new(400_u128),
                     shares: Default::default(),
-                    strategy_id: 1,
-                    undelegation_batch_id: 3,
-                }],
-                pending_rewards: Uint128::zero(),
-            },
-        );
-        UNDELEGATION_BATCH_MAP.save(
-            deps.as_mut().storage,
-            (U64Key::new(3), U64Key::new(1)),
-            &BatchUndelegationRecord {
-                amount: Uint128::new(400_u128),
-                shares: Default::default(),
-                unbonding_slashing_ratio: Decimal::from_ratio(3_u128, 4_u128),
-                undelegation_s_t_ratio: Default::default(),
-                create_time: Timestamp::from_seconds(150),
-                est_release_time: Timestamp::from_seconds(150 + 7200),
-                undelegation_batch_status: UndelegationBatchStatus::InProgress,
-                released: false,
-            },
-        );
+                    unbonding_slashing_ratio: Decimal::from_ratio(3_u128, 4_u128),
+                    undelegation_s_t_ratio: Default::default(),
+                    create_time: Timestamp::from_seconds(150),
+                    est_release_time: Timestamp::from_seconds(150 + 7200),
+                    undelegation_batch_status: UndelegationBatchStatus::InProgress,
+                    released: false,
+                },
+            )
+            .unwrap();
         let err = execute(
             deps.as_mut(),
             env.clone(),
@@ -3493,46 +3649,52 @@ mod tests {
         /*
            Test - 1. User has only 1 undelegation record
         */
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(1),
-            &StrategyInfo::new("sid1".to_string(), sic1_address.clone(), 10, 10),
-        );
-        USER_REWARD_INFO_MAP.save(
-            deps.as_mut().storage,
-            &user1,
-            &UserRewardInfo {
-                user_portfolio: vec![],
-                strategies: vec![UserStrategyInfo {
-                    strategy_id: 1,
-                    shares: Decimal::from_ratio(5000_u128, 1_u128),
-                    airdrop_pointer: vec![],
-                }],
-                pending_airdrops: vec![],
-                undelegation_records: vec![UserUndelegationRecord {
-                    id: 0,
-                    amount: Uint128::new(100_u128),
-                    shares: Decimal::from_ratio(1000_u128, 1_u128),
-                    strategy_id: 1,
-                    undelegation_batch_id: 5,
-                }],
-                pending_rewards: Uint128::zero(),
-            },
-        );
-        UNDELEGATION_BATCH_MAP.save(
-            deps.as_mut().storage,
-            (U64Key::new(5), U64Key::new(1)),
-            &BatchUndelegationRecord {
-                amount: Uint128::new(400_u128),
-                shares: Decimal::from_ratio(4000_u128, 1_u128),
-                unbonding_slashing_ratio: Decimal::from_ratio(3_u128, 4_u128),
-                undelegation_s_t_ratio: Decimal::from_ratio(10_u128, 1_u128),
-                create_time: Timestamp::from_seconds(150),
-                est_release_time: Timestamp::from_seconds(150 + 7200),
-                undelegation_batch_status: UndelegationBatchStatus::Done,
-                released: true,
-            },
-        );
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(1),
+                &StrategyInfo::new("sid1".to_string(), sic1_address.clone(), 10, 10),
+            )
+            .unwrap();
+        USER_REWARD_INFO_MAP
+            .save(
+                deps.as_mut().storage,
+                &user1,
+                &UserRewardInfo {
+                    user_portfolio: vec![],
+                    strategies: vec![UserStrategyInfo {
+                        strategy_id: 1,
+                        shares: Decimal::from_ratio(5000_u128, 1_u128),
+                        airdrop_pointer: vec![],
+                    }],
+                    pending_airdrops: vec![],
+                    undelegation_records: vec![UserUndelegationRecord {
+                        id: 0,
+                        amount: Uint128::new(100_u128),
+                        shares: Decimal::from_ratio(1000_u128, 1_u128),
+                        strategy_id: 1,
+                        undelegation_batch_id: 5,
+                    }],
+                    pending_rewards: Uint128::zero(),
+                },
+            )
+            .unwrap();
+        UNDELEGATION_BATCH_MAP
+            .save(
+                deps.as_mut().storage,
+                (U64Key::new(5), U64Key::new(1)),
+                &BatchUndelegationRecord {
+                    amount: Uint128::new(400_u128),
+                    shares: Decimal::from_ratio(4000_u128, 1_u128),
+                    unbonding_slashing_ratio: Decimal::from_ratio(3_u128, 4_u128),
+                    undelegation_s_t_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    create_time: Timestamp::from_seconds(150),
+                    est_release_time: Timestamp::from_seconds(150 + 7200),
+                    undelegation_batch_status: UndelegationBatchStatus::Done,
+                    released: true,
+                },
+            )
+            .unwrap();
         let res = execute(
             deps.as_mut(),
             env.clone(),
@@ -3562,62 +3724,68 @@ mod tests {
         /*
            Test - 2. User has multiple undelegation records.
         */
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(1),
-            &StrategyInfo::new("sid1".to_string(), sic1_address.clone(), 10, 10),
-        );
-        USER_REWARD_INFO_MAP.save(
-            deps.as_mut().storage,
-            &user1,
-            &UserRewardInfo {
-                user_portfolio: vec![],
-                strategies: vec![
-                    UserStrategyInfo {
-                        strategy_id: 1,
-                        shares: Decimal::from_ratio(5000_u128, 1_u128),
-                        airdrop_pointer: vec![],
-                    },
-                    UserStrategyInfo {
-                        strategy_id: 2,
-                        shares: Decimal::from_ratio(5000_u128, 1_u128),
-                        airdrop_pointer: vec![],
-                    },
-                ],
-                pending_airdrops: vec![],
-                undelegation_records: vec![
-                    UserUndelegationRecord {
-                        id: 0,
-                        amount: Uint128::new(100_u128),
-                        shares: Decimal::from_ratio(1000_u128, 1_u128),
-                        strategy_id: 1,
-                        undelegation_batch_id: 5,
-                    },
-                    UserUndelegationRecord {
-                        id: 1,
-                        amount: Uint128::new(100_u128),
-                        shares: Decimal::from_ratio(1000_u128, 1_u128),
-                        strategy_id: 2,
-                        undelegation_batch_id: 6,
-                    },
-                ],
-                pending_rewards: Uint128::zero(),
-            },
-        );
-        UNDELEGATION_BATCH_MAP.save(
-            deps.as_mut().storage,
-            (U64Key::new(5), U64Key::new(1)),
-            &BatchUndelegationRecord {
-                amount: Uint128::new(400_u128),
-                shares: Decimal::from_ratio(4000_u128, 1_u128),
-                unbonding_slashing_ratio: Decimal::from_ratio(3_u128, 4_u128),
-                undelegation_s_t_ratio: Decimal::from_ratio(10_u128, 1_u128),
-                create_time: Timestamp::from_seconds(150),
-                est_release_time: Timestamp::from_seconds(150 + 7200),
-                undelegation_batch_status: UndelegationBatchStatus::Done,
-                released: true,
-            },
-        );
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(1),
+                &StrategyInfo::new("sid1".to_string(), sic1_address.clone(), 10, 10),
+            )
+            .unwrap();
+        USER_REWARD_INFO_MAP
+            .save(
+                deps.as_mut().storage,
+                &user1,
+                &UserRewardInfo {
+                    user_portfolio: vec![],
+                    strategies: vec![
+                        UserStrategyInfo {
+                            strategy_id: 1,
+                            shares: Decimal::from_ratio(5000_u128, 1_u128),
+                            airdrop_pointer: vec![],
+                        },
+                        UserStrategyInfo {
+                            strategy_id: 2,
+                            shares: Decimal::from_ratio(5000_u128, 1_u128),
+                            airdrop_pointer: vec![],
+                        },
+                    ],
+                    pending_airdrops: vec![],
+                    undelegation_records: vec![
+                        UserUndelegationRecord {
+                            id: 0,
+                            amount: Uint128::new(100_u128),
+                            shares: Decimal::from_ratio(1000_u128, 1_u128),
+                            strategy_id: 1,
+                            undelegation_batch_id: 5,
+                        },
+                        UserUndelegationRecord {
+                            id: 1,
+                            amount: Uint128::new(100_u128),
+                            shares: Decimal::from_ratio(1000_u128, 1_u128),
+                            strategy_id: 2,
+                            undelegation_batch_id: 6,
+                        },
+                    ],
+                    pending_rewards: Uint128::zero(),
+                },
+            )
+            .unwrap();
+        UNDELEGATION_BATCH_MAP
+            .save(
+                deps.as_mut().storage,
+                (U64Key::new(5), U64Key::new(1)),
+                &BatchUndelegationRecord {
+                    amount: Uint128::new(400_u128),
+                    shares: Decimal::from_ratio(4000_u128, 1_u128),
+                    unbonding_slashing_ratio: Decimal::from_ratio(3_u128, 4_u128),
+                    undelegation_s_t_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    create_time: Timestamp::from_seconds(150),
+                    est_release_time: Timestamp::from_seconds(150 + 7200),
+                    undelegation_batch_status: UndelegationBatchStatus::Done,
+                    released: true,
+                },
+            )
+            .unwrap();
         let res = execute(
             deps.as_mut(),
             env.clone(),
@@ -3706,11 +3874,13 @@ mod tests {
         /*
            Test - 3. User reward info does not exist
         */
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(1),
-            &StrategyInfo::default("sid1".to_string()),
-        );
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(1),
+                &StrategyInfo::default("sid1".to_string()),
+            )
+            .unwrap();
         let err = execute(
             deps.as_mut(),
             env.clone(),
@@ -3726,12 +3896,16 @@ mod tests {
         /*
            Test - 4. User did not deposit to strategy
         */
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(1),
-            &StrategyInfo::default("sid1".to_string()),
-        );
-        USER_REWARD_INFO_MAP.save(deps.as_mut().storage, &user1, &UserRewardInfo::default());
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(1),
+                &StrategyInfo::default("sid1".to_string()),
+            )
+            .unwrap();
+        USER_REWARD_INFO_MAP
+            .save(deps.as_mut().storage, &user1, &UserRewardInfo::default())
+            .unwrap();
         let err = execute(
             deps.as_mut(),
             env.clone(),
@@ -3751,39 +3925,43 @@ mod tests {
         contracts_to_token.insert(sic1_address.clone(), Uint128::new(0_u128));
         deps.querier.update_wasm(Some(contracts_to_token), None);
 
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(1),
-            &StrategyInfo {
-                name: "sid1".to_string(),
-                sic_contract_address: sic1_address.clone(),
-                unbonding_period: 3600,
-                unbonding_buffer: 3600,
-                undelegation_batch_id_pointer: 0,
-                reconciled_batch_id_pointer: 0,
-                is_active: true,
-                total_shares: Decimal::from_ratio(5000_u128, 1_u128),
-                current_undelegated_shares: Default::default(),
-                global_airdrop_pointer: vec![],
-                total_airdrops_accumulated: vec![],
-                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-            },
-        );
-        USER_REWARD_INFO_MAP.save(
-            deps.as_mut().storage,
-            &user1,
-            &UserRewardInfo {
-                user_portfolio: vec![],
-                strategies: vec![UserStrategyInfo {
-                    strategy_id: 1,
-                    shares: Decimal::from_ratio(3000_u128, 1_u128),
-                    airdrop_pointer: vec![],
-                }],
-                pending_airdrops: vec![],
-                undelegation_records: vec![],
-                pending_rewards: Uint128::zero(),
-            },
-        );
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(1),
+                &StrategyInfo {
+                    name: "sid1".to_string(),
+                    sic_contract_address: sic1_address.clone(),
+                    unbonding_period: 3600,
+                    unbonding_buffer: 3600,
+                    undelegation_batch_id_pointer: 0,
+                    reconciled_batch_id_pointer: 0,
+                    is_active: true,
+                    total_shares: Decimal::from_ratio(5000_u128, 1_u128),
+                    current_undelegated_shares: Default::default(),
+                    global_airdrop_pointer: vec![],
+                    total_airdrops_accumulated: vec![],
+                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                },
+            )
+            .unwrap();
+        USER_REWARD_INFO_MAP
+            .save(
+                deps.as_mut().storage,
+                &user1,
+                &UserRewardInfo {
+                    user_portfolio: vec![],
+                    strategies: vec![UserStrategyInfo {
+                        strategy_id: 1,
+                        shares: Decimal::from_ratio(3000_u128, 1_u128),
+                        airdrop_pointer: vec![],
+                    }],
+                    pending_airdrops: vec![],
+                    undelegation_records: vec![],
+                    pending_rewards: Uint128::zero(),
+                },
+            )
+            .unwrap();
 
         let err = execute(
             deps.as_mut(),
@@ -3827,49 +4005,55 @@ mod tests {
         contracts_to_token.insert(sic1_address.clone(), Uint128::new(0_u128));
         deps.querier.update_wasm(Some(contracts_to_token), None);
 
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(1),
-            &StrategyInfo {
-                name: "sid1".to_string(),
-                sic_contract_address: sic1_address.clone(),
-                unbonding_period: 3600,
-                unbonding_buffer: 3600,
-                undelegation_batch_id_pointer: 0,
-                reconciled_batch_id_pointer: 0,
-                is_active: true,
-                total_shares: Decimal::from_ratio(5000_u128, 1_u128),
-                current_undelegated_shares: Decimal::zero(),
-                global_airdrop_pointer: vec![
-                    DecCoin::new(Decimal::from_ratio(200_u128, 5000_u128), "anc".to_string()),
-                    DecCoin::new(Decimal::from_ratio(400_u128, 5000_u128), "mir".to_string()),
-                ],
-                total_airdrops_accumulated: vec![],
-                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-            },
-        );
-        USER_REWARD_INFO_MAP.save(
-            deps.as_mut().storage,
-            &user1,
-            &UserRewardInfo {
-                user_portfolio: vec![],
-                strategies: vec![UserStrategyInfo {
-                    strategy_id: 1,
-                    shares: Decimal::from_ratio(3000_u128, 1_u128),
-                    airdrop_pointer: vec![],
-                }],
-                pending_airdrops: vec![],
-                undelegation_records: vec![],
-                pending_rewards: Uint128::zero(),
-            },
-        );
-        STATE.update(
-            deps.as_mut().storage,
-            |mut state| -> Result<_, ContractError> {
-                state.next_strategy_id = 0;
-                Ok(state)
-            },
-        );
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(1),
+                &StrategyInfo {
+                    name: "sid1".to_string(),
+                    sic_contract_address: sic1_address.clone(),
+                    unbonding_period: 3600,
+                    unbonding_buffer: 3600,
+                    undelegation_batch_id_pointer: 0,
+                    reconciled_batch_id_pointer: 0,
+                    is_active: true,
+                    total_shares: Decimal::from_ratio(5000_u128, 1_u128),
+                    current_undelegated_shares: Decimal::zero(),
+                    global_airdrop_pointer: vec![
+                        DecCoin::new(Decimal::from_ratio(200_u128, 5000_u128), "anc".to_string()),
+                        DecCoin::new(Decimal::from_ratio(400_u128, 5000_u128), "mir".to_string()),
+                    ],
+                    total_airdrops_accumulated: vec![],
+                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                },
+            )
+            .unwrap();
+        USER_REWARD_INFO_MAP
+            .save(
+                deps.as_mut().storage,
+                &user1,
+                &UserRewardInfo {
+                    user_portfolio: vec![],
+                    strategies: vec![UserStrategyInfo {
+                        strategy_id: 1,
+                        shares: Decimal::from_ratio(3000_u128, 1_u128),
+                        airdrop_pointer: vec![],
+                    }],
+                    pending_airdrops: vec![],
+                    undelegation_records: vec![],
+                    pending_rewards: Uint128::zero(),
+                },
+            )
+            .unwrap();
+        STATE
+            .update(
+                deps.as_mut().storage,
+                |mut state| -> Result<_, ContractError> {
+                    state.next_strategy_id = 0;
+                    Ok(state)
+                },
+            )
+            .unwrap();
 
         let _res = execute(
             deps.as_mut(),
@@ -3914,10 +4098,6 @@ mod tests {
                 Coin::new(240_u128, "mir".to_string())
             ]
         ));
-        println!(
-            "user undelegation records are {:?}",
-            user1_reward_info.undelegation_records
-        );
         assert!(check_equal_vec(
             user1_reward_info.undelegation_records,
             vec![UserUndelegationRecord {
@@ -3956,61 +4136,73 @@ mod tests {
         /*
            Test - 2. User undelegates again
         */
-        STATE.update(
-            deps.as_mut().storage,
-            |mut state| -> Result<_, ContractError> {
-                state.next_strategy_id = 1;
-                Ok(state)
-            },
-        );
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(1),
-            &StrategyInfo {
-                name: "sid1".to_string(),
-                sic_contract_address: sic1_address.clone(),
-                unbonding_period: 3600,
-                unbonding_buffer: 3600,
-                undelegation_batch_id_pointer: 0,
-                reconciled_batch_id_pointer: 0,
-                is_active: true,
-                total_shares: Decimal::from_ratio(3000_u128, 1_u128),
-                current_undelegated_shares: Decimal::from_ratio(2000_u128, 1_u128),
-                global_airdrop_pointer: vec![
-                    DecCoin::new(Decimal::from_ratio(200_u128, 5000_u128), "anc".to_string()),
-                    DecCoin::new(Decimal::from_ratio(400_u128, 5000_u128), "mir".to_string()),
-                ],
-                total_airdrops_accumulated: vec![],
-                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-            },
-        );
-        USER_REWARD_INFO_MAP.save(
-            deps.as_mut().storage,
-            &user1,
-            &UserRewardInfo {
-                user_portfolio: vec![],
-                strategies: vec![UserStrategyInfo {
-                    strategy_id: 1,
-                    shares: Decimal::from_ratio(1000_u128, 1_u128),
-                    airdrop_pointer: vec![
+        STATE
+            .update(
+                deps.as_mut().storage,
+                |mut state| -> Result<_, ContractError> {
+                    state.next_strategy_id = 1;
+                    Ok(state)
+                },
+            )
+            .unwrap();
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(1),
+                &StrategyInfo {
+                    name: "sid1".to_string(),
+                    sic_contract_address: sic1_address.clone(),
+                    unbonding_period: 3600,
+                    unbonding_buffer: 3600,
+                    undelegation_batch_id_pointer: 0,
+                    reconciled_batch_id_pointer: 0,
+                    is_active: true,
+                    total_shares: Decimal::from_ratio(3000_u128, 1_u128),
+                    current_undelegated_shares: Decimal::from_ratio(2000_u128, 1_u128),
+                    global_airdrop_pointer: vec![
                         DecCoin::new(Decimal::from_ratio(200_u128, 5000_u128), "anc".to_string()),
                         DecCoin::new(Decimal::from_ratio(400_u128, 5000_u128), "mir".to_string()),
                     ],
-                }],
-                pending_airdrops: vec![
-                    Coin::new(120_u128, "anc".to_string()),
-                    Coin::new(240_u128, "mir".to_string()),
-                ],
-                undelegation_records: vec![UserUndelegationRecord {
-                    id: 0,
-                    amount: Uint128::new(200_u128),
-                    shares: Decimal::from_ratio(2000_u128, 1_u128),
-                    strategy_id: 1,
-                    undelegation_batch_id: 0,
-                }],
-                pending_rewards: Uint128::zero(),
-            },
-        );
+                    total_airdrops_accumulated: vec![],
+                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                },
+            )
+            .unwrap();
+        USER_REWARD_INFO_MAP
+            .save(
+                deps.as_mut().storage,
+                &user1,
+                &UserRewardInfo {
+                    user_portfolio: vec![],
+                    strategies: vec![UserStrategyInfo {
+                        strategy_id: 1,
+                        shares: Decimal::from_ratio(1000_u128, 1_u128),
+                        airdrop_pointer: vec![
+                            DecCoin::new(
+                                Decimal::from_ratio(200_u128, 5000_u128),
+                                "anc".to_string(),
+                            ),
+                            DecCoin::new(
+                                Decimal::from_ratio(400_u128, 5000_u128),
+                                "mir".to_string(),
+                            ),
+                        ],
+                    }],
+                    pending_airdrops: vec![
+                        Coin::new(120_u128, "anc".to_string()),
+                        Coin::new(240_u128, "mir".to_string()),
+                    ],
+                    undelegation_records: vec![UserUndelegationRecord {
+                        id: 0,
+                        amount: Uint128::new(200_u128),
+                        shares: Decimal::from_ratio(2000_u128, 1_u128),
+                        strategy_id: 1,
+                        undelegation_batch_id: 0,
+                    }],
+                    pending_rewards: Uint128::zero(),
+                },
+            )
+            .unwrap();
 
         let _res = execute(
             deps.as_mut(),
@@ -4156,14 +4348,16 @@ mod tests {
         /*
            Test - 3. Non-existent strategy
         */
-        CW20_TOKEN_CONTRACTS_REGISTRY.save(
-            deps.as_mut().storage,
-            "anc".to_string(),
-            &Cw20TokenContractsInfo {
-                airdrop_contract: Addr::unchecked("abc"),
-                cw20_token_contract: Addr::unchecked("def"),
-            },
-        );
+        CW20_TOKEN_CONTRACTS_REGISTRY
+            .save(
+                deps.as_mut().storage,
+                "anc".to_string(),
+                &Cw20TokenContractsInfo {
+                    airdrop_contract: Addr::unchecked("abc"),
+                    cw20_token_contract: Addr::unchecked("def"),
+                },
+            )
+            .unwrap();
 
         let err = execute(
             deps.as_mut(),
@@ -4206,29 +4400,35 @@ mod tests {
             Binary::from(vec![1, 2, 3, 4, 5, 6, 7, 8, 9])
         }
 
-        CW20_TOKEN_CONTRACTS_REGISTRY.save(
-            deps.as_mut().storage,
-            "anc".to_string(),
-            &Cw20TokenContractsInfo {
-                airdrop_contract: anc_airdrop_contract.clone(),
-                cw20_token_contract: anc_cw20_contract.clone(),
-            },
-        );
-        CW20_TOKEN_CONTRACTS_REGISTRY.save(
-            deps.as_mut().storage,
-            "mir".to_string(),
-            &Cw20TokenContractsInfo {
-                airdrop_contract: mir_airdrop_contract.clone(),
-                cw20_token_contract: mir_cw20_contract.clone(),
-            },
-        );
+        CW20_TOKEN_CONTRACTS_REGISTRY
+            .save(
+                deps.as_mut().storage,
+                "anc".to_string(),
+                &Cw20TokenContractsInfo {
+                    airdrop_contract: anc_airdrop_contract.clone(),
+                    cw20_token_contract: anc_cw20_contract.clone(),
+                },
+            )
+            .unwrap();
+        CW20_TOKEN_CONTRACTS_REGISTRY
+            .save(
+                deps.as_mut().storage,
+                "mir".to_string(),
+                &Cw20TokenContractsInfo {
+                    airdrop_contract: mir_airdrop_contract.clone(),
+                    cw20_token_contract: mir_cw20_contract.clone(),
+                },
+            )
+            .unwrap();
 
         /*
            Test - 1. Claiming airdrops from the sic for the first time
         */
         let mut strategy_info = StrategyInfo::new("sid1".to_string(), sic_contract.clone(), 10, 10);
         strategy_info.total_shares = Decimal::from_ratio(100_000_000_u128, 1_u128);
-        STRATEGY_MAP.save(deps.as_mut().storage, U64Key::new(1), &strategy_info);
+        STRATEGY_MAP
+            .save(deps.as_mut().storage, U64Key::new(1), &strategy_info)
+            .unwrap();
 
         let res = execute(
             deps.as_mut(),
@@ -4298,18 +4498,22 @@ mod tests {
         )];
         strategy_info.total_airdrops_accumulated = vec![Coin::new(100_u128, "anc".to_string())];
 
-        STRATEGY_MAP.save(deps.as_mut().storage, U64Key::new(1), &strategy_info);
+        STRATEGY_MAP
+            .save(deps.as_mut().storage, U64Key::new(1), &strategy_info)
+            .unwrap();
 
-        STATE.update(
-            deps.as_mut().storage,
-            |mut state| -> Result<_, ContractError> {
-                state.total_accumulated_airdrops = vec![
-                    Coin::new(200_u128, "anc".to_string()),
-                    Coin::new(500_u128, "mir".to_string()),
-                ];
-                Ok(state)
-            },
-        );
+        STATE
+            .update(
+                deps.as_mut().storage,
+                |mut state| -> Result<_, ContractError> {
+                    state.total_accumulated_airdrops = vec![
+                        Coin::new(200_u128, "anc".to_string()),
+                        Coin::new(500_u128, "mir".to_string()),
+                    ];
+                    Ok(state)
+                },
+            )
+            .unwrap();
 
         let res = execute(
             deps.as_mut(),
@@ -4434,70 +4638,80 @@ mod tests {
         /*
            Test - 1. User has some pending airdrops
         */
-        CW20_TOKEN_CONTRACTS_REGISTRY.save(
-            deps.as_mut().storage,
-            "anc".to_string(),
-            &Cw20TokenContractsInfo {
-                airdrop_contract: anc_airdrop_contract.clone(),
-                cw20_token_contract: anc_token_contract.clone(),
-            },
-        );
-        CW20_TOKEN_CONTRACTS_REGISTRY.save(
-            deps.as_mut().storage,
-            "mir".to_string(),
-            &Cw20TokenContractsInfo {
-                airdrop_contract: mir_airdrop_contract.clone(),
-                cw20_token_contract: mir_token_contract.clone(),
-            },
-        );
+        CW20_TOKEN_CONTRACTS_REGISTRY
+            .save(
+                deps.as_mut().storage,
+                "anc".to_string(),
+                &Cw20TokenContractsInfo {
+                    airdrop_contract: anc_airdrop_contract.clone(),
+                    cw20_token_contract: anc_token_contract.clone(),
+                },
+            )
+            .unwrap();
+        CW20_TOKEN_CONTRACTS_REGISTRY
+            .save(
+                deps.as_mut().storage,
+                "mir".to_string(),
+                &Cw20TokenContractsInfo {
+                    airdrop_contract: mir_airdrop_contract.clone(),
+                    cw20_token_contract: mir_token_contract.clone(),
+                },
+            )
+            .unwrap();
 
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(1),
-            &StrategyInfo {
-                name: "sid1".to_string(),
-                sic_contract_address: sic1_address.clone(),
-                unbonding_period: (21 * 24 * 3600),
-                unbonding_buffer: 3600,
-                undelegation_batch_id_pointer: 0,
-                reconciled_batch_id_pointer: 0,
-                is_active: true,
-                total_shares: Decimal::from_ratio(5000_u128, 1_u128),
-                current_undelegated_shares: Decimal::zero(),
-                global_airdrop_pointer: vec![
-                    DecCoin::new(Decimal::from_ratio(500_u128, 5000_u128), "anc".to_string()),
-                    DecCoin::new(Decimal::from_ratio(200_u128, 5000_u128), "mir".to_string()),
-                ],
-                total_airdrops_accumulated: vec![
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(1),
+                &StrategyInfo {
+                    name: "sid1".to_string(),
+                    sic_contract_address: sic1_address.clone(),
+                    unbonding_period: (21 * 24 * 3600),
+                    unbonding_buffer: 3600,
+                    undelegation_batch_id_pointer: 0,
+                    reconciled_batch_id_pointer: 0,
+                    is_active: true,
+                    total_shares: Decimal::from_ratio(5000_u128, 1_u128),
+                    current_undelegated_shares: Decimal::zero(),
+                    global_airdrop_pointer: vec![
+                        DecCoin::new(Decimal::from_ratio(500_u128, 5000_u128), "anc".to_string()),
+                        DecCoin::new(Decimal::from_ratio(200_u128, 5000_u128), "mir".to_string()),
+                    ],
+                    total_airdrops_accumulated: vec![
+                        Coin::new(500_u128, "anc".to_string()),
+                        Coin::new(200_u128, "mir".to_string()),
+                    ],
+                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                },
+            )
+            .unwrap();
+
+        USER_REWARD_INFO_MAP
+            .save(
+                deps.as_mut().storage,
+                &user1,
+                &UserRewardInfo {
+                    user_portfolio: vec![],
+                    strategies: vec![UserStrategyInfo {
+                        strategy_id: 1,
+                        shares: Decimal::from_ratio(5000_u128, 1_u128),
+                        airdrop_pointer: vec![],
+                    }],
+                    pending_airdrops: vec![],
+                    undelegation_records: vec![],
+                    pending_rewards: Default::default(),
+                },
+            )
+            .unwrap();
+        STATE
+            .update(deps.as_mut().storage, |mut state| -> StdResult<_> {
+                state.total_accumulated_airdrops = vec![
                     Coin::new(500_u128, "anc".to_string()),
-                    Coin::new(200_u128, "mir".to_string()),
-                ],
-                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-            },
-        );
-
-        USER_REWARD_INFO_MAP.save(
-            deps.as_mut().storage,
-            &user1,
-            &UserRewardInfo {
-                user_portfolio: vec![],
-                strategies: vec![UserStrategyInfo {
-                    strategy_id: 1,
-                    shares: Decimal::from_ratio(5000_u128, 1_u128),
-                    airdrop_pointer: vec![],
-                }],
-                pending_airdrops: vec![],
-                undelegation_records: vec![],
-                pending_rewards: Default::default(),
-            },
-        );
-        STATE.update(deps.as_mut().storage, |mut state| -> StdResult<_> {
-            state.total_accumulated_airdrops = vec![
-                Coin::new(500_u128, "anc".to_string()),
-                Coin::new(700_u128, "mir".to_string()),
-            ];
-            Ok(state)
-        });
+                    Coin::new(700_u128, "mir".to_string()),
+                ];
+                Ok(state)
+            })
+            .unwrap();
 
         let res = execute(
             deps.as_mut(),
@@ -4548,73 +4762,83 @@ mod tests {
         /*
            Test - 2. Not all airdrops are transferred
         */
-        CW20_TOKEN_CONTRACTS_REGISTRY.save(
-            deps.as_mut().storage,
-            "anc".to_string(),
-            &Cw20TokenContractsInfo {
-                airdrop_contract: anc_airdrop_contract.clone(),
-                cw20_token_contract: anc_token_contract.clone(),
-            },
-        );
-        CW20_TOKEN_CONTRACTS_REGISTRY.save(
-            deps.as_mut().storage,
-            "mir".to_string(),
-            &Cw20TokenContractsInfo {
-                airdrop_contract: mir_airdrop_contract.clone(),
-                cw20_token_contract: mir_token_contract.clone(),
-            },
-        );
+        CW20_TOKEN_CONTRACTS_REGISTRY
+            .save(
+                deps.as_mut().storage,
+                "anc".to_string(),
+                &Cw20TokenContractsInfo {
+                    airdrop_contract: anc_airdrop_contract.clone(),
+                    cw20_token_contract: anc_token_contract.clone(),
+                },
+            )
+            .unwrap();
+        CW20_TOKEN_CONTRACTS_REGISTRY
+            .save(
+                deps.as_mut().storage,
+                "mir".to_string(),
+                &Cw20TokenContractsInfo {
+                    airdrop_contract: mir_airdrop_contract.clone(),
+                    cw20_token_contract: mir_token_contract.clone(),
+                },
+            )
+            .unwrap();
 
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(1),
-            &StrategyInfo {
-                name: "sid1".to_string(),
-                sic_contract_address: sic1_address,
-                unbonding_period: 3600,
-                unbonding_buffer: 0,
-                undelegation_batch_id_pointer: 0,
-                reconciled_batch_id_pointer: 0,
-                is_active: true,
-                total_shares: Decimal::from_ratio(5000_u128, 1_u128),
-                current_undelegated_shares: Decimal::zero(),
-                global_airdrop_pointer: vec![
-                    DecCoin::new(Decimal::from_ratio(500_u128, 5000_u128), "anc".to_string()),
-                    DecCoin::new(Decimal::from_ratio(200_u128, 5000_u128), "mir".to_string()),
-                    DecCoin::new(Decimal::from_ratio(400_u128, 5000_u128), "pyl".to_string()),
-                ],
-                total_airdrops_accumulated: vec![
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(1),
+                &StrategyInfo {
+                    name: "sid1".to_string(),
+                    sic_contract_address: sic1_address,
+                    unbonding_period: 3600,
+                    unbonding_buffer: 0,
+                    undelegation_batch_id_pointer: 0,
+                    reconciled_batch_id_pointer: 0,
+                    is_active: true,
+                    total_shares: Decimal::from_ratio(5000_u128, 1_u128),
+                    current_undelegated_shares: Decimal::zero(),
+                    global_airdrop_pointer: vec![
+                        DecCoin::new(Decimal::from_ratio(500_u128, 5000_u128), "anc".to_string()),
+                        DecCoin::new(Decimal::from_ratio(200_u128, 5000_u128), "mir".to_string()),
+                        DecCoin::new(Decimal::from_ratio(400_u128, 5000_u128), "pyl".to_string()),
+                    ],
+                    total_airdrops_accumulated: vec![
+                        Coin::new(500_u128, "anc".to_string()),
+                        Coin::new(200_u128, "mir".to_string()),
+                        Coin::new(400_u128, "pyl".to_string()),
+                    ],
+                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                },
+            )
+            .unwrap();
+
+        USER_REWARD_INFO_MAP
+            .save(
+                deps.as_mut().storage,
+                &user1,
+                &UserRewardInfo {
+                    user_portfolio: vec![],
+                    strategies: vec![UserStrategyInfo {
+                        strategy_id: 1,
+                        shares: Decimal::from_ratio(5000_u128, 1_u128),
+                        airdrop_pointer: vec![],
+                    }],
+                    pending_airdrops: vec![],
+                    undelegation_records: vec![],
+                    pending_rewards: Default::default(),
+                },
+            )
+            .unwrap();
+        STATE
+            .update(deps.as_mut().storage, |mut state| -> StdResult<_> {
+                state.total_accumulated_airdrops = vec![
                     Coin::new(500_u128, "anc".to_string()),
-                    Coin::new(200_u128, "mir".to_string()),
+                    Coin::new(700_u128, "mir".to_string()),
                     Coin::new(400_u128, "pyl".to_string()),
-                ],
-                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-            },
-        );
-
-        USER_REWARD_INFO_MAP.save(
-            deps.as_mut().storage,
-            &user1,
-            &UserRewardInfo {
-                user_portfolio: vec![],
-                strategies: vec![UserStrategyInfo {
-                    strategy_id: 1,
-                    shares: Decimal::from_ratio(5000_u128, 1_u128),
-                    airdrop_pointer: vec![],
-                }],
-                pending_airdrops: vec![],
-                undelegation_records: vec![],
-                pending_rewards: Default::default(),
-            },
-        );
-        STATE.update(deps.as_mut().storage, |mut state| -> StdResult<_> {
-            state.total_accumulated_airdrops = vec![
-                Coin::new(500_u128, "anc".to_string()),
-                Coin::new(700_u128, "mir".to_string()),
-                Coin::new(400_u128, "pyl".to_string()),
-            ];
-            Ok(state)
-        });
+                ];
+                Ok(state)
+            })
+            .unwrap();
 
         let res = execute(
             deps.as_mut(),
@@ -4714,24 +4938,28 @@ mod tests {
         /*
            Test - 1. User reward info with non-zero pending rewards
         */
-        USER_REWARD_INFO_MAP.save(
-            deps.as_mut().storage,
-            &user1,
-            &UserRewardInfo {
-                user_portfolio: vec![],
-                strategies: vec![],
-                pending_airdrops: vec![],
-                undelegation_records: vec![],
-                pending_rewards: Uint128::new(1000_u128),
-            },
-        );
-        STATE.update(
-            deps.as_mut().storage,
-            |mut state| -> Result<_, ContractError> {
-                state.rewards_in_scc = Uint128::new(2000_u128);
-                Ok(state)
-            },
-        );
+        USER_REWARD_INFO_MAP
+            .save(
+                deps.as_mut().storage,
+                &user1,
+                &UserRewardInfo {
+                    user_portfolio: vec![],
+                    strategies: vec![],
+                    pending_airdrops: vec![],
+                    undelegation_records: vec![],
+                    pending_rewards: Uint128::new(1000_u128),
+                },
+            )
+            .unwrap();
+        STATE
+            .update(
+                deps.as_mut().storage,
+                |mut state| -> Result<_, ContractError> {
+                    state.rewards_in_scc = Uint128::new(2000_u128);
+                    Ok(state)
+                },
+            )
+            .unwrap();
 
         let res = execute(
             deps.as_mut(),
@@ -4765,24 +4993,28 @@ mod tests {
         /*
             Test - 2. User reward info with zero pending rewards
         */
-        USER_REWARD_INFO_MAP.save(
-            deps.as_mut().storage,
-            &user1,
-            &UserRewardInfo {
-                user_portfolio: vec![],
-                strategies: vec![],
-                pending_airdrops: vec![],
-                undelegation_records: vec![],
-                pending_rewards: Uint128::new(0_u128),
-            },
-        );
-        STATE.update(
-            deps.as_mut().storage,
-            |mut state| -> Result<_, ContractError> {
-                state.rewards_in_scc = Uint128::new(3000_u128);
-                Ok(state)
-            },
-        );
+        USER_REWARD_INFO_MAP
+            .save(
+                deps.as_mut().storage,
+                &user1,
+                &UserRewardInfo {
+                    user_portfolio: vec![],
+                    strategies: vec![],
+                    pending_airdrops: vec![],
+                    undelegation_records: vec![],
+                    pending_rewards: Uint128::new(0_u128),
+                },
+            )
+            .unwrap();
+        STATE
+            .update(
+                deps.as_mut().storage,
+                |mut state| -> Result<_, ContractError> {
+                    state.rewards_in_scc = Uint128::new(3000_u128);
+                    Ok(state)
+                },
+            )
+            .unwrap();
         let res = execute(
             deps.as_mut(),
             env.clone(),
@@ -4850,31 +5082,35 @@ mod tests {
         /*
            Test - 2. Adding an invalid portfolio which causes the entire deposit fraction to go beyond 1
         */
-        USER_REWARD_INFO_MAP.save(
-            deps.as_mut().storage,
-            &user1,
-            &UserRewardInfo {
-                user_portfolio: vec![
-                    UserStrategyPortfolio {
-                        strategy_id: 1,
-                        deposit_fraction: Uint128::new(50_u128),
-                    },
-                    UserStrategyPortfolio {
-                        strategy_id: 2,
-                        deposit_fraction: Uint128::new(25_u128),
-                    },
-                ],
-                strategies: vec![],
-                pending_airdrops: vec![],
-                undelegation_records: vec![],
-                pending_rewards: Default::default(),
-            },
-        );
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(3),
-            &StrategyInfo::default("sid3".to_string()),
-        );
+        USER_REWARD_INFO_MAP
+            .save(
+                deps.as_mut().storage,
+                &user1,
+                &UserRewardInfo {
+                    user_portfolio: vec![
+                        UserStrategyPortfolio {
+                            strategy_id: 1,
+                            deposit_fraction: Uint128::new(50_u128),
+                        },
+                        UserStrategyPortfolio {
+                            strategy_id: 2,
+                            deposit_fraction: Uint128::new(25_u128),
+                        },
+                    ],
+                    strategies: vec![],
+                    pending_airdrops: vec![],
+                    undelegation_records: vec![],
+                    pending_rewards: Default::default(),
+                },
+            )
+            .unwrap();
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(3),
+                &StrategyInfo::default("sid3".to_string()),
+            )
+            .unwrap();
         let err = execute(
             deps.as_mut(),
             env.clone(),
@@ -4892,36 +5128,42 @@ mod tests {
         /*
             Test - 3. Updating an existing portfolio which causes the entire deposit fraction to go beyond 1
         */
-        USER_REWARD_INFO_MAP.save(
-            deps.as_mut().storage,
-            &user1,
-            &UserRewardInfo {
-                user_portfolio: vec![
-                    UserStrategyPortfolio {
-                        strategy_id: 1,
-                        deposit_fraction: Uint128::new(50_u128),
-                    },
-                    UserStrategyPortfolio {
-                        strategy_id: 2,
-                        deposit_fraction: Uint128::new(25_u128),
-                    },
-                ],
-                strategies: vec![],
-                pending_airdrops: vec![],
-                undelegation_records: vec![],
-                pending_rewards: Default::default(),
-            },
-        );
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(1),
-            &StrategyInfo::default("sid1".to_string()),
-        );
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(2),
-            &StrategyInfo::default("sid2".to_string()),
-        );
+        USER_REWARD_INFO_MAP
+            .save(
+                deps.as_mut().storage,
+                &user1,
+                &UserRewardInfo {
+                    user_portfolio: vec![
+                        UserStrategyPortfolio {
+                            strategy_id: 1,
+                            deposit_fraction: Uint128::new(50_u128),
+                        },
+                        UserStrategyPortfolio {
+                            strategy_id: 2,
+                            deposit_fraction: Uint128::new(25_u128),
+                        },
+                    ],
+                    strategies: vec![],
+                    pending_airdrops: vec![],
+                    undelegation_records: vec![],
+                    pending_rewards: Default::default(),
+                },
+            )
+            .unwrap();
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(1),
+                &StrategyInfo::default("sid1".to_string()),
+            )
+            .unwrap();
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(2),
+                &StrategyInfo::default("sid2".to_string()),
+            )
+            .unwrap();
         let err = execute(
             deps.as_mut(),
             env.clone(),
@@ -4963,30 +5205,36 @@ mod tests {
         /*
            Test - 1. New user
         */
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(1),
-            &StrategyInfo::default("sid1".to_string()),
-        );
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(2),
-            &StrategyInfo::default("sid2".to_string()),
-        );
-        USER_REWARD_INFO_MAP.save(
-            deps.as_mut().storage,
-            &user1,
-            &UserRewardInfo {
-                user_portfolio: vec![UserStrategyPortfolio {
-                    strategy_id: 1,
-                    deposit_fraction: Uint128::new(50_u128),
-                }],
-                strategies: vec![],
-                pending_airdrops: vec![],
-                undelegation_records: vec![],
-                pending_rewards: Default::default(),
-            },
-        );
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(1),
+                &StrategyInfo::default("sid1".to_string()),
+            )
+            .unwrap();
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(2),
+                &StrategyInfo::default("sid2".to_string()),
+            )
+            .unwrap();
+        USER_REWARD_INFO_MAP
+            .save(
+                deps.as_mut().storage,
+                &user1,
+                &UserRewardInfo {
+                    user_portfolio: vec![UserStrategyPortfolio {
+                        strategy_id: 1,
+                        deposit_fraction: Uint128::new(50_u128),
+                    }],
+                    strategies: vec![],
+                    pending_airdrops: vec![],
+                    undelegation_records: vec![],
+                    pending_rewards: Default::default(),
+                },
+            )
+            .unwrap();
         let _res = execute(
             deps.as_mut(),
             env.clone(),
@@ -5143,24 +5391,26 @@ mod tests {
         contracts_to_token.insert(sic1_address.clone(), Uint128::new(0_u128));
         deps.querier.update_wasm(Some(contracts_to_token), None);
 
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(1),
-            &StrategyInfo {
-                name: "sid1".to_string(),
-                sic_contract_address: sic1_address.clone(),
-                unbonding_period: 3600,
-                unbonding_buffer: 0,
-                undelegation_batch_id_pointer: 0,
-                reconciled_batch_id_pointer: 0,
-                is_active: true,
-                total_shares: Decimal::from_ratio(1000_u128, 1_u128),
-                current_undelegated_shares: Default::default(),
-                global_airdrop_pointer: vec![],
-                total_airdrops_accumulated: vec![],
-                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-            },
-        );
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(1),
+                &StrategyInfo {
+                    name: "sid1".to_string(),
+                    sic_contract_address: sic1_address.clone(),
+                    unbonding_period: 3600,
+                    unbonding_buffer: 0,
+                    undelegation_batch_id_pointer: 0,
+                    reconciled_batch_id_pointer: 0,
+                    is_active: true,
+                    total_shares: Decimal::from_ratio(1000_u128, 1_u128),
+                    current_undelegated_shares: Default::default(),
+                    global_airdrop_pointer: vec![],
+                    total_airdrops_accumulated: vec![],
+                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                },
+            )
+            .unwrap();
         let res = execute(
             deps.as_mut(),
             env.clone(),
@@ -5226,119 +5476,129 @@ mod tests {
         contracts_to_token.insert(sic2_address.clone(), Uint128::new(0_u128));
         contracts_to_token.insert(sic3_address.clone(), Uint128::new(0_u128));
         deps.querier.update_wasm(Some(contracts_to_token), None);
-        STATE.update(
-            deps.as_mut().storage,
-            |mut state| -> Result<_, ContractError> {
-                state.rewards_in_scc = Uint128::new(200_u128);
-                Ok(state)
-            },
-        );
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(1),
-            &StrategyInfo {
-                name: "sid1".to_string(),
-                sic_contract_address: sic1_address.clone(),
-                unbonding_period: (21 * 24 * 3600),
-                unbonding_buffer: 3600,
-                undelegation_batch_id_pointer: 0,
-                reconciled_batch_id_pointer: 0,
-                is_active: true,
-                total_shares: Decimal::from_ratio(5000_u128, 1_u128),
-                current_undelegated_shares: Default::default(),
-                global_airdrop_pointer: vec![
-                    DecCoin::new(Decimal::from_ratio(500_u128, 5000_u128), "anc".to_string()),
-                    DecCoin::new(Decimal::from_ratio(200_u128, 5000_u128), "mir".to_string()),
-                ],
-                total_airdrops_accumulated: vec![
-                    Coin::new(500_u128, "anc".to_string()),
-                    Coin::new(200_u128, "mir".to_string()),
-                ],
-                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-            },
-        );
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(2),
-            &StrategyInfo {
-                name: "sid2".to_string(),
-                sic_contract_address: sic2_address.clone(),
-                unbonding_period: 3600,
-                unbonding_buffer: 0,
-                undelegation_batch_id_pointer: 0,
-                reconciled_batch_id_pointer: 0,
-                is_active: true,
-                total_shares: Decimal::from_ratio(7000_u128, 1_u128),
-                current_undelegated_shares: Default::default(),
-                global_airdrop_pointer: vec![],
-                total_airdrops_accumulated: vec![],
-                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-            },
-        );
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(3),
-            &StrategyInfo {
-                name: "sid3".to_string(),
-                sic_contract_address: sic3_address.clone(),
-                unbonding_period: 3600,
-                unbonding_buffer: 0,
-                undelegation_batch_id_pointer: 0,
-                reconciled_batch_id_pointer: 0,
-                is_active: true,
-                total_shares: Decimal::from_ratio(3000_u128, 1_u128),
-                current_undelegated_shares: Default::default(),
-                global_airdrop_pointer: vec![
-                    DecCoin::new(Decimal::from_ratio(200_u128, 3000_u128), "anc".to_string()),
-                    DecCoin::new(Decimal::from_ratio(600_u128, 3000_u128), "mir".to_string()),
-                ],
-                total_airdrops_accumulated: vec![],
-                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-            },
-        );
-        USER_REWARD_INFO_MAP.save(
-            deps.as_mut().storage,
-            &user1,
-            &UserRewardInfo {
-                user_portfolio: vec![
-                    UserStrategyPortfolio {
-                        strategy_id: 1,
-                        deposit_fraction: Uint128::new(50_u128),
-                    },
-                    UserStrategyPortfolio {
-                        strategy_id: 2,
-                        deposit_fraction: Uint128::new(25_u128),
-                    },
-                    UserStrategyPortfolio {
-                        strategy_id: 3,
-                        deposit_fraction: Uint128::new(25_u128),
-                    },
-                ],
-                strategies: vec![
-                    UserStrategyInfo {
-                        strategy_id: 1,
-                        shares: Decimal::from_ratio(2000_u128, 1_u128),
-                        airdrop_pointer: vec![],
-                    },
-                    UserStrategyInfo {
-                        strategy_id: 2,
-                        shares: Decimal::from_ratio(3000_u128, 1_u128),
-                        airdrop_pointer: vec![],
-                    },
-                    UserStrategyInfo {
-                        strategy_id: 3,
-                        shares: Decimal::from_ratio(500_u128, 1_u128),
-                        airdrop_pointer: vec![],
-                    },
-                ],
-                pending_airdrops: vec![
-                    Coin::new(100_u128, "anc".to_string()),
-                    Coin::new(50_u128, "mir".to_string()),
-                ],
-                undelegation_records: vec![],
-                pending_rewards: Uint128::new(200_u128),
-            },
-        );
+        STATE
+            .update(
+                deps.as_mut().storage,
+                |mut state| -> Result<_, ContractError> {
+                    state.rewards_in_scc = Uint128::new(200_u128);
+                    Ok(state)
+                },
+            )
+            .unwrap();
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(1),
+                &StrategyInfo {
+                    name: "sid1".to_string(),
+                    sic_contract_address: sic1_address.clone(),
+                    unbonding_period: (21 * 24 * 3600),
+                    unbonding_buffer: 3600,
+                    undelegation_batch_id_pointer: 0,
+                    reconciled_batch_id_pointer: 0,
+                    is_active: true,
+                    total_shares: Decimal::from_ratio(5000_u128, 1_u128),
+                    current_undelegated_shares: Default::default(),
+                    global_airdrop_pointer: vec![
+                        DecCoin::new(Decimal::from_ratio(500_u128, 5000_u128), "anc".to_string()),
+                        DecCoin::new(Decimal::from_ratio(200_u128, 5000_u128), "mir".to_string()),
+                    ],
+                    total_airdrops_accumulated: vec![
+                        Coin::new(500_u128, "anc".to_string()),
+                        Coin::new(200_u128, "mir".to_string()),
+                    ],
+                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                },
+            )
+            .unwrap();
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(2),
+                &StrategyInfo {
+                    name: "sid2".to_string(),
+                    sic_contract_address: sic2_address.clone(),
+                    unbonding_period: 3600,
+                    unbonding_buffer: 0,
+                    undelegation_batch_id_pointer: 0,
+                    reconciled_batch_id_pointer: 0,
+                    is_active: true,
+                    total_shares: Decimal::from_ratio(7000_u128, 1_u128),
+                    current_undelegated_shares: Default::default(),
+                    global_airdrop_pointer: vec![],
+                    total_airdrops_accumulated: vec![],
+                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                },
+            )
+            .unwrap();
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(3),
+                &StrategyInfo {
+                    name: "sid3".to_string(),
+                    sic_contract_address: sic3_address.clone(),
+                    unbonding_period: 3600,
+                    unbonding_buffer: 0,
+                    undelegation_batch_id_pointer: 0,
+                    reconciled_batch_id_pointer: 0,
+                    is_active: true,
+                    total_shares: Decimal::from_ratio(3000_u128, 1_u128),
+                    current_undelegated_shares: Default::default(),
+                    global_airdrop_pointer: vec![
+                        DecCoin::new(Decimal::from_ratio(200_u128, 3000_u128), "anc".to_string()),
+                        DecCoin::new(Decimal::from_ratio(600_u128, 3000_u128), "mir".to_string()),
+                    ],
+                    total_airdrops_accumulated: vec![],
+                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                },
+            )
+            .unwrap();
+        USER_REWARD_INFO_MAP
+            .save(
+                deps.as_mut().storage,
+                &user1,
+                &UserRewardInfo {
+                    user_portfolio: vec![
+                        UserStrategyPortfolio {
+                            strategy_id: 1,
+                            deposit_fraction: Uint128::new(50_u128),
+                        },
+                        UserStrategyPortfolio {
+                            strategy_id: 2,
+                            deposit_fraction: Uint128::new(25_u128),
+                        },
+                        UserStrategyPortfolio {
+                            strategy_id: 3,
+                            deposit_fraction: Uint128::new(25_u128),
+                        },
+                    ],
+                    strategies: vec![
+                        UserStrategyInfo {
+                            strategy_id: 1,
+                            shares: Decimal::from_ratio(2000_u128, 1_u128),
+                            airdrop_pointer: vec![],
+                        },
+                        UserStrategyInfo {
+                            strategy_id: 2,
+                            shares: Decimal::from_ratio(3000_u128, 1_u128),
+                            airdrop_pointer: vec![],
+                        },
+                        UserStrategyInfo {
+                            strategy_id: 3,
+                            shares: Decimal::from_ratio(500_u128, 1_u128),
+                            airdrop_pointer: vec![],
+                        },
+                    ],
+                    pending_airdrops: vec![
+                        Coin::new(100_u128, "anc".to_string()),
+                        Coin::new(50_u128, "mir".to_string()),
+                    ],
+                    undelegation_records: vec![],
+                    pending_rewards: Uint128::new(200_u128),
+                },
+            )
+            .unwrap();
         let res = execute(
             deps.as_mut(),
             env.clone(),
@@ -5443,119 +5703,129 @@ mod tests {
         contracts_to_token.insert(sic2_address.clone(), Uint128::new(0_u128));
         contracts_to_token.insert(sic3_address.clone(), Uint128::new(100_u128));
         deps.querier.update_wasm(Some(contracts_to_token), None);
-        STATE.update(
-            deps.as_mut().storage,
-            |mut state| -> Result<_, ContractError> {
-                state.rewards_in_scc = Uint128::new(200_u128);
-                Ok(state)
-            },
-        );
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(1),
-            &StrategyInfo {
-                name: "sid1".to_string(),
-                sic_contract_address: sic1_address.clone(),
-                unbonding_period: (21 * 24 * 3600),
-                unbonding_buffer: 3600,
-                undelegation_batch_id_pointer: 0,
-                reconciled_batch_id_pointer: 0,
-                is_active: true,
-                total_shares: Decimal::from_ratio(5000_u128, 1_u128),
-                current_undelegated_shares: Default::default(),
-                global_airdrop_pointer: vec![
-                    DecCoin::new(Decimal::from_ratio(500_u128, 5000_u128), "anc".to_string()),
-                    DecCoin::new(Decimal::from_ratio(200_u128, 5000_u128), "mir".to_string()),
-                ],
-                total_airdrops_accumulated: vec![
-                    Coin::new(500_u128, "anc".to_string()),
-                    Coin::new(200_u128, "mir".to_string()),
-                ],
-                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-            },
-        );
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(2),
-            &StrategyInfo {
-                name: "sid2".to_string(),
-                sic_contract_address: sic2_address.clone(),
-                unbonding_period: 3600,
-                unbonding_buffer: 0,
-                undelegation_batch_id_pointer: 0,
-                reconciled_batch_id_pointer: 0,
-                is_active: true,
-                total_shares: Decimal::from_ratio(7000_u128, 1_u128),
-                current_undelegated_shares: Default::default(),
-                global_airdrop_pointer: vec![],
-                total_airdrops_accumulated: vec![],
-                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-            },
-        );
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(3),
-            &StrategyInfo {
-                name: "sid3".to_string(),
-                sic_contract_address: sic3_address.clone(),
-                unbonding_period: 3600,
-                unbonding_buffer: 0,
-                undelegation_batch_id_pointer: 0,
-                reconciled_batch_id_pointer: 0,
-                is_active: true,
-                total_shares: Decimal::from_ratio(3000_u128, 1_u128),
-                current_undelegated_shares: Default::default(),
-                global_airdrop_pointer: vec![
-                    DecCoin::new(Decimal::from_ratio(200_u128, 3000_u128), "anc".to_string()),
-                    DecCoin::new(Decimal::from_ratio(600_u128, 3000_u128), "mir".to_string()),
-                ],
-                total_airdrops_accumulated: vec![],
-                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-            },
-        );
-        USER_REWARD_INFO_MAP.save(
-            deps.as_mut().storage,
-            &user1,
-            &UserRewardInfo {
-                user_portfolio: vec![
-                    UserStrategyPortfolio {
-                        strategy_id: 1,
-                        deposit_fraction: Uint128::new(50_u128),
-                    },
-                    UserStrategyPortfolio {
-                        strategy_id: 2,
-                        deposit_fraction: Uint128::new(25_u128),
-                    },
-                    UserStrategyPortfolio {
-                        strategy_id: 3,
-                        deposit_fraction: Uint128::new(25_u128),
-                    },
-                ],
-                strategies: vec![
-                    UserStrategyInfo {
-                        strategy_id: 1,
-                        shares: Decimal::from_ratio(2000_u128, 1_u128),
-                        airdrop_pointer: vec![],
-                    },
-                    UserStrategyInfo {
-                        strategy_id: 2,
-                        shares: Decimal::from_ratio(3000_u128, 1_u128),
-                        airdrop_pointer: vec![],
-                    },
-                    UserStrategyInfo {
-                        strategy_id: 3,
-                        shares: Decimal::from_ratio(500_u128, 1_u128),
-                        airdrop_pointer: vec![],
-                    },
-                ],
-                pending_airdrops: vec![
-                    Coin::new(100_u128, "anc".to_string()),
-                    Coin::new(50_u128, "mir".to_string()),
-                ],
-                undelegation_records: vec![],
-                pending_rewards: Uint128::new(200_u128),
-            },
-        );
+        STATE
+            .update(
+                deps.as_mut().storage,
+                |mut state| -> Result<_, ContractError> {
+                    state.rewards_in_scc = Uint128::new(200_u128);
+                    Ok(state)
+                },
+            )
+            .unwrap();
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(1),
+                &StrategyInfo {
+                    name: "sid1".to_string(),
+                    sic_contract_address: sic1_address.clone(),
+                    unbonding_period: (21 * 24 * 3600),
+                    unbonding_buffer: 3600,
+                    undelegation_batch_id_pointer: 0,
+                    reconciled_batch_id_pointer: 0,
+                    is_active: true,
+                    total_shares: Decimal::from_ratio(5000_u128, 1_u128),
+                    current_undelegated_shares: Default::default(),
+                    global_airdrop_pointer: vec![
+                        DecCoin::new(Decimal::from_ratio(500_u128, 5000_u128), "anc".to_string()),
+                        DecCoin::new(Decimal::from_ratio(200_u128, 5000_u128), "mir".to_string()),
+                    ],
+                    total_airdrops_accumulated: vec![
+                        Coin::new(500_u128, "anc".to_string()),
+                        Coin::new(200_u128, "mir".to_string()),
+                    ],
+                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                },
+            )
+            .unwrap();
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(2),
+                &StrategyInfo {
+                    name: "sid2".to_string(),
+                    sic_contract_address: sic2_address.clone(),
+                    unbonding_period: 3600,
+                    unbonding_buffer: 0,
+                    undelegation_batch_id_pointer: 0,
+                    reconciled_batch_id_pointer: 0,
+                    is_active: true,
+                    total_shares: Decimal::from_ratio(7000_u128, 1_u128),
+                    current_undelegated_shares: Default::default(),
+                    global_airdrop_pointer: vec![],
+                    total_airdrops_accumulated: vec![],
+                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                },
+            )
+            .unwrap();
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(3),
+                &StrategyInfo {
+                    name: "sid3".to_string(),
+                    sic_contract_address: sic3_address.clone(),
+                    unbonding_period: 3600,
+                    unbonding_buffer: 0,
+                    undelegation_batch_id_pointer: 0,
+                    reconciled_batch_id_pointer: 0,
+                    is_active: true,
+                    total_shares: Decimal::from_ratio(3000_u128, 1_u128),
+                    current_undelegated_shares: Default::default(),
+                    global_airdrop_pointer: vec![
+                        DecCoin::new(Decimal::from_ratio(200_u128, 3000_u128), "anc".to_string()),
+                        DecCoin::new(Decimal::from_ratio(600_u128, 3000_u128), "mir".to_string()),
+                    ],
+                    total_airdrops_accumulated: vec![],
+                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                },
+            )
+            .unwrap();
+        USER_REWARD_INFO_MAP
+            .save(
+                deps.as_mut().storage,
+                &user1,
+                &UserRewardInfo {
+                    user_portfolio: vec![
+                        UserStrategyPortfolio {
+                            strategy_id: 1,
+                            deposit_fraction: Uint128::new(50_u128),
+                        },
+                        UserStrategyPortfolio {
+                            strategy_id: 2,
+                            deposit_fraction: Uint128::new(25_u128),
+                        },
+                        UserStrategyPortfolio {
+                            strategy_id: 3,
+                            deposit_fraction: Uint128::new(25_u128),
+                        },
+                    ],
+                    strategies: vec![
+                        UserStrategyInfo {
+                            strategy_id: 1,
+                            shares: Decimal::from_ratio(2000_u128, 1_u128),
+                            airdrop_pointer: vec![],
+                        },
+                        UserStrategyInfo {
+                            strategy_id: 2,
+                            shares: Decimal::from_ratio(3000_u128, 1_u128),
+                            airdrop_pointer: vec![],
+                        },
+                        UserStrategyInfo {
+                            strategy_id: 3,
+                            shares: Decimal::from_ratio(500_u128, 1_u128),
+                            airdrop_pointer: vec![],
+                        },
+                    ],
+                    pending_airdrops: vec![
+                        Coin::new(100_u128, "anc".to_string()),
+                        Coin::new(50_u128, "mir".to_string()),
+                    ],
+                    undelegation_records: vec![],
+                    pending_rewards: Uint128::new(200_u128),
+                },
+            )
+            .unwrap();
         let res = execute(
             deps.as_mut(),
             env.clone(),
@@ -5660,82 +5930,89 @@ mod tests {
         contracts_to_token.insert(sic2_address.clone(), Uint128::new(0_u128));
         deps.querier.update_wasm(Some(contracts_to_token), None);
 
-        STATE.update(
-            deps.as_mut().storage,
-            |mut state| -> Result<_, ContractError> {
-                state.rewards_in_scc = Uint128::new(300_u128);
-                Ok(state)
-            },
-        );
-
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(1),
-            &StrategyInfo {
-                name: "sid1".to_string(),
-                sic_contract_address: sic1_address.clone(),
-                unbonding_period: (21 * 24 * 3600),
-                unbonding_buffer: 3600,
-                undelegation_batch_id_pointer: 0,
-                reconciled_batch_id_pointer: 0,
-                is_active: true,
-                total_shares: Decimal::from_ratio(1000_u128, 1_u128),
-                current_undelegated_shares: Default::default(),
-                global_airdrop_pointer: vec![
-                    DecCoin::new(Decimal::from_ratio(100_u128, 1000_u128), "anc".to_string()),
-                    DecCoin::new(Decimal::from_ratio(300_u128, 1000_u128), "mir".to_string()),
-                ],
-                total_airdrops_accumulated: vec![
-                    Coin::new(200_u128, "anc".to_string()),
-                    Coin::new(400_u128, "mir".to_string()),
-                ],
-                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-            },
-        );
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(2),
-            &StrategyInfo {
-                name: "sid2".to_string(),
-                sic_contract_address: sic2_address.clone(),
-                unbonding_period: 3600,
-                unbonding_buffer: 0,
-                undelegation_batch_id_pointer: 0,
-                reconciled_batch_id_pointer: 0,
-                is_active: true,
-                total_shares: Decimal::from_ratio(1000_u128, 1_u128),
-                current_undelegated_shares: Default::default(),
-                global_airdrop_pointer: vec![
-                    DecCoin::new(Decimal::from_ratio(200_u128, 1000_u128), "anc".to_string()),
-                    DecCoin::new(Decimal::from_ratio(400_u128, 1000_u128), "mir".to_string()),
-                ],
-                total_airdrops_accumulated: vec![
-                    Coin::new(100_u128, "anc".to_string()),
-                    Coin::new(100_u128, "mir".to_string()),
-                ],
-                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-            },
-        );
-        USER_REWARD_INFO_MAP.save(
-            deps.as_mut().storage,
-            &user1,
-            &UserRewardInfo {
-                user_portfolio: vec![
-                    UserStrategyPortfolio {
-                        strategy_id: 1,
-                        deposit_fraction: Uint128::new(25_u128),
-                    },
-                    UserStrategyPortfolio {
-                        strategy_id: 2,
-                        deposit_fraction: Uint128::new(50_u128),
-                    },
-                ],
-                strategies: vec![],
-                pending_airdrops: vec![],
-                undelegation_records: vec![],
-                pending_rewards: Uint128::new(300_u128),
-            },
-        );
+        STATE
+            .update(
+                deps.as_mut().storage,
+                |mut state| -> Result<_, ContractError> {
+                    state.rewards_in_scc = Uint128::new(300_u128);
+                    Ok(state)
+                },
+            )
+            .unwrap();
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(1),
+                &StrategyInfo {
+                    name: "sid1".to_string(),
+                    sic_contract_address: sic1_address.clone(),
+                    unbonding_period: (21 * 24 * 3600),
+                    unbonding_buffer: 3600,
+                    undelegation_batch_id_pointer: 0,
+                    reconciled_batch_id_pointer: 0,
+                    is_active: true,
+                    total_shares: Decimal::from_ratio(1000_u128, 1_u128),
+                    current_undelegated_shares: Default::default(),
+                    global_airdrop_pointer: vec![
+                        DecCoin::new(Decimal::from_ratio(100_u128, 1000_u128), "anc".to_string()),
+                        DecCoin::new(Decimal::from_ratio(300_u128, 1000_u128), "mir".to_string()),
+                    ],
+                    total_airdrops_accumulated: vec![
+                        Coin::new(200_u128, "anc".to_string()),
+                        Coin::new(400_u128, "mir".to_string()),
+                    ],
+                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                },
+            )
+            .unwrap();
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(2),
+                &StrategyInfo {
+                    name: "sid2".to_string(),
+                    sic_contract_address: sic2_address.clone(),
+                    unbonding_period: 3600,
+                    unbonding_buffer: 0,
+                    undelegation_batch_id_pointer: 0,
+                    reconciled_batch_id_pointer: 0,
+                    is_active: true,
+                    total_shares: Decimal::from_ratio(1000_u128, 1_u128),
+                    current_undelegated_shares: Default::default(),
+                    global_airdrop_pointer: vec![
+                        DecCoin::new(Decimal::from_ratio(200_u128, 1000_u128), "anc".to_string()),
+                        DecCoin::new(Decimal::from_ratio(400_u128, 1000_u128), "mir".to_string()),
+                    ],
+                    total_airdrops_accumulated: vec![
+                        Coin::new(100_u128, "anc".to_string()),
+                        Coin::new(100_u128, "mir".to_string()),
+                    ],
+                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                },
+            )
+            .unwrap();
+        USER_REWARD_INFO_MAP
+            .save(
+                deps.as_mut().storage,
+                &user1,
+                &UserRewardInfo {
+                    user_portfolio: vec![
+                        UserStrategyPortfolio {
+                            strategy_id: 1,
+                            deposit_fraction: Uint128::new(25_u128),
+                        },
+                        UserStrategyPortfolio {
+                            strategy_id: 2,
+                            deposit_fraction: Uint128::new(50_u128),
+                        },
+                    ],
+                    strategies: vec![],
+                    pending_airdrops: vec![],
+                    undelegation_records: vec![],
+                    pending_rewards: Uint128::new(300_u128),
+                },
+            )
+            .unwrap();
         let res = execute(
             deps.as_mut(),
             env.clone(),
@@ -5834,73 +6111,80 @@ mod tests {
         contracts_to_token.insert(sic2_address.clone(), Uint128::new(0_u128));
         deps.querier.update_wasm(Some(contracts_to_token), None);
 
-        STATE.update(
-            deps.as_mut().storage,
-            |mut state| -> Result<_, ContractError> {
-                state.rewards_in_scc = Uint128::new(300_u128);
-                Ok(state)
-            },
-        );
-
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(1),
-            &StrategyInfo {
-                name: "sid1".to_string(),
-                sic_contract_address: sic1_address.clone(),
-                unbonding_period: (21 * 24 * 3600),
-                unbonding_buffer: 3600,
-                undelegation_batch_id_pointer: 0,
-                reconciled_batch_id_pointer: 0,
-                is_active: true,
-                total_shares: Decimal::from_ratio(1000_u128, 1_u128),
-                current_undelegated_shares: Default::default(),
-                global_airdrop_pointer: vec![
-                    DecCoin::new(Decimal::from_ratio(100_u128, 1000_u128), "anc".to_string()),
-                    DecCoin::new(Decimal::from_ratio(300_u128, 1000_u128), "mir".to_string()),
-                ],
-                total_airdrops_accumulated: vec![
-                    Coin::new(200_u128, "anc".to_string()),
-                    Coin::new(400_u128, "mir".to_string()),
-                ],
-                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-            },
-        );
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(2),
-            &StrategyInfo {
-                name: "sid2".to_string(),
-                sic_contract_address: sic2_address.clone(),
-                unbonding_period: 3600,
-                unbonding_buffer: 0,
-                undelegation_batch_id_pointer: 0,
-                reconciled_batch_id_pointer: 0,
-                is_active: true,
-                total_shares: Decimal::from_ratio(1000_u128, 1_u128),
-                current_undelegated_shares: Default::default(),
-                global_airdrop_pointer: vec![
-                    DecCoin::new(Decimal::from_ratio(200_u128, 1000_u128), "anc".to_string()),
-                    DecCoin::new(Decimal::from_ratio(400_u128, 1000_u128), "mir".to_string()),
-                ],
-                total_airdrops_accumulated: vec![
-                    Coin::new(100_u128, "anc".to_string()),
-                    Coin::new(100_u128, "mir".to_string()),
-                ],
-                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-            },
-        );
-        USER_REWARD_INFO_MAP.save(
-            deps.as_mut().storage,
-            &user1,
-            &UserRewardInfo {
-                user_portfolio: vec![],
-                strategies: vec![],
-                pending_airdrops: vec![],
-                undelegation_records: vec![],
-                pending_rewards: Uint128::new(300_u128),
-            },
-        );
+        STATE
+            .update(
+                deps.as_mut().storage,
+                |mut state| -> Result<_, ContractError> {
+                    state.rewards_in_scc = Uint128::new(300_u128);
+                    Ok(state)
+                },
+            )
+            .unwrap();
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(1),
+                &StrategyInfo {
+                    name: "sid1".to_string(),
+                    sic_contract_address: sic1_address.clone(),
+                    unbonding_period: (21 * 24 * 3600),
+                    unbonding_buffer: 3600,
+                    undelegation_batch_id_pointer: 0,
+                    reconciled_batch_id_pointer: 0,
+                    is_active: true,
+                    total_shares: Decimal::from_ratio(1000_u128, 1_u128),
+                    current_undelegated_shares: Default::default(),
+                    global_airdrop_pointer: vec![
+                        DecCoin::new(Decimal::from_ratio(100_u128, 1000_u128), "anc".to_string()),
+                        DecCoin::new(Decimal::from_ratio(300_u128, 1000_u128), "mir".to_string()),
+                    ],
+                    total_airdrops_accumulated: vec![
+                        Coin::new(200_u128, "anc".to_string()),
+                        Coin::new(400_u128, "mir".to_string()),
+                    ],
+                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                },
+            )
+            .unwrap();
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(2),
+                &StrategyInfo {
+                    name: "sid2".to_string(),
+                    sic_contract_address: sic2_address.clone(),
+                    unbonding_period: 3600,
+                    unbonding_buffer: 0,
+                    undelegation_batch_id_pointer: 0,
+                    reconciled_batch_id_pointer: 0,
+                    is_active: true,
+                    total_shares: Decimal::from_ratio(1000_u128, 1_u128),
+                    current_undelegated_shares: Default::default(),
+                    global_airdrop_pointer: vec![
+                        DecCoin::new(Decimal::from_ratio(200_u128, 1000_u128), "anc".to_string()),
+                        DecCoin::new(Decimal::from_ratio(400_u128, 1000_u128), "mir".to_string()),
+                    ],
+                    total_airdrops_accumulated: vec![
+                        Coin::new(100_u128, "anc".to_string()),
+                        Coin::new(100_u128, "mir".to_string()),
+                    ],
+                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                },
+            )
+            .unwrap();
+        USER_REWARD_INFO_MAP
+            .save(
+                deps.as_mut().storage,
+                &user1,
+                &UserRewardInfo {
+                    user_portfolio: vec![],
+                    strategies: vec![],
+                    pending_airdrops: vec![],
+                    undelegation_records: vec![],
+                    pending_rewards: Uint128::new(300_u128),
+                },
+            )
+            .unwrap();
         let res = execute(
             deps.as_mut(),
             env.clone(),
@@ -5963,62 +6247,68 @@ mod tests {
         contracts_to_token.insert(sic2_address.clone(), Uint128::new(0_u128));
         deps.querier.update_wasm(Some(contracts_to_token), None);
 
-        STATE.update(
-            deps.as_mut().storage,
-            |mut state| -> Result<_, ContractError> {
-                state.rewards_in_scc = Uint128::new(100_u128);
-                Ok(state)
-            },
-        );
-
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(1),
-            &StrategyInfo {
-                name: "sid1".to_string(),
-                sic_contract_address: sic1_address.clone(),
-                unbonding_period: (21 * 24 * 3600),
-                unbonding_buffer: 3600,
-                undelegation_batch_id_pointer: 0,
-                reconciled_batch_id_pointer: 0,
-                is_active: true,
-                total_shares: Decimal::from_ratio(1000_u128, 1_u128),
-                current_undelegated_shares: Default::default(),
-                global_airdrop_pointer: vec![],
-                total_airdrops_accumulated: vec![],
-                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-            },
-        );
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(2),
-            &StrategyInfo {
-                name: "sid2".to_string(),
-                sic_contract_address: sic2_address.clone(),
-                unbonding_period: (21 * 24 * 3600),
-                unbonding_buffer: 3600,
-                undelegation_batch_id_pointer: 0,
-                reconciled_batch_id_pointer: 0,
-                is_active: true,
-                total_shares: Decimal::from_ratio(1000_u128, 1_u128),
-                current_undelegated_shares: Default::default(),
-                global_airdrop_pointer: vec![],
-                total_airdrops_accumulated: vec![],
-                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-            },
-        );
-
-        USER_REWARD_INFO_MAP.save(
-            deps.as_mut().storage,
-            &user1.clone(),
-            &UserRewardInfo {
-                user_portfolio: vec![],
-                strategies: vec![],
-                pending_airdrops: vec![],
-                undelegation_records: vec![],
-                pending_rewards: Default::default(),
-            },
-        );
+        STATE
+            .update(
+                deps.as_mut().storage,
+                |mut state| -> Result<_, ContractError> {
+                    state.rewards_in_scc = Uint128::new(100_u128);
+                    Ok(state)
+                },
+            )
+            .unwrap();
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(1),
+                &StrategyInfo {
+                    name: "sid1".to_string(),
+                    sic_contract_address: sic1_address.clone(),
+                    unbonding_period: (21 * 24 * 3600),
+                    unbonding_buffer: 3600,
+                    undelegation_batch_id_pointer: 0,
+                    reconciled_batch_id_pointer: 0,
+                    is_active: true,
+                    total_shares: Decimal::from_ratio(1000_u128, 1_u128),
+                    current_undelegated_shares: Default::default(),
+                    global_airdrop_pointer: vec![],
+                    total_airdrops_accumulated: vec![],
+                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                },
+            )
+            .unwrap();
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(2),
+                &StrategyInfo {
+                    name: "sid2".to_string(),
+                    sic_contract_address: sic2_address.clone(),
+                    unbonding_period: (21 * 24 * 3600),
+                    unbonding_buffer: 3600,
+                    undelegation_batch_id_pointer: 0,
+                    reconciled_batch_id_pointer: 0,
+                    is_active: true,
+                    total_shares: Decimal::from_ratio(1000_u128, 1_u128),
+                    current_undelegated_shares: Default::default(),
+                    global_airdrop_pointer: vec![],
+                    total_airdrops_accumulated: vec![],
+                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                },
+            )
+            .unwrap();
+        USER_REWARD_INFO_MAP
+            .save(
+                deps.as_mut().storage,
+                &user1.clone(),
+                &UserRewardInfo {
+                    user_portfolio: vec![],
+                    strategies: vec![],
+                    pending_airdrops: vec![],
+                    undelegation_records: vec![],
+                    pending_rewards: Default::default(),
+                },
+            )
+            .unwrap();
         USER_REWARD_INFO_MAP.remove(deps.as_mut().storage, &user1);
         let res = execute(
             deps.as_mut(),
@@ -6083,93 +6373,101 @@ mod tests {
         contracts_to_token.insert(sic2_address.clone(), Uint128::new(100_u128));
         deps.querier.update_wasm(Some(contracts_to_token), None);
 
-        STATE.update(
-            deps.as_mut().storage,
-            |mut state| -> Result<_, ContractError> {
-                state.rewards_in_scc = Uint128::new(300_u128);
-                Ok(state)
-            },
-        );
+        STATE
+            .update(
+                deps.as_mut().storage,
+                |mut state| -> Result<_, ContractError> {
+                    state.rewards_in_scc = Uint128::new(300_u128);
+                    Ok(state)
+                },
+            )
+            .unwrap();
 
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(1),
-            &StrategyInfo {
-                name: "sid1".to_string(),
-                sic_contract_address: sic1_address.clone(),
-                unbonding_period: (21 * 24 * 3600),
-                unbonding_buffer: 3600,
-                undelegation_batch_id_pointer: 0,
-                reconciled_batch_id_pointer: 0,
-                is_active: true,
-                total_shares: Decimal::from_ratio(1000_u128, 1_u128),
-                current_undelegated_shares: Default::default(),
-                global_airdrop_pointer: vec![
-                    DecCoin::new(Decimal::from_ratio(100_u128, 1000_u128), "anc".to_string()),
-                    DecCoin::new(Decimal::from_ratio(300_u128, 1000_u128), "mir".to_string()),
-                ],
-                total_airdrops_accumulated: vec![
-                    Coin::new(100_u128, "anc".to_string()),
-                    Coin::new(300_u128, "mir".to_string()),
-                ],
-                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-            },
-        );
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(2),
-            &StrategyInfo {
-                name: "sid2".to_string(),
-                sic_contract_address: sic2_address.clone(),
-                unbonding_period: 3600,
-                unbonding_buffer: 0,
-                undelegation_batch_id_pointer: 0,
-                reconciled_batch_id_pointer: 0,
-                is_active: true,
-                total_shares: Decimal::from_ratio(1000_u128, 1_u128),
-                current_undelegated_shares: Default::default(),
-                global_airdrop_pointer: vec![
-                    DecCoin::new(Decimal::from_ratio(200_u128, 1000_u128), "anc".to_string()),
-                    DecCoin::new(Decimal::from_ratio(400_u128, 1000_u128), "mir".to_string()),
-                ],
-                total_airdrops_accumulated: vec![
-                    Coin::new(200_u128, "anc".to_string()),
-                    Coin::new(400_u128, "mir".to_string()),
-                ],
-                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-            },
-        );
-        USER_REWARD_INFO_MAP.save(
-            deps.as_mut().storage,
-            &user1,
-            &UserRewardInfo {
-                user_portfolio: vec![
-                    UserStrategyPortfolio {
-                        strategy_id: 1,
-                        deposit_fraction: Uint128::new(25_u128),
-                    },
-                    UserStrategyPortfolio {
-                        strategy_id: 2,
-                        deposit_fraction: Uint128::new(50_u128),
-                    },
-                ],
-                strategies: vec![
-                    UserStrategyInfo {
-                        strategy_id: 1,
-                        shares: Decimal::from_ratio(1000_u128, 1_u128),
-                        airdrop_pointer: vec![],
-                    },
-                    UserStrategyInfo {
-                        strategy_id: 2,
-                        shares: Decimal::from_ratio(500_u128, 1_u128),
-                        airdrop_pointer: vec![],
-                    },
-                ],
-                pending_airdrops: vec![],
-                undelegation_records: vec![],
-                pending_rewards: Uint128::new(300_u128),
-            },
-        );
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(1),
+                &StrategyInfo {
+                    name: "sid1".to_string(),
+                    sic_contract_address: sic1_address.clone(),
+                    unbonding_period: (21 * 24 * 3600),
+                    unbonding_buffer: 3600,
+                    undelegation_batch_id_pointer: 0,
+                    reconciled_batch_id_pointer: 0,
+                    is_active: true,
+                    total_shares: Decimal::from_ratio(1000_u128, 1_u128),
+                    current_undelegated_shares: Default::default(),
+                    global_airdrop_pointer: vec![
+                        DecCoin::new(Decimal::from_ratio(100_u128, 1000_u128), "anc".to_string()),
+                        DecCoin::new(Decimal::from_ratio(300_u128, 1000_u128), "mir".to_string()),
+                    ],
+                    total_airdrops_accumulated: vec![
+                        Coin::new(100_u128, "anc".to_string()),
+                        Coin::new(300_u128, "mir".to_string()),
+                    ],
+                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                },
+            )
+            .unwrap();
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(2),
+                &StrategyInfo {
+                    name: "sid2".to_string(),
+                    sic_contract_address: sic2_address.clone(),
+                    unbonding_period: 3600,
+                    unbonding_buffer: 0,
+                    undelegation_batch_id_pointer: 0,
+                    reconciled_batch_id_pointer: 0,
+                    is_active: true,
+                    total_shares: Decimal::from_ratio(1000_u128, 1_u128),
+                    current_undelegated_shares: Default::default(),
+                    global_airdrop_pointer: vec![
+                        DecCoin::new(Decimal::from_ratio(200_u128, 1000_u128), "anc".to_string()),
+                        DecCoin::new(Decimal::from_ratio(400_u128, 1000_u128), "mir".to_string()),
+                    ],
+                    total_airdrops_accumulated: vec![
+                        Coin::new(200_u128, "anc".to_string()),
+                        Coin::new(400_u128, "mir".to_string()),
+                    ],
+                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                },
+            )
+            .unwrap();
+        USER_REWARD_INFO_MAP
+            .save(
+                deps.as_mut().storage,
+                &user1,
+                &UserRewardInfo {
+                    user_portfolio: vec![
+                        UserStrategyPortfolio {
+                            strategy_id: 1,
+                            deposit_fraction: Uint128::new(25_u128),
+                        },
+                        UserStrategyPortfolio {
+                            strategy_id: 2,
+                            deposit_fraction: Uint128::new(50_u128),
+                        },
+                    ],
+                    strategies: vec![
+                        UserStrategyInfo {
+                            strategy_id: 1,
+                            shares: Decimal::from_ratio(1000_u128, 1_u128),
+                            airdrop_pointer: vec![],
+                        },
+                        UserStrategyInfo {
+                            strategy_id: 2,
+                            shares: Decimal::from_ratio(500_u128, 1_u128),
+                            airdrop_pointer: vec![],
+                        },
+                    ],
+                    pending_airdrops: vec![],
+                    undelegation_records: vec![],
+                    pending_rewards: Uint128::new(300_u128),
+                },
+            )
+            .unwrap();
         let res = execute(
             deps.as_mut(),
             env.clone(),
@@ -6275,192 +6573,206 @@ mod tests {
         contracts_to_token.insert(sic3_address.clone(), Uint128::new(0_u128));
         deps.querier.update_wasm(Some(contracts_to_token), None);
 
-        STATE.update(
-            deps.as_mut().storage,
-            |mut state| -> Result<_, ContractError> {
-                state.rewards_in_scc = Uint128::new(800_u128);
-                Ok(state)
-            },
-        );
+        STATE
+            .update(
+                deps.as_mut().storage,
+                |mut state| -> Result<_, ContractError> {
+                    state.rewards_in_scc = Uint128::new(800_u128);
+                    Ok(state)
+                },
+            )
+            .unwrap();
 
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(1),
-            &StrategyInfo {
-                name: "sid1".to_string(),
-                sic_contract_address: sic1_address.clone(),
-                unbonding_period: (21 * 24 * 3600),
-                unbonding_buffer: 3600,
-                undelegation_batch_id_pointer: 0,
-                reconciled_batch_id_pointer: 0,
-                is_active: true,
-                total_shares: Decimal::from_ratio(8000_u128, 1_u128),
-                current_undelegated_shares: Default::default(),
-                global_airdrop_pointer: vec![
-                    DecCoin::new(Decimal::from_ratio(100_u128, 8000_u128), "anc".to_string()),
-                    DecCoin::new(Decimal::from_ratio(300_u128, 8000_u128), "mir".to_string()),
-                ],
-                total_airdrops_accumulated: vec![
-                    Coin::new(100_u128, "anc".to_string()),
-                    Coin::new(300_u128, "mir".to_string()),
-                ],
-                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-            },
-        );
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(2),
-            &StrategyInfo {
-                name: "sid2".to_string(),
-                sic_contract_address: sic2_address.clone(),
-                unbonding_period: (21 * 24 * 3600),
-                unbonding_buffer: 3600,
-                undelegation_batch_id_pointer: 0,
-                reconciled_batch_id_pointer: 0,
-                is_active: true,
-                total_shares: Decimal::from_ratio(7000_u128, 1_u128),
-                current_undelegated_shares: Default::default(),
-                global_airdrop_pointer: vec![
-                    DecCoin::new(Decimal::from_ratio(200_u128, 7000_u128), "anc".to_string()),
-                    DecCoin::new(Decimal::from_ratio(400_u128, 7000_u128), "mir".to_string()),
-                ],
-                total_airdrops_accumulated: vec![
-                    Coin::new(200_u128, "anc".to_string()),
-                    Coin::new(400_u128, "mir".to_string()),
-                ],
-                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-            },
-        );
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(3),
-            &StrategyInfo {
-                name: "sid3".to_string(),
-                sic_contract_address: sic3_address.clone(),
-                unbonding_period: (21 * 24 * 3600),
-                unbonding_buffer: 3600,
-                undelegation_batch_id_pointer: 0,
-                reconciled_batch_id_pointer: 0,
-                is_active: true,
-                total_shares: Decimal::from_ratio(5000_u128, 1_u128),
-                current_undelegated_shares: Default::default(),
-                global_airdrop_pointer: vec![
-                    DecCoin::new(Decimal::from_ratio(300_u128, 5000_u128), "anc".to_string()),
-                    DecCoin::new(Decimal::from_ratio(500_u128, 5000_u128), "mir".to_string()),
-                ],
-                total_airdrops_accumulated: vec![
-                    Coin::new(300_u128, "anc".to_string()),
-                    Coin::new(500_u128, "mir".to_string()),
-                ],
-                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
-            },
-        );
-        USER_REWARD_INFO_MAP.save(
-            deps.as_mut().storage,
-            &user1,
-            &UserRewardInfo {
-                user_portfolio: vec![
-                    UserStrategyPortfolio {
-                        strategy_id: 1,
-                        deposit_fraction: Uint128::new(25_u128),
-                    },
-                    UserStrategyPortfolio {
-                        strategy_id: 2,
-                        deposit_fraction: Uint128::new(50_u128),
-                    },
-                ],
-                strategies: vec![
-                    UserStrategyInfo {
-                        strategy_id: 1,
-                        shares: Decimal::from_ratio(2000_u128, 1_u128),
-                        airdrop_pointer: vec![],
-                    },
-                    UserStrategyInfo {
-                        strategy_id: 2,
-                        shares: Decimal::from_ratio(3000_u128, 1_u128),
-                        airdrop_pointer: vec![],
-                    },
-                ],
-                pending_airdrops: vec![],
-                undelegation_records: vec![],
-                pending_rewards: Uint128::new(300_u128),
-            },
-        );
-        USER_REWARD_INFO_MAP.save(
-            deps.as_mut().storage,
-            &user2,
-            &UserRewardInfo {
-                user_portfolio: vec![
-                    UserStrategyPortfolio {
-                        strategy_id: 1,
-                        deposit_fraction: Uint128::new(50_u128),
-                    },
-                    UserStrategyPortfolio {
-                        strategy_id: 2,
-                        deposit_fraction: Uint128::new(25_u128),
-                    },
-                    UserStrategyPortfolio {
-                        strategy_id: 3,
-                        deposit_fraction: Uint128::new(12_u128),
-                    },
-                ],
-                strategies: vec![
-                    UserStrategyInfo {
-                        strategy_id: 1,
-                        shares: Decimal::from_ratio(1000_u128, 1_u128),
-                        airdrop_pointer: vec![],
-                    },
-                    UserStrategyInfo {
-                        strategy_id: 2,
-                        shares: Decimal::from_ratio(2000_u128, 1_u128),
-                        airdrop_pointer: vec![],
-                    },
-                    UserStrategyInfo {
-                        strategy_id: 3,
-                        shares: Decimal::from_ratio(2000_u128, 1_u128),
-                        airdrop_pointer: vec![],
-                    },
-                ],
-                pending_airdrops: vec![],
-                undelegation_records: vec![],
-                pending_rewards: Uint128::new(500_u128),
-            },
-        );
-        USER_REWARD_INFO_MAP.save(
-            deps.as_mut().storage,
-            &user3,
-            &UserRewardInfo {
-                user_portfolio: vec![
-                    UserStrategyPortfolio {
-                        strategy_id: 1,
-                        deposit_fraction: Uint128::new(50_u128),
-                    },
-                    UserStrategyPortfolio {
-                        strategy_id: 2,
-                        deposit_fraction: Uint128::new(25_u128),
-                    },
-                    UserStrategyPortfolio {
-                        strategy_id: 3,
-                        deposit_fraction: Uint128::new(25_u128),
-                    },
-                ],
-                strategies: vec![
-                    UserStrategyInfo {
-                        strategy_id: 1,
-                        shares: Decimal::from_ratio(1000_u128, 1_u128),
-                        airdrop_pointer: vec![],
-                    },
-                    UserStrategyInfo {
-                        strategy_id: 2,
-                        shares: Decimal::from_ratio(2000_u128, 1_u128),
-                        airdrop_pointer: vec![],
-                    },
-                ],
-                pending_airdrops: vec![],
-                undelegation_records: vec![],
-                pending_rewards: Uint128::new(0_u128),
-            },
-        );
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(1),
+                &StrategyInfo {
+                    name: "sid1".to_string(),
+                    sic_contract_address: sic1_address.clone(),
+                    unbonding_period: (21 * 24 * 3600),
+                    unbonding_buffer: 3600,
+                    undelegation_batch_id_pointer: 0,
+                    reconciled_batch_id_pointer: 0,
+                    is_active: true,
+                    total_shares: Decimal::from_ratio(8000_u128, 1_u128),
+                    current_undelegated_shares: Default::default(),
+                    global_airdrop_pointer: vec![
+                        DecCoin::new(Decimal::from_ratio(100_u128, 8000_u128), "anc".to_string()),
+                        DecCoin::new(Decimal::from_ratio(300_u128, 8000_u128), "mir".to_string()),
+                    ],
+                    total_airdrops_accumulated: vec![
+                        Coin::new(100_u128, "anc".to_string()),
+                        Coin::new(300_u128, "mir".to_string()),
+                    ],
+                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                },
+            )
+            .unwrap();
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(2),
+                &StrategyInfo {
+                    name: "sid2".to_string(),
+                    sic_contract_address: sic2_address.clone(),
+                    unbonding_period: (21 * 24 * 3600),
+                    unbonding_buffer: 3600,
+                    undelegation_batch_id_pointer: 0,
+                    reconciled_batch_id_pointer: 0,
+                    is_active: true,
+                    total_shares: Decimal::from_ratio(7000_u128, 1_u128),
+                    current_undelegated_shares: Default::default(),
+                    global_airdrop_pointer: vec![
+                        DecCoin::new(Decimal::from_ratio(200_u128, 7000_u128), "anc".to_string()),
+                        DecCoin::new(Decimal::from_ratio(400_u128, 7000_u128), "mir".to_string()),
+                    ],
+                    total_airdrops_accumulated: vec![
+                        Coin::new(200_u128, "anc".to_string()),
+                        Coin::new(400_u128, "mir".to_string()),
+                    ],
+                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                },
+            )
+            .unwrap();
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(3),
+                &StrategyInfo {
+                    name: "sid3".to_string(),
+                    sic_contract_address: sic3_address.clone(),
+                    unbonding_period: (21 * 24 * 3600),
+                    unbonding_buffer: 3600,
+                    undelegation_batch_id_pointer: 0,
+                    reconciled_batch_id_pointer: 0,
+                    is_active: true,
+                    total_shares: Decimal::from_ratio(5000_u128, 1_u128),
+                    current_undelegated_shares: Default::default(),
+                    global_airdrop_pointer: vec![
+                        DecCoin::new(Decimal::from_ratio(300_u128, 5000_u128), "anc".to_string()),
+                        DecCoin::new(Decimal::from_ratio(500_u128, 5000_u128), "mir".to_string()),
+                    ],
+                    total_airdrops_accumulated: vec![
+                        Coin::new(300_u128, "anc".to_string()),
+                        Coin::new(500_u128, "mir".to_string()),
+                    ],
+                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                },
+            )
+            .unwrap();
+        USER_REWARD_INFO_MAP
+            .save(
+                deps.as_mut().storage,
+                &user1,
+                &UserRewardInfo {
+                    user_portfolio: vec![
+                        UserStrategyPortfolio {
+                            strategy_id: 1,
+                            deposit_fraction: Uint128::new(25_u128),
+                        },
+                        UserStrategyPortfolio {
+                            strategy_id: 2,
+                            deposit_fraction: Uint128::new(50_u128),
+                        },
+                    ],
+                    strategies: vec![
+                        UserStrategyInfo {
+                            strategy_id: 1,
+                            shares: Decimal::from_ratio(2000_u128, 1_u128),
+                            airdrop_pointer: vec![],
+                        },
+                        UserStrategyInfo {
+                            strategy_id: 2,
+                            shares: Decimal::from_ratio(3000_u128, 1_u128),
+                            airdrop_pointer: vec![],
+                        },
+                    ],
+                    pending_airdrops: vec![],
+                    undelegation_records: vec![],
+                    pending_rewards: Uint128::new(300_u128),
+                },
+            )
+            .unwrap();
+        USER_REWARD_INFO_MAP
+            .save(
+                deps.as_mut().storage,
+                &user2,
+                &UserRewardInfo {
+                    user_portfolio: vec![
+                        UserStrategyPortfolio {
+                            strategy_id: 1,
+                            deposit_fraction: Uint128::new(50_u128),
+                        },
+                        UserStrategyPortfolio {
+                            strategy_id: 2,
+                            deposit_fraction: Uint128::new(25_u128),
+                        },
+                        UserStrategyPortfolio {
+                            strategy_id: 3,
+                            deposit_fraction: Uint128::new(12_u128),
+                        },
+                    ],
+                    strategies: vec![
+                        UserStrategyInfo {
+                            strategy_id: 1,
+                            shares: Decimal::from_ratio(1000_u128, 1_u128),
+                            airdrop_pointer: vec![],
+                        },
+                        UserStrategyInfo {
+                            strategy_id: 2,
+                            shares: Decimal::from_ratio(2000_u128, 1_u128),
+                            airdrop_pointer: vec![],
+                        },
+                        UserStrategyInfo {
+                            strategy_id: 3,
+                            shares: Decimal::from_ratio(2000_u128, 1_u128),
+                            airdrop_pointer: vec![],
+                        },
+                    ],
+                    pending_airdrops: vec![],
+                    undelegation_records: vec![],
+                    pending_rewards: Uint128::new(500_u128),
+                },
+            )
+            .unwrap();
+        USER_REWARD_INFO_MAP
+            .save(
+                deps.as_mut().storage,
+                &user3,
+                &UserRewardInfo {
+                    user_portfolio: vec![
+                        UserStrategyPortfolio {
+                            strategy_id: 1,
+                            deposit_fraction: Uint128::new(50_u128),
+                        },
+                        UserStrategyPortfolio {
+                            strategy_id: 2,
+                            deposit_fraction: Uint128::new(25_u128),
+                        },
+                        UserStrategyPortfolio {
+                            strategy_id: 3,
+                            deposit_fraction: Uint128::new(25_u128),
+                        },
+                    ],
+                    strategies: vec![
+                        UserStrategyInfo {
+                            strategy_id: 1,
+                            shares: Decimal::from_ratio(1000_u128, 1_u128),
+                            airdrop_pointer: vec![],
+                        },
+                        UserStrategyInfo {
+                            strategy_id: 2,
+                            shares: Decimal::from_ratio(2000_u128, 1_u128),
+                            airdrop_pointer: vec![],
+                        },
+                    ],
+                    pending_airdrops: vec![],
+                    undelegation_records: vec![],
+                    pending_rewards: Uint128::new(0_u128),
+                },
+            )
+            .unwrap();
         let res = execute(
             deps.as_mut(),
             env.clone(),
@@ -6939,59 +7251,69 @@ mod tests {
         /*
            Test - 2. updating the user airdrops with existing user_airdrops
         */
-        STATE.update(
-            deps.as_mut().storage,
-            |mut state| -> Result<_, ContractError> {
-                state.total_accumulated_airdrops =
-                    vec![Coin::new(100_u128, "abc"), Coin::new(200_u128, "def")];
-                Ok(state)
-            },
-        );
+        STATE
+            .update(
+                deps.as_mut().storage,
+                |mut state| -> Result<_, ContractError> {
+                    state.total_accumulated_airdrops =
+                        vec![Coin::new(100_u128, "abc"), Coin::new(200_u128, "def")];
+                    Ok(state)
+                },
+            )
+            .unwrap();
 
-        USER_REWARD_INFO_MAP.save(
-            deps.as_mut().storage,
-            &user1,
-            &UserRewardInfo {
-                user_portfolio: vec![],
-                strategies: vec![],
-                pending_airdrops: vec![Coin::new(10_u128, "abc"), Coin::new(200_u128, "def")],
-                undelegation_records: vec![],
-                pending_rewards: Default::default(),
-            },
-        );
-        USER_REWARD_INFO_MAP.save(
-            deps.as_mut().storage,
-            &user2,
-            &UserRewardInfo {
-                user_portfolio: vec![],
-                strategies: vec![],
-                pending_airdrops: vec![Coin::new(20_u128, "abc"), Coin::new(100_u128, "def")],
-                undelegation_records: vec![],
-                pending_rewards: Default::default(),
-            },
-        );
-        USER_REWARD_INFO_MAP.save(
-            deps.as_mut().storage,
-            &user3,
-            &UserRewardInfo {
-                user_portfolio: vec![],
-                strategies: vec![],
-                pending_airdrops: vec![Coin::new(30_u128, "abc"), Coin::new(50_u128, "def")],
-                undelegation_records: vec![],
-                pending_rewards: Default::default(),
-            },
-        );
-        USER_REWARD_INFO_MAP.save(
-            deps.as_mut().storage,
-            &user4,
-            &UserRewardInfo {
-                user_portfolio: vec![],
-                strategies: vec![],
-                pending_airdrops: vec![Coin::new(40_u128, "abc"), Coin::new(80_u128, "def")],
-                undelegation_records: vec![],
-                pending_rewards: Default::default(),
-            },
-        );
+        USER_REWARD_INFO_MAP
+            .save(
+                deps.as_mut().storage,
+                &user1,
+                &UserRewardInfo {
+                    user_portfolio: vec![],
+                    strategies: vec![],
+                    pending_airdrops: vec![Coin::new(10_u128, "abc"), Coin::new(200_u128, "def")],
+                    undelegation_records: vec![],
+                    pending_rewards: Default::default(),
+                },
+            )
+            .unwrap();
+        USER_REWARD_INFO_MAP
+            .save(
+                deps.as_mut().storage,
+                &user2,
+                &UserRewardInfo {
+                    user_portfolio: vec![],
+                    strategies: vec![],
+                    pending_airdrops: vec![Coin::new(20_u128, "abc"), Coin::new(100_u128, "def")],
+                    undelegation_records: vec![],
+                    pending_rewards: Default::default(),
+                },
+            )
+            .unwrap();
+        USER_REWARD_INFO_MAP
+            .save(
+                deps.as_mut().storage,
+                &user3,
+                &UserRewardInfo {
+                    user_portfolio: vec![],
+                    strategies: vec![],
+                    pending_airdrops: vec![Coin::new(30_u128, "abc"), Coin::new(50_u128, "def")],
+                    undelegation_records: vec![],
+                    pending_rewards: Default::default(),
+                },
+            )
+            .unwrap();
+        USER_REWARD_INFO_MAP
+            .save(
+                deps.as_mut().storage,
+                &user4,
+                &UserRewardInfo {
+                    user_portfolio: vec![],
+                    strategies: vec![],
+                    pending_airdrops: vec![Coin::new(40_u128, "abc"), Coin::new(80_u128, "def")],
+                    undelegation_records: vec![],
+                    pending_rewards: Default::default(),
+                },
+            )
+            .unwrap();
 
         let _res = execute(
             deps.as_mut(),
