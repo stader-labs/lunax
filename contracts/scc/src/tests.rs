@@ -3993,6 +3993,42 @@ mod tests {
         )
         .unwrap_err();
         assert!(matches!(err, ContractError::UserRewardInfoDoesNotExist {}));
+
+        /*
+           Test - 7. User did not have enough pending_rewards
+        */
+        USER_REWARD_INFO_MAP
+            .save(
+                deps.as_mut().storage,
+                &user1,
+                &UserRewardInfo {
+                    user_portfolio: vec![],
+                    strategies: vec![UserStrategyInfo {
+                        strategy_id: 1,
+                        shares: Decimal::from_ratio(3000_u128, 1_u128),
+                        airdrop_pointer: vec![],
+                    }],
+                    pending_airdrops: vec![],
+                    undelegation_records: vec![],
+                    pending_rewards: Uint128::new(100_u128),
+                },
+            )
+            .unwrap();
+
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info(user1.as_str(), &[]),
+            ExecuteMsg::UndelegateRewards {
+                amount: Uint128::new(400_u128),
+                strategy_id: 0,
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(
+            err,
+            ContractError::UserDoesNotHaveEnoughRewards {}
+        ));
     }
 
     #[test]
@@ -4455,6 +4491,87 @@ mod tests {
                 value: "1".to_string()
             }]
         ));
+
+        /*
+            Test - 5. User partially undelegates from strategy_id 0
+        */
+        STATE
+            .update(
+                deps.as_mut().storage,
+                |mut state| -> Result<_, ContractError> {
+                    state.next_strategy_id = 1;
+                    state.rewards_in_scc = Uint128::new(300_u128);
+                    Ok(state)
+                },
+            )
+            .unwrap();
+        USER_REWARD_INFO_MAP
+            .save(
+                deps.as_mut().storage,
+                &user1,
+                &UserRewardInfo {
+                    user_portfolio: vec![],
+                    strategies: vec![UserStrategyInfo {
+                        strategy_id: 1,
+                        shares: Decimal::from_ratio(1000_u128, 1_u128),
+                        airdrop_pointer: vec![
+                            DecCoin::new(
+                                Decimal::from_ratio(200_u128, 5000_u128),
+                                "anc".to_string(),
+                            ),
+                            DecCoin::new(
+                                Decimal::from_ratio(400_u128, 5000_u128),
+                                "mir".to_string(),
+                            ),
+                        ],
+                    }],
+                    pending_airdrops: vec![
+                        Coin::new(120_u128, "anc".to_string()),
+                        Coin::new(240_u128, "mir".to_string()),
+                    ],
+                    undelegation_records: vec![UserUndelegationRecord {
+                        id: 0,
+                        amount: Uint128::new(200_u128),
+                        shares: Decimal::from_ratio(2000_u128, 1_u128),
+                        strategy_id: 1,
+                        undelegation_batch_id: 0,
+                    }],
+                    pending_rewards: Uint128::new(100_u128),
+                },
+            )
+            .unwrap();
+
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info(user1.as_str(), &[]),
+            ExecuteMsg::UndelegateRewards {
+                amount: Uint128::new(50_u128),
+                strategy_id: 0,
+            },
+        )
+        .unwrap();
+        assert_eq!(res.messages.len(), 1);
+        assert!(check_equal_vec(
+            res.messages,
+            vec![SubMsg::new(BankMsg::Send {
+                to_address: user1.to_string(),
+                amount: vec![Coin::new(50_u128, "uluna".to_string())]
+            })]
+        ));
+
+        let user1_reward_info_opt = USER_REWARD_INFO_MAP
+            .may_load(deps.as_mut().storage, &user1)
+            .unwrap();
+        assert_ne!(user1_reward_info_opt, None);
+        let user1_reward_info = user1_reward_info_opt.unwrap();
+        assert_eq!(user1_reward_info.pending_rewards, Uint128::new(50_u128));
+        let state_response: GetStateResponse =
+            from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::GetState {}).unwrap())
+                .unwrap();
+        assert_ne!(state_response.state, None);
+        let state = state_response.state.unwrap();
+        assert_eq!(state.rewards_in_scc, Uint128::new(250_u128));
     }
 
     #[test]
