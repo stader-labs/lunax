@@ -11,6 +11,8 @@ pub struct Config {
     pub vault_denom: String,
     pub pools_contract: Addr,
     pub scc_contract: Addr,
+    pub protocol_fee: Decimal,
+    pub protocol_fee_contract: Addr,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

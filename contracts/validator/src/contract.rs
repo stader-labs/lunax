@@ -60,9 +60,9 @@ pub fn instantiate(
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(
-    deps: DepsMut,
-    env: Env,
-    msg: MigrateMsg,
+    _deps: DepsMut,
+    _env: Env,
+    _msg: MigrateMsg,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     Ok(Response::default())
 }
@@ -122,7 +122,7 @@ pub fn add_validator(
     val_addr: Addr,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let config = CONFIG.load(deps.storage)?;
-    validate(&config, &info, &env, vec![Verify::SenderManager])?;
+    validate(&config, &info, &env, vec![Verify::SenderPoolsContract])?;
 
     if VALIDATOR_REGISTRY
         .may_load(deps.storage, &val_addr)
@@ -837,7 +837,6 @@ pub fn remove_slashing_funds(
     )))
 }
 
-// TODO - GM. Add tests
 pub fn update_config(
     deps: DepsMut,
     info: MessageInfo,
@@ -862,12 +861,12 @@ pub fn update_config(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::GetConfig {} => to_binary(&query_config(deps)?),
-        QueryMsg::GetState {} => to_binary(&query_state(deps)?),
-        QueryMsg::GetValidatorMeta { val_addr } => {
+        QueryMsg::Config {} => to_binary(&query_config(deps)?),
+        QueryMsg::State {} => to_binary(&query_state(deps)?),
+        QueryMsg::ValidatorMeta { val_addr } => {
             to_binary(&query_validator_meta(deps, val_addr)?)
         }
-        QueryMsg::GetAirdropMeta { token } => to_binary(&query_airdrop_meta(deps, token)?),
+        QueryMsg::AirdropMeta { token } => to_binary(&query_airdrop_meta(deps, token)?),
     }
 }
 

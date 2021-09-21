@@ -1,16 +1,16 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 
-use stader_utils::helpers::{query_exchange_rates, send_funds_msg};
-use terra_cosmwasm::{create_swap_msg, TerraMsgWrapper};
-use cosmwasm_std::{DepsMut, Env, MessageInfo, Response, Deps, StdResult, Binary, Addr, Reply, ContractResult, SubMsgExecutionResponse, Uint128, SubMsg, WasmMsg, to_binary, attr, Timestamp, Decimal, Coin, Order, Storage};
+use stader_utils::helpers::send_funds_msg;
+use terra_cosmwasm::TerraMsgWrapper;
+use cosmwasm_std::{DepsMut, Env, MessageInfo, Response, Deps, StdResult, Binary, Addr, Uint128, WasmMsg, to_binary, attr, Timestamp, Decimal, Coin, Order, Storage};
 use crate::msg::{InstantiateMsg, ExecuteMsg, QueryMsg, GetConfigResponse, GetStateResponse, UserPoolResponse, UserResponse};
 use crate::ContractError;
-use crate::state::{Config, State, CONFIG, STATE, USER_REGISTRY, UserPoolInfo, DepositInfo, RedelegationInfo, UndelegationInfo, PoolPointerInfo};
+use crate::state::{Config, State, CONFIG, STATE, USER_REGISTRY, UserPoolInfo, DepositInfo, UndelegationInfo, PoolPointerInfo};
 use crate::request_validation::{validate, Verify, update_user_pointers};
 use cw_storage_plus::U64Key;
 use scc::msg::{ExecuteMsg as SccMsg, UpdateUserRewardsRequest, UpdateUserAirdropsRequest};
-use stader_utils::coin_utils::{decimal_subtraction_in_256, multiply_coin_with_decimal, multiply_u128_with_decimal, DecCoin, merge_dec_coin_vector, DecCoinVecOp, Operation, multiply_deccoin_vector_with_uint128, deccoin_vec_to_coin_vec};
+use stader_utils::coin_utils::{multiply_u128_with_decimal, DecCoin};
 use std::collections::HashMap;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -25,13 +25,15 @@ pub fn instantiate(
         vault_denom: msg.vault_denom,
         pools_contract: msg.pools_contract,
         scc_contract: msg.scc_contract,
+        protocol_fee: msg.protocol_fee,
+        protocol_fee_contract: msg.protocol_fee_contract
     };
     let state = State {
         next_redelegation_id: 1_u64,
         next_undelegation_id: 1_u64,
     };
     // TODO - GM. What happens when initiate function is called twice. Does it create two contracts?
-    validate(&config, &info, &env, vec![Verify::NoFunds]);
+    validate(&config, &info, &env, vec![Verify::NoFunds])?;
     CONFIG.save(deps.storage, &config)?;
     STATE.save(deps.storage, &state)?;
     Ok(Response::default())
@@ -53,9 +55,10 @@ pub fn execute(
             undelegate(deps, info, env, user_addr, batch_id, from_pool, amount, pool_rewards_pointer, pool_airdrops_pointer),
         ExecuteMsg::WithdrawFunds { user_addr, pool_id, undelegate_id, amount } =>
             withdraw_funds(deps, info, env, user_addr, pool_id, undelegate_id, amount),
-        ExecuteMsg::AllocateRewards { user_addrs, pool_pointers } => allocate_rewards(deps, info, env, user_addrs, pool_pointers),
+        ExecuteMsg::AllocateRewards { user_addrs, pool_pointers } => allocate_rewards_and_airdrops(deps, info, env, user_addrs, pool_pointers),
 
-        ExecuteMsg::UpdateConfig { pools_contract, scc_contract } => update_config(deps, info, env, pools_contract, scc_contract),
+        ExecuteMsg::UpdateConfig { pools_contract, scc_contract, protocol_fee, protocol_fee_contract } =>
+            update_config(deps, info, env, pools_contract, scc_contract, protocol_fee_contract, protocol_fee),
     }
 }
 
@@ -76,7 +79,7 @@ pub fn deposit(
         return Err(ContractError::ZeroAmount {});
     }
 
-    USER_REGISTRY.update(deps.storage, (&user_addr, U64Key::new(pool_id)), |mut user_info_opt| -> StdResult<_> {
+    USER_REGISTRY.update(deps.storage, (&user_addr, U64Key::new(pool_id)), |user_info_opt| -> StdResult<_> {
         let mut user_info = user_info_opt.unwrap_or_else(|| UserPoolInfo {
             pool_id,
             deposit: DepositInfo { staked: Uint128::zero() },
@@ -104,17 +107,17 @@ pub fn deposit(
 
 // TODO - GM. Decrease pending rewards as well and update pointer. Write tests
 pub fn redelegate(
-    deps: DepsMut,
-    info: MessageInfo,
-    env: Env,
-    user_addr: Addr,
-    batch_id: u64,
-    from_pool: u64,
-    to_pool: u64,
-    amount: Uint128,
-    eta: Option<Timestamp>,
-    pool_rewards_pointer: Decimal,
-    pool_airdrops_pointer: Vec<DecCoin>,
+    _deps: DepsMut,
+    _info: MessageInfo,
+    _env: Env,
+    _user_addr: Addr,
+    _batch_id: u64,
+    _from_pool: u64,
+    _to_pool: u64,
+    _amount: Uint128,
+    _eta: Option<Timestamp>,
+    _pool_rewards_pointer: Decimal,
+    _pool_airdrops_pointer: Vec<DecCoin>,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     // let config = CONFIG.load(deps.storage)?;
     // validate(&config, &info, &env, vec![Verify::SenderPoolsContract])?;
@@ -196,7 +199,7 @@ pub fn undelegate(
     user_meta.undelegations.push(UndelegationInfo { batch_id, id: state.next_undelegation_id, amount, pool_id: from_pool });
     user_meta.deposit.staked = user_meta.deposit.staked.checked_sub(amount).unwrap();
 
-    USER_REGISTRY.save(deps.storage, map_key, &user_meta);
+    USER_REGISTRY.save(deps.storage, map_key, &user_meta)?;
 
     state.next_undelegation_id = state.next_undelegation_id + 1;
     STATE.save(deps.storage, &state)?;
@@ -231,7 +234,7 @@ pub fn withdraw_funds(
     if info_opt.is_none() {
         return Err(ContractError::RecordNotFound {});
     }
-    let mut info = info_opt.unwrap();
+    let info = info_opt.unwrap();
     if info.amount.ne(&amount) {
         return Err(ContractError::NonMatchingAmount {});
     }
@@ -239,12 +242,20 @@ pub fn withdraw_funds(
     user_pool_meta.undelegations = others;
     USER_REGISTRY.save(deps.storage, (&user_addr, U64Key::new(pool_id)), &user_pool_meta)?;
 
-    Ok(Response::new()
-        .add_message(send_funds_msg(&user_addr, &vec![Coin::new(amount.u128(), config.vault_denom)]))
-    )
+    let mut msgs = vec![];
+    let mut logs = vec![];
+    let protocol_fee_amount = multiply_u128_with_decimal(amount.u128(), config.protocol_fee);
+    let user_amount = amount.u128() - protocol_fee_amount;
+    if protocol_fee_amount != 0 {
+        logs.push(attr("protocol_fee", protocol_fee_amount.to_string()));
+        msgs.push(send_funds_msg(&config.protocol_fee_contract, &vec![Coin::new(protocol_fee_amount, config.vault_denom.clone())]));
+    }
+    logs.push(attr("user_withdrawal", user_amount.to_string()));
+    msgs.push(send_funds_msg(&user_addr, &vec![Coin::new(user_amount, config.vault_denom)]));
+    Ok(Response::new().add_messages(msgs).add_attributes(logs))
 }
 
-pub fn allocate_rewards(
+pub fn allocate_rewards_and_airdrops(
     deps: DepsMut,
     info: MessageInfo,
     env: Env,
@@ -307,13 +318,14 @@ pub fn allocate_rewards(
     Ok(Response::new().add_messages(messages).add_attributes(logs))
 }
 
-// TODO - GM. Add tests
 pub fn update_config(
     deps: DepsMut,
     info: MessageInfo,
     env: Env,
     pools_contract: Option<Addr>,
     scc_contract: Option<Addr>,
+    protocol_fee_contract: Option<Addr>,
+    protocol_fee: Option<Decimal>
 )-> Result<Response<TerraMsgWrapper>, ContractError> {
     let config = CONFIG.load(deps.storage)?;
     validate(&config, &info, &env, vec![Verify::SenderManager, Verify::NoFunds])?;
@@ -321,6 +333,8 @@ pub fn update_config(
     CONFIG.update(deps.storage, |mut config| -> StdResult<_> {
         config.pools_contract = pools_contract.unwrap_or(config.pools_contract.clone());
         config.scc_contract = scc_contract.unwrap_or(config.scc_contract.clone());
+        config.protocol_fee_contract = protocol_fee_contract.unwrap_or(config.protocol_fee_contract.clone());
+        config.protocol_fee = protocol_fee.unwrap_or(config.protocol_fee);
         Ok(config)
     })?;
 
@@ -339,12 +353,12 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
 pub fn query_config(deps: Deps) -> StdResult<GetConfigResponse> {
     let config: Config = CONFIG.load(deps.storage)?;
-    Ok(GetConfigResponse { config: config })
+    Ok(GetConfigResponse { config })
 }
 
 pub fn query_state(deps: Deps) -> StdResult<GetStateResponse> {
     let state: State = STATE.load(deps.storage)?;
-    Ok(GetStateResponse { state: state })
+    Ok(GetStateResponse { state })
 }
 
 pub fn query_user_pool(deps: Deps, user_addr: Addr, pool_id: u64) -> StdResult<UserPoolResponse> {

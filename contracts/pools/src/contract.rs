@@ -1,18 +1,17 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-
-use stader_utils::helpers::{query_exchange_rates, send_funds_msg};
-use terra_cosmwasm::{create_swap_msg, TerraMsgWrapper};
-use cosmwasm_std::{DepsMut, Env, MessageInfo, Response, Deps, StdResult, Binary, Addr, Reply, ContractResult, SubMsgExecutionResponse, Uint128, SubMsg, WasmMsg, to_binary, Coin, Decimal, attr};
+use terra_cosmwasm::TerraMsgWrapper;
+use cosmwasm_std::{DepsMut, Env, MessageInfo, Response, Deps, StdResult, Binary, Addr, Reply, ContractResult, SubMsgExecutionResponse, Uint128, SubMsg, WasmMsg, to_binary, Coin, Decimal};
 use crate::msg::{InstantiateMsg, ExecuteMsg, QueryMsg, QueryConfigResponse, QueryStateResponse, GetAirdropMetaResponse, QueryPoolResponse, QueryValidatorResponse, QueryBatchUndelegationResponse};
 use crate::ContractError;
-use crate::state::{Config, State, CONFIG, STATE, AIRDROP_REGISTRY, POOL_REGISTRY, PoolRegistryInfo, VALIDATOR_REGISTRY, ValInfo, BATCH_UNDELEGATION_REGISTRY, BatchUndelegationRecord, AirdropRate};
+use crate::state::{Config, State, CONFIG, STATE, AIRDROP_REGISTRY, POOL_REGISTRY, PoolRegistryInfo, VALIDATOR_REGISTRY, ValInfo, BATCH_UNDELEGATION_REGISTRY, AirdropRate, ConfigUpdateRequest};
 use crate::request_validation::{validate, Verify, get_verified_pool, get_validator_for_deposit, get_validator_for_undelegate, create_new_undelegation_batch};
 use delegator::msg::ExecuteMsg as DelegatorMsg;
 use validator::msg::ExecuteMsg as ValidatorMsg;
 use cw_storage_plus::U64Key;
 use stader_utils::event_constants::{EVENT_SWAP_KEY_AMOUNT, EVENT_KEY_IDENTIFIER, EVENT_SWAP_TYPE};
-use stader_utils::coin_utils::{decimal_summation_in_256, merge_coin_vector, CoinVecOp, Operation, merge_dec_coin_vector, DecCoinVecOp, DecCoin};
+use stader_utils::coin_utils::{decimal_summation_in_256, Operation, merge_dec_coin_vector, DecCoinVecOp, DecCoin};
+use std::borrow::BorrowMut;
 
 pub const MESSAGE_REPLY_SWAP_ID: u64 = 0;
 
@@ -30,6 +29,9 @@ pub fn instantiate(
         delegator_contract: msg.delegator_contract,
         unbonding_period: msg.unbonding_period.unwrap_or(21 * 24 * 3600),
         unbonding_buffer: msg.unbonding_buffer.unwrap_or(3600),
+
+        min_deposit: msg.min_deposit,
+        max_deposit: msg.max_deposit,
     };
     let state = State { next_pool_id: 0_u64 };
     CONFIG.save(deps.storage, &config)?;
@@ -58,6 +60,7 @@ pub fn execute(
         ExecuteMsg::WithdrawFundsToWallet { pool_id, batch_id, undelegate_id, amount } =>
             withdraw_funds_to_wallet(deps, info, env, pool_id, batch_id, undelegate_id, amount),
         ExecuteMsg::UpdateAirdropPointers { airdrop_amount, rates } => update_airdrop_pointers(deps, info, env, airdrop_amount, rates),
+        ExecuteMsg::UpdateConfig { config_request } => update_config(deps, info, env, config_request),
     }
 }
 
@@ -72,7 +75,7 @@ pub fn add_pool(
 
     let mut state = STATE.load(deps.storage)?;
     let pool_id = state.next_pool_id;
-    let mut pool_meta = PoolRegistryInfo {
+    let pool_meta = PoolRegistryInfo {
         name,
         active: true,
         validators: vec![],
@@ -84,10 +87,10 @@ pub fn add_pool(
     };
     POOL_REGISTRY.save(deps.storage, U64Key::new(pool_id), &pool_meta)?;
 
-    create_new_undelegation_batch(deps.storage, env, pool_id, &mut pool_meta)?;
+    create_new_undelegation_batch(deps.storage, env, pool_id, pool_meta.to_owned().borrow_mut())?;
 
     state.next_pool_id = state.next_pool_id + 1;
-    STATE.save(deps.storage, &state);
+    STATE.save(deps.storage, &state)?;
     Ok(Response::new())
 }
 
@@ -102,15 +105,14 @@ pub fn add_validator_to_pool(
     let config = CONFIG.load(deps.storage)?;
     validate(&config, &info, &env, vec![Verify::SenderManager, Verify::NoFunds])?;
 
-    // check if the validator exists in the blockchain
-    if deps.querier.query_validator(&val_addr).unwrap().is_none() {
-        return Err(ContractError::ValidatorNotDiscoverable {});
-    }
+    // check if the validator exists in the blockchain. Validator contract makes this check.
+    // if deps.querier.query_validator(&val_addr).unwrap().is_none() {
+    //     return Err(ContractError::ValidatorNotDiscoverable {});
+    // }
 
     if VALIDATOR_REGISTRY.may_load(deps.storage, &val_addr).unwrap().is_some() {
         return Err(ContractError::ValidatorAssociatedToPool {});
     }
-
 
     let pool_meta_opt = POOL_REGISTRY.may_load(deps.storage, U64Key::new(pool_id))?;
     if pool_meta_opt.is_none() {
@@ -131,16 +133,23 @@ pub fn add_validator_to_pool(
 
     // We will not run into a case where pool already has validator obj but val is not present in VALIDATOR_REGISTRY.
     Ok(Response::new()
+        .add_message(WasmMsg::Execute {
+            contract_addr: config.validator_contract.to_string(),
+            msg: to_binary(&ValidatorMsg::AddValidator {
+               val_addr: val_addr.clone(),
+            }).unwrap(),
+            funds: vec![]
+        })
         .add_attribute("new_validator", val_addr.to_string())
         .add_attribute("into_pool", pool_id.to_string()))
 }
 
 // TODO - GM. Add tests
 pub fn remove_validator_from_pool(
-    deps: DepsMut,
-    info: MessageInfo,
-    env: Env,
-    val_addr: Addr,
+    _deps: DepsMut,
+    _info: MessageInfo,
+    _env: Env,
+    _val_addr: Addr,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     Ok(Response::default())
 }
@@ -156,6 +165,12 @@ pub fn deposit_to_pool(
     validate(&config, &info, &env, vec![Verify::NonZeroSingleInfoFund])?;
 
     let amount = info.funds.first().unwrap().amount;
+    if amount.gt(&config.max_deposit) {
+        return Err(ContractError::MaxDeposit {});
+    }
+    if amount.gt(&config.min_deposit) {
+        return Err(ContractError::MinDeposit {});
+    }
     let mut pool_meta = get_verified_pool(deps.storage, pool_id, true)?;
     let user_addr = info.sender;
     let val_addr = get_validator_for_deposit(deps.storage, pool_meta.validators.clone())?;
@@ -200,7 +215,7 @@ pub fn redeem_rewards(
     let config = CONFIG.load(deps.storage)?;
     validate(&config, &info, &env, vec![Verify::SenderManager, Verify::NoFunds])?;
 
-    let mut pool_meta = get_verified_pool(deps.storage, pool_id, false)?;
+    let pool_meta = get_verified_pool(deps.storage, pool_id, false)?;
     let messages = vec![WasmMsg::Execute {
         contract_addr: config.validator_contract.to_string(),
         msg: to_binary(&ValidatorMsg::RedeemRewards {
@@ -222,7 +237,7 @@ pub fn swap(
     let config = CONFIG.load(deps.storage)?;
     validate(&config, &info, &env, vec![Verify::SenderManager, Verify::NoFunds])?;
 
-    let mut pool_meta = get_verified_pool(deps.storage, pool_id, false)?;
+    let pool_meta = get_verified_pool(deps.storage, pool_id, false)?;
 
     Ok(Response::new().add_submessage(
         SubMsg::reply_always(WasmMsg::Execute {
@@ -259,7 +274,7 @@ pub fn queue_user_undelegation(
         })?;
 
     pool_meta.staked = pool_meta.staked.checked_sub(amount).unwrap();
-    POOL_REGISTRY.save(deps.storage, U64Key::from(pool_id), &pool_meta);
+    POOL_REGISTRY.save(deps.storage, U64Key::from(pool_id), &pool_meta)?;
 
     // Fire and forget will work here because if user transaction will fail then tx will fail this state change too.
     let message = WasmMsg::Execute {
@@ -297,7 +312,7 @@ pub fn undelegate_from_pool(
         deps.storage, batch_undelegation_registry_id, |x| -> Result<_, ContractError> {
             let mut batch_undel = x.unwrap();
 
-            if (batch_undel.amount.is_zero()) {
+            if batch_undel.amount.is_zero() {
                 return Err(ContractError::NoOp {});
             }
 
@@ -449,6 +464,28 @@ pub fn update_airdrop_pointers(
     Ok(Response::default())
 }
 
+pub fn update_config(
+    deps: DepsMut,
+    info: MessageInfo,
+    env: Env,
+    update_config: ConfigUpdateRequest,
+)-> Result<Response<TerraMsgWrapper>, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    validate(&config, &info, &env, vec![Verify::SenderManager, Verify::NoFunds])?;
+
+    CONFIG.update(deps.storage, |mut config| -> StdResult<_> {
+        config.delegator_contract = update_config.delegator_contract.unwrap_or(config.delegator_contract.clone());
+        config.validator_contract = update_config.validator_contract.unwrap_or(config.validator_contract.clone());
+        config.unbonding_period = update_config.unbonding_period.unwrap_or(config.unbonding_period.clone());
+        config.unbonding_buffer = update_config.unbonding_buffer.unwrap_or(config.unbonding_buffer.clone());
+        config.min_deposit = update_config.min_deposit.unwrap_or(config.min_deposit.clone());
+        config.max_deposit = update_config.max_deposit.unwrap_or(config.max_deposit.clone());
+        Ok(config)
+    })?;
+
+    Ok(Response::default())
+}
+
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
@@ -510,7 +547,7 @@ pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractEr
 pub fn reply_swap(
     deps: DepsMut,
     _env: Env,
-    msg_id: u64,
+    _msg_id: u64,
     result: ContractResult<SubMsgExecutionResponse>,
 ) -> Result<Response, ContractError> {
     if result.is_err() {

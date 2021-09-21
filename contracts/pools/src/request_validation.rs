@@ -1,6 +1,6 @@
 use crate::state::{Config, POOL_REGISTRY, VALIDATOR_REGISTRY, PoolRegistryInfo, BATCH_UNDELEGATION_REGISTRY, BatchUndelegationRecord};
 use crate::ContractError;
-use cosmwasm_std::{Env, MessageInfo, Addr, DepsMut, Response, Uint128, Storage, Decimal};
+use cosmwasm_std::{Env, MessageInfo, Addr, Uint128, Storage};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use cw_storage_plus::U64Key;
@@ -27,7 +27,7 @@ pub enum Verify {
 pub fn validate(
     config: &Config,
     info: &MessageInfo,
-    env: &Env,
+    _env: &Env,
     checks: Vec<Verify>,
 ) -> Result<(), ContractError> {
     for check in checks {
@@ -37,24 +37,6 @@ pub fn validate(
                     return Err(ContractError::Unauthorized {});
                 }
             }
-            // Verify::SenderPoolsContract => {
-            //     if info.sender != config.pools_contract_addr {
-            //         return Err(ContractError::Unauthorized {});
-            //     }
-            // }
-            // Verify::SenderManagerOrPoolsContract => {
-            //     if info.sender != config.manager && info.sender != config.pools_contract_addr {
-            //         return Err(ContractError::Unauthorized {});
-            //     }
-            // }
-            // Verify::SenderManagerOrPoolsContractOrSelf => {
-            //     if info.sender != config.manager
-            //         && info.sender != config.pools_contract_addr
-            //         && info.sender != env.contract.address
-            //     {
-            //         return Err(ContractError::Unauthorized {});
-            //     }
-            // }
             Verify::NonZeroSingleInfoFund => {
                 if info.funds.is_empty() || info.funds[0].amount.is_zero() {
                     return Err(ContractError::NoFunds {});
@@ -82,7 +64,7 @@ pub fn get_verified_pool(storage: &mut dyn Storage, pool_id: u64, active_check: 
     if pool_meta_opt.is_none() {
         return Err(ContractError::PoolNotFound {});
     }
-    let mut pool_meta = pool_meta_opt.unwrap();
+    let pool_meta = pool_meta_opt.unwrap();
     if active_check && !pool_meta.active {
         return Err(ContractError::PoolInactive {});
     }
@@ -91,7 +73,7 @@ pub fn get_verified_pool(storage: &mut dyn Storage, pool_id: u64, active_check: 
 
 // Take in validator staked amounts into pool if the pool size is bigger.
 pub fn get_validator_for_deposit(storage: &mut dyn Storage, validators: Vec<Addr>) -> Result<Addr, ContractError> {
-    if (validators.is_empty()) {
+    if validators.is_empty() {
         return Err(ContractError::NoValidatorsInPool {})
     }
     let mut min_staked = Uint128::new(u128::MAX);
@@ -109,7 +91,7 @@ pub fn get_validator_for_deposit(storage: &mut dyn Storage, validators: Vec<Addr
 
 // Take in validator staked amounts into pool if the pool size is bigger.
 pub fn get_validator_for_undelegate(storage: &mut dyn Storage, validators: Vec<Addr>) -> Result<Addr, ContractError> {
-    if (validators.is_empty()) {
+    if validators.is_empty() {
         return Err(ContractError::NoValidatorsInPool {})
     }
     let mut max_staked = Uint128::zero();

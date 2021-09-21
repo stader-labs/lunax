@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Addr, Coin, Uint128, Decimal, Timestamp};
+use cosmwasm_std::{Addr, Uint128, Decimal, Timestamp};
 use cw_storage_plus::{Item, Map, U64Key};
 use stader_utils::coin_utils::DecCoin;
 
@@ -13,6 +13,8 @@ pub struct Config {
     pub delegator_contract: Addr,
     pub unbonding_period: u64,
     pub unbonding_buffer: u64,
+    pub min_deposit: Uint128,
+    pub max_deposit: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -53,6 +55,16 @@ pub struct ValInfo {
 //     pub amount: String,
 //     pub staked: Uint128,
 // }
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct ConfigUpdateRequest {
+    pub(crate) validator_contract: Option<Addr>,
+    pub(crate) delegator_contract: Option<Addr>,
+    pub(crate) min_deposit: Option<Uint128>,
+    pub(crate) max_deposit: Option<Uint128>,
+    pub(crate) unbonding_period: Option<u64>,
+    pub(crate) unbonding_buffer: Option<u64>,
+}
 
 pub const POOL_REGISTRY: Map<U64Key, PoolRegistryInfo> = Map::new("pool_registry");
 pub const VALIDATOR_REGISTRY: Map<&Addr, ValInfo> = Map::new("validator_registry");

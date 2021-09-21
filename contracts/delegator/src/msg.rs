@@ -1,5 +1,5 @@
 use crate::state::{Config, State, UserPoolInfo, PoolPointerInfo};
-use cosmwasm_std::{Addr, Binary, Uint128, Timestamp, Decimal};
+use cosmwasm_std::{Addr, Uint128, Timestamp, Decimal};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use stader_utils::coin_utils::DecCoin;
@@ -9,6 +9,8 @@ pub struct InstantiateMsg {
     pub vault_denom: String,
     pub pools_contract: Addr,
     pub scc_contract: Addr,
+    pub protocol_fee: Decimal,
+    pub protocol_fee_contract: Addr,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -19,7 +21,7 @@ pub enum ExecuteMsg {
     Undelegate { user_addr: Addr, batch_id: u64, from_pool: u64, amount: Uint128, pool_rewards_pointer: Decimal, pool_airdrops_pointer: Vec<DecCoin> },
     WithdrawFunds { user_addr: Addr, pool_id: u64, undelegate_id: u64, amount: Uint128 },
     AllocateRewards { user_addrs: Vec<Addr>, pool_pointers: Vec<PoolPointerInfo> },
-    UpdateConfig { pools_contract: Option<Addr>, scc_contract: Option<Addr> }
+    UpdateConfig { pools_contract: Option<Addr>, scc_contract: Option<Addr>, protocol_fee: Option<Decimal>, protocol_fee_contract: Option<Addr> }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

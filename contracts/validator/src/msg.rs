@@ -68,10 +68,10 @@ pub enum ExecuteMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
-    GetConfig {},
-    GetState {},
-    GetValidatorMeta { val_addr: Addr },
-    GetAirdropMeta { token: String },
+    Config {},
+    State {},
+    ValidatorMeta { val_addr: Addr },
+    AirdropMeta { token: String },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

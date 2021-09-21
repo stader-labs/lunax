@@ -1,9 +1,8 @@
 use crate::state::{Config, UserPoolInfo};
 use crate::ContractError;
-use cosmwasm_std::{Env, MessageInfo, Addr, DepsMut, Response, Uint128, Storage, Decimal};
+use cosmwasm_std::{Env, MessageInfo, Uint128, Decimal};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use cw_storage_plus::U64Key;
 use stader_utils::coin_utils::{merge_dec_coin_vector, DecCoinVecOp, Operation, deccoin_vec_to_coin_vec, multiply_deccoin_vector_with_uint128, multiply_u128_with_decimal, decimal_subtraction_in_256, DecCoin, merge_coin_vector, CoinVecOp};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -23,7 +22,7 @@ pub enum Verify {
 pub fn validate(
     config: &Config,
     info: &MessageInfo,
-    env: &Env,
+    _env: &Env,
     checks: Vec<Verify>,
 ) -> Result<(), ContractError> {
     for check in checks {

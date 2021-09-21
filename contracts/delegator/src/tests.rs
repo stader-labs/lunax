@@ -1,70 +1,16 @@
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::contract::{execute, instantiate, query};
     use crate::error::ContractError;
     use crate::msg::{ExecuteMsg, GetConfigResponse, InstantiateMsg, QueryMsg};
-    use crate::state::{Config, State, CONFIG, STATE, USER_REGISTRY, DepositInfo, UserPoolInfo, UndelegationInfo, PoolPointerInfo};
+    use crate::state::{Config, CONFIG, USER_REGISTRY, DepositInfo, UserPoolInfo, UndelegationInfo, PoolPointerInfo};
     use cosmwasm_std::testing::{
-        mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
-        MOCK_CONTRACT_ADDR,
+        mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage
     };
-    use cosmwasm_std::{coins, from_binary, to_binary, Addr, Attribute, BankMsg, Binary, Coin, ContractResult, Decimal, DistributionMsg, Empty, Env, Event, FullDelegation, MessageInfo, OwnedDeps, Uint128, Validator, WasmMsg, attr, SubMsg, Response};
-    use cw20::Cw20ExecuteMsg;
+    use cosmwasm_std::{from_binary, Addr, BankMsg, Coin, Decimal, Env, MessageInfo, OwnedDeps, Uint128, attr, SubMsg, Response};
     use stader_utils::coin_utils::{check_equal_coin_vector, DecCoin, check_equal_deccoin_vector};
-    use terra_cosmwasm::{TerraMsg, TerraMsgWrapper};
+    use terra_cosmwasm::TerraMsgWrapper;
     use cw_storage_plus::U64Key;
-    use crate::msg::ExecuteMsg::Deposit;
-    use scc::msg::{ExecuteMsg as SccMsg, UpdateUserRewardsRequest, UpdateUserAirdropsRequest};
-
-    fn get_validators() -> Vec<Validator> {
-        vec![
-            Validator {
-                address: "valid0001".to_string(),
-                commission: Decimal::zero(),
-                max_commission: Decimal::zero(),
-                max_change_rate: Decimal::zero(),
-            },
-            Validator {
-                address: "valid0002".to_string(),
-                commission: Decimal::zero(),
-                max_commission: Decimal::zero(),
-                max_change_rate: Decimal::zero(),
-            },
-            Validator {
-                address: "valid0003".to_string(),
-                commission: Decimal::zero(),
-                max_commission: Decimal::zero(),
-                max_change_rate: Decimal::zero(),
-            },
-        ]
-    }
-
-    fn get_delegations() -> Vec<FullDelegation> {
-        vec![
-            FullDelegation {
-                delegator: Addr::unchecked(MOCK_CONTRACT_ADDR),
-                validator: "valid0001".to_string(),
-                amount: Coin::new(1000, "utest"),
-                can_redelegate: Coin::new(1000, "utest"),
-                accumulated_rewards: vec![Coin::new(20, "utest"), Coin::new(30, "urew1")],
-            },
-            FullDelegation {
-                delegator: Addr::unchecked(MOCK_CONTRACT_ADDR),
-                validator: "valid0002".to_string(),
-                amount: Coin::new(1000, "utest"),
-                can_redelegate: Coin::new(0, "utest"),
-                accumulated_rewards: vec![Coin::new(40, "utest"), Coin::new(60, "urew1")],
-            },
-            FullDelegation {
-                delegator: Addr::unchecked(MOCK_CONTRACT_ADDR),
-                validator: "valid0003".to_string(),
-                amount: Coin::new(0, "utest"),
-                can_redelegate: Coin::new(0, "utest"),
-                accumulated_rewards: vec![],
-            },
-        ]
-    }
 
     pub fn instantiate_contract(
         deps: &mut OwnedDeps<MockStorage, MockApi, MockQuerier>,
@@ -76,6 +22,8 @@ mod tests {
             vault_denom: vault_denom.unwrap_or_else(|| "utest".to_string()),
             pools_contract: Addr::unchecked("pools_addr"),
             scc_contract: Addr::unchecked("scc_addr"),
+            protocol_fee: Decimal::from_ratio(1_u128, 1000_u128), // 0.1%
+            protocol_fee_contract: Addr::unchecked("protocol_fee_addr")
         };
 
         return instantiate(deps.as_mut(), env.clone(), info.clone(), instantiate_msg).unwrap();
@@ -89,12 +37,16 @@ mod tests {
             vault_denom: "utest".to_string(),
             pools_contract: Addr::unchecked("pools_address"),
             scc_contract: Addr::unchecked("scc_addr"),
+            protocol_fee: Decimal::from_ratio(1_u128, 1000_u128), // 0.1%
+            protocol_fee_contract: Addr::unchecked("protocol_fee_addr")
         };
         let expected_config = Config {
             manager: Addr::unchecked("creator"),
             vault_denom: "utest".to_string(),
             pools_contract: Addr::unchecked("pools_address"),
             scc_contract: Addr::unchecked("scc_addr"),
+            protocol_fee: Decimal::from_ratio(1_u128, 1000_u128),
+            protocol_fee_contract: Addr::unchecked("protocol_fee_addr")
         };
         let info = mock_info("creator", &[]);
 
@@ -115,7 +67,6 @@ mod tests {
         let env = mock_env();
         let pools_info = mock_info("pools_addr", &[]);
         let user1 = Addr::unchecked("user0001");
-        let user2 = Addr::unchecked("user0002");
 
         instantiate_contract(&mut deps, &info, &env, None);
         let initial_airdrop_pointer = vec![
@@ -163,7 +114,7 @@ mod tests {
             .unwrap_err();
         assert!(matches!(err, ContractError::ZeroAmount {}));
 
-        let mut res = execute(
+        let res = execute(
             deps.as_mut(),
             env.clone(),
             pools_info.clone(),
@@ -194,7 +145,7 @@ mod tests {
             DecCoin::new(Decimal::from_ratio(36_u128, 60_u128), "uair2")
         ];
         let next_reward_pointer = Decimal::from_ratio(48_u128, 60_u128);
-        let mut res = execute(
+        let res = execute(
             deps.as_mut(),
             env.clone(),
             pools_info.clone(),
@@ -236,7 +187,6 @@ mod tests {
         let env = mock_env();
         let pools_info = mock_info("pools_addr", &[]);
         let user1 = Addr::unchecked("user0001");
-        let user2 = Addr::unchecked("user0002");
 
         instantiate_contract(&mut deps, &info, &env, None);
 
@@ -312,7 +262,7 @@ mod tests {
             redelegations: vec![],
             undelegations: vec![]
         };
-        USER_REGISTRY.save(deps.as_mut().storage, (&user1, U64Key::new(22)), &init_user_info);
+        USER_REGISTRY.save(deps.as_mut().storage, (&user1, U64Key::new(22)), &init_user_info).unwrap();
 
         let err = execute(
             deps.as_mut(),
@@ -323,7 +273,7 @@ mod tests {
         assert!(matches!(err, ContractError::InSufficientFunds {}));
 
         init_user_info.deposit.staked = Uint128::new(30);
-        USER_REGISTRY.save(deps.as_mut().storage, (&user1, U64Key::new(22)), &init_user_info);
+        USER_REGISTRY.save(deps.as_mut().storage, (&user1, U64Key::new(22)), &init_user_info).unwrap();
         let res = execute(
             deps.as_mut(),
             env.clone(),
@@ -367,7 +317,6 @@ mod tests {
         let env = mock_env();
         let pools_info = mock_info("pools_addr", &[]);
         let user1 = Addr::unchecked("user0001");
-        let user2 = Addr::unchecked("user0002");
 
         instantiate_contract(&mut deps, &info, &env, None);
 
@@ -413,7 +362,7 @@ mod tests {
             redelegations: vec![],
             undelegations: vec![]
         };
-        USER_REGISTRY.save(deps.as_mut().storage, (&user1, U64Key::new(22)), &init_user_info);
+        USER_REGISTRY.save(deps.as_mut().storage, (&user1, U64Key::new(22)), &init_user_info).unwrap();
 
         let err = execute(
             deps.as_mut(),
@@ -429,7 +378,7 @@ mod tests {
             amount: Uint128::new(10),
             pool_id: 22
         });
-        USER_REGISTRY.save(deps.as_mut().storage, (&user1, U64Key::new(22)), &init_user_info);
+        USER_REGISTRY.save(deps.as_mut().storage, (&user1, U64Key::new(22)), &init_user_info).unwrap();
 
         let err = execute(
             deps.as_mut(),
@@ -453,8 +402,13 @@ mod tests {
             amount: Uint128::new(10),
             pool_id: 22
         });
-        USER_REGISTRY.save(deps.as_mut().storage, (&user1, U64Key::new(22)), &init_user_info);
-
+        init_user_info.undelegations.push(UndelegationInfo {
+            batch_id: 88,
+            id: 29,
+            amount: Uint128::new(3000),
+            pool_id: 22
+        });
+        USER_REGISTRY.save(deps.as_mut().storage, (&user1, U64Key::new(22)), &init_user_info).unwrap();
 
         let res = execute(
             deps.as_mut(),
@@ -466,13 +420,29 @@ mod tests {
         assert_eq!(res.messages.len(), 1);
         assert_eq!(res.messages[0], SubMsg::new(BankMsg::Send { to_address: user1.to_string(), amount: vec![Coin::new(20, "utest")] }));
         let user_info = USER_REGISTRY.load(deps.as_mut().storage, (&user1, U64Key::new(22))).unwrap();
-        assert_eq!(user_info.undelegations.len(), 1);
+        assert_eq!(user_info.undelegations.len(), 2);
         assert_eq!(user_info.undelegations[0], UndelegationInfo {
             batch_id: 88,
             id: 28,
             amount: Uint128::new(10),
             pool_id: 22
         });
+
+        let undel2 = ExecuteMsg::WithdrawFunds {
+            user_addr: user1.clone(),
+            pool_id: 22,
+            amount: Uint128::new(3000),
+            undelegate_id: 29
+        };
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            pools_info.clone(),
+            undel2,
+        ).unwrap();
+        assert_eq!(res.messages.len(), 2);
+        assert_eq!(res.messages[0], SubMsg::new(BankMsg::Send { to_address: "protocol_fee_addr".to_string(), amount: vec![Coin::new(3, "utest")] }));
+        assert_eq!(res.messages[1], SubMsg::new(BankMsg::Send { to_address: user1.to_string(), amount: vec![Coin::new(2997, "utest")] }));
     }
 
     #[test]
@@ -480,7 +450,6 @@ mod tests {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
-        let pools_info = mock_info("pools_addr", &[]);
         let user1 = Addr::unchecked("user0001");
         let user2 = Addr::unchecked("user0002");
         let user3 = Addr::unchecked("user0003");
@@ -515,9 +484,7 @@ mod tests {
         let airdrop4_p = DecCoin::new(Decimal::from_ratio(45_u128, 100_u128), "uair2");
 
         let airdrop1 = Coin::new(10, "uair1");
-        let airdrop2 = Coin::new(20, "uair1");
         let airdrop3 = Coin::new(30, "uair2");
-        let airdrop4 = Coin::new(40, "uair2");
 
         let reward1_p = Decimal::from_ratio(12_u128, 100_u128);
         let reward2_p = Decimal::from_ratio(24_u128, 100_u128);
@@ -525,10 +492,8 @@ mod tests {
 
         let reward1 = Uint128::new(5);
         let reward2 = Uint128::new(15);
-        let reward3 = Uint128::new(25);
 
-
-        let mut init_user_info1_1 = UserPoolInfo {
+        let init_user_info1_1 = UserPoolInfo {
             pool_id: 1,
             deposit: DepositInfo { staked: Uint128::new(10) },
             airdrops_pointer: vec![airdrop1_p.clone(), airdrop3_p.clone()],
@@ -538,7 +503,7 @@ mod tests {
             redelegations: vec![],
             undelegations: vec![]
         };
-        let mut init_user_info1_2 = UserPoolInfo {
+        let init_user_info1_2 = UserPoolInfo {
             pool_id: 2,
             deposit: DepositInfo { staked: Uint128::new(20) },
             airdrops_pointer: vec![airdrop1_p.clone()],
@@ -548,7 +513,7 @@ mod tests {
             redelegations: vec![],
             undelegations: vec![]
         };
-        let mut init_user_info2_1 = UserPoolInfo {
+        let init_user_info2_1 = UserPoolInfo {
             pool_id: 1,
             deposit: DepositInfo { staked: Uint128::new(30) },
             airdrops_pointer: vec![airdrop1_p.clone()],
@@ -558,7 +523,7 @@ mod tests {
             redelegations: vec![],
             undelegations: vec![]
         };
-        let mut init_user_info2_3 = UserPoolInfo {
+        let init_user_info2_3 = UserPoolInfo {
             pool_id: 3,
             deposit: DepositInfo { staked: Uint128::new(40) },
             airdrops_pointer: vec![airdrop3_p.clone()],
@@ -568,7 +533,7 @@ mod tests {
             redelegations: vec![],
             undelegations: vec![]
         };
-        let mut init_user_info3_3 = UserPoolInfo {
+        let init_user_info3_3 = UserPoolInfo {
             pool_id: 3,
             deposit: DepositInfo { staked: Uint128::new(50) },
             airdrops_pointer: vec![airdrop3_p.clone()],
@@ -579,11 +544,11 @@ mod tests {
             undelegations: vec![]
         };
 
-        USER_REGISTRY.save(deps.as_mut().storage, (&user1, U64Key::new(1)), &init_user_info1_1);
-        USER_REGISTRY.save(deps.as_mut().storage, (&user1, U64Key::new(2)), &init_user_info1_2);
-        USER_REGISTRY.save(deps.as_mut().storage, (&user2, U64Key::new(1)), &init_user_info2_1);
-        USER_REGISTRY.save(deps.as_mut().storage, (&user2, U64Key::new(3)), &init_user_info2_3);
-        USER_REGISTRY.save(deps.as_mut().storage, (&user3, U64Key::new(3)), &init_user_info3_3);
+        USER_REGISTRY.save(deps.as_mut().storage, (&user1, U64Key::new(1)), &init_user_info1_1).unwrap();
+        USER_REGISTRY.save(deps.as_mut().storage, (&user1, U64Key::new(2)), &init_user_info1_2).unwrap();
+        USER_REGISTRY.save(deps.as_mut().storage, (&user2, U64Key::new(1)), &init_user_info2_1).unwrap();
+        USER_REGISTRY.save(deps.as_mut().storage, (&user2, U64Key::new(3)), &init_user_info2_3).unwrap();
+        USER_REGISTRY.save(deps.as_mut().storage, (&user3, U64Key::new(3)), &init_user_info3_3).unwrap();
 
         let initial_msg = ExecuteMsg::AllocateRewards {
             user_addrs: vec![user1.clone(), user2.clone(), user3.clone()],
@@ -665,4 +630,82 @@ mod tests {
         // }));
 
     }
+
+    #[test]
+    fn test_update_config() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &[]);
+        let env = mock_env();
+
+        instantiate_contract(&mut deps, &info, &env, None);
+
+        let initial_msg = ExecuteMsg::UpdateConfig {
+            pools_contract: None,
+            scc_contract: None,
+            protocol_fee: None,
+            protocol_fee_contract: None
+        };
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("other", &[]),
+            initial_msg.clone(),
+        )
+            .unwrap_err();
+        assert!(matches!(err, ContractError::Unauthorized {}));
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[Coin::new(14, "utest")]),
+            initial_msg.clone(),
+        )
+            .unwrap_err();
+        assert!(matches!(err, ContractError::FundsNotExpected {}));
+
+        let mut expected_config = Config {
+            manager: Addr::unchecked("creator"),
+            vault_denom: "utest".to_string(),
+            pools_contract: Addr::unchecked("pools_addr"),
+            scc_contract: Addr::unchecked("scc_addr"),
+            protocol_fee: Decimal::from_ratio(1_u128, 1000_u128),
+            protocol_fee_contract: Addr::unchecked("protocol_fee_addr")
+        };
+        let config = CONFIG.load(deps.as_mut().storage).unwrap();
+        assert_eq!(config, expected_config);
+
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            initial_msg.clone(),
+        ).unwrap();
+        assert!(res.messages.is_empty());
+        let config = CONFIG.load(deps.as_mut().storage).unwrap();
+        assert_eq!(config, expected_config);
+
+        expected_config = Config {
+            manager: Addr::unchecked("creator"),
+            vault_denom: "utest".to_string(),
+            pools_contract: Addr::unchecked("new_pools_addr"),
+            scc_contract: Addr::unchecked("new_scc_addr"),
+            protocol_fee: Decimal::from_ratio(2_u128, 1000_u128),
+            protocol_fee_contract: Addr::unchecked("new_protocol_fee_addr")
+        };
+
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::UpdateConfig {
+                pools_contract: Some(Addr::unchecked("new_pools_addr")),
+                scc_contract: Some(Addr::unchecked("new_scc_addr")),
+                protocol_fee: Some(Decimal::from_ratio(2_u128, 1000_u128)),
+                protocol_fee_contract: Some(Addr::unchecked("new_protocol_fee_addr"))
+            }.clone(),
+        ).unwrap();
+        assert!(res.messages.is_empty());
+        let config = CONFIG.load(deps.as_mut().storage).unwrap();
+        assert_eq!(config, expected_config);
+    }
+
 }
