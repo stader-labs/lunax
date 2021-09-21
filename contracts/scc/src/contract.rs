@@ -23,7 +23,7 @@ use crate::state::{
     UserUndelegationRecord, CONFIG, CW20_TOKEN_CONTRACTS_REGISTRY, STATE, STRATEGY_MAP,
     UNDELEGATION_BATCH_MAP, USER_REWARD_INFO_MAP,
 };
-use crate::user::{allocate_user_airdrops_across_strategies, get_user_airdrops};
+use crate::user::{compute_user_airdrops_across_strategies, get_user_airdrops};
 use cw2::set_contract_version;
 use cw_storage_plus::U64Key;
 use sic_base::msg::ExecuteMsg as sic_execute_msg;
@@ -97,7 +97,7 @@ pub fn execute(
             unbonding_period,
             unbonding_buffer,
             sic_contract_address,
-        } => try_register_strategy(
+        } => register_strategy(
             deps,
             _env,
             info,
@@ -111,7 +111,7 @@ pub fn execute(
             unbonding_period,
             unbonding_buffer,
             is_active,
-        } => try_update_strategy(
+        } => update_strategy(
             deps,
             _env,
             info,
@@ -121,56 +121,51 @@ pub fn execute(
             is_active,
         ),
         ExecuteMsg::UpdateUserPortfolio { user_portfolio } => {
-            try_update_user_portfolio(deps, _env, info, user_portfolio)
+            update_user_portfolio(deps, _env, info, user_portfolio)
         }
         ExecuteMsg::UpdateUserRewards {
             update_user_rewards_requests,
-        } => try_update_user_rewards(deps, _env, info, update_user_rewards_requests),
+        } => update_user_rewards(deps, _env, info, update_user_rewards_requests),
         ExecuteMsg::UpdateUserAirdrops {
             update_user_airdrops_requests,
-        } => try_update_user_airdrops(deps, _env, info, update_user_airdrops_requests),
+        } => update_user_airdrops(deps, _env, info, update_user_airdrops_requests),
         ExecuteMsg::UndelegateRewards {
             amount,
             strategy_id,
-        } => try_undelegate_user_rewards(deps, _env, info, amount, strategy_id),
+        } => undelegate_user_rewards(deps, _env, info, amount, strategy_id),
         ExecuteMsg::ClaimAirdrops {
             strategy_id,
             amount,
             denom,
             claim_msg,
-        } => try_claim_airdrops(deps, _env, info, strategy_id, amount, denom, claim_msg),
+        } => claim_airdrops(deps, _env, info, strategy_id, amount, denom, claim_msg),
         ExecuteMsg::WithdrawRewards {
             undelegation_id,
             strategy_id,
-        } => try_withdraw_rewards(deps, _env, info, undelegation_id, strategy_id),
-        ExecuteMsg::WithdrawAirdrops {} => try_withdraw_airdrops(deps, _env, info),
+        } => withdraw_rewards(deps, _env, info, undelegation_id, strategy_id),
+        ExecuteMsg::WithdrawAirdrops {} => withdraw_airdrops(deps, _env, info),
         ExecuteMsg::RegisterCw20Contracts {
             denom,
             cw20_contract,
             airdrop_contract,
-        } => try_update_cw20_contracts_registry(
-            deps,
-            _env,
-            info,
-            denom,
-            cw20_contract,
-            airdrop_contract,
-        ),
+        } => {
+            update_cw20_contracts_registry(deps, _env, info, denom, cw20_contract, airdrop_contract)
+        }
         ExecuteMsg::UndelegateFromStrategies { strategies } => {
-            try_undelegate_from_strategies(deps, _env, info, strategies)
+            undelegate_from_strategies(deps, _env, info, strategies)
         }
         ExecuteMsg::FetchUndelegatedRewardsFromStrategies { strategies } => {
-            try_fetch_undelegated_rewards_from_strategies(deps, _env, info, strategies)
+            fetch_undelegated_rewards_from_strategies(deps, _env, info, strategies)
         }
-        ExecuteMsg::WithdrawPendingRewards {} => try_withdraw_pending_rewards(deps, _env, info),
+        ExecuteMsg::WithdrawPendingRewards {} => withdraw_pending_rewards(deps, _env, info),
         ExecuteMsg::DepositFunds { strategy_override } => {
-            try_deposit_funds(deps, _env, info, strategy_override)
+            deposit_funds(deps, _env, info, strategy_override)
         }
         ExecuteMsg::UpdateConfig {
             delegator_contract,
             default_user_portfolio,
             fallback_strategy,
-        } => try_update_config(
+        } => update_config(
             deps,
             _env,
             info,
@@ -181,7 +176,7 @@ pub fn execute(
     }
 }
 
-pub fn try_update_config(
+pub fn update_config(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
@@ -225,7 +220,7 @@ pub fn try_update_config(
     Ok(Response::default())
 }
 
-pub fn try_update_strategy(
+pub fn update_strategy(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
@@ -261,7 +256,7 @@ pub fn try_update_strategy(
     Ok(Response::default())
 }
 
-pub fn try_withdraw_pending_rewards(
+pub fn withdraw_pending_rewards(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
@@ -300,7 +295,7 @@ pub fn try_withdraw_pending_rewards(
     )))
 }
 
-pub fn try_fetch_undelegated_rewards_from_strategies(
+pub fn fetch_undelegated_rewards_from_strategies(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
@@ -439,7 +434,7 @@ pub fn try_fetch_undelegated_rewards_from_strategies(
         ))
 }
 
-pub fn try_undelegate_from_strategies(
+pub fn undelegate_from_strategies(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
@@ -548,7 +543,7 @@ pub fn try_undelegate_from_strategies(
         .add_messages(messages))
 }
 
-pub fn try_update_cw20_contracts_registry(
+pub fn update_cw20_contracts_registry(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
@@ -573,7 +568,7 @@ pub fn try_update_cw20_contracts_registry(
     Ok(Response::default())
 }
 
-pub fn try_undelegate_user_rewards(
+pub fn undelegate_user_rewards(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
@@ -708,7 +703,7 @@ pub fn try_undelegate_user_rewards(
     Ok(Response::default())
 }
 
-pub fn try_claim_airdrops(
+pub fn claim_airdrops(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
@@ -788,7 +783,7 @@ pub fn try_claim_airdrops(
     }))
 }
 
-pub fn try_withdraw_airdrops(
+pub fn withdraw_airdrops(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
@@ -803,7 +798,7 @@ pub fn try_withdraw_airdrops(
             return Err(ContractError::UserRewardInfoDoesNotExist {});
         };
 
-    allocate_user_airdrops_across_strategies(deps.storage, &mut user_reward_info);
+    compute_user_airdrops_across_strategies(deps.storage, &mut user_reward_info);
 
     let mut messages: Vec<WasmMsg> = vec![];
     // iterate thru all airdrops and transfer ownership to them to the user
@@ -841,7 +836,7 @@ pub fn try_withdraw_airdrops(
     Ok(Response::new().add_messages(messages))
 }
 
-pub fn try_withdraw_rewards(
+pub fn withdraw_rewards(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
@@ -915,7 +910,7 @@ pub fn try_withdraw_rewards(
     }))
 }
 
-pub fn try_register_strategy(
+pub fn register_strategy(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
@@ -950,7 +945,7 @@ pub fn try_register_strategy(
     Ok(Response::default())
 }
 
-pub fn try_update_user_portfolio(
+pub fn update_user_portfolio(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
@@ -977,7 +972,7 @@ pub fn try_update_user_portfolio(
     Ok(Response::default())
 }
 
-pub fn try_deposit_funds(
+pub fn deposit_funds(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
@@ -1017,7 +1012,7 @@ pub fn try_deposit_funds(
     )
 }
 
-pub fn try_update_user_rewards(
+pub fn update_user_rewards(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
@@ -1211,7 +1206,7 @@ fn try_deposit_funds_to_strategies(
 
 // This assumes that the validator contract will transfer ownership of the airdrops
 // from the validator contract to the SCC contract.
-pub fn try_update_user_airdrops(
+pub fn update_user_airdrops(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,

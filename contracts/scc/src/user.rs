@@ -7,7 +7,7 @@ use stader_utils::coin_utils::{
     multiply_deccoin_vector_with_decimal, CoinVecOp, DecCoin, DecCoinVecOp, Operation,
 };
 
-pub fn allocate_user_airdrops_across_strategies(
+pub fn compute_user_airdrops_across_strategies(
     storage: &dyn Storage,
     user_reward_info: &mut UserRewardInfo,
 ) {
