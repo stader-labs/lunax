@@ -42,12 +42,10 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::TransferRewards {} => try_transfer_rewards(deps, _env, info),
-        ExecuteMsg::UndelegateRewards { amount } => {
-            try_undelegate_rewards(deps, _env, info, amount)
-        }
+        ExecuteMsg::TransferRewards {} => transfer_rewards(deps, _env, info),
+        ExecuteMsg::UndelegateRewards { amount } => undelegate_rewards(deps, _env, info, amount),
         ExecuteMsg::TransferUndelegatedRewards { amount } => {
-            try_transfer_undelegated_rewards(deps, _env, info, amount)
+            transfer_undelegated_rewards(deps, _env, info, amount)
         }
         ExecuteMsg::ClaimAirdrops {
             airdrop_token_contract,
@@ -55,7 +53,7 @@ pub fn execute(
             airdrop_token,
             amount,
             claim_msg,
-        } => try_claim_airdrops(
+        } => claim_airdrops(
             deps,
             _env,
             info,
@@ -71,7 +69,7 @@ pub fn execute(
 // TODO: bchain99 - implement a very basic SIC contract which just holds some funds
 // Note: Avoid erroring out in SIC too much. This can break the entire tx in SCC side.
 // Only error for authorization related stuff for now
-pub fn try_claim_airdrops(
+pub fn claim_airdrops(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
@@ -109,7 +107,7 @@ pub fn try_claim_airdrops(
     Ok(Response::new().add_messages(messages))
 }
 
-pub fn try_transfer_rewards(
+pub fn transfer_rewards(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
@@ -147,7 +145,7 @@ pub fn try_transfer_rewards(
 }
 
 // SCC needs to call this when it processes the undelegations.
-pub fn try_undelegate_rewards(
+pub fn undelegate_rewards(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
@@ -174,7 +172,7 @@ pub fn try_undelegate_rewards(
     Ok(Response::default())
 }
 
-pub fn try_transfer_undelegated_rewards(
+pub fn transfer_undelegated_rewards(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
