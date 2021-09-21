@@ -197,8 +197,11 @@ pub fn try_remove_validator(
                     operation: Operation::Add,
                 },
             );
-            stake_quota.stake_fraction =
-                Decimal::from_ratio(stake_quota.amount.amount, total_staked_tokens);
+            stake_quota.stake_fraction = if total_staked_tokens.is_zero() {
+                Decimal::zero()
+            } else {
+                Decimal::from_ratio(stake_quota.amount.amount, total_staked_tokens)
+            };
 
             Ok(stake_quota)
         },
@@ -283,6 +286,11 @@ pub fn try_replace_validator(
         });
     }
 
+    let stake_fraction: Decimal = if state.total_staked_tokens.is_zero() {
+        Decimal::zero()
+    } else {
+        Decimal::from_ratio(src_validator_staked_amount, state.total_staked_tokens)
+    };
     VALIDATORS_TO_STAKED_QUOTA.save(
         deps.storage,
         &dst_validator,
@@ -291,10 +299,7 @@ pub fn try_replace_validator(
                 src_validator_staked_amount.u128(),
                 state.strategy_denom.clone(),
             ),
-            stake_fraction: Decimal::from_ratio(
-                src_validator_staked_amount,
-                state.total_staked_tokens,
-            ),
+            stake_fraction,
         },
     )?;
 

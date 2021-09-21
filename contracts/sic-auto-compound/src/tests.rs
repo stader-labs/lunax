@@ -483,6 +483,79 @@ mod tests {
                 Coin::new(260_u128, "urew1".to_string())
             ]
         ));
+
+        /*
+           Test - 3. Validator is being removed from the list when no staking has been done
+        */
+        fn get_some_validators_test_3() -> Vec<Validator> {
+            vec![
+                Validator {
+                    address: "valid0001".to_string(),
+                    commission: Decimal::zero(),
+                    max_commission: Decimal::zero(),
+                    max_change_rate: Decimal::zero(),
+                },
+                Validator {
+                    address: "valid0002".to_string(),
+                    commission: Decimal::zero(),
+                    max_commission: Decimal::zero(),
+                    max_change_rate: Decimal::zero(),
+                },
+                Validator {
+                    address: "valid0003".to_string(),
+                    commission: Decimal::zero(),
+                    max_commission: Decimal::zero(),
+                    max_change_rate: Decimal::zero(),
+                },
+            ]
+        }
+
+        fn get_some_delegations_test_3() -> Vec<FullDelegation> {
+            vec![]
+        }
+        deps.querier.update_staking(
+            "uluna",
+            &*get_some_validators_test_3(),
+            &*get_some_delegations_test_3(),
+        );
+        STATE
+            .update(
+                deps.as_mut().storage,
+                |mut state| -> Result<_, ContractError> {
+                    state.validator_pool = vec![
+                        Addr::unchecked("valid0001"),
+                        Addr::unchecked("valid0002"),
+                        Addr::unchecked("valid0003"),
+                        Addr::unchecked("valid0004"),
+                    ];
+                    state.total_staked_tokens = Uint128::new(0_u128);
+                    Ok(state)
+                },
+            )
+            .unwrap();
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::RemoveValidator {
+                validator: Addr::unchecked("valid0004"),
+            },
+        )
+        .unwrap();
+        assert_eq!(res.messages.len(), 0);
+        let state_response: GetStateResponse =
+            from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::GetState {}).unwrap())
+                .unwrap();
+        assert_ne!(state_response.state, None);
+        let state = state_response.state.unwrap();
+        assert!(check_equal_vec(
+            state.validator_pool,
+            vec![
+                Addr::unchecked("valid0001"),
+                Addr::unchecked("valid0002"),
+                Addr::unchecked("valid0003")
+            ]
+        ));
     }
 
     #[test]
@@ -841,6 +914,105 @@ mod tests {
         assert!(check_equal_vec(
             state.validator_pool,
             vec![Addr::unchecked("valid0002"), Addr::unchecked("valid0003")]
+        ));
+
+        /*
+           Test - 3. Replacing validator when there has been no stake from the contract
+        */
+        fn get_some_validators_test_3() -> Vec<Validator> {
+            vec![
+                Validator {
+                    address: "valid0001".to_string(),
+                    commission: Decimal::zero(),
+                    max_commission: Decimal::zero(),
+                    max_change_rate: Decimal::zero(),
+                },
+                Validator {
+                    address: "valid0002".to_string(),
+                    commission: Decimal::zero(),
+                    max_commission: Decimal::zero(),
+                    max_change_rate: Decimal::zero(),
+                },
+                Validator {
+                    address: "valid0003".to_string(),
+                    commission: Decimal::zero(),
+                    max_commission: Decimal::zero(),
+                    max_change_rate: Decimal::zero(),
+                },
+                Validator {
+                    address: "valid0004".to_string(),
+                    commission: Decimal::zero(),
+                    max_commission: Decimal::zero(),
+                    max_change_rate: Decimal::zero(),
+                },
+            ]
+        }
+
+        fn get_some_delegations_test_3() -> Vec<FullDelegation> {
+            vec![]
+        }
+
+        deps.querier.update_staking(
+            "uluna",
+            &*get_some_validators_test_3(),
+            &*get_some_delegations_test_3(),
+        );
+        STATE
+            .update(
+                deps.as_mut().storage,
+                |mut state| -> Result<_, ContractError> {
+                    state.validator_pool = vec![
+                        Addr::unchecked("valid0001"),
+                        Addr::unchecked("valid0002"),
+                        Addr::unchecked("valid0003"),
+                    ];
+                    state.total_staked_tokens = Uint128::new(0_u128);
+                    Ok(state)
+                },
+            )
+            .unwrap();
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::ReplaceValidator {
+                src_validator: Addr::unchecked("valid0001"),
+                dst_validator: Addr::unchecked("valid0004"),
+            },
+        )
+        .unwrap();
+        assert_eq!(res.messages.len(), 0);
+
+        let src_validator_stake_quota_opt = VALIDATORS_TO_STAKED_QUOTA
+            .may_load(deps.as_mut().storage, &Addr::unchecked("valid0001"))
+            .unwrap();
+        assert_eq!(src_validator_stake_quota_opt, None);
+
+        let dst_validator_stake_quota_opt = VALIDATORS_TO_STAKED_QUOTA
+            .may_load(deps.as_mut().storage, &Addr::unchecked("valid0004"))
+            .unwrap();
+        assert_ne!(dst_validator_stake_quota_opt, None);
+        let dst_validator_stake_quota = dst_validator_stake_quota_opt.unwrap();
+        assert_eq!(
+            dst_validator_stake_quota,
+            StakeQuota {
+                amount: Coin::new(0, "uluna".to_string()),
+                stake_fraction: Decimal::zero()
+            }
+        );
+
+        let state_response: GetStateResponse =
+            from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::GetState {}).unwrap())
+                .unwrap();
+        assert_ne!(state_response.state, None);
+        let state = state_response.state.unwrap();
+        assert!(check_equal_vec(
+            state.validator_pool,
+            vec![
+                Addr::unchecked("valid0002"),
+                Addr::unchecked("valid0003"),
+                Addr::unchecked("valid0004")
+            ]
         ));
     }
 
