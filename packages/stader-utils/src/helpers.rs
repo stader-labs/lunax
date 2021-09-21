@@ -1,4 +1,4 @@
-use cosmwasm_std::{Addr, BankMsg, Coin, Decimal, Fraction, QuerierWrapper, Uint128};
+use cosmwasm_std::{Addr, BankMsg, Coin, Decimal, QuerierWrapper};
 use std::collections::HashMap;
 use terra_cosmwasm::TerraQuerier;
 
@@ -11,14 +11,6 @@ pub fn send_funds_msg(recipient_addr: &Addr, funds: &[Coin]) -> BankMsg {
             .cloned()
             .collect(),
     }
-}
-
-pub fn u128_from_decimal(a: Decimal) -> u128 {
-    a.numerator() / a.denominator()
-}
-
-pub fn uint128_from_decimal(a: Decimal) -> Uint128 {
-    Uint128::new(u128_from_decimal(a))
 }
 
 // Skips denoms whose exchange rate cannot be found.

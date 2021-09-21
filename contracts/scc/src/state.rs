@@ -32,18 +32,32 @@ pub struct State {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct StrategyInfo {
+    // name of the strategy
     pub name: String,
+    // address of the SIC for the strategy
     pub sic_contract_address: Addr,
+    // the actual unbonding period for the strategy.
+    // eg: unbonding_period for the auto compounding strat
     pub unbonding_period: u64,
+    // adds buffer for the bots to execute
     pub unbonding_buffer: u64,
+    // the id of the next undelegation batch which is created
     pub next_undelegation_batch_id: u64,
+    // the id of the next undelegation batch to start reconciling
     pub next_reconciliation_batch_id: u64,
+    // stops deposits to the strategy if it false. if anyone deposits to a deactivated strategy
+    // their rewards go to the fallback strategy
     pub is_active: bool,
+    // the total shares of this strategy
     pub total_shares: Decimal,
+    // the total shares in undelegation. when undelegate_from_strategies run, these shares are undelegated from the
+    // sic
     pub current_undelegated_shares: Decimal,
     pub global_airdrop_pointer: Vec<DecCoin>,
+    // total airdrop accumulated in the strategy since inception
     pub total_airdrops_accumulated: Vec<Coin>,
-    // TODO: bchain99 - remove this. not needed. We are computing the S/T ratio on demand when needed for a strategy
+    // the latest shares_per_token ratio value used by the strategy
+    // the shares_per_token ratio is computed on demand
     pub shares_per_token_ratio: Decimal,
 }
 
@@ -91,6 +105,7 @@ impl StrategyInfo {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct UserStrategyInfo {
     pub strategy_id: u64,
+    // total shares allocated to this user for the particular strategy
     pub shares: Decimal,
     // airdrop here is an unswappable reward. For v1, we are keeping airdrops idle and distributing
     // them back to the user. The airdrop_pointer here is only for the particular strategy.

@@ -130,7 +130,7 @@ pub fn add_pool(
         pool_meta.to_owned().borrow_mut(),
     )?;
 
-    state.next_pool_id = state.next_pool_id + 1;
+    state.next_pool_id += 1;
     STATE.save(deps.storage, &state)?;
     Ok(Response::new())
 }
@@ -243,11 +243,11 @@ pub fn deposit_to_pool(
         WasmMsg::Execute {
             contract_addr: config.delegator_contract.to_string(),
             msg: to_binary(&DelegatorMsg::Deposit {
-                user_addr: user_addr.clone(),
+                user_addr,
                 amount,
                 pool_id,
-                pool_rewards_pointer: pool_meta.rewards_pointer.clone(),
-                pool_airdrops_pointer: pool_meta.airdrops_pointer.clone(),
+                pool_rewards_pointer: pool_meta.rewards_pointer,
+                pool_airdrops_pointer: pool_meta.airdrops_pointer,
             })
             .unwrap(),
             funds: vec![],
@@ -357,8 +357,8 @@ pub fn queue_user_undelegation(
             batch_id: current_batch_id,
             from_pool: pool_id,
             amount,
-            pool_rewards_pointer: pool_meta.rewards_pointer.clone(),
-            pool_airdrops_pointer: pool_meta.airdrops_pointer.clone(),
+            pool_rewards_pointer: pool_meta.rewards_pointer,
+            pool_airdrops_pointer: pool_meta.airdrops_pointer,
         })
         .unwrap(),
         funds: vec![],
@@ -418,7 +418,7 @@ pub fn undelegate_from_pool(
             .update(deps.storage, &val_addr.clone(), |x| -> StdResult<_> {
                 let mut val_meta = x.unwrap();
                 let amount = std::cmp::min(to_undelegate, val_meta.staked);
-                println!("amount|{:?}|{:?}", val_addr.clone(), amount);
+                println!("amount|{:?}|{:?}", val_addr, amount);
                 messages.push(WasmMsg::Execute {
                     contract_addr: config.validator_contract.to_string(),
                     msg: to_binary(&ValidatorMsg::Undelegate { val_addr, amount }).unwrap(),
@@ -595,22 +595,18 @@ pub fn update_config(
     CONFIG.update(deps.storage, |mut config| -> StdResult<_> {
         config.delegator_contract = update_config
             .delegator_contract
-            .unwrap_or(config.delegator_contract.clone());
+            .unwrap_or(config.delegator_contract);
         config.validator_contract = update_config
             .validator_contract
-            .unwrap_or(config.validator_contract.clone());
+            .unwrap_or(config.validator_contract);
         config.unbonding_period = update_config
             .unbonding_period
-            .unwrap_or(config.unbonding_period.clone());
+            .unwrap_or(config.unbonding_period);
         config.unbonding_buffer = update_config
             .unbonding_buffer
-            .unwrap_or(config.unbonding_buffer.clone());
-        config.min_deposit = update_config
-            .min_deposit
-            .unwrap_or(config.min_deposit.clone());
-        config.max_deposit = update_config
-            .max_deposit
-            .unwrap_or(config.max_deposit.clone());
+            .unwrap_or(config.unbonding_buffer);
+        config.min_deposit = update_config.min_deposit.unwrap_or(config.min_deposit);
+        config.max_deposit = update_config.max_deposit.unwrap_or(config.max_deposit);
         Ok(config)
     })?;
 
@@ -632,12 +628,12 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
 pub fn query_config(deps: Deps) -> StdResult<QueryConfigResponse> {
     let config: Config = CONFIG.load(deps.storage)?;
-    Ok(QueryConfigResponse { config: config })
+    Ok(QueryConfigResponse { config })
 }
 
 pub fn query_state(deps: Deps) -> StdResult<QueryStateResponse> {
     let state: State = STATE.load(deps.storage)?;
-    Ok(QueryStateResponse { state: state })
+    Ok(QueryStateResponse { state })
 }
 
 pub fn query_pool(deps: Deps, pool_id: u64) -> StdResult<QueryPoolResponse> {
@@ -675,7 +671,7 @@ pub fn query_airdrop_meta(deps: Deps, token: String) -> StdResult<GetAirdropMeta
 pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractError> {
     match msg.id {
         // Called for remove_validator clean up.
-        MESSAGE_REPLY_SWAP_ID => reply_swap(deps, env, msg.id.into(), msg.result),
+        MESSAGE_REPLY_SWAP_ID => reply_swap(deps, env, msg.id, msg.result),
         _ => panic!("Cannot find operation id {:?}", msg.id),
     }
 }

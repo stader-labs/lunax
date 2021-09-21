@@ -122,7 +122,80 @@ mod tests {
     }
 
     #[test]
-    fn test_try_remove_validator_fail() {
+    fn test_update_config_fail() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &[]);
+        let env = mock_env();
+
+        let _res = instantiate_contract(
+            &mut deps,
+            &info,
+            &env,
+            Some(
+                get_validators()
+                    .iter()
+                    .map(|f| Addr::unchecked(&f.address))
+                    .collect(),
+            ),
+            Option::from("uluna".to_string()),
+        );
+
+        /*
+           Test - 1. Unauthorized
+        */
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("not-creator", &[]),
+            ExecuteMsg::UpdateConfig {
+                min_validator_pool_size: None,
+                scc_address: None,
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::Unauthorized {}));
+    }
+
+    #[test]
+    fn test_update_config_success() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &[]);
+        let env = mock_env();
+
+        let _res = instantiate_contract(
+            &mut deps,
+            &info,
+            &env,
+            Some(
+                get_validators()
+                    .iter()
+                    .map(|f| Addr::unchecked(&f.address))
+                    .collect(),
+            ),
+            Option::from("uluna".to_string()),
+        );
+
+        let _res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::UpdateConfig {
+                min_validator_pool_size: Some(5),
+                scc_address: Some(Addr::unchecked("new_scc_address")),
+            },
+        )
+        .unwrap();
+        let state_response: GetStateResponse =
+            from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::GetState {}).unwrap())
+                .unwrap();
+        assert_ne!(state_response.state, None);
+        let state = state_response.state.unwrap();
+        assert_eq!(state.min_validator_pool_size, 5);
+        assert_eq!(state.scc_address, Addr::unchecked("new_scc_address"))
+    }
+
+    #[test]
+    fn test_remove_validator_fail() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -202,7 +275,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_remove_validator_success() {
+    fn test_remove_validator_success() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -559,7 +632,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_replace_validator_fail() {
+    fn test_replace_validator_fail() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -642,7 +715,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_replace_validator_success() {
+    fn test_replace_validator_success() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -1017,7 +1090,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_add_validator_fail() {
+    fn test_add_validator_fail() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -1082,7 +1155,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_add_validator_success() {
+    fn test_add_validator_success() {
         fn get_some_validators() -> Vec<Validator> {
             vec![
                 Validator {
@@ -1153,7 +1226,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_transfer_undelegated_rewards_fail() {
+    fn test_transfer_undelegated_rewards_fail() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -1202,7 +1275,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_transfer_undelegated_rewards_success() {
+    fn test_transfer_undelegated_rewards_success() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -1367,7 +1440,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_claim_airdrops_fail() {
+    fn test_claim_airdrops_fail() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -1408,7 +1481,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_claim_airdrops_success() {
+    fn test_claim_airdrops_success() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -1504,7 +1577,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_undelegate_rewards_fail() {
+    fn test_undelegate_rewards_fail() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -1586,7 +1659,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_undelegate_rewards_success() {
+    fn test_undelegate_rewards_success() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -1775,7 +1848,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_reinvest_fail() {
+    fn test_reinvest_fail() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -1820,7 +1893,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_reinvest_success() {
+    fn test_reinvest_success() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -2111,7 +2184,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_transfer_rewards_fail() {
+    fn test_transfer_rewards_fail() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -2190,7 +2263,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_transfer_rewards_success() {
+    fn test_transfer_rewards_success() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -2291,7 +2364,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_redeem_rewards_success() {
+    fn test_redeem_rewards_success() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();

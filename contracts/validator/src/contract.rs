@@ -641,7 +641,7 @@ pub fn swap_and_transfer(
                     fund: vec![Coin::new(coin.amount.u128(), coin.denom.clone())], // Coin does not have copy
                 },
             );
-            total_transfer_amount = total_transfer_amount + coin.amount.u128();
+            total_transfer_amount += coin.amount.u128();
             logs.push(attr(format!("coin-{}", coin.denom), 1_u128.to_string()));
             logs.push(attr(
                 format!("converted-coin-{}", coin.denom),
@@ -665,7 +665,7 @@ pub fn swap_and_transfer(
                 failed_denoms.push(coin.denom.clone());
                 continue;
             }
-            total_transfer_amount = total_transfer_amount + coin_converted;
+            total_transfer_amount += coin_converted;
             messages.push(create_swap_msg(
                 Coin::new(coin.amount.u128(), coin.denom.clone()),
                 config.vault_denom.clone(),
@@ -720,7 +720,7 @@ pub fn swap_and_transfer(
         .add_messages(messages)
         .add_message(send_funds_msg(
             &config.scc_contract,
-            &vec![Coin::new(total_transfer_amount, config.vault_denom)],
+            &[Coin::new(total_transfer_amount, config.vault_denom)],
         ))
         .add_event(
             Event::new(EVENT_SWAP_TYPE)
@@ -780,7 +780,7 @@ pub fn transfer_reconciled_funds(
     Ok(Response::new()
         .add_message(send_funds_msg(
             &config.delegator_contract,
-            &vec![Coin::new(amount.u128(), config.vault_denom)],
+            &[Coin::new(amount.u128(), config.vault_denom)],
         ))
         .add_attribute("slashing_funds", current_slashing_funds.to_string())
         .add_attribute(
@@ -844,7 +844,7 @@ pub fn remove_slashing_funds(
 
     Ok(Response::new().add_message(send_funds_msg(
         &caller,
-        &vec![Coin::new(amount.u128(), config.vault_denom)],
+        &[Coin::new(amount.u128(), config.vault_denom)],
     )))
 }
 
@@ -865,9 +865,9 @@ pub fn update_config(
     )?;
 
     CONFIG.update(deps.storage, |mut config| -> StdResult<_> {
-        config.pools_contract = pools_contract.unwrap_or(config.pools_contract.clone());
-        config.scc_contract = scc_contract.unwrap_or(config.scc_contract.clone());
-        config.delegator_contract = delegator_contract.unwrap_or(config.delegator_contract.clone());
+        config.pools_contract = pools_contract.unwrap_or(config.pools_contract);
+        config.scc_contract = scc_contract.unwrap_or(config.scc_contract);
+        config.delegator_contract = delegator_contract.unwrap_or(config.delegator_contract);
         Ok(config)
     })?;
 
@@ -916,7 +916,7 @@ pub fn query_airdrop_meta(deps: Deps, token: String) -> StdResult<GetAirdropMeta
 pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractError> {
     match msg.id {
         // Called for remove_validator clean up.
-        0 => reply_remove_validator(deps, env, msg.id.into(), msg.result),
+        0 => reply_remove_validator(deps, env, msg.id, msg.result),
         _ => panic!("Cannot find operation id {:?}", msg.id),
     }
 }
@@ -941,11 +941,7 @@ pub fn reply_remove_validator(
     }
 
     let event_name = format!("wasm-{}", EVENT_REDELEGATE_TYPE);
-    let event_opt = res
-        .events
-        .clone()
-        .into_iter()
-        .find(|x| x.ty.eq(&event_name));
+    let event_opt = res.events.into_iter().find(|x| x.ty.eq(&event_name));
     if event_opt.is_none() {
         return Err(ContractError::RedelegationEventNotFound {});
     }
@@ -968,9 +964,9 @@ pub fn reply_remove_validator(
 
     // Staked fields would be taken care of redelegate message. Update accrued rewards field as well.
     dst_val_meta.accrued_rewards = merge_coin_vector(
-        &dst_val_meta.accrued_rewards.clone(),
+        &dst_val_meta.accrued_rewards,
         CoinVecOp {
-            fund: src_val_meta.accrued_rewards.clone(),
+            fund: src_val_meta.accrued_rewards,
             operation: Operation::Add,
         },
     );

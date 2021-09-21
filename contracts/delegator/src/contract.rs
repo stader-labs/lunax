@@ -298,7 +298,7 @@ pub fn undelegate(
 
     USER_REGISTRY.save(deps.storage, map_key, &user_meta)?;
 
-    state.next_undelegation_id = state.next_undelegation_id + 1;
+    state.next_undelegation_id += 1;
     STATE.save(deps.storage, &state)?;
 
     Ok(Response::new().add_attributes(vec![
@@ -363,13 +363,13 @@ pub fn withdraw_funds(
         logs.push(attr("protocol_fee", protocol_fee_amount.to_string()));
         msgs.push(send_funds_msg(
             &config.protocol_fee_contract,
-            &vec![Coin::new(protocol_fee_amount, config.vault_denom.clone())],
+            &[Coin::new(protocol_fee_amount, config.vault_denom.clone())],
         ));
     }
     logs.push(attr("user_withdrawal", user_amount.to_string()));
     msgs.push(send_funds_msg(
         &user_addr,
-        &vec![Coin::new(user_amount, config.vault_denom)],
+        &[Coin::new(user_amount, config.vault_denom)],
     ));
     Ok(Response::new().add_messages(msgs).add_attributes(logs))
 }
@@ -454,7 +454,7 @@ pub fn allocate_rewards_and_airdrops(
     messages.push(WasmMsg::Execute {
         contract_addr: config.scc_contract.to_string(),
         msg: to_binary(&SccMsg::UpdateUserAirdrops {
-            update_user_airdrops_requests: scc_user_airdrop_requests.clone(),
+            update_user_airdrops_requests: scc_user_airdrop_requests,
         })
         .unwrap(),
         funds: vec![],
@@ -481,10 +481,10 @@ pub fn update_config(
     )?;
 
     CONFIG.update(deps.storage, |mut config| -> StdResult<_> {
-        config.pools_contract = pools_contract.unwrap_or(config.pools_contract.clone());
-        config.scc_contract = scc_contract.unwrap_or(config.scc_contract.clone());
+        config.pools_contract = pools_contract.unwrap_or_else(|| config.pools_contract.clone());
+        config.scc_contract = scc_contract.unwrap_or_else(|| config.scc_contract.clone());
         config.protocol_fee_contract =
-            protocol_fee_contract.unwrap_or(config.protocol_fee_contract.clone());
+            protocol_fee_contract.unwrap_or_else(|| config.protocol_fee_contract.clone());
         config.protocol_fee = protocol_fee.unwrap_or(config.protocol_fee);
         Ok(config)
     })?;
@@ -521,7 +521,7 @@ pub fn query_user_pool(deps: Deps, user_addr: Addr, pool_id: u64) -> StdResult<U
     })
 }
 
-pub fn query_user<'a>(storage: &'a dyn Storage, user_addr: Addr) -> StdResult<UserResponse> {
+pub fn query_user(storage: &dyn Storage, user_addr: Addr) -> StdResult<UserResponse> {
     let mut res = vec![];
     USER_REGISTRY
         .prefix(&user_addr)

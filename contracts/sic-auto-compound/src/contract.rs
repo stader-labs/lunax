@@ -100,7 +100,36 @@ pub fn execute(
             dst_validator,
         } => replace_validator(deps, _env, info, src_validator, dst_validator),
         ExecuteMsg::RemoveValidator { validator } => remove_validator(deps, _env, info, validator),
+        ExecuteMsg::UpdateConfig {
+            min_validator_pool_size,
+            scc_address,
+        } => update_config(deps, _env, info, min_validator_pool_size, scc_address),
     }
+}
+
+pub fn update_config(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    min_validator_pool_size: Option<u64>,
+    scc_address: Option<Addr>,
+) -> Result<Response<TerraMsgWrapper>, ContractError> {
+    let mut state = STATE.load(deps.storage)?;
+    if info.sender != state.manager {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    if let Some(mvps) = min_validator_pool_size {
+        state.min_validator_pool_size = mvps;
+    }
+
+    if let Some(sa) = scc_address {
+        state.scc_address = sa;
+    }
+
+    STATE.save(deps.storage, &state)?;
+
+    Ok(Response::default())
 }
 
 pub fn remove_validator(

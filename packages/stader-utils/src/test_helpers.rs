@@ -26,7 +26,7 @@ mod tests {
     use cosmwasm_std::{BankMsg, Coin, Decimal, SubMsg};
 
     #[test]
-    fn test__check_equal_bank_msg() {
+    fn test_check_equal_bank_msg() {
         let msg1 = BankMsg::Send {
             to_address: "user1".to_string(),
             amount: vec![
@@ -46,7 +46,7 @@ mod tests {
     }
 
     #[test]
-    fn test__check_equal_vec() {
+    fn test_check_equal_vec() {
         let a = vec![
             DecCoin::new(
                 Decimal::from_ratio(2000_u128, 1_000_000_0000_u128),
