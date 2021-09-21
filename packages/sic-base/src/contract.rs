@@ -66,7 +66,6 @@ pub fn execute(
     }
 }
 
-// TODO: bchain99 - implement a very basic SIC contract which just holds some funds
 // Note: Avoid erroring out in SIC too much. This can break the entire tx in SCC side.
 // Only error for authorization related stuff for now
 pub fn claim_airdrops(
