@@ -4,12 +4,17 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct MigrateMsg {}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
     pub scc_address: Addr,
     // denomination of the staking coin
     pub strategy_denom: String,
     // initial set of validators who make up the validator pool
     pub initial_validators: Vec<Addr>,
+    // minimum number of validators in a pool
+    pub min_validator_pool_size: Option<u64>,
     // amount of funds sic-manager has seeded the sic with
     pub manager_seed_funds: Uint128,
 }
@@ -33,9 +38,21 @@ pub enum ExecuteMsg {
         airdrop_token_contract: Addr,
         // used to transfer ownership from SIC to SCC
         cw20_token_contract: Addr,
+        // this is just for the SIC's reference.
         airdrop_token: String,
         amount: Uint128,
         claim_msg: Binary,
+    },
+    // Called by manager to add a validator to the current pool
+    AddValidator {
+        validator: Addr,
+    },
+    ReplaceValidator {
+        src_validator: Addr,
+        dst_validator: Addr,
+    },
+    RemoveValidator {
+        validator: Addr,
     },
 }
 

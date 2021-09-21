@@ -128,36 +128,36 @@ impl Api for MockApi {
 
     fn secp256k1_verify(
         &self,
-        message_hash: &[u8],
-        signature: &[u8],
-        public_key: &[u8],
+        _message_hash: &[u8],
+        _signature: &[u8],
+        _public_key: &[u8],
     ) -> Result<bool, VerificationError> {
         unimplemented!()
     }
 
     fn secp256k1_recover_pubkey(
         &self,
-        message_hash: &[u8],
-        signature: &[u8],
-        recovery_param: u8,
+        _message_hash: &[u8],
+        _signature: &[u8],
+        _recovery_param: u8,
     ) -> Result<Vec<u8>, RecoverPubkeyError> {
         unimplemented!()
     }
 
     fn ed25519_verify(
         &self,
-        message: &[u8],
-        signature: &[u8],
-        public_key: &[u8],
+        _message: &[u8],
+        _signature: &[u8],
+        _public_key: &[u8],
     ) -> Result<bool, VerificationError> {
         unimplemented!()
     }
 
     fn ed25519_batch_verify(
         &self,
-        messages: &[&[u8]],
-        signatures: &[&[u8]],
-        public_keys: &[&[u8]],
+        _messages: &[&[u8]],
+        _signatures: &[&[u8]],
+        _public_keys: &[&[u8]],
     ) -> Result<bool, VerificationError> {
         unimplemented!()
     }
@@ -266,7 +266,7 @@ impl<C: CustomQuery + DeserializeOwned> Querier for MockQuerier<C> {
     fn raw_query(&self, bin_request: &[u8]) -> QuerierResult {
         let request: QueryRequest<C> = match from_slice(bin_request) {
             Ok(v) => v,
-            Err(e) => {
+            Err(_e) => {
                 return SystemResult::Err(SystemError::InvalidRequest {
                     error: format!("Parsing query request: {}", "e"),
                     request: bin_request.into(),
@@ -339,12 +339,12 @@ impl NoWasmQuerier {
                     }
                     QueryMsg::GetState { .. } => default_output,
                     QueryMsg::GetFulfillableUndelegatedFunds { amount } => {
-                        let contract_fulfillable_undelegation = *self
+                        let fulfillable_amount = *self
                             .contract_to_fulfillable_undelegations
                             .get(&Addr::unchecked(contract_addr))
                             .unwrap();
                         let res = GetFulfillableUndelegatedFundsResponse {
-                            undelegated_funds: Some(min(amount, contract_fulfillable_undelegation)),
+                            undelegated_funds: Some(min(amount, fulfillable_amount)),
                         };
                         to_binary(&res).unwrap()
                     }

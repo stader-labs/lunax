@@ -1,14 +1,18 @@
-use crate::state::{Config, State, StrategyInfo, UserRewardInfo, UserStrategyPortfolio};
-use cosmwasm_std::{Addr, Binary, Coin, Decimal, Timestamp, Uint128};
+use crate::state::{
+    BatchUndelegationRecord, Config, State, StrategyInfo, UserRewardInfo, UserStrategyPortfolio,
+    UserUndelegationRecord,
+};
+use cosmwasm_std::{Addr, Binary, Coin, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
     pub strategy_denom: String,
-    pub pools_contract: Addr,
+    pub delegator_contract: Addr,
 
     pub default_user_portfolio: Option<Vec<UserStrategyPortfolio>>,
+    pub default_fallback_strategy: Option<u64>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -19,7 +23,7 @@ pub struct UpdateUserRewardsRequest {
     // one of the registered strategies
     // if the strategy is provided then that means the user is depositing only to that strategy
     // if no strategy is provided then we iterate over the user portfolio
-    pub strategy_name: Option<String>,
+    pub strategy_id: Option<u64>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -29,74 +33,141 @@ pub struct UpdateUserAirdropsRequest {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct StrategyInfoQuery {
+    pub strategy_id: u64,
+    pub strategy_name: String,
+    pub total_rewards: Uint128,
+    pub rewards_in_undelegation: Uint128,
+    pub is_active: bool,
+    pub total_airdrops_accumulated: Vec<Coin>,
+    pub unbonding_period: u64,
+    pub unbonding_buffer: u64,
+    pub sic_contract_address: Addr,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct UserStrategyQueryInfo {
+    pub strategy_id: u64,
+    pub strategy_name: String,
+    pub total_rewards: Uint128,
+    pub total_airdrops: Vec<Coin>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct UserRewardInfoQuery {
+    pub total_airdrops: Vec<Coin>,
+    pub retained_rewards: Uint128,
+    pub undelegation_records: Vec<UserUndelegationRecord>,
+    pub user_strategy_info: Vec<UserStrategyQueryInfo>,
+    pub user_portfolio: Vec<UserStrategyPortfolio>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct MigrateMsg {}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
+    /*
+       Manager messages
+    */
+    // registers a strategy. Strategies need to be activated once registered.
     RegisterStrategy {
         strategy_name: String,
         sic_contract_address: Addr,
+        unbonding_buffer: u64,
+        unbonding_period: u64,
+    },
+    // update strategy variables. This will be mostly used to activate a strategy
+    UpdateStrategy {
+        strategy_id: u64,
         unbonding_period: Option<u64>,
+        unbonding_buffer: Option<u64>,
+        is_active: Option<bool>,
     },
-    // TODO: bchain99 - Add an UpdateStrategy message rather than having different messages to activate/deactivate. Pick this up once SCC is merged
-    // as other PRs will introduce new strategy params
-    ActivateStrategy {
-        strategy_name: String,
-    },
-    DeactivateStrategy {
-        strategy_name: String,
-    },
-    RemoveStrategy {
-        strategy_name: String,
-    },
-    // empty vector implies that user wants all his rewards to be retained
-    UpdateUserPortfolio {
-        user_portfolio: Vec<UserStrategyPortfolio>,
-    },
+    // register the airdrop and its contracts.
     RegisterCw20Contracts {
         denom: String,
         cw20_contract: Addr,
         airdrop_contract: Addr,
     },
-    // called by validator contract to transfer rewards from validator contract to SCC
+    // undelegate all the queued up undelegation from all strategies. This takes into account
+    // a cooling period for the strategy. Certain strategies cannot be undelegated from like "RETAIN_REWARDS"
+    UndelegateFromStrategies {
+        strategies: Vec<u64>,
+    },
+    // this message goes to the SICs and fetches the undelegated rewards which are
+    // sitting in the SIC.
+    FetchUndelegatedRewardsFromStrategies {
+        strategies: Vec<u64>,
+    },
+    /*
+       Pools contract messages
+    */
+    // called by pools contract to transfer rewards from validator contract to SCC
     // this message also moves rewards from SCC to the corresponding SIC. This message will
     // transfer the rewards to the SIC per user. this is because the batching is already being done
     // by the pools contract. Calls to this message will be paginated.
     UpdateUserRewards {
         update_user_rewards_requests: Vec<UpdateUserRewardsRequest>,
     },
-    // called by validator contract to transfer airdrops from validator contract to SCC. This will be a separate
+    // called by pools contract to transfer airdrops from validator contract to SCC. This will be a separate
     // epoch in the pools contract.
     UpdateUserAirdrops {
         update_user_airdrops_requests: Vec<UpdateUserAirdropsRequest>,
     },
-    // called by user to undelegate his rewards from a strategy
+    UpdateConfig {
+        delegator_contract: Option<Addr>,
+        default_user_portfolio: Option<Vec<UserStrategyPortfolio>>,
+        fallback_strategy: Option<u64>,
+    },
+    /*
+       User messages
+    */
+    // called by user to undelegate his rewards from a strategy. This will begin unbonding the rewards
+    // in the strategy.
     UndelegateRewards {
         amount: Uint128,
-        strategy_name: String,
+        strategy_id: u64,
     },
     // called by scc manager to periodically claim airdrops for a particular strategy if it supported
     ClaimAirdrops {
         amount: Uint128,
         denom: String,
         claim_msg: Binary,
-        strategy_name: String,
+        strategy_id: u64,
     },
     WithdrawRewards {
-        undelegation_timestamp: Timestamp,
-        strategy_name: String,
+        undelegation_id: u64,
+        strategy_id: u64,
     },
-    // called by the user to withdraw pending rewards i.e rewards which are not in any strategy
+    // called by the user to withdraw pending rewards i.e rewards which are not in any strategy. These rewards
+    // fall under the "RETAIN_REWARDS" strategy.
     WithdrawPendingRewards {},
+    // called by the user to withdraw all of her pending airdrops
     WithdrawAirdrops {},
+    // called by user to directly deposit to SICs according to portfolio or give a strategy override
+    DepositFunds {
+        strategy_override: Option<u64>,
+    },
+    // called by user to update his strategy portfolio
+    UpdateUserPortfolio {
+        user_portfolio: Vec<UserStrategyPortfolio>,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     GetState {},
+    GetStrategyInfo { strategy_id: u64 },
+    GetUndelegationBatchInfo { strategy_id: u64, batch_id: u64 },
+    GetUserRewardInfo { user: Addr },
     GetConfig {},
     GetStrategiesList {},
-    GetStrategyInfo { strategy_name: String },
-    GetUserRewardInfo { user: Addr },
+    // rewards in SCC(retain rewards) + rewards in all strategies
+    GetAllStrategies {},
+    GetUser { user: Addr },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -120,6 +191,21 @@ pub struct GetUserRewardInfo {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct GetUndelegationBatchInfoResponse {
+    pub undelegation_batch_info: Option<BatchUndelegationRecord>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct GetStrategiesListResponse {
     pub strategies_list: Option<Vec<String>>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct GetAllStrategiesResponse {
+    pub all_strategies: Option<Vec<StrategyInfoQuery>>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct GetUserResponse {
+    pub user: Option<UserRewardInfoQuery>,
 }

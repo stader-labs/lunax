@@ -2,28 +2,31 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{Addr, Coin, Decimal, Timestamp, Uint128};
-use cw_storage_plus::{Item, Map};
+use cw_storage_plus::{Item, Map, U64Key};
 use stader_utils::coin_utils::DecCoin;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
     pub default_user_portfolio: Vec<UserStrategyPortfolio>,
+    // this is the strategy we will fallback to, if the strategy
+    // in the user portfolio doesn't exist or is deactivated.
+    pub fallback_strategy: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct State {
     pub manager: Addr,
 
-    pub pool_contract: Addr,
+    pub delegator_contract: Addr,
     pub scc_denom: String,
     pub contract_genesis_block_height: u64,
     pub contract_genesis_timestamp: Timestamp,
 
-    // total historical rewards accumulated in the SCC
-    pub total_accumulated_rewards: Uint128,
-    // current rewards sitting in the SCC
-    // TODO: bchain99 - we may not need this
-    pub current_rewards_in_scc: Uint128,
+    pub next_undelegation_id: u64,
+    pub next_strategy_id: u64,
+
+    // sum of all the retained rewards in scc
+    pub rewards_in_scc: Uint128,
     pub total_accumulated_airdrops: Vec<Coin>,
 }
 
@@ -31,12 +34,16 @@ pub struct State {
 pub struct StrategyInfo {
     pub name: String,
     pub sic_contract_address: Addr,
-    pub unbonding_period: Option<u64>,
+    pub unbonding_period: u64,
+    pub unbonding_buffer: u64,
+    pub next_undelegation_batch_id: u64,
+    pub next_reconciliation_batch_id: u64,
     pub is_active: bool,
     pub total_shares: Decimal,
+    pub current_undelegated_shares: Decimal,
     pub global_airdrop_pointer: Vec<DecCoin>,
     pub total_airdrops_accumulated: Vec<Coin>,
-    // TODO: bchain99 - i want this for strategy APR calc but cross check if we actually need this:
+    // TODO: bchain99 - remove this. not needed. We are computing the S/T ratio on demand when needed for a strategy
     pub shares_per_token_ratio: Decimal,
 }
 
@@ -44,14 +51,19 @@ impl StrategyInfo {
     pub(crate) fn new(
         strategy_name: String,
         sic_contract_address: Addr,
-        unbonding_period: Option<u64>,
+        unbonding_period: u64,
+        unbonding_buffer: u64,
     ) -> Self {
         StrategyInfo {
             name: strategy_name,
             sic_contract_address,
             unbonding_period,
+            unbonding_buffer,
+            next_undelegation_batch_id: 0,
+            next_reconciliation_batch_id: 0,
             is_active: false,
             total_shares: Decimal::zero(),
+            current_undelegated_shares: Decimal::zero(),
             global_airdrop_pointer: vec![],
             total_airdrops_accumulated: vec![],
             shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
@@ -62,19 +74,23 @@ impl StrategyInfo {
         StrategyInfo {
             name: strategy_name,
             sic_contract_address: Addr::unchecked("default-sic"),
-            unbonding_period: None,
+            unbonding_period: 21 * 24 * 3600,
+            unbonding_buffer: 3600,
+            next_undelegation_batch_id: 0,
+            next_reconciliation_batch_id: 0,
             is_active: false,
-            total_shares: Default::default(),
+            total_shares: Decimal::zero(),
+            current_undelegated_shares: Decimal::zero(),
             global_airdrop_pointer: vec![],
             total_airdrops_accumulated: vec![],
-            shares_per_token_ratio: Default::default(),
+            shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
         }
     }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct UserStrategyInfo {
-    pub strategy_name: String,
+    pub strategy_id: u64,
     pub shares: Decimal,
     // airdrop here is an unswappable reward. For v1, we are keeping airdrops idle and distributing
     // them back to the user. The airdrop_pointer here is only for the particular strategy.
@@ -84,14 +100,14 @@ pub struct UserStrategyInfo {
 impl UserStrategyInfo {
     pub fn default() -> Self {
         UserStrategyInfo {
-            strategy_name: "".to_string(),
+            strategy_id: 0,
             shares: Default::default(),
             airdrop_pointer: vec![],
         }
     }
-    pub fn new(strategy_name: String, airdrop_pointer: Vec<DecCoin>) -> Self {
+    pub fn new(strategy_id: u64, airdrop_pointer: Vec<DecCoin>) -> Self {
         UserStrategyInfo {
-            strategy_name,
+            strategy_id,
             shares: Decimal::zero(),
             airdrop_pointer,
         }
@@ -104,6 +120,7 @@ pub struct UserRewardInfo {
     pub strategies: Vec<UserStrategyInfo>,
     // pending_airdrops is the airdrops accumulated from the validator_contract and all the strategy contracts
     pub pending_airdrops: Vec<Coin>,
+    pub undelegation_records: Vec<UserUndelegationRecord>,
     // rewards which are not put into any strategy. they are just sitting in the SCC.
     // this is the "retain rewards" strategy
     pub pending_rewards: Uint128,
@@ -115,6 +132,7 @@ impl UserRewardInfo {
             user_portfolio: vec![],
             strategies: vec![],
             pending_airdrops: vec![],
+            undelegation_records: vec![],
             pending_rewards: Default::default(),
         }
     }
@@ -124,21 +142,33 @@ impl UserRewardInfo {
             user_portfolio: default_user_portfolio,
             strategies: vec![],
             pending_airdrops: vec![],
+            undelegation_records: vec![],
             pending_rewards: Default::default(),
         }
     }
 }
 
+// estimated release time is fetched from the undelegation batch id
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct UserUndelegationRecord {
+    pub id: u64,
+    pub amount: Uint128,
+    pub shares: Decimal,
+    pub strategy_id: u64,
+    pub undelegation_batch_id: u64,
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct UserStrategyPortfolio {
-    pub strategy_name: String,
-    pub deposit_fraction: Decimal,
+    pub strategy_id: u64,
+    // deposit_fraction is always b/w 0 and 100
+    pub deposit_fraction: Uint128,
 }
 
 impl UserStrategyPortfolio {
-    pub fn new(strategy_name: String, deposit_fraction: Decimal) -> Self {
+    pub fn new(strategy_id: u64, deposit_fraction: Uint128) -> Self {
         UserStrategyPortfolio {
-            strategy_name,
+            strategy_id,
             deposit_fraction,
         }
     }
@@ -150,10 +180,32 @@ pub struct Cw20TokenContractsInfo {
     pub cw20_token_contract: Addr,
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum UndelegationBatchStatus {
+    Pending,
+    InProgress,
+    Done,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct BatchUndelegationRecord {
+    pub amount: Uint128,
+    pub shares: Decimal,
+    pub unbonding_slashing_ratio: Decimal,
+    pub undelegation_s_t_ratio: Decimal,
+    pub create_time: Timestamp,
+    pub est_release_time: Timestamp,
+    pub undelegation_batch_status: UndelegationBatchStatus,
+    pub released: bool,
+}
+
 pub const STATE: Item<State> = Item::new("state");
 pub const CONFIG: Item<Config> = Item::new("config");
 
-pub const STRATEGY_MAP: Map<&str, StrategyInfo> = Map::new("strategy_map");
+pub const STRATEGY_MAP: Map<U64Key, StrategyInfo> = Map::new("strategy_map");
 pub const USER_REWARD_INFO_MAP: Map<&Addr, UserRewardInfo> = Map::new("user_reward_info_map");
 pub const CW20_TOKEN_CONTRACTS_REGISTRY: Map<String, Cw20TokenContractsInfo> =
     Map::new("cw20_token_contracts_registry");
+pub const UNDELEGATION_BATCH_MAP: Map<(U64Key, U64Key), BatchUndelegationRecord> =
+    Map::new("undelegation_batch_map");

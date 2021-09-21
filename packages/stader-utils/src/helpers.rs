@@ -2,7 +2,7 @@ use cosmwasm_std::{Addr, BankMsg, Coin, Decimal, Fraction, QuerierWrapper, Uint1
 use std::collections::HashMap;
 use terra_cosmwasm::TerraQuerier;
 
-pub fn send_funds_msg(recipient_addr: &Addr, funds: &Vec<Coin>) -> BankMsg {
+pub fn send_funds_msg(recipient_addr: &Addr, funds: &[Coin]) -> BankMsg {
     BankMsg::Send {
         to_address: String::from(recipient_addr),
         amount: funds
@@ -25,7 +25,7 @@ pub fn uint128_from_decimal(a: Decimal) -> Uint128 {
 pub fn query_exchange_rates(
     querier: QuerierWrapper,
     base_denom: String,
-    quote_denoms: &Vec<String>,
+    quote_denoms: &[String],
 ) -> HashMap<String, Decimal> {
     let querier = TerraQuerier::new(&querier);
     let mut er_map: HashMap<String, Decimal> = HashMap::new();
@@ -34,17 +34,13 @@ pub fn query_exchange_rates(
             er_map.insert(denom.clone(), Decimal::one());
             continue;
         }
-        let result =
-            querier.query_exchange_rates(base_denom.clone(), vec![(*denom.clone()).to_string()]);
+        let result = querier.query_exchange_rates(denom.clone(), vec![base_denom.to_string()]);
         if result.is_err() {
             continue;
         }
         let exchange_rate_response = result.unwrap();
         let exchange_rate_item = exchange_rate_response.exchange_rates.first().unwrap();
-        er_map.insert(
-            exchange_rate_item.quote_denom.clone(),
-            exchange_rate_item.exchange_rate,
-        );
+        er_map.insert(denom.clone(), exchange_rate_item.exchange_rate);
     }
     er_map
 }
