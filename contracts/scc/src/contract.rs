@@ -23,7 +23,7 @@ use crate::state::{
     UserUndelegationRecord, CONFIG, CW20_TOKEN_CONTRACTS_REGISTRY, STATE, STRATEGY_MAP,
     UNDELEGATION_BATCH_MAP, USER_REWARD_INFO_MAP,
 };
-use crate::user::{allocate_user_airdrops_across_strategies, get_user_airdrops};
+use crate::user::{compute_user_airdrops_across_strategies, get_user_airdrops};
 use cw2::set_contract_version;
 use cw_storage_plus::U64Key;
 use sic_base::msg::ExecuteMsg as sic_execute_msg;
@@ -803,7 +803,7 @@ pub fn try_withdraw_airdrops(
             return Err(ContractError::UserRewardInfoDoesNotExist {});
         };
 
-    allocate_user_airdrops_across_strategies(deps.storage, &mut user_reward_info);
+    compute_user_airdrops_across_strategies(deps.storage, &mut user_reward_info);
 
     let mut messages: Vec<WasmMsg> = vec![];
     // iterate thru all airdrops and transfer ownership to them to the user
