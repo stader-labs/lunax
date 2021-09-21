@@ -80,6 +80,7 @@ pub fn execute(
         ExecuteMsg::ClaimAirdrops {
             airdrop_token_contract,
             cw20_token_contract,
+            airdrop_token,
             amount,
             claim_msg,
         } => try_claim_airdrops(
@@ -88,6 +89,7 @@ pub fn execute(
             info,
             airdrop_token_contract,
             cw20_token_contract,
+            airdrop_token,
             amount,
             claim_msg,
         ),
@@ -360,6 +362,7 @@ pub fn try_claim_airdrops(
     info: MessageInfo,
     airdrop_token_contract: Addr,
     cw20_token_contract: Addr,
+    _airdrop_token: String,
     amount: Uint128,
     claim_msg: Binary,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
