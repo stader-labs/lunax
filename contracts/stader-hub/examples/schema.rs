@@ -3,8 +3,8 @@ use std::fs::create_dir_all;
 
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 
-use stader_terra_kyv::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, ValidatorAprResponse};
-use stader_terra_kyv::state::{Config, State, ValidatorMetrics};
+use stader_hub::msg::{ContractResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
+use stader_hub::state::State;
 
 fn main() {
     let mut out_dir = current_dir().unwrap();
@@ -16,8 +16,5 @@ fn main() {
     export_schema(&schema_for!(ExecuteMsg), &out_dir);
     export_schema(&schema_for!(QueryMsg), &out_dir);
     export_schema(&schema_for!(State), &out_dir);
-    export_schema(&schema_for!(Config), &out_dir);
-    export_schema(&schema_for!(ValidatorMetrics), &out_dir);
-    export_schema(&schema_for!(ValidatorAprResponse), &out_dir);
-    // TODO: Make sure to add Schemas Here
+    export_schema(&schema_for!(ContractResponse), &out_dir);
 }
