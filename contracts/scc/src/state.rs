@@ -32,8 +32,12 @@ pub struct State {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct StrategyInfo {
+    // name of the strategy
     pub name: String,
+    // address of the SIC for the strategy
     pub sic_contract_address: Addr,
+    // the actual unbonding period for the strategy.
+    // eg: unbonding_period for the auto compounding strat
     pub unbonding_period: u64,
     pub unbonding_buffer: u64,
     pub next_undelegation_batch_id: u64,
