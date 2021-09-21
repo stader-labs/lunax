@@ -54,6 +54,10 @@ pub enum ExecuteMsg {
     RemoveValidator {
         validator: Addr,
     },
+    UpdateConfig {
+        min_validator_pool_size: Option<u64>,
+        scc_address: Option<Addr>,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
