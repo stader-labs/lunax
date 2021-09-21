@@ -68,6 +68,12 @@ pub enum ContractError {
 
     #[error("Funds not expected with request")]
     FundsNotExpected {},
-// Add any other custom errors you like here.
-                                  // Look at https://docs.rs/thiserror/1.0.21/thiserror/ for details.
+
+    #[error("Deposit amount cannot be greater than max deposit amount")]
+    MaxDeposit {},
+
+    #[error("Deposit amount cannot be less than min deposit amount")]
+    MinDeposit {},
+    // Add any other custom errors you like here.
+    // Look at https://docs.rs/thiserror/1.0.21/thiserror/ for details.
 }

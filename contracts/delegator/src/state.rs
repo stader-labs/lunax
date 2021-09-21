@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Addr, Coin, Uint128, Timestamp, Decimal};
+use cosmwasm_std::{Addr, Coin, Decimal, Timestamp, Uint128};
 use cw_storage_plus::{Item, Map, U64Key};
 use stader_utils::coin_utils::DecCoin;
 
@@ -11,6 +11,8 @@ pub struct Config {
     pub vault_denom: String,
     pub pools_contract: Addr,
     pub scc_contract: Addr,
+    pub protocol_fee: Decimal,
+    pub protocol_fee_contract: Addr,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -41,7 +43,7 @@ pub struct RedelegationInfo {
     pub from_pool: u64, // This is redundant because added to from_pool id.
     pub to_pool: u64,
     pub amount: Uint128,
-    pub eta: Option<Timestamp> // Time for redelegation to be completed
+    pub eta: Option<Timestamp>, // Time for redelegation to be completed
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
