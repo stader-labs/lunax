@@ -644,7 +644,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_update_config_fail() {
+    fn test_update_config_fail() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &coins(1000, "earth"));
         let env = mock_env();
@@ -757,7 +757,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_update_config_success() {
+    fn test_update_config_success() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &coins(1000, "earth"));
         let env = mock_env();
@@ -860,7 +860,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_deposit_funds_fail() {
+    fn test_deposit_funds_fail() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &coins(1000, "earth"));
         let env = mock_env();
@@ -947,7 +947,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_deposit_funds_success() {
+    fn test_deposit_funds_success() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -1342,7 +1342,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_update_strategy_fail() {
+    fn test_update_strategy_fail() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -1392,7 +1392,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_update_strategy_success() {
+    fn test_update_strategy_success() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -1451,7 +1451,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_update_cw20_contracts_registry_fail() {
+    fn test_update_cw20_contracts_registry_fail() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -1483,7 +1483,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_update_cw20_contracts_registry_success() {
+    fn test_update_cw20_contracts_registry_success() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -1519,7 +1519,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_fetch_undelegated_rewards_from_strategies_fail() {
+    fn test_fetch_undelegated_rewards_from_strategies_fail() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -1924,7 +1924,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_fetch_undelegated_rewards_from_strategies_success() {
+    fn test_fetch_undelegated_rewards_from_strategies_success() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -2673,7 +2673,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_undelegate_from_strategies_fail() {
+    fn test_undelegate_from_strategies_fail() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -2703,7 +2703,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_undelegate_from_strategies_success() {
+    fn test_undelegate_from_strategies_success() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -3500,7 +3500,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_withdraw_rewards_fail() {
+    fn test_withdraw_rewards_fail() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -3629,7 +3629,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_withdraw_rewards_success() {
+    fn test_withdraw_rewards_success() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -3824,7 +3824,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_undelegate_user_rewards_fail() {
+    fn test_undelegate_user_rewards_fail() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -3996,7 +3996,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_undelegate_user_rewards_success() {
+    fn test_undelegate_user_rewards_success() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -4458,7 +4458,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_claim_airdrops_fail() {
+    fn test_claim_airdrops_fail() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &coins(1000, "earth"));
         let env = mock_env();
@@ -4540,7 +4540,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_claim_airdrops_success() {
+    fn test_claim_airdrops_success() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &coins(1000, "earth"));
         let env = mock_env();
@@ -4751,7 +4751,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_withdraw_airdrops_fail() {
+    fn test_withdraw_airdrops_fail() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &coins(1000, "earth"));
         let env = mock_env();
@@ -4779,7 +4779,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_withdraw_airdrops_success() {
+    fn test_withdraw_airdrops_success() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &coins(1000, "earth"));
         let env = mock_env();
@@ -5053,7 +5053,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_update_user_portfolio_fail() {
+    fn test_update_user_portfolio_fail() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &coins(1000, "earth"));
         let env = mock_env();
@@ -5192,7 +5192,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_update_user_portfolio_success() {
+    fn test_update_user_portfolio_success() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &coins(1000, "earth"));
         let env = mock_env();
@@ -5280,7 +5280,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_update_user_rewards_fail() {
+    fn test_update_user_rewards_fail() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &coins(1000, "earth"));
         let env = mock_env();
@@ -5369,7 +5369,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_update_user_rewards_success() {
+    fn test_update_user_rewards_success() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &coins(1000, "earth"));
         let env = mock_env();
@@ -6991,7 +6991,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_register_strategy_fail() {
+    fn test_register_strategy_fail() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &coins(1000, "earth"));
         let env = mock_env();
@@ -7024,7 +7024,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_register_strategy_success() {
+    fn test_register_strategy_success() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &coins(1000, "earth"));
         let env = mock_env();
@@ -7112,7 +7112,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_update_user_airdrops_fail() {
+    fn test_update_user_airdrops_fail() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &coins(1000, "earth"));
         let env = mock_env();
@@ -7163,7 +7163,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_update_user_airdrops_success() {
+    fn test_update_user_airdrops_success() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &coins(1000, "earth"));
         let env = mock_env();

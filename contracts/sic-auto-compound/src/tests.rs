@@ -122,7 +122,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_update_config_fail() {
+    fn test_update_config_fail() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -157,7 +157,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_update_config_success() {
+    fn test_update_config_success() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -195,7 +195,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_remove_validator_fail() {
+    fn test_remove_validator_fail() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -275,7 +275,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_remove_validator_success() {
+    fn test_remove_validator_success() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -632,7 +632,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_replace_validator_fail() {
+    fn test_replace_validator_fail() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -715,7 +715,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_replace_validator_success() {
+    fn test_replace_validator_success() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -1090,7 +1090,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_add_validator_fail() {
+    fn test_add_validator_fail() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -1155,7 +1155,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_add_validator_success() {
+    fn test_add_validator_success() {
         fn get_some_validators() -> Vec<Validator> {
             vec![
                 Validator {
@@ -1226,7 +1226,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_transfer_undelegated_rewards_fail() {
+    fn test_transfer_undelegated_rewards_fail() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -1275,7 +1275,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_transfer_undelegated_rewards_success() {
+    fn test_transfer_undelegated_rewards_success() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -1440,7 +1440,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_claim_airdrops_fail() {
+    fn test_claim_airdrops_fail() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -1481,7 +1481,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_claim_airdrops_success() {
+    fn test_claim_airdrops_success() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -1577,7 +1577,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_undelegate_rewards_fail() {
+    fn test_undelegate_rewards_fail() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -1659,7 +1659,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_undelegate_rewards_success() {
+    fn test_undelegate_rewards_success() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -1848,7 +1848,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_reinvest_fail() {
+    fn test_reinvest_fail() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -1893,7 +1893,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_reinvest_success() {
+    fn test_reinvest_success() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -2184,7 +2184,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_transfer_rewards_fail() {
+    fn test_transfer_rewards_fail() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -2263,7 +2263,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_transfer_rewards_success() {
+    fn test_transfer_rewards_success() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -2364,7 +2364,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_redeem_rewards_success() {
+    fn test_redeem_rewards_success() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();

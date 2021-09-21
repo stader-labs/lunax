@@ -59,7 +59,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_transfer_rewards_fail() {
+    fn test_transfer_rewards_fail() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -136,7 +136,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_transfer_rewards_success() {
+    fn test_transfer_rewards_success() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -165,7 +165,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_claim_airdrops_fail() {
+    fn test_claim_airdrops_fail() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -197,7 +197,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_claim_airdrops_success() {
+    fn test_claim_airdrops_success() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -292,7 +292,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_transfer_undelegated_rewards_fail() {
+    fn test_transfer_undelegated_rewards_fail() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -332,7 +332,7 @@ mod tests {
     }
 
     #[test]
-    fn test_try_transfer_undelegated_rewards_success() {
+    fn test_transfer_undelegated_rewards_success() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
