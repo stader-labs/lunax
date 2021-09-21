@@ -24,9 +24,9 @@ use cw20::Cw20ExecuteMsg;
 use stader_utils::coin_utils::{
     merge_coin_vector, multiply_coin_with_decimal, CoinVecOp, Operation,
 };
+use stader_utils::event_constants::{EVENT_KEY_IDENTIFIER, EVENT_SWAP_KEY_AMOUNT, EVENT_SWAP_TYPE};
 use stader_utils::helpers::{query_exchange_rates, send_funds_msg};
 use terra_cosmwasm::{create_swap_msg, TerraMsgWrapper};
-use stader_utils::event_constants::{EVENT_SWAP_TYPE, EVENT_SWAP_KEY_AMOUNT, EVENT_KEY_IDENTIFIER};
 
 const CONTRACT_NAME: &str = "validator";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -60,9 +60,9 @@ pub fn instantiate(
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(
-    deps: DepsMut,
-    env: Env,
-    msg: MigrateMsg,
+    _deps: DepsMut,
+    _env: Env,
+    _msg: MigrateMsg,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     Ok(Response::default())
 }
@@ -111,7 +111,18 @@ pub fn execute(
         ExecuteMsg::RemoveSlashingFunds { amount } => {
             remove_slashing_funds(deps, info, env, amount)
         }
-        ExecuteMsg::UpdateConfig { pools_contract, scc_contract, delegator_contract } => update_config(deps, info, env, pools_contract, scc_contract, delegator_contract),
+        ExecuteMsg::UpdateConfig {
+            pools_contract,
+            scc_contract,
+            delegator_contract,
+        } => update_config(
+            deps,
+            info,
+            env,
+            pools_contract,
+            scc_contract,
+            delegator_contract,
+        ),
     }
 }
 
@@ -122,7 +133,7 @@ pub fn add_validator(
     val_addr: Addr,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let config = CONFIG.load(deps.storage)?;
-    validate(&config, &info, &env, vec![Verify::SenderManager])?;
+    validate(&config, &info, &env, vec![Verify::SenderPoolsContract])?;
 
     if VALIDATOR_REGISTRY
         .may_load(deps.storage, &val_addr)
@@ -837,7 +848,6 @@ pub fn remove_slashing_funds(
     )))
 }
 
-// TODO - GM. Add tests
 pub fn update_config(
     deps: DepsMut,
     info: MessageInfo,
@@ -845,9 +855,14 @@ pub fn update_config(
     pools_contract: Option<Addr>,
     scc_contract: Option<Addr>,
     delegator_contract: Option<Addr>,
-)-> Result<Response<TerraMsgWrapper>, ContractError> {
+) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let config = CONFIG.load(deps.storage)?;
-    validate(&config, &info, &env, vec![Verify::SenderManager, Verify::NoFunds])?;
+    validate(
+        &config,
+        &info,
+        &env,
+        vec![Verify::SenderManager, Verify::NoFunds],
+    )?;
 
     CONFIG.update(deps.storage, |mut config| -> StdResult<_> {
         config.pools_contract = pools_contract.unwrap_or(config.pools_contract.clone());
@@ -862,12 +877,10 @@ pub fn update_config(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::GetConfig {} => to_binary(&query_config(deps)?),
-        QueryMsg::GetState {} => to_binary(&query_state(deps)?),
-        QueryMsg::GetValidatorMeta { val_addr } => {
-            to_binary(&query_validator_meta(deps, val_addr)?)
-        }
-        QueryMsg::GetAirdropMeta { token } => to_binary(&query_airdrop_meta(deps, token)?),
+        QueryMsg::Config {} => to_binary(&query_config(deps)?),
+        QueryMsg::State {} => to_binary(&query_state(deps)?),
+        QueryMsg::ValidatorMeta { val_addr } => to_binary(&query_validator_meta(deps, val_addr)?),
+        QueryMsg::AirdropMeta { token } => to_binary(&query_airdrop_meta(deps, token)?),
     }
 }
 

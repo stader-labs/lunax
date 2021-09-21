@@ -71,6 +71,6 @@ pub enum ContractError {
 
     #[error("Funds not expected to be sent with this request")]
     FundsNotExpected {},
-// Add any other custom errors you like here.
-                                  // Look at https://docs.rs/thiserror/1.0.21/thiserror/ for details.
+    // Add any other custom errors you like here.
+    // Look at https://docs.rs/thiserror/1.0.21/thiserror/ for details.
 }

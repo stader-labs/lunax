@@ -62,16 +62,20 @@ pub enum ExecuteMsg {
     RemoveSlashingFunds {
         amount: Uint128,
     },
-    UpdateConfig { pools_contract: Option<Addr>, scc_contract: Option<Addr>, delegator_contract: Option<Addr> }
+    UpdateConfig {
+        pools_contract: Option<Addr>,
+        scc_contract: Option<Addr>,
+        delegator_contract: Option<Addr>,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
-    GetConfig {},
-    GetState {},
-    GetValidatorMeta { val_addr: Addr },
-    GetAirdropMeta { token: String },
+    Config {},
+    State {},
+    ValidatorMeta { val_addr: Addr },
+    AirdropMeta { token: String },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

@@ -1,5 +1,8 @@
-use crate::state::{AirdropRegistryInfo, Config, State, AirdropRate, ValInfo, BatchUndelegationRecord, PoolRegistryInfo};
-use cosmwasm_std::{Addr, Binary, Uint128};
+use crate::state::{
+    AirdropRate, AirdropRegistryInfo, BatchUndelegationRecord, Config, ConfigUpdateRequest,
+    PoolRegistryInfo, State, ValInfo,
+};
+use cosmwasm_std::{Addr, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -10,22 +13,55 @@ pub struct InstantiateMsg {
     pub delegator_contract: Addr,
     pub unbonding_period: Option<u64>,
     pub unbonding_buffer: Option<u64>,
+    pub min_deposit: Uint128,
+    pub max_deposit: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
-    AddPool { name: String },
-    AddValidator { val_addr: Addr, pool_id: u64 },
-    RemoveValidator { val_addr: Addr },
-    Deposit { pool_id: u64 },
-    RedeemRewards { pool_id: u64 },
-    Swap { pool_id: u64 },
-    QueueUndelegate { pool_id: u64, amount: Uint128 },
-    Undelegate { pool_id: u64 },
-    ReconcileFunds { pool_id: u64 },
-    WithdrawFundsToWallet { pool_id: u64, batch_id: u64, undelegate_id: u64, amount: Uint128 },
-    UpdateAirdropPointers { airdrop_amount: Uint128, rates: Vec<AirdropRate> },
+    AddPool {
+        name: String,
+    },
+    AddValidator {
+        val_addr: Addr,
+        pool_id: u64,
+    },
+    RemoveValidator {
+        val_addr: Addr,
+    },
+    Deposit {
+        pool_id: u64,
+    },
+    RedeemRewards {
+        pool_id: u64,
+    },
+    Swap {
+        pool_id: u64,
+    },
+    QueueUndelegate {
+        pool_id: u64,
+        amount: Uint128,
+    },
+    Undelegate {
+        pool_id: u64,
+    },
+    ReconcileFunds {
+        pool_id: u64,
+    },
+    WithdrawFundsToWallet {
+        pool_id: u64,
+        batch_id: u64,
+        undelegate_id: u64,
+        amount: Uint128,
+    },
+    UpdateAirdropPointers {
+        airdrop_amount: Uint128,
+        rates: Vec<AirdropRate>,
+    },
+    UpdateConfig {
+        config_request: ConfigUpdateRequest,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
