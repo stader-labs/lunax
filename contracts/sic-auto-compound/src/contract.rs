@@ -70,20 +70,18 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     match msg {
-        ExecuteMsg::TransferRewards {} => try_transfer_rewards(deps, _env, info),
-        ExecuteMsg::UndelegateRewards { amount } => {
-            try_undelegate_rewards(deps, _env, info, amount)
-        }
-        ExecuteMsg::Reinvest {} => try_reinvest(deps, _env, info),
-        ExecuteMsg::RedeemRewards {} => try_redeem_rewards(deps, _env, info),
-        ExecuteMsg::Swap {} => try_swap(deps, _env, info),
+        ExecuteMsg::TransferRewards {} => transfer_rewards(deps, _env, info),
+        ExecuteMsg::UndelegateRewards { amount } => undelegate_rewards(deps, _env, info, amount),
+        ExecuteMsg::Reinvest {} => reinvest(deps, _env, info),
+        ExecuteMsg::RedeemRewards {} => redeem_rewards(deps, _env, info),
+        ExecuteMsg::Swap {} => swap(deps, _env, info),
         ExecuteMsg::ClaimAirdrops {
             airdrop_token_contract,
             cw20_token_contract,
             airdrop_token,
             amount,
             claim_msg,
-        } => try_claim_airdrops(
+        } => claim_airdrops(
             deps,
             _env,
             info,
@@ -94,20 +92,18 @@ pub fn execute(
             claim_msg,
         ),
         ExecuteMsg::TransferUndelegatedRewards { amount } => {
-            try_transfer_undelegated_rewards(deps, _env, info, amount)
+            transfer_undelegated_rewards(deps, _env, info, amount)
         }
-        ExecuteMsg::AddValidator { validator } => try_add_validator(deps, _env, info, validator),
+        ExecuteMsg::AddValidator { validator } => add_validator(deps, _env, info, validator),
         ExecuteMsg::ReplaceValidator {
             src_validator,
             dst_validator,
-        } => try_replace_validator(deps, _env, info, src_validator, dst_validator),
-        ExecuteMsg::RemoveValidator { validator } => {
-            try_remove_validator(deps, _env, info, validator)
-        }
+        } => replace_validator(deps, _env, info, src_validator, dst_validator),
+        ExecuteMsg::RemoveValidator { validator } => remove_validator(deps, _env, info, validator),
     }
 }
 
-pub fn try_remove_validator(
+pub fn remove_validator(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
@@ -224,7 +220,7 @@ pub fn try_remove_validator(
         .add_messages(redelegation_messages))
 }
 
-pub fn try_replace_validator(
+pub fn replace_validator(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
@@ -327,7 +323,7 @@ pub fn try_replace_validator(
         .add_messages(redelegation_msgs))
 }
 
-pub fn try_add_validator(
+pub fn add_validator(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
@@ -361,7 +357,7 @@ pub fn try_add_validator(
     Ok(Response::default())
 }
 
-pub fn try_claim_airdrops(
+pub fn claim_airdrops(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
@@ -398,7 +394,7 @@ pub fn try_claim_airdrops(
     Ok(Response::new().add_messages(messages))
 }
 
-pub fn try_swap(
+pub fn swap(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
@@ -471,7 +467,7 @@ pub fn try_swap(
     Ok(Response::new().add_messages(messages).add_attributes(logs))
 }
 
-pub fn try_transfer_rewards(
+pub fn transfer_rewards(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
@@ -526,7 +522,7 @@ pub fn try_transfer_rewards(
 // SCC needs to call this when it processes the undelegations.
 // SCC is responsible for batching up the user undelegation requests. It sends the batched up
 // undelegated amount to the SIC
-pub fn try_undelegate_rewards(
+pub fn undelegate_rewards(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
@@ -617,7 +613,7 @@ pub fn try_undelegate_rewards(
         .add_messages(messages))
 }
 
-pub fn try_transfer_undelegated_rewards(
+pub fn transfer_undelegated_rewards(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
@@ -651,7 +647,7 @@ pub fn try_transfer_undelegated_rewards(
     )))
 }
 
-pub fn try_reinvest(
+pub fn reinvest(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
@@ -753,7 +749,7 @@ pub fn try_reinvest(
     Ok(Response::new().add_messages(messages))
 }
 
-pub fn try_redeem_rewards(
+pub fn redeem_rewards(
     deps: DepsMut,
     _env: Env,
     _info: MessageInfo,
