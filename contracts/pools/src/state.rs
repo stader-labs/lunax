@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Addr, Uint128, Decimal, Timestamp};
+use cosmwasm_std::{Addr, Decimal, Timestamp, Uint128};
 use cw_storage_plus::{Item, Map, U64Key};
 use stader_utils::coin_utils::DecCoin;
 
@@ -89,4 +89,5 @@ pub struct AirdropRate {
 pub const AIRDROP_REGISTRY: Map<String, AirdropRegistryInfo> = Map::new("airdrop_registry");
 
 // (Pool_id, undelegation_batch_id) -> BatchUndelegationRecord
-pub const BATCH_UNDELEGATION_REGISTRY: Map<(U64Key, U64Key), BatchUndelegationRecord> = Map::new("batch_undelegation_registry");
+pub const BATCH_UNDELEGATION_REGISTRY: Map<(U64Key, U64Key), BatchUndelegationRecord> =
+    Map::new("batch_undelegation_registry");

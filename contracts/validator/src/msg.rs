@@ -62,7 +62,11 @@ pub enum ExecuteMsg {
     RemoveSlashingFunds {
         amount: Uint128,
     },
-    UpdateConfig { pools_contract: Option<Addr>, scc_contract: Option<Addr>, delegator_contract: Option<Addr> }
+    UpdateConfig {
+        pools_contract: Option<Addr>,
+        scc_contract: Option<Addr>,
+        delegator_contract: Option<Addr>,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

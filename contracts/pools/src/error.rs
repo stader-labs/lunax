@@ -74,7 +74,6 @@ pub enum ContractError {
 
     #[error("Deposit amount cannot be less than min deposit amount")]
     MinDeposit {},
-
-// Add any other custom errors you like here.
-                                  // Look at https://docs.rs/thiserror/1.0.21/thiserror/ for details.
+    // Add any other custom errors you like here.
+    // Look at https://docs.rs/thiserror/1.0.21/thiserror/ for details.
 }

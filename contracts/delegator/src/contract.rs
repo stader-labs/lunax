@@ -1,17 +1,26 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 
-use stader_utils::helpers::send_funds_msg;
-use terra_cosmwasm::TerraMsgWrapper;
-use cosmwasm_std::{DepsMut, Env, MessageInfo, Response, Deps, StdResult, Binary, Addr, Uint128, WasmMsg, to_binary, attr, Timestamp, Decimal, Coin, Order, Storage};
-use crate::msg::{InstantiateMsg, ExecuteMsg, QueryMsg, GetConfigResponse, GetStateResponse, UserPoolResponse, UserResponse};
+use crate::msg::{
+    ExecuteMsg, GetConfigResponse, GetStateResponse, InstantiateMsg, QueryMsg, UserPoolResponse,
+    UserResponse,
+};
+use crate::request_validation::{update_user_pointers, validate, Verify};
+use crate::state::{
+    Config, DepositInfo, PoolPointerInfo, State, UndelegationInfo, UserPoolInfo, CONFIG, STATE,
+    USER_REGISTRY,
+};
 use crate::ContractError;
-use crate::state::{Config, State, CONFIG, STATE, USER_REGISTRY, UserPoolInfo, DepositInfo, UndelegationInfo, PoolPointerInfo};
-use crate::request_validation::{validate, Verify, update_user_pointers};
+use cosmwasm_std::{
+    attr, to_binary, Addr, Binary, Coin, Decimal, Deps, DepsMut, Env, MessageInfo, Order, Response,
+    StdResult, Storage, Timestamp, Uint128, WasmMsg,
+};
 use cw_storage_plus::U64Key;
-use scc::msg::{ExecuteMsg as SccMsg, UpdateUserRewardsRequest, UpdateUserAirdropsRequest};
+use scc::msg::{ExecuteMsg as SccMsg, UpdateUserAirdropsRequest, UpdateUserRewardsRequest};
 use stader_utils::coin_utils::{multiply_u128_with_decimal, DecCoin};
+use stader_utils::helpers::send_funds_msg;
 use std::collections::HashMap;
+use terra_cosmwasm::TerraMsgWrapper;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -26,7 +35,7 @@ pub fn instantiate(
         pools_contract: msg.pools_contract,
         scc_contract: msg.scc_contract,
         protocol_fee: msg.protocol_fee,
-        protocol_fee_contract: msg.protocol_fee_contract
+        protocol_fee_contract: msg.protocol_fee_contract,
     };
     let state = State {
         next_redelegation_id: 1_u64,
@@ -47,18 +56,87 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     match msg {
-        ExecuteMsg::Deposit { user_addr, pool_id, amount, pool_rewards_pointer, pool_airdrops_pointer } =>
-            deposit(deps, info, env, user_addr, pool_id, amount, pool_rewards_pointer, pool_airdrops_pointer),
-        ExecuteMsg::Redelegate { user_addr, batch_id, from_pool, to_pool, amount, eta, pool_rewards_pointer, pool_airdrops_pointer } =>
-            redelegate(deps, info, env, user_addr, batch_id, from_pool, to_pool, amount, eta, pool_rewards_pointer, pool_airdrops_pointer),
-        ExecuteMsg::Undelegate { user_addr, from_pool, batch_id, amount, pool_rewards_pointer, pool_airdrops_pointer } =>
-            undelegate(deps, info, env, user_addr, batch_id, from_pool, amount, pool_rewards_pointer, pool_airdrops_pointer),
-        ExecuteMsg::WithdrawFunds { user_addr, pool_id, undelegate_id, amount } =>
-            withdraw_funds(deps, info, env, user_addr, pool_id, undelegate_id, amount),
-        ExecuteMsg::AllocateRewards { user_addrs, pool_pointers } => allocate_rewards_and_airdrops(deps, info, env, user_addrs, pool_pointers),
+        ExecuteMsg::Deposit {
+            user_addr,
+            pool_id,
+            amount,
+            pool_rewards_pointer,
+            pool_airdrops_pointer,
+        } => deposit(
+            deps,
+            info,
+            env,
+            user_addr,
+            pool_id,
+            amount,
+            pool_rewards_pointer,
+            pool_airdrops_pointer,
+        ),
+        ExecuteMsg::Redelegate {
+            user_addr,
+            batch_id,
+            from_pool,
+            to_pool,
+            amount,
+            eta,
+            pool_rewards_pointer,
+            pool_airdrops_pointer,
+        } => redelegate(
+            deps,
+            info,
+            env,
+            user_addr,
+            batch_id,
+            from_pool,
+            to_pool,
+            amount,
+            eta,
+            pool_rewards_pointer,
+            pool_airdrops_pointer,
+        ),
+        ExecuteMsg::Undelegate {
+            user_addr,
+            from_pool,
+            batch_id,
+            amount,
+            pool_rewards_pointer,
+            pool_airdrops_pointer,
+        } => undelegate(
+            deps,
+            info,
+            env,
+            user_addr,
+            batch_id,
+            from_pool,
+            amount,
+            pool_rewards_pointer,
+            pool_airdrops_pointer,
+        ),
+        ExecuteMsg::WithdrawFunds {
+            user_addr,
+            pool_id,
+            undelegate_id,
+            amount,
+        } => withdraw_funds(deps, info, env, user_addr, pool_id, undelegate_id, amount),
+        ExecuteMsg::AllocateRewards {
+            user_addrs,
+            pool_pointers,
+        } => allocate_rewards_and_airdrops(deps, info, env, user_addrs, pool_pointers),
 
-        ExecuteMsg::UpdateConfig { pools_contract, scc_contract, protocol_fee, protocol_fee_contract } =>
-            update_config(deps, info, env, pools_contract, scc_contract, protocol_fee_contract, protocol_fee),
+        ExecuteMsg::UpdateConfig {
+            pools_contract,
+            scc_contract,
+            protocol_fee,
+            protocol_fee_contract,
+        } => update_config(
+            deps,
+            info,
+            env,
+            pools_contract,
+            scc_contract,
+            protocol_fee_contract,
+            protocol_fee,
+        ),
     }
 }
 
@@ -70,39 +148,48 @@ pub fn deposit(
     pool_id: u64,
     amount: Uint128,
     pool_rewards_pointer: Decimal,
-    pool_airdrops_pointer: Vec<DecCoin>
+    pool_airdrops_pointer: Vec<DecCoin>,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let config = CONFIG.load(deps.storage)?;
-    validate(&config, &info, &env, vec![Verify::SenderPoolsContract, Verify::NoFunds])?;
+    validate(
+        &config,
+        &info,
+        &env,
+        vec![Verify::SenderPoolsContract, Verify::NoFunds],
+    )?;
 
     if amount == Uint128::zero() {
         return Err(ContractError::ZeroAmount {});
     }
 
-    USER_REGISTRY.update(deps.storage, (&user_addr, U64Key::new(pool_id)), |user_info_opt| -> StdResult<_> {
-        let mut user_info = user_info_opt.unwrap_or_else(|| UserPoolInfo {
-            pool_id,
-            deposit: DepositInfo { staked: Uint128::zero() },
-            airdrops_pointer: pool_airdrops_pointer.clone(),
-            pending_airdrops: vec![],
-            rewards_pointer: pool_rewards_pointer,
-            pending_rewards: Uint128::zero(),
-            redelegations: vec![],
-            undelegations: vec![],
-        });
-        update_user_pointers(&mut user_info, pool_airdrops_pointer, pool_rewards_pointer);
-        user_info.deposit.staked = user_info.deposit.staked.checked_add(amount).unwrap();
+    USER_REGISTRY.update(
+        deps.storage,
+        (&user_addr, U64Key::new(pool_id)),
+        |user_info_opt| -> StdResult<_> {
+            let mut user_info = user_info_opt.unwrap_or_else(|| UserPoolInfo {
+                pool_id,
+                deposit: DepositInfo {
+                    staked: Uint128::zero(),
+                },
+                airdrops_pointer: pool_airdrops_pointer.clone(),
+                pending_airdrops: vec![],
+                rewards_pointer: pool_rewards_pointer,
+                pending_rewards: Uint128::zero(),
+                redelegations: vec![],
+                undelegations: vec![],
+            });
+            update_user_pointers(&mut user_info, pool_airdrops_pointer, pool_rewards_pointer);
+            user_info.deposit.staked = user_info.deposit.staked.checked_add(amount).unwrap();
 
-        Ok(user_info)
-    })?;
+            Ok(user_info)
+        },
+    )?;
 
-    Ok(Response::new()
-        .add_attributes(vec![
-            attr("deposit_amount", amount.to_string()),
-            attr("user_addr", user_addr.to_string()),
-            attr("deposit_pool", pool_id.to_string()),
-        ])
-    )
+    Ok(Response::new().add_attributes(vec![
+        attr("deposit_amount", amount.to_string()),
+        attr("user_addr", user_addr.to_string()),
+        attr("deposit_pool", pool_id.to_string()),
+    ]))
 }
 
 // TODO - GM. Decrease pending rewards as well and update pointer. Write tests
@@ -175,10 +262,15 @@ pub fn undelegate(
     from_pool: u64,
     amount: Uint128,
     pool_rewards_pointer: Decimal,
-    pool_airdrops_pointer: Vec<DecCoin>
+    pool_airdrops_pointer: Vec<DecCoin>,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let config = CONFIG.load(deps.storage)?;
-    validate(&config, &info, &env, vec![Verify::SenderPoolsContract, Verify::NoFunds])?;
+    validate(
+        &config,
+        &info,
+        &env,
+        vec![Verify::SenderPoolsContract, Verify::NoFunds],
+    )?;
 
     if amount == Uint128::zero() {
         return Err(ContractError::ZeroAmount {});
@@ -191,12 +283,17 @@ pub fn undelegate(
     }
     let mut user_meta = user_pool_meta_opt.unwrap();
     if user_meta.deposit.staked.lt(&amount) {
-        return Err(ContractError::InSufficientFunds {})
+        return Err(ContractError::InSufficientFunds {});
     }
     let mut state = STATE.load(deps.storage)?;
 
     update_user_pointers(&mut user_meta, pool_airdrops_pointer, pool_rewards_pointer);
-    user_meta.undelegations.push(UndelegationInfo { batch_id, id: state.next_undelegation_id, amount, pool_id: from_pool });
+    user_meta.undelegations.push(UndelegationInfo {
+        batch_id,
+        id: state.next_undelegation_id,
+        amount,
+        pool_id: from_pool,
+    });
     user_meta.deposit.staked = user_meta.deposit.staked.checked_sub(amount).unwrap();
 
     USER_REGISTRY.save(deps.storage, map_key, &user_meta)?;
@@ -204,13 +301,11 @@ pub fn undelegate(
     state.next_undelegation_id = state.next_undelegation_id + 1;
     STATE.save(deps.storage, &state)?;
 
-    Ok(Response::new()
-        .add_attributes(vec![
-            attr("undelegate_amount", amount.to_string()),
-            attr("from_pool", from_pool.to_string()),
-            attr("user_addr", user_addr.to_string()),
-        ])
-    )
+    Ok(Response::new().add_attributes(vec![
+        attr("undelegate_amount", amount.to_string()),
+        attr("from_pool", from_pool.to_string()),
+        attr("user_addr", user_addr.to_string()),
+    ]))
 }
 
 pub fn withdraw_funds(
@@ -223,14 +318,24 @@ pub fn withdraw_funds(
     amount: Uint128, // Necessary for pools contract bookkeeping.
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let config = CONFIG.load(deps.storage)?;
-    validate(&config, &info, &env, vec![Verify::SenderPoolsContract, Verify::NoFunds])?;
+    validate(
+        &config,
+        &info,
+        &env,
+        vec![Verify::SenderPoolsContract, Verify::NoFunds],
+    )?;
 
-    let user_pool_meta_opt = USER_REGISTRY.may_load(deps.storage, (&user_addr, U64Key::new(pool_id)))?;
+    let user_pool_meta_opt =
+        USER_REGISTRY.may_load(deps.storage, (&user_addr, U64Key::new(pool_id)))?;
     if user_pool_meta_opt.is_none() {
         return Err(ContractError::UserNotFound {});
     }
     let mut user_pool_meta = user_pool_meta_opt.unwrap();
-    let info_opt = user_pool_meta.undelegations.clone().into_iter().find(|x| x.id.eq(&undelegate_id));
+    let info_opt = user_pool_meta
+        .undelegations
+        .clone()
+        .into_iter()
+        .find(|x| x.id.eq(&undelegate_id));
     if info_opt.is_none() {
         return Err(ContractError::RecordNotFound {});
     }
@@ -238,9 +343,17 @@ pub fn withdraw_funds(
     if info.amount.ne(&amount) {
         return Err(ContractError::NonMatchingAmount {});
     }
-    let others = user_pool_meta.undelegations.into_iter().filter(|x| x.id.ne(&undelegate_id)).collect();
+    let others = user_pool_meta
+        .undelegations
+        .into_iter()
+        .filter(|x| x.id.ne(&undelegate_id))
+        .collect();
     user_pool_meta.undelegations = others;
-    USER_REGISTRY.save(deps.storage, (&user_addr, U64Key::new(pool_id)), &user_pool_meta)?;
+    USER_REGISTRY.save(
+        deps.storage,
+        (&user_addr, U64Key::new(pool_id)),
+        &user_pool_meta,
+    )?;
 
     let mut msgs = vec![];
     let mut logs = vec![];
@@ -248,10 +361,16 @@ pub fn withdraw_funds(
     let user_amount = amount.u128() - protocol_fee_amount;
     if protocol_fee_amount != 0 {
         logs.push(attr("protocol_fee", protocol_fee_amount.to_string()));
-        msgs.push(send_funds_msg(&config.protocol_fee_contract, &vec![Coin::new(protocol_fee_amount, config.vault_denom.clone())]));
+        msgs.push(send_funds_msg(
+            &config.protocol_fee_contract,
+            &vec![Coin::new(protocol_fee_amount, config.vault_denom.clone())],
+        ));
     }
     logs.push(attr("user_withdrawal", user_amount.to_string()));
-    msgs.push(send_funds_msg(&user_addr, &vec![Coin::new(user_amount, config.vault_denom)]));
+    msgs.push(send_funds_msg(
+        &user_addr,
+        &vec![Coin::new(user_amount, config.vault_denom)],
+    ));
     Ok(Response::new().add_messages(msgs).add_attributes(logs))
 }
 
@@ -261,9 +380,14 @@ pub fn allocate_rewards_and_airdrops(
     env: Env,
     user_addrs: Vec<Addr>,
     pool_pointers: Vec<PoolPointerInfo>,
-)-> Result<Response<TerraMsgWrapper>, ContractError> {
+) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let config = CONFIG.load(deps.storage)?;
-    validate(&config, &info, &env, vec![Verify::SenderManager, Verify::NoFunds])?;
+    validate(
+        &config,
+        &info,
+        &env,
+        vec![Verify::SenderManager, Verify::NoFunds],
+    )?;
 
     let mut pool_info_map: HashMap<u64, PoolPointerInfo> = HashMap::new();
     for info in pool_pointers {
@@ -282,37 +406,58 @@ pub fn allocate_rewards_and_airdrops(
                 continue;
             }
             let pool_pointer_info = pool_info_map.get(&pool_id).unwrap().clone();
-            update_user_pointers(&mut user_pool_info, pool_pointer_info.airdrops_pointer, pool_pointer_info.rewards_pointer);
+            update_user_pointers(
+                &mut user_pool_info,
+                pool_pointer_info.airdrops_pointer,
+                pool_pointer_info.rewards_pointer,
+            );
             scc_user_reward_requests.push(UpdateUserRewardsRequest {
                 user: user_addr.clone(),
                 funds: user_pool_info.pending_rewards,
-                strategy_id: None
+                strategy_id: None,
             });
-            logs.push(attr(user_addr.to_string(), user_pool_info.pending_rewards.to_string()));
+            logs.push(attr(
+                user_addr.to_string(),
+                user_pool_info.pending_rewards.to_string(),
+            ));
             scc_user_airdrop_requests.push(UpdateUserAirdropsRequest {
                 user: user_addr.clone(),
-                pool_airdrops: user_pool_info.pending_airdrops.clone()
+                pool_airdrops: user_pool_info.pending_airdrops.clone(),
             });
-            logs.push(attr(user_addr.to_string(), user_pool_info.pending_airdrops.iter().map(|x| x.to_string()).collect::<Vec<String>>().join(",")));
+            logs.push(attr(
+                user_addr.to_string(),
+                user_pool_info
+                    .pending_airdrops
+                    .iter()
+                    .map(|x| x.to_string())
+                    .collect::<Vec<String>>()
+                    .join(","),
+            ));
             user_pool_info.pending_airdrops = vec![];
             user_pool_info.pending_rewards = Uint128::zero();
-            USER_REGISTRY.save(deps.storage, (&user_addr, U64Key::new(pool_id)), &user_pool_info)?;
+            USER_REGISTRY.save(
+                deps.storage,
+                (&user_addr, U64Key::new(pool_id)),
+                &user_pool_info,
+            )?;
         }
     }
 
     messages.push(WasmMsg::Execute {
         contract_addr: config.scc_contract.to_string(),
         msg: to_binary(&SccMsg::UpdateUserRewards {
-            update_user_rewards_requests: scc_user_reward_requests.clone()
-        }).unwrap(),
-        funds: vec![]
+            update_user_rewards_requests: scc_user_reward_requests.clone(),
+        })
+        .unwrap(),
+        funds: vec![],
     });
     messages.push(WasmMsg::Execute {
         contract_addr: config.scc_contract.to_string(),
         msg: to_binary(&SccMsg::UpdateUserAirdrops {
             update_user_airdrops_requests: scc_user_airdrop_requests.clone(),
-        }).unwrap(),
-        funds: vec![]
+        })
+        .unwrap(),
+        funds: vec![],
     });
 
     Ok(Response::new().add_messages(messages).add_attributes(logs))
@@ -325,15 +470,21 @@ pub fn update_config(
     pools_contract: Option<Addr>,
     scc_contract: Option<Addr>,
     protocol_fee_contract: Option<Addr>,
-    protocol_fee: Option<Decimal>
-)-> Result<Response<TerraMsgWrapper>, ContractError> {
+    protocol_fee: Option<Decimal>,
+) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let config = CONFIG.load(deps.storage)?;
-    validate(&config, &info, &env, vec![Verify::SenderManager, Verify::NoFunds])?;
+    validate(
+        &config,
+        &info,
+        &env,
+        vec![Verify::SenderManager, Verify::NoFunds],
+    )?;
 
     CONFIG.update(deps.storage, |mut config| -> StdResult<_> {
         config.pools_contract = pools_contract.unwrap_or(config.pools_contract.clone());
         config.scc_contract = scc_contract.unwrap_or(config.scc_contract.clone());
-        config.protocol_fee_contract = protocol_fee_contract.unwrap_or(config.protocol_fee_contract.clone());
+        config.protocol_fee_contract =
+            protocol_fee_contract.unwrap_or(config.protocol_fee_contract.clone());
         config.protocol_fee = protocol_fee.unwrap_or(config.protocol_fee);
         Ok(config)
     })?;
@@ -346,7 +497,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => to_binary(&query_config(deps)?),
         QueryMsg::State {} => to_binary(&query_state(deps)?),
-        QueryMsg::UserPool { user_addr, pool_id } => to_binary(&query_user_pool(deps, user_addr, pool_id)?),
+        QueryMsg::UserPool { user_addr, pool_id } => {
+            to_binary(&query_user_pool(deps, user_addr, pool_id)?)
+        }
         QueryMsg::User { user_addr } => to_binary(&query_user(deps.storage, user_addr)?),
     }
 }
@@ -363,7 +516,9 @@ pub fn query_state(deps: Deps) -> StdResult<GetStateResponse> {
 
 pub fn query_user_pool(deps: Deps, user_addr: Addr, pool_id: u64) -> StdResult<UserPoolResponse> {
     let user_pool_opt = USER_REGISTRY.may_load(deps.storage, (&user_addr, U64Key::new(pool_id)))?;
-    Ok(UserPoolResponse { info: user_pool_opt })
+    Ok(UserPoolResponse {
+        info: user_pool_opt,
+    })
 }
 
 pub fn query_user<'a>(storage: &'a dyn Storage, user_addr: Addr) -> StdResult<UserResponse> {
@@ -373,6 +528,6 @@ pub fn query_user<'a>(storage: &'a dyn Storage, user_addr: Addr) -> StdResult<Us
         .range(storage, None, None, Order::Ascending)
         .for_each(|x| {
             res.push(x.unwrap().1);
-    });
+        });
     Ok(UserResponse { info: res })
 }

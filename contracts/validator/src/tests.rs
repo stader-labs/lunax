@@ -16,9 +16,9 @@ mod tests {
         MOCK_CONTRACT_ADDR,
     };
     use cosmwasm_std::{
-        from_binary, to_binary, Addr, Attribute, BankMsg, Binary, Coin, ContractResult,
-        Decimal, DistributionMsg, Env, Event, FullDelegation, MessageInfo, OwnedDeps, Reply,
-        Response, StakingMsg, SubMsg, SubMsgExecutionResponse, Uint128, Validator, WasmMsg,
+        from_binary, to_binary, Addr, Attribute, BankMsg, Binary, Coin, ContractResult, Decimal,
+        DistributionMsg, Env, Event, FullDelegation, MessageInfo, OwnedDeps, Reply, Response,
+        StakingMsg, SubMsg, SubMsgExecutionResponse, Uint128, Validator, WasmMsg,
     };
     use cw20::Cw20ExecuteMsg;
     use stader_utils::coin_utils::check_equal_coin_vector;
@@ -144,7 +144,7 @@ mod tests {
                 val_addr: valid1.clone(),
             },
         )
-            .unwrap_err();
+        .unwrap_err();
         assert!(matches!(err, ContractError::Unauthorized {}));
 
         let pools_info = mock_info("pools_addr", &[]);
@@ -803,22 +803,26 @@ mod tests {
         assert!(matches!(err, ContractError::AirdropNotRegistered {}));
 
         // register airdrops
-        AIRDROP_REGISTRY.save(
-            deps.as_mut().storage,
-            "anc".to_string(),
-            &AirdropRegistryInfo {
-                airdrop_contract: anc_airdrop_contract.clone(),
-                token_contract: anc_token_contract.clone(),
-            },
-        ).unwrap();
-        AIRDROP_REGISTRY.save(
-            deps.as_mut().storage,
-            "mir".to_string(),
-            &AirdropRegistryInfo {
-                airdrop_contract: mir_airdrop_contract.clone(),
-                token_contract: mir_token_contract.clone(),
-            },
-        ).unwrap();
+        AIRDROP_REGISTRY
+            .save(
+                deps.as_mut().storage,
+                "anc".to_string(),
+                &AirdropRegistryInfo {
+                    airdrop_contract: anc_airdrop_contract.clone(),
+                    token_contract: anc_token_contract.clone(),
+                },
+            )
+            .unwrap();
+        AIRDROP_REGISTRY
+            .save(
+                deps.as_mut().storage,
+                "mir".to_string(),
+                &AirdropRegistryInfo {
+                    airdrop_contract: mir_airdrop_contract.clone(),
+                    token_contract: mir_token_contract.clone(),
+                },
+            )
+            .unwrap();
 
         /*
            Test - 3. First airdrops claim
@@ -1105,14 +1109,16 @@ mod tests {
         .unwrap_err();
         assert!(matches!(err, ContractError::ValidatorNotAdded {})); // Expects manager to make the call
 
-        VALIDATOR_REGISTRY.save(
-            deps.as_mut().storage,
-            &valid1,
-            &VMeta {
-                staked: Uint128::new(200),
-                accrued_rewards: vec![Coin::new(100, "utest")],
-            },
-        ).unwrap();
+        VALIDATOR_REGISTRY
+            .save(
+                deps.as_mut().storage,
+                &valid1,
+                &VMeta {
+                    staked: Uint128::new(200),
+                    accrued_rewards: vec![Coin::new(100, "utest")],
+                },
+            )
+            .unwrap();
 
         let err = execute(
             deps.as_mut(),
@@ -1126,14 +1132,16 @@ mod tests {
         .unwrap_err();
         assert!(matches!(err, ContractError::ValidatorNotAdded {})); // Expects manager to make the call
 
-        VALIDATOR_REGISTRY.save(
-            deps.as_mut().storage,
-            &valid2,
-            &VMeta {
-                staked: Uint128::new(300),
-                accrued_rewards: vec![Coin::new(50, "urew1")],
-            },
-        ).unwrap();
+        VALIDATOR_REGISTRY
+            .save(
+                deps.as_mut().storage,
+                &valid2,
+                &VMeta {
+                    staked: Uint128::new(300),
+                    accrued_rewards: vec![Coin::new(50, "urew1")],
+                },
+            )
+            .unwrap();
 
         let res = execute(
             deps.as_mut(),
@@ -1207,13 +1215,15 @@ mod tests {
             ],
         );
 
-        STATE.save(
-            deps.as_mut().storage,
-            &State {
-                slashing_funds: Uint128::new(1000_u128),
-                unswapped_rewards: vec![Coin::new(1500, "utest")],
-            },
-        ).unwrap();
+        STATE
+            .save(
+                deps.as_mut().storage,
+                &State {
+                    slashing_funds: Uint128::new(1000_u128),
+                    unswapped_rewards: vec![Coin::new(1500, "utest")],
+                },
+            )
+            .unwrap();
 
         let res = execute(
             deps.as_mut(),
@@ -1306,23 +1316,27 @@ mod tests {
 
         let valid1 = Addr::unchecked("valid0001");
         let valid2 = Addr::unchecked("valid0002");
-        VALIDATOR_REGISTRY.save(
-            deps.as_mut().storage,
-            &valid1,
-            &VMeta {
-                staked: Uint128::new(0),
-                accrued_rewards: vec![Coin::new(100, "utest"), Coin::new(50, "urew1")],
-            },
-        ).unwrap();
+        VALIDATOR_REGISTRY
+            .save(
+                deps.as_mut().storage,
+                &valid1,
+                &VMeta {
+                    staked: Uint128::new(0),
+                    accrued_rewards: vec![Coin::new(100, "utest"), Coin::new(50, "urew1")],
+                },
+            )
+            .unwrap();
 
-        VALIDATOR_REGISTRY.save(
-            deps.as_mut().storage,
-            &valid2,
-            &VMeta {
-                staked: Uint128::new(200),
-                accrued_rewards: vec![Coin::new(100, "utest"), Coin::new(100, "urew1")],
-            },
-        ).unwrap();
+        VALIDATOR_REGISTRY
+            .save(
+                deps.as_mut().storage,
+                &valid2,
+                &VMeta {
+                    staked: Uint128::new(200),
+                    accrued_rewards: vec![Coin::new(100, "utest"), Coin::new(100, "urew1")],
+                },
+            )
+            .unwrap();
         let res = reply(
             deps.as_mut(),
             env,
@@ -1371,7 +1385,7 @@ mod tests {
         let initial_msg = ExecuteMsg::UpdateConfig {
             pools_contract: None,
             scc_contract: None,
-            delegator_contract: None
+            delegator_contract: None,
         };
         let err = execute(
             deps.as_mut(),
@@ -1379,7 +1393,7 @@ mod tests {
             mock_info("other", &[]),
             initial_msg.clone(),
         )
-            .unwrap_err();
+        .unwrap_err();
         assert!(matches!(err, ContractError::Unauthorized {}));
         let err = execute(
             deps.as_mut(),
@@ -1387,7 +1401,7 @@ mod tests {
             mock_info("creator", &[Coin::new(14, "utest")]),
             initial_msg.clone(),
         )
-            .unwrap_err();
+        .unwrap_err();
         assert!(matches!(err, ContractError::FundsNotExpected {}));
 
         let mut expected_config = Config {
@@ -1405,7 +1419,8 @@ mod tests {
             env.clone(),
             mock_info("creator", &[]),
             initial_msg.clone(),
-        ).unwrap();
+        )
+        .unwrap();
         assert!(res.messages.is_empty());
         let config = CONFIG.load(deps.as_mut().storage).unwrap();
         assert_eq!(config, expected_config);
@@ -1425,9 +1440,11 @@ mod tests {
             ExecuteMsg::UpdateConfig {
                 pools_contract: Some(Addr::unchecked("new_pools_addr")),
                 scc_contract: Some(Addr::unchecked("new_scc_addr")),
-                delegator_contract: Some(Addr::unchecked("new_delegator_addr"))
-            }.clone(),
-        ).unwrap();
+                delegator_contract: Some(Addr::unchecked("new_delegator_addr")),
+            }
+            .clone(),
+        )
+        .unwrap();
         assert!(res.messages.is_empty());
         let config = CONFIG.load(deps.as_mut().storage).unwrap();
         assert_eq!(config, expected_config);
