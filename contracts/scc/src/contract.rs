@@ -296,7 +296,7 @@ pub fn try_withdraw_pending_rewards(
 
     Ok(Response::new().add_message(send_funds_msg(
         &user_addr,
-        &vec![Coin::new(user_pending_rewards.u128(), state.scc_denom)],
+        &[Coin::new(user_pending_rewards.u128(), state.scc_denom)],
     )))
 }
 

@@ -96,7 +96,7 @@ pub fn decimal_subtraction_in_256(a: Decimal, b: Decimal) -> Decimal {
 // Not to be used with Vec<{(120, "token1"), (30, "token1") ..}. No denom should be present more than once.
 pub fn add_coin_vector_to_map(
     existing_coins: &mut HashMap<String, Uint128>,
-    new_coins: &Vec<Coin>,
+    new_coins: &[Coin],
 ) -> HashMap<String, Uint128> {
     let mut accumulated_coins: HashMap<String, Uint128> = existing_coins.clone();
     let mut denom_set: HashSet<String> = HashSet::new();
@@ -123,7 +123,7 @@ pub fn add_coin_vector_to_map(
 // Not to be used with Vec<{(120, "token1"), (30, "token1") ..}. No denom should be present more than once.
 pub fn subtract_coin_vector_from_map(
     existing_coins: &mut HashMap<String, Uint128>,
-    new_coins: &Vec<Coin>,
+    new_coins: &[Coin],
 ) -> HashMap<String, Uint128> {
     let mut dissipated_coins: HashMap<String, Uint128> = existing_coins.clone();
     let mut denom_set: HashSet<String> = HashSet::new();
@@ -159,13 +159,13 @@ pub fn subtract_coin_vector_from_map(
 }
 
 // TODO - GM. Make these add & subtract coinvecs and deccoinvecs more efficient
-fn add_coin_vectors(coins1: &Vec<Coin>, coins2: &Vec<Coin>) -> Vec<Coin> {
+fn add_coin_vectors(coins1: &[Coin], coins2: &[Coin]) -> Vec<Coin> {
     let mut coin_map = add_coin_vector_to_map(&mut HashMap::new(), coins1);
     coin_map = add_coin_vector_to_map(&mut coin_map, coins2);
     map_to_coin_vec(coin_map)
 }
 
-fn subtract_coin_vectors(coins1: &Vec<Coin>, coins2: &Vec<Coin>) -> Vec<Coin> {
+fn subtract_coin_vectors(coins1: &[Coin], coins2: &[Coin]) -> Vec<Coin> {
     let mut coin_map = add_coin_vector_to_map(&mut HashMap::new(), coins1);
     coin_map = subtract_coin_vector_from_map(&mut coin_map, coins2);
     map_to_coin_vec(coin_map)

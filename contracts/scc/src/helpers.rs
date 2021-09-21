@@ -180,7 +180,7 @@ pub fn get_strategy_split(
 
 pub fn validate_user_portfolio(
     storage: &mut dyn Storage,
-    user_portfolio: &Vec<UserStrategyPortfolio>,
+    user_portfolio: &[UserStrategyPortfolio],
 ) -> Result<bool, ContractError> {
     let mut total_deposit_fraction = Uint128::zero();
     for u in user_portfolio {
@@ -213,22 +213,15 @@ mod tests {
     };
     use crate::msg::InstantiateMsg;
     use crate::state::{
-        Config, StrategyInfo, UserRewardInfo, UserStrategyInfo, UserStrategyPortfolio, CONFIG,
-        STATE, STRATEGY_MAP, USER_REWARD_INFO_MAP,
+        StrategyInfo, UserRewardInfo, UserStrategyPortfolio, CONFIG, STATE, STRATEGY_MAP,
     };
     use crate::ContractError;
-    use cosmwasm_std::{
-        Addr, Coin, Decimal, Empty, Env, Fraction, MessageInfo, OwnedDeps, Response, StdResult,
-        Uint128,
-    };
+    use cosmwasm_std::{Addr, Decimal, Empty, Env, MessageInfo, OwnedDeps, Response, Uint128};
     use cw_storage_plus::U64Key;
-    use stader_utils::coin_utils::{decimal_division_in_256, decimal_subtraction_in_256};
     use stader_utils::mock::{
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
     };
-    use stader_utils::test_helpers::check_equal_vec;
     use std::collections::HashMap;
-    use std::ops::Div;
 
     pub fn instantiate_contract(
         deps: &mut OwnedDeps<MockStorage, MockApi, MockQuerier>,
@@ -255,12 +248,12 @@ mod tests {
     }
 
     #[test]
-    fn test__validate_user_portfolio() {
+    fn test_validate_user_portfolio() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
 
-        let res = instantiate_contract(&mut deps, &info, &env, None);
+        let _res = instantiate_contract(&mut deps, &info, &env, None);
 
         /*
            Test - 1. Non-existent strategy
@@ -345,7 +338,7 @@ mod tests {
         let info = mock_info("creator", &[]);
         let env = mock_env();
 
-        let res = instantiate_contract(&mut deps, &info, &env, None);
+        let _res = instantiate_contract(&mut deps, &info, &env, None);
 
         /*
            Test - 1. Strategy does not exist or is removed
@@ -408,7 +401,7 @@ mod tests {
         let info = mock_info("creator", &[]);
         let env = mock_env();
 
-        let res = instantiate_contract(&mut deps, &info, &env, None);
+        let _res = instantiate_contract(&mut deps, &info, &env, None);
 
         /*
            Test - 1. There is a strategy override and the strategy is not active
@@ -650,7 +643,7 @@ mod tests {
         let info = mock_info("creator", &[]);
         let env = mock_env();
 
-        let res = instantiate_contract(&mut deps, &info, &env, None);
+        let _res = instantiate_contract(&mut deps, &info, &env, None);
 
         let sic1_address = Addr::unchecked("sic1_address");
 
@@ -731,9 +724,9 @@ mod tests {
         let info = mock_info("creator", &[]);
         let env = mock_env();
 
-        let res = instantiate_contract(&mut deps, &info, &env, None);
+        let _res = instantiate_contract(&mut deps, &info, &env, None);
 
-        let deleg1 = Addr::unchecked("deleg0001".to_string());
+        let _deleg1 = Addr::unchecked("deleg0001".to_string());
         let initial_shares_per_token_ratio = Decimal::from_ratio(1_000_000_00_u128, 1_u128);
 
         /*

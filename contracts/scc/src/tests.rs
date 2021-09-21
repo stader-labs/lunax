@@ -1,9 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::contract::{execute, instantiate, query};
-    use crate::error::ContractError::{StrategyInfoDoesNotExist, UserNotInStrategy};
-    use crate::helpers::get_sic_total_tokens;
     use crate::msg::{
         ExecuteMsg, GetAllStrategiesResponse, GetConfigResponse, GetStateResponse,
         GetStrategiesListResponse, GetUserResponse, InstantiateMsg, QueryMsg, StrategyInfoQuery,
@@ -20,19 +17,16 @@ mod tests {
     };
     use crate::ContractError;
     use cosmwasm_std::{
-        coins, from_binary, to_binary, Addr, Api, Attribute, BankMsg, Binary, Coin, Decimal,
-        DepsMut, Empty, Env, MessageInfo, OwnedDeps, QuerierWrapper, Response, StdResult, SubMsg,
-        Timestamp, Uint128, WasmMsg,
+        coins, from_binary, to_binary, Addr, Attribute, BankMsg, Binary, Coin, Decimal, Empty, Env,
+        MessageInfo, OwnedDeps, Response, StdResult, SubMsg, Timestamp, Uint128, WasmMsg,
     };
     use cw_storage_plus::U64Key;
-    use serde::de::Unexpected::Str;
-    use sic_base::msg::{ExecuteMsg as sic_execute_msg, QueryMsg as sic_query_msg};
+    use sic_base::msg::ExecuteMsg as sic_execute_msg;
     use stader_utils::coin_utils::DecCoin;
     use stader_utils::mock::{
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
     };
     use stader_utils::test_helpers::check_equal_vec;
-    use std::borrow::Borrow;
     use std::collections::HashMap;
 
     fn instantiate_contract(
@@ -66,7 +60,7 @@ mod tests {
         let info = mock_info("creator", &coins(1000, "earth"));
         let env = mock_env();
 
-        let res = instantiate_contract(
+        let _res = instantiate_contract(
             &mut deps,
             &info,
             &env,
@@ -122,12 +116,12 @@ mod tests {
     }
 
     #[test]
-    fn test__query_get_user() {
+    fn test_query_get_user() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &coins(1000, "earth"));
         let env = mock_env();
 
-        let res = instantiate_contract(
+        let _res = instantiate_contract(
             &mut deps,
             &info,
             &env,
@@ -371,12 +365,12 @@ mod tests {
     }
 
     #[test]
-    fn test__query_get_all_strategies() {
+    fn test_query_get_all_strategies() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &coins(1000, "earth"));
         let env = mock_env();
 
-        let res = instantiate_contract(
+        let _res = instantiate_contract(
             &mut deps,
             &info,
             &env,
@@ -548,12 +542,12 @@ mod tests {
     }
 
     #[test]
-    fn test__query_strategies_list() {
+    fn test_query_strategies_list() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &coins(1000, "earth"));
         let env = mock_env();
 
-        let res = instantiate_contract(
+        let _res = instantiate_contract(
             &mut deps,
             &info,
             &env,
@@ -623,12 +617,12 @@ mod tests {
     }
 
     #[test]
-    fn test__try_update_config_fail() {
+    fn test_try_update_config_fail() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &coins(1000, "earth"));
         let env = mock_env();
 
-        let res = instantiate_contract(
+        let _res = instantiate_contract(
             &mut deps,
             &info,
             &env,
@@ -732,12 +726,12 @@ mod tests {
     }
 
     #[test]
-    fn test__try_update_config_success() {
+    fn test_try_update_config_success() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &coins(1000, "earth"));
         let env = mock_env();
 
-        let res = instantiate_contract(
+        let _res = instantiate_contract(
             &mut deps,
             &info,
             &env,
@@ -779,7 +773,7 @@ mod tests {
             },
         );
 
-        let res = execute(
+        let _res = execute(
             deps.as_mut(),
             env.clone(),
             mock_info("creator", &[]),
@@ -828,12 +822,12 @@ mod tests {
     }
 
     #[test]
-    fn test__try_deposit_funds_fail() {
+    fn test_try_deposit_funds_fail() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &coins(1000, "earth"));
         let env = mock_env();
 
-        let res = instantiate_contract(
+        let _res = instantiate_contract(
             &mut deps,
             &info,
             &env,
@@ -915,12 +909,12 @@ mod tests {
     }
 
     #[test]
-    fn test__try_deposit_funds_success() {
+    fn test_try_deposit_funds_success() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
 
-        let res = instantiate_contract(
+        let _res = instantiate_contract(
             &mut deps,
             &info,
             &env,
@@ -1300,12 +1294,12 @@ mod tests {
     }
 
     #[test]
-    fn test__try_update_strategy_fail() {
+    fn test_try_update_strategy_fail() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
 
-        let res = instantiate_contract(
+        let _res = instantiate_contract(
             &mut deps,
             &info,
             &env,
@@ -1350,12 +1344,12 @@ mod tests {
     }
 
     #[test]
-    fn test__try_update_strategy_success() {
+    fn test_try_update_strategy_success() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
 
-        let res = instantiate_contract(
+        let _res = instantiate_contract(
             &mut deps,
             &info,
             &env,
@@ -1383,7 +1377,7 @@ mod tests {
             },
         );
 
-        let res = execute(
+        let _res = execute(
             deps.as_mut(),
             env.clone(),
             mock_info("creator", &[]),
@@ -1412,7 +1406,7 @@ mod tests {
         let info = mock_info("creator", &[]);
         let env = mock_env();
 
-        let res = instantiate_contract(
+        let _res = instantiate_contract(
             &mut deps,
             &info,
             &env,
@@ -1444,7 +1438,7 @@ mod tests {
         let info = mock_info("creator", &[]);
         let env = mock_env();
 
-        let res = instantiate_contract(
+        let _res = instantiate_contract(
             &mut deps,
             &info,
             &env,
@@ -1453,7 +1447,7 @@ mod tests {
             None,
         );
 
-        let res = execute(
+        let _res = execute(
             deps.as_mut(),
             env.clone(),
             mock_info("creator", &[]),
@@ -1480,7 +1474,7 @@ mod tests {
         let info = mock_info("creator", &[]);
         let env = mock_env();
 
-        let res = instantiate_contract(
+        let _res = instantiate_contract(
             &mut deps,
             &info,
             &env,
@@ -1865,7 +1859,7 @@ mod tests {
         let info = mock_info("creator", &[]);
         let env = mock_env();
 
-        let res = instantiate_contract(
+        let _res = instantiate_contract(
             &mut deps,
             &info,
             &env,
@@ -2576,7 +2570,7 @@ mod tests {
         let info = mock_info("creator", &[]);
         let env = mock_env();
 
-        let res = instantiate_contract(
+        let _res = instantiate_contract(
             &mut deps,
             &info,
             &env,
@@ -2606,7 +2600,7 @@ mod tests {
         let info = mock_info("creator", &[]);
         let env = mock_env();
 
-        let res = instantiate_contract(
+        let _res = instantiate_contract(
             &mut deps,
             &info,
             &env,
@@ -3367,7 +3361,7 @@ mod tests {
         let info = mock_info("creator", &[]);
         let env = mock_env();
 
-        let res = instantiate_contract(
+        let _res = instantiate_contract(
             &mut deps,
             &info,
             &env,
@@ -3386,7 +3380,7 @@ mod tests {
             U64Key::new(1),
             &StrategyInfo::default("sid1".to_string()),
         );
-        let mut err = execute(
+        let err = execute(
             deps.as_mut(),
             env.clone(),
             mock_info(user1.as_str(), &[]),
@@ -3407,7 +3401,7 @@ mod tests {
             &StrategyInfo::default("sid1".to_string()),
         );
         USER_REWARD_INFO_MAP.save(deps.as_mut().storage, &user1, &UserRewardInfo::default());
-        let mut err = execute(
+        let err = execute(
             deps.as_mut(),
             env.clone(),
             mock_info(user1.as_str(), &[]),
@@ -3462,7 +3456,7 @@ mod tests {
                 released: false,
             },
         );
-        let mut err = execute(
+        let err = execute(
             deps.as_mut(),
             env.clone(),
             mock_info(user1.as_str(), &[]),
@@ -3484,7 +3478,7 @@ mod tests {
         let info = mock_info("creator", &[]);
         let env = mock_env();
 
-        let res = instantiate_contract(
+        let _res = instantiate_contract(
             &mut deps,
             &info,
             &env,
@@ -3558,9 +3552,6 @@ mod tests {
                 amount: vec![Coin::new(75_u128, "uluna".to_string())]
             })]
         ));
-        let state_response: GetStateResponse =
-            from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::GetState {}).unwrap())
-                .unwrap();
         let user1_reward_info_opt = USER_REWARD_INFO_MAP
             .may_load(deps.as_mut().storage, &user1)
             .unwrap();
@@ -3646,9 +3637,6 @@ mod tests {
                 amount: vec![Coin::new(75_u128, "uluna".to_string())]
             })]
         ));
-        let state_response: GetStateResponse =
-            from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::GetState {}).unwrap())
-                .unwrap();
         let user1_reward_info_opt = USER_REWARD_INFO_MAP
             .may_load(deps.as_mut().storage, &user1)
             .unwrap();
@@ -3668,12 +3656,12 @@ mod tests {
     }
 
     #[test]
-    fn test__try_undelegate_user_rewards_fail() {
+    fn test_try_undelegate_user_rewards_fail() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
 
-        let res = instantiate_contract(
+        let _res = instantiate_contract(
             &mut deps,
             &info,
             &env,
@@ -3688,7 +3676,7 @@ mod tests {
         /*
            Test - 1. Zero funds undelegations
         */
-        let mut err = execute(
+        let err = execute(
             deps.as_mut(),
             env.clone(),
             mock_info(user1.as_str(), &[]),
@@ -3703,7 +3691,7 @@ mod tests {
         /*
            Test - 2. Strategy info does not exist
         */
-        let mut err = execute(
+        let err = execute(
             deps.as_mut(),
             env.clone(),
             mock_info(user1.as_str(), &[]),
@@ -3723,7 +3711,7 @@ mod tests {
             U64Key::new(1),
             &StrategyInfo::default("sid1".to_string()),
         );
-        let mut err = execute(
+        let err = execute(
             deps.as_mut(),
             env.clone(),
             mock_info(user1.as_str(), &[]),
@@ -3744,7 +3732,7 @@ mod tests {
             &StrategyInfo::default("sid1".to_string()),
         );
         USER_REWARD_INFO_MAP.save(deps.as_mut().storage, &user1, &UserRewardInfo::default());
-        let mut err = execute(
+        let err = execute(
             deps.as_mut(),
             env.clone(),
             mock_info(user1.as_str(), &[]),
@@ -3797,7 +3785,7 @@ mod tests {
             },
         );
 
-        let mut err = execute(
+        let err = execute(
             deps.as_mut(),
             env.clone(),
             mock_info(user1.as_str(), &[]),
@@ -3814,12 +3802,12 @@ mod tests {
     }
 
     #[test]
-    fn test__try_undelegate_user_rewards_success() {
+    fn test_try_undelegate_user_rewards_success() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
 
-        let res = instantiate_contract(
+        let _res = instantiate_contract(
             &mut deps,
             &info,
             &env,
@@ -3830,7 +3818,7 @@ mod tests {
 
         let user1 = Addr::unchecked("user1");
         let sic1_address = Addr::unchecked("sic1_address");
-        let sic2_address = Addr::unchecked("sic2_address");
+        let _sic2_address = Addr::unchecked("sic2_address");
 
         /*
            Test - 1. User undelegates for the first time from a strategy
@@ -3883,7 +3871,7 @@ mod tests {
             },
         );
 
-        let res = execute(
+        let _res = execute(
             deps.as_mut(),
             env.clone(),
             mock_info(user1.as_str(), &[]),
@@ -4024,7 +4012,7 @@ mod tests {
             },
         );
 
-        let res = execute(
+        let _res = execute(
             deps.as_mut(),
             env.clone(),
             mock_info(user1.as_str(), &[]),
@@ -4113,12 +4101,12 @@ mod tests {
     }
 
     #[test]
-    fn test__try_claim_airdrops_fail() {
+    fn test_try_claim_airdrops_fail() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &coins(1000, "earth"));
         let env = mock_env();
 
-        let res = instantiate_contract(
+        let _res = instantiate_contract(
             &mut deps,
             &info,
             &env,
@@ -4134,7 +4122,7 @@ mod tests {
         /*
            Test - 1. Unauthorized
         */
-        let mut err = execute(
+        let err = execute(
             deps.as_mut(),
             env.clone(),
             mock_info("not-creator", &[]),
@@ -4151,7 +4139,7 @@ mod tests {
         /*
            Test - 2. Unregistered airdrop
         */
-        let mut err = execute(
+        let err = execute(
             deps.as_mut(),
             env.clone(),
             mock_info("creator", &[]),
@@ -4177,7 +4165,7 @@ mod tests {
             },
         );
 
-        let mut err = execute(
+        let err = execute(
             deps.as_mut(),
             env.clone(),
             mock_info("creator", &[]),
@@ -4193,12 +4181,12 @@ mod tests {
     }
 
     #[test]
-    fn test__try_claim_airdrops_success() {
+    fn test_try_claim_airdrops_success() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &coins(1000, "earth"));
         let env = mock_env();
 
-        let res = instantiate_contract(
+        let _res = instantiate_contract(
             &mut deps,
             &info,
             &env,
@@ -4394,12 +4382,12 @@ mod tests {
     }
 
     #[test]
-    fn test__try_withdraw_airdrops_fail() {
+    fn test_try_withdraw_airdrops_fail() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &coins(1000, "earth"));
         let env = mock_env();
 
-        let res = instantiate_contract(
+        let _res = instantiate_contract(
             &mut deps,
             &info,
             &env,
@@ -4411,7 +4399,7 @@ mod tests {
         /*
            Test - 1. User reward info does not exist
         */
-        let mut err = execute(
+        let err = execute(
             deps.as_mut(),
             env.clone(),
             mock_info("not-creator", &[]),
@@ -4422,12 +4410,12 @@ mod tests {
     }
 
     #[test]
-    fn test__try_withdraw_airdrops_success() {
+    fn test_try_withdraw_airdrops_success() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &coins(1000, "earth"));
         let env = mock_env();
 
-        let res = instantiate_contract(
+        let _res = instantiate_contract(
             &mut deps,
             &info,
             &env,
@@ -4676,12 +4664,12 @@ mod tests {
     }
 
     #[test]
-    fn test__try_withdraw_pending_rewards_fail() {
+    fn test_try_withdraw_pending_rewards_fail() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &coins(1000, "earth"));
         let env = mock_env();
 
-        let res = instantiate_contract(
+        let _res = instantiate_contract(
             &mut deps,
             &info,
             &env,
@@ -4708,12 +4696,12 @@ mod tests {
     }
 
     #[test]
-    fn test__try_withdraw_pending_rewards_success() {
+    fn test_try_withdraw_pending_rewards_success() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &coins(1000, "earth"));
         let env = mock_env();
 
-        let res = instantiate_contract(
+        let _res = instantiate_contract(
             &mut deps,
             &info,
             &env,
@@ -4827,12 +4815,12 @@ mod tests {
     }
 
     #[test]
-    fn test__try_update_user_portfolio_fail() {
+    fn test_try_update_user_portfolio_fail() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &coins(1000, "earth"));
         let env = mock_env();
 
-        let res = instantiate_contract(
+        let _res = instantiate_contract(
             &mut deps,
             &info,
             &env,
@@ -4956,12 +4944,12 @@ mod tests {
     }
 
     #[test]
-    fn test__try_update_user_portfolio_success() {
+    fn test_try_update_user_portfolio_success() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &coins(1000, "earth"));
         let env = mock_env();
 
-        let res = instantiate_contract(
+        let _res = instantiate_contract(
             &mut deps,
             &info,
             &env,
@@ -4999,7 +4987,7 @@ mod tests {
                 pending_rewards: Default::default(),
             },
         );
-        let res = execute(
+        let _res = execute(
             deps.as_mut(),
             env.clone(),
             mock_info("user1", &[]),
@@ -5038,12 +5026,12 @@ mod tests {
     }
 
     #[test]
-    fn test__try_update_user_rewards_fail() {
+    fn test_try_update_user_rewards_fail() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &coins(1000, "earth"));
         let env = mock_env();
 
-        let res = instantiate_contract(
+        let _res = instantiate_contract(
             &mut deps,
             &info,
             &env,
@@ -5053,11 +5041,6 @@ mod tests {
         );
 
         let user1 = Addr::unchecked("user1");
-        let user2 = Addr::unchecked("user2");
-        let user3 = Addr::unchecked("user3");
-        let sic1_address = Addr::unchecked("sic1_address");
-        let sic2_address = Addr::unchecked("sic2_address");
-        let sic3_address = Addr::unchecked("sic3_address");
 
         /*
            Test - 1. Unauthorized
@@ -5132,12 +5115,12 @@ mod tests {
     }
 
     #[test]
-    fn test__try_update_user_rewards_success() {
+    fn test_try_update_user_rewards_success() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &coins(1000, "earth"));
         let env = mock_env();
 
-        let res = instantiate_contract(
+        let _res = instantiate_contract(
             &mut deps,
             &info,
             &env,
@@ -6690,12 +6673,12 @@ mod tests {
     }
 
     #[test]
-    fn test__try_register_strategy_fail() {
+    fn test_try_register_strategy_fail() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &coins(1000, "earth"));
         let env = mock_env();
 
-        let res = instantiate_contract(
+        let _res = instantiate_contract(
             &mut deps,
             &info,
             &env,
@@ -6707,7 +6690,7 @@ mod tests {
         /*
            Test - 1. Unauthorized
         */
-        let mut err = execute(
+        let err = execute(
             deps.as_mut(),
             env.clone(),
             mock_info("not-creator", &[]),
@@ -6723,12 +6706,12 @@ mod tests {
     }
 
     #[test]
-    fn test__try_register_strategy_success() {
+    fn test_try_register_strategy_success() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &coins(1000, "earth"));
         let env = mock_env();
 
-        let res = instantiate_contract(
+        let _res = instantiate_contract(
             &mut deps,
             &info,
             &env,
@@ -6737,7 +6720,7 @@ mod tests {
             None,
         );
 
-        let res = execute(
+        let _res = execute(
             deps.as_mut(),
             env.clone(),
             mock_info("creator", &[]),
@@ -6773,7 +6756,7 @@ mod tests {
             }
         );
 
-        let res = execute(
+        let _res = execute(
             deps.as_mut(),
             env.clone(),
             mock_info("creator", &[]),
@@ -6811,12 +6794,12 @@ mod tests {
     }
 
     #[test]
-    fn test__try_update_user_airdrops_fail() {
+    fn test_try_update_user_airdrops_fail() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &coins(1000, "earth"));
         let env = mock_env();
 
-        let res = instantiate_contract(
+        let _res = instantiate_contract(
             &mut deps,
             &info,
             &env,
@@ -6828,7 +6811,7 @@ mod tests {
         /*
            Test - 1. Unauthorized
         */
-        let mut err = execute(
+        let err = execute(
             deps.as_mut(),
             env.clone(),
             mock_info("not-creator", &[]),
@@ -6862,12 +6845,12 @@ mod tests {
     }
 
     #[test]
-    fn test__try_update_user_airdrops_success() {
+    fn test_try_update_user_airdrops_success() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &coins(1000, "earth"));
         let env = mock_env();
 
-        let res = instantiate_contract(
+        let _res = instantiate_contract(
             &mut deps,
             &info,
             &env,
@@ -6884,7 +6867,7 @@ mod tests {
         /*
            Test - 1. First airdrops
         */
-        let res = execute(
+        let _res = execute(
             deps.as_mut(),
             env.clone(),
             mock_info("delegator_contract", &[]),
@@ -7010,7 +6993,7 @@ mod tests {
             },
         );
 
-        let res = execute(
+        let _res = execute(
             deps.as_mut(),
             env.clone(),
             mock_info("delegator_contract", &[]),

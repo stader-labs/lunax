@@ -50,8 +50,8 @@ pub fn allocate_user_airdrops_across_strategies(
 }
 
 pub fn get_user_airdrops(
-    global_airdrop_pointer: &Vec<DecCoin>,
-    user_airdrop_pointer: &Vec<DecCoin>,
+    global_airdrop_pointer: &[DecCoin],
+    user_airdrop_pointer: &[DecCoin],
     user_shares: Decimal,
 ) -> Option<Vec<Coin>> {
     if global_airdrop_pointer.is_empty() {
@@ -65,7 +65,7 @@ pub fn get_user_airdrops(
     let airdrop_pointer_difference = merge_dec_coin_vector(
         &global_airdrop_pointer,
         DecCoinVecOp {
-            fund: user_airdrop_pointer.clone(),
+            fund: user_airdrop_pointer.to_vec(),
             operation: Operation::Sub,
         },
     );

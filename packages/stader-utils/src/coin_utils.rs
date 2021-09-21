@@ -93,13 +93,13 @@ pub fn merge_coin(coin1: Coin, coin_op: CoinOp) -> Coin {
 }
 
 // TODO - GM. This has to be a trait with DecCoin.
-pub fn check_equal_deccoin_vector(deccoins1: &Vec<DecCoin>, deccoins2: &Vec<DecCoin>) -> bool {
+pub fn check_equal_deccoin_vector(deccoins1: &[DecCoin], deccoins2: &[DecCoin]) -> bool {
     deccoins1.len() == deccoins2.len()
         && deccoins1.iter().all(|x| deccoins2.contains(x))
         && deccoins2.iter().all(|x| deccoins1.contains(x))
 }
 
-pub fn check_equal_coin_vector(coins1: &Vec<Coin>, coins2: &Vec<Coin>) -> bool {
+pub fn check_equal_coin_vector(coins1: &[Coin], coins2: &[Coin]) -> bool {
     coins1.len() == coins2.len()
         && coins1.iter().all(|x| coins2.contains(x))
         && coins2.iter().all(|x| coins1.contains(x))
@@ -131,7 +131,7 @@ pub fn map_to_deccoin_vec(coin_map: HashMap<String, Decimal>) -> Vec<DecCoin> {
 // Jumbles the order of the vector
 // (Coins + CoinVecOp.fund) and (Coins - CoinVecOp.fund) [Element wise operation but Sub is stricter than set operation]
 pub fn merge_dec_coin_vector(
-    deccoins: &Vec<DecCoin>,
+    deccoins: &[DecCoin],
     deccoin_vec_op: DecCoinVecOp,
 ) -> Vec<DecCoin> {
     let fund = deccoin_vec_op.fund;
@@ -146,7 +146,7 @@ pub fn merge_dec_coin_vector(
 
 // Jumbles the order of the vector
 // (Coins + CoinVecOp.fund) and (Coins - CoinVecOp.fund) [Element wise operation but Sub is stricter than set operation]
-pub fn merge_coin_vector(coins: &Vec<Coin>, coin_vec_op: CoinVecOp) -> Vec<Coin> {
+pub fn merge_coin_vector(coins: &[Coin], coin_vec_op: CoinVecOp) -> Vec<Coin> {
     let fund = coin_vec_op.fund;
     let operation = coin_vec_op.operation;
 
@@ -224,7 +224,7 @@ pub fn merge_decimal(decimal1: Decimal, decimal_op: DecimalOp) -> Decimal {
 // Not to be used with Vec<{(120, "token1"), (30, "token1") ..}. No denom should be present more than once.
 pub fn add_coin_vector_to_map(
     existing_coins: &mut HashMap<String, Uint128>,
-    new_coins: &Vec<Coin>,
+    new_coins: &[Coin],
 ) -> HashMap<String, Uint128> {
     let mut accumulated_coins: HashMap<String, Uint128> = existing_coins.clone();
     let mut denom_set: HashSet<String> = HashSet::new();
@@ -251,7 +251,7 @@ pub fn add_coin_vector_to_map(
 // Not to be used with Vec<{(120, "token1"), (30, "token1") ..}. No denom should be present more than once.
 pub fn subtract_coin_vector_from_map(
     existing_coins: &mut HashMap<String, Uint128>,
-    new_coins: &Vec<Coin>,
+    new_coins: &[Coin],
 ) -> HashMap<String, Uint128> {
     let mut dissipated_coins: HashMap<String, Uint128> = existing_coins.clone();
     let mut denom_set: HashSet<String> = HashSet::new();
@@ -289,7 +289,7 @@ pub fn subtract_coin_vector_from_map(
 // Not to be used with Vec<{(120/200, "token1"), (30/23, "token1") ..}. No denom should be present more than once.
 pub fn add_deccoin_vector_to_map(
     existing_deccoins: &mut HashMap<String, Decimal>,
-    new_deccoins: &Vec<DecCoin>,
+    new_deccoins: &[DecCoin],
 ) -> HashMap<String, Decimal> {
     let mut accumulated_coins: HashMap<String, Decimal> = existing_deccoins.clone();
     let mut denom_set: HashSet<String> = HashSet::new();
@@ -317,7 +317,7 @@ pub fn add_deccoin_vector_to_map(
 // (existing_deccoins - new_deccoins) vector subtraction.
 pub fn subtract_deccoin_vector_from_map(
     existing_deccoins: &mut HashMap<String, Decimal>,
-    new_deccoins: &Vec<DecCoin>,
+    new_deccoins: &[DecCoin],
 ) -> HashMap<String, Decimal> {
     let mut dissipated_coins: HashMap<String, Decimal> = existing_deccoins.clone();
     let mut denom_set: HashSet<String> = HashSet::new();
@@ -352,7 +352,7 @@ pub fn subtract_deccoin_vector_from_map(
     dissipated_coins
 }
 
-pub fn filter_by_denom(coin_vector: &Vec<Coin>, denoms: Vec<String>) -> Vec<Coin> {
+pub fn filter_by_denom(coin_vector: &[Coin], denoms: Vec<String>) -> Vec<Coin> {
     coin_vector
         .iter()
         .filter(|&x| denoms.contains(&x.denom))
@@ -360,7 +360,7 @@ pub fn filter_by_denom(coin_vector: &Vec<Coin>, denoms: Vec<String>) -> Vec<Coin
         .collect()
 }
 
-pub fn filter_by_other_denom(coin_vector: &Vec<Coin>, denoms: Vec<String>) -> Vec<Coin> {
+pub fn filter_by_other_denom(coin_vector: &[Coin], denoms: Vec<String>) -> Vec<Coin> {
     coin_vector
         .iter()
         .filter(|&x| !denoms.contains(&x.denom))
@@ -369,31 +369,31 @@ pub fn filter_by_other_denom(coin_vector: &Vec<Coin>, denoms: Vec<String>) -> Ve
 }
 
 // TODO - GM. Make these add & subtract coinvecs and deccoinvecs more efficient
-fn add_coin_vectors(coins1: &Vec<Coin>, coins2: &Vec<Coin>) -> Vec<Coin> {
+fn add_coin_vectors(coins1: &[Coin], coins2: &[Coin]) -> Vec<Coin> {
     let mut coin_map = add_coin_vector_to_map(&mut HashMap::new(), coins1);
     coin_map = add_coin_vector_to_map(&mut coin_map, coins2);
     map_to_coin_vec(coin_map)
 }
 
-fn subtract_coin_vectors(coins1: &Vec<Coin>, coins2: &Vec<Coin>) -> Vec<Coin> {
+fn subtract_coin_vectors(coins1: &[Coin], coins2: &[Coin]) -> Vec<Coin> {
     let mut coin_map = add_coin_vector_to_map(&mut HashMap::new(), coins1);
     coin_map = subtract_coin_vector_from_map(&mut coin_map, coins2);
     map_to_coin_vec(coin_map)
 }
 
-fn add_deccoin_vectors(deccoin1: &Vec<DecCoin>, deccoin2: &Vec<DecCoin>) -> Vec<DecCoin> {
+fn add_deccoin_vectors(deccoin1: &[DecCoin], deccoin2: &[DecCoin]) -> Vec<DecCoin> {
     let mut deccoin_map = add_deccoin_vector_to_map(&mut HashMap::new(), deccoin1);
     deccoin_map = add_deccoin_vector_to_map(&mut deccoin_map, deccoin2);
     map_to_deccoin_vec(deccoin_map)
 }
 
-fn subtract_deccoin_vectors(deccoin1: &Vec<DecCoin>, deccoin2: &Vec<DecCoin>) -> Vec<DecCoin> {
+fn subtract_deccoin_vectors(deccoin1: &[DecCoin], deccoin2: &[DecCoin]) -> Vec<DecCoin> {
     let mut deccoin_map = add_deccoin_vector_to_map(&mut HashMap::new(), deccoin1);
     deccoin_map = subtract_deccoin_vector_from_map(&mut deccoin_map, deccoin2);
     map_to_deccoin_vec(deccoin_map)
 }
 
-pub fn multiply_deccoin_vector_with_decimal(coins: &Vec<DecCoin>, ratio: Decimal) -> Vec<DecCoin> {
+pub fn multiply_deccoin_vector_with_decimal(coins: &[DecCoin], ratio: Decimal) -> Vec<DecCoin> {
     let mut result: Vec<DecCoin> = vec![];
     for deccoin in coins {
         let decimal = decimal_multiplication_in_256(deccoin.amount, ratio);
@@ -406,7 +406,7 @@ pub fn multiply_deccoin_vector_with_decimal(coins: &Vec<DecCoin>, ratio: Decimal
 }
 
 pub fn multiply_deccoin_vector_with_uint128(
-    deccoins: &Vec<DecCoin>,
+    deccoins: &[DecCoin],
     amount: Uint128,
 ) -> Vec<DecCoin> {
     let mut result: Vec<DecCoin> = vec![];
@@ -453,14 +453,14 @@ pub fn deccoin_to_coin(deccoin: DecCoin) -> Coin {
     )
 }
 
-pub fn coin_vec_to_deccoin_vec(coins: &Vec<Coin>) -> Vec<DecCoin> {
+pub fn coin_vec_to_deccoin_vec(coins: &[Coin]) -> Vec<DecCoin> {
     coins
         .iter()
         .map(|coin| coin_to_deccoin(coin.clone()))
         .collect()
 }
 
-pub fn deccoin_vec_to_coin_vec(deccoins: &Vec<DecCoin>) -> Vec<Coin> {
+pub fn deccoin_vec_to_coin_vec(deccoins: &[DecCoin]) -> Vec<Coin> {
     deccoins
         .iter()
         .map(|deccoin| deccoin_to_coin(deccoin.clone()))

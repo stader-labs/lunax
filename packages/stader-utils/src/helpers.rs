@@ -2,7 +2,7 @@ use cosmwasm_std::{Addr, BankMsg, Coin, Decimal, Fraction, QuerierWrapper, Uint1
 use std::collections::HashMap;
 use terra_cosmwasm::TerraQuerier;
 
-pub fn send_funds_msg(recipient_addr: &Addr, funds: &Vec<Coin>) -> BankMsg {
+pub fn send_funds_msg(recipient_addr: &Addr, funds: &[Coin]) -> BankMsg {
     BankMsg::Send {
         to_address: String::from(recipient_addr),
         amount: funds
@@ -25,7 +25,7 @@ pub fn uint128_from_decimal(a: Decimal) -> Uint128 {
 pub fn query_exchange_rates(
     querier: QuerierWrapper,
     base_denom: String,
-    quote_denoms: &Vec<String>,
+    quote_denoms: &[String],
 ) -> HashMap<String, Decimal> {
     let querier = TerraQuerier::new(&querier);
     let mut er_map: HashMap<String, Decimal> = HashMap::new();
