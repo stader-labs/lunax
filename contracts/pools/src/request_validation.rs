@@ -125,7 +125,7 @@ pub fn create_new_undelegation_batch(
     pool_id: u64,
     pool_meta: &mut PoolRegistryInfo,
 ) -> Result<(), ContractError> {
-    pool_meta.current_undelegation_batch_id = pool_meta.current_undelegation_batch_id + 1;
+    pool_meta.current_undelegation_batch_id += 1;
     let new_batch_id = pool_meta.current_undelegation_batch_id;
     POOL_REGISTRY.save(storage, U64Key::new(pool_id), &pool_meta)?;
 

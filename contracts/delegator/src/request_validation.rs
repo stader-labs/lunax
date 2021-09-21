@@ -91,7 +91,7 @@ pub fn update_user_pointers(
         .pending_rewards
         .checked_add(Uint128::new(multiply_u128_with_decimal(
             user_info.deposit.staked.u128(),
-            decimal_subtraction_in_256(rewards_pointer.clone(), user_info.rewards_pointer),
+            decimal_subtraction_in_256(rewards_pointer, user_info.rewards_pointer),
         )))
         .unwrap();
     user_info.rewards_pointer = rewards_pointer;

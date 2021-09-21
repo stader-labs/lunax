@@ -1,4 +1,4 @@
-use cosmwasm_std::{Addr, BankMsg, Coin, Decimal, Fraction, QuerierWrapper, Uint128};
+use cosmwasm_std::{Addr, BankMsg, Coin, Decimal, QuerierWrapper};
 use std::collections::HashMap;
 use terra_cosmwasm::TerraQuerier;
 
