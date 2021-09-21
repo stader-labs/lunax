@@ -6690,68 +6690,6 @@ mod tests {
     }
 
     #[test]
-    fn test__try_remove_strategy_fail() {
-        let mut deps = mock_dependencies(&[]);
-        let info = mock_info("creator", &coins(1000, "earth"));
-        let env = mock_env();
-
-        let res = instantiate_contract(
-            &mut deps,
-            &info,
-            &env,
-            Some(String::from("uluna")),
-            Some(String::from("delegator_contract")),
-            None,
-        );
-
-        /*
-            Test - 1. Unauthorized
-        */
-        let mut err = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info("not-creator", &[]),
-            ExecuteMsg::RemoveStrategy { strategy_id: 2 },
-        )
-        .unwrap_err();
-        assert!(matches!(err, ContractError::Unauthorized {}));
-    }
-
-    #[test]
-    fn test__try_remove_strategy_success() {
-        let mut deps = mock_dependencies(&[]);
-        let info = mock_info("creator", &coins(1000, "earth"));
-        let env = mock_env();
-
-        let res = instantiate_contract(
-            &mut deps,
-            &info,
-            &env,
-            Some(String::from("uluna")),
-            Some(String::from("delegator_contract")),
-            None,
-        );
-
-        STRATEGY_MAP.save(
-            deps.as_mut().storage,
-            U64Key::new(3),
-            &StrategyInfo::default("sid".to_string()),
-        );
-
-        let res = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info("creator", &[]),
-            ExecuteMsg::RemoveStrategy { strategy_id: 3 },
-        )
-        .unwrap();
-        let strategy_info_op = STRATEGY_MAP
-            .may_load(deps.as_mut().storage, U64Key::new(3))
-            .unwrap();
-        assert_eq!(strategy_info_op, None);
-    }
-
-    #[test]
     fn test__try_register_strategy_fail() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &coins(1000, "earth"));

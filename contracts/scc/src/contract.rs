@@ -120,9 +120,6 @@ pub fn execute(
             unbonding_buffer,
             is_active,
         ),
-        ExecuteMsg::RemoveStrategy { strategy_id } => {
-            try_remove_strategy(deps, _env, info, strategy_id)
-        }
         ExecuteMsg::UpdateUserPortfolio { user_portfolio } => {
             try_update_user_portfolio(deps, _env, info, user_portfolio)
         }
@@ -949,24 +946,6 @@ pub fn try_register_strategy(
         state.next_strategy_id += 1;
         Ok(state)
     })?;
-
-    Ok(Response::default())
-}
-
-// to remove rewards, deactivate the strategy and then once all users have withdrawn
-// their share of the funds, we can remove it.
-pub fn try_remove_strategy(
-    deps: DepsMut,
-    _env: Env,
-    info: MessageInfo,
-    strategy_id: u64,
-) -> Result<Response, ContractError> {
-    let state = STATE.load(deps.storage)?;
-    if info.sender != state.manager {
-        return Err(ContractError::Unauthorized {});
-    }
-
-    STRATEGY_MAP.remove(deps.storage, U64Key::new(strategy_id));
 
     Ok(Response::default())
 }

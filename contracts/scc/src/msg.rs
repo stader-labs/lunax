@@ -71,35 +71,32 @@ pub enum ExecuteMsg {
     /*
        Manager messages
     */
+    // registers a strategy. Strategies need to be activated once registered.
     RegisterStrategy {
         strategy_name: String,
         sic_contract_address: Addr,
         unbonding_buffer: u64,
         unbonding_period: u64,
     },
-    RemoveStrategy {
-        strategy_id: u64,
-    },
+    // update strategy variables. This will be mostly used to activate a strategy
     UpdateStrategy {
         strategy_id: u64,
         unbonding_period: Option<u64>,
         unbonding_buffer: Option<u64>,
         is_active: Option<bool>,
     },
-    UpdateUserPortfolio {
-        user_portfolio: Vec<UserStrategyPortfolio>,
-    },
+    // register the airdrop and its contracts.
     RegisterCw20Contracts {
         denom: String,
         cw20_contract: Addr,
         airdrop_contract: Addr,
     },
     // undelegate all the queued up undelegation from all strategies. This takes into account
-    // a cooling period for the strategy. Certain strategies cannot be undelegate
+    // a cooling period for the strategy. Certain strategies cannot be undelegated from like "RETAIN_REWARDS"
     UndelegateFromStrategies {
         strategies: Vec<u64>,
     },
-    // called by manager, this message goes to the SICs and fetches the undelegated rewards which are
+    // this message goes to the SICs and fetches the undelegated rewards which are
     // sitting in the SIC.
     FetchUndelegatedRewardsFromStrategies {
         strategies: Vec<u64>,
@@ -127,7 +124,8 @@ pub enum ExecuteMsg {
     /*
        User messages
     */
-    // called by user to undelegate his rewards from a strategy
+    // called by user to undelegate his rewards from a strategy. This will begin unbonding the rewards
+    // in the strategy.
     UndelegateRewards {
         amount: Uint128,
         strategy_id: u64,
@@ -143,12 +141,18 @@ pub enum ExecuteMsg {
         undelegation_id: u64,
         strategy_id: u64,
     },
-    // called by the user to withdraw pending rewards i.e rewards which are not in any strategy
+    // called by the user to withdraw pending rewards i.e rewards which are not in any strategy. These rewards
+    // fall under the "RETAIN_REWARDS" strategy.
     WithdrawPendingRewards {},
+    // called by the user to withdraw all of her pending airdrops
     WithdrawAirdrops {},
     // called by user to directly deposit to SICs according to portfolio or give a strategy override
     DepositFunds {
         strategy_override: Option<u64>,
+    },
+    // called by user to update his strategy portfolio
+    UpdateUserPortfolio {
+        user_portfolio: Vec<UserStrategyPortfolio>,
     },
 }
 
