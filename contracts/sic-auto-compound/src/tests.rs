@@ -1,11 +1,7 @@
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::contract::{execute, instantiate, query};
     use crate::error::ContractError;
-    use crate::error::ContractError::{
-        UndelegationBatchInUnbondingPeriod, ValidatorAlreadyExistsInPool,
-    };
     use crate::msg::{ExecuteMsg, GetStateResponse, InstantiateMsg, QueryMsg};
     use crate::state::{StakeQuota, State, STATE, VALIDATORS_TO_STAKED_QUOTA};
     use cosmwasm_std::testing::{
@@ -13,14 +9,11 @@ mod tests {
         MOCK_CONTRACT_ADDR,
     };
     use cosmwasm_std::{
-        coins, from_binary, to_binary, Addr, Api, Attribute, BankMsg, Binary, Coin, Decimal,
+        coins, from_binary, to_binary, Addr, Attribute, BankMsg, Binary, Coin, Decimal,
         DistributionMsg, Empty, Env, FullDelegation, MessageInfo, OwnedDeps, Response, StakingMsg,
         StdResult, SubMsg, Uint128, Validator, WasmMsg,
     };
-    use cw20::Cw20ExecuteMsg;
-    use cw_storage_plus::U64Key;
-    use stader_utils::test_helpers::{check_equal_bnk_send_msgs, check_equal_vec};
-    use std::borrow::BorrowMut;
+    use stader_utils::test_helpers::check_equal_vec;
 
     fn get_validators() -> Vec<Validator> {
         vec![
@@ -77,7 +70,7 @@ mod tests {
 
         let instantiate_msg = InstantiateMsg {
             scc_address,
-            strategy_denom: "uluna".to_string(),
+            strategy_denom: strategy_denom.unwrap_or("uluna".to_string()),
             initial_validators: validators
                 .unwrap_or_else(|| vec![default_validator1, default_validator2]),
             min_validator_pool_size: Some(2),
@@ -129,12 +122,12 @@ mod tests {
     }
 
     #[test]
-    fn test__try_remove_validator_fail() {
+    fn test_try_remove_validator_fail() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
 
-        let res = instantiate_contract(
+        let _res = instantiate_contract(
             &mut deps,
             &info,
             &env,
@@ -150,7 +143,7 @@ mod tests {
         /*
            Test - 1. Not authorized
         */
-        let mut err = execute(
+        let err = execute(
             deps.as_mut(),
             env.clone(),
             mock_info("not-creator", &[]),
@@ -164,14 +157,16 @@ mod tests {
         /*
            Test - 2. Validator not in pool
         */
-        STATE.update(
-            deps.as_mut().storage,
-            |mut state| -> Result<_, ContractError> {
-                state.validator_pool = vec![Addr::unchecked("abc"), Addr::unchecked("def")];
-                Ok(state)
-            },
-        );
-        let mut err = execute(
+        STATE
+            .update(
+                deps.as_mut().storage,
+                |mut state| -> Result<_, ContractError> {
+                    state.validator_pool = vec![Addr::unchecked("abc"), Addr::unchecked("def")];
+                    Ok(state)
+                },
+            )
+            .unwrap();
+        let err = execute(
             deps.as_mut(),
             env.clone(),
             mock_info("creator", &[]),
@@ -185,14 +180,16 @@ mod tests {
         /*
             Test - 3. Cannot remove more validators
         */
-        STATE.update(
-            deps.as_mut().storage,
-            |mut state| -> Result<_, ContractError> {
-                state.validator_pool = vec![Addr::unchecked("abc"), Addr::unchecked("def")];
-                Ok(state)
-            },
-        );
-        let mut err = execute(
+        STATE
+            .update(
+                deps.as_mut().storage,
+                |mut state| -> Result<_, ContractError> {
+                    state.validator_pool = vec![Addr::unchecked("abc"), Addr::unchecked("def")];
+                    Ok(state)
+                },
+            )
+            .unwrap();
+        let err = execute(
             deps.as_mut(),
             env.clone(),
             mock_info("creator", &[]),
@@ -205,12 +202,12 @@ mod tests {
     }
 
     #[test]
-    fn test__try_remove_validator_success() {
+    fn test_try_remove_validator_success() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
 
-        let res = instantiate_contract(
+        let _res = instantiate_contract(
             &mut deps,
             &info,
             &env,
@@ -279,26 +276,30 @@ mod tests {
             &*get_some_validators_test_1(),
             &*get_some_delegations_test_1(),
         );
-        VALIDATORS_TO_STAKED_QUOTA.save(
-            deps.as_mut().storage,
-            &Addr::unchecked("valid0003"),
-            &StakeQuota {
-                amount: Coin::new(2000_u128, "uluna".to_string()),
-                stake_fraction: Decimal::from_ratio(1_u128, 2_u128),
-            },
-        );
+        VALIDATORS_TO_STAKED_QUOTA
+            .save(
+                deps.as_mut().storage,
+                &Addr::unchecked("valid0003"),
+                &StakeQuota {
+                    amount: Coin::new(2000_u128, "uluna".to_string()),
+                    stake_fraction: Decimal::from_ratio(1_u128, 2_u128),
+                },
+            )
+            .unwrap();
 
-        STATE.update(
-            deps.as_mut().storage,
-            |mut state| -> Result<_, ContractError> {
-                state.validator_pool = vec![
-                    Addr::unchecked("valid0001"),
-                    Addr::unchecked("valid0002"),
-                    Addr::unchecked("valid0003"),
-                ];
-                Ok(state)
-            },
-        );
+        STATE
+            .update(
+                deps.as_mut().storage,
+                |mut state| -> Result<_, ContractError> {
+                    state.validator_pool = vec![
+                        Addr::unchecked("valid0001"),
+                        Addr::unchecked("valid0002"),
+                        Addr::unchecked("valid0003"),
+                    ];
+                    Ok(state)
+                },
+            )
+            .unwrap();
 
         let res = execute(
             deps.as_mut(),
@@ -388,38 +389,44 @@ mod tests {
             &*get_some_validators_test_2(),
             &*get_some_delegations_test_2(),
         );
-        VALIDATORS_TO_STAKED_QUOTA.save(
-            deps.as_mut().storage,
-            &Addr::unchecked("valid0003"),
-            &StakeQuota {
-                amount: Coin::new(2000_u128, "uluna".to_string()),
-                stake_fraction: Decimal::from_ratio(1_u128, 3_u128),
-            },
-        );
-        VALIDATORS_TO_STAKED_QUOTA.save(
-            deps.as_mut().storage,
-            &Addr::unchecked("valid0002"),
-            &StakeQuota {
-                amount: Coin::new(2000_u128, "uluna".to_string()),
-                stake_fraction: Decimal::from_ratio(1_u128, 3_u128),
-            },
-        );
-        STATE.update(
-            deps.as_mut().storage,
-            |mut state| -> Result<_, ContractError> {
-                state.validator_pool = vec![
-                    Addr::unchecked("valid0001"),
-                    Addr::unchecked("valid0002"),
-                    Addr::unchecked("valid0003"),
-                ];
-                state.total_staked_tokens = Uint128::new(6000_u128);
-                state.unswapped_rewards = vec![
-                    Coin::new(1000_u128, "uluna".to_string()),
-                    Coin::new(200_u128, "urew1".to_string()),
-                ];
-                Ok(state)
-            },
-        );
+        VALIDATORS_TO_STAKED_QUOTA
+            .save(
+                deps.as_mut().storage,
+                &Addr::unchecked("valid0003"),
+                &StakeQuota {
+                    amount: Coin::new(2000_u128, "uluna".to_string()),
+                    stake_fraction: Decimal::from_ratio(1_u128, 3_u128),
+                },
+            )
+            .unwrap();
+        VALIDATORS_TO_STAKED_QUOTA
+            .save(
+                deps.as_mut().storage,
+                &Addr::unchecked("valid0002"),
+                &StakeQuota {
+                    amount: Coin::new(2000_u128, "uluna".to_string()),
+                    stake_fraction: Decimal::from_ratio(1_u128, 3_u128),
+                },
+            )
+            .unwrap();
+        STATE
+            .update(
+                deps.as_mut().storage,
+                |mut state| -> Result<_, ContractError> {
+                    state.validator_pool = vec![
+                        Addr::unchecked("valid0001"),
+                        Addr::unchecked("valid0002"),
+                        Addr::unchecked("valid0003"),
+                    ];
+                    state.total_staked_tokens = Uint128::new(6000_u128);
+                    state.unswapped_rewards = vec![
+                        Coin::new(1000_u128, "uluna".to_string()),
+                        Coin::new(200_u128, "urew1".to_string()),
+                    ];
+                    Ok(state)
+                },
+            )
+            .unwrap();
         let res = execute(
             deps.as_mut(),
             env.clone(),
@@ -443,10 +450,10 @@ mod tests {
                 })
             ]
         ));
-        let valid3_stake_quota_opt = VALIDATORS_TO_STAKED_QUOTA
+        let _valid3_stake_quota_opt = VALIDATORS_TO_STAKED_QUOTA
             .may_load(deps.as_mut().storage, &Addr::unchecked("valid0003"))
             .unwrap();
-        assert_eq!(valid3_staked_quota_opt, None);
+        assert_eq!(_valid3_stake_quota_opt, None);
         let valid2_stake_quota_opt = VALIDATORS_TO_STAKED_QUOTA
             .may_load(deps.as_mut().storage, &Addr::unchecked("valid0002"))
             .unwrap();
@@ -479,12 +486,12 @@ mod tests {
     }
 
     #[test]
-    fn test__try_replace_validator_fail() {
+    fn test_try_replace_validator_fail() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
 
-        let res = instantiate_contract(
+        let _res = instantiate_contract(
             &mut deps,
             &info,
             &env,
@@ -500,7 +507,7 @@ mod tests {
         /*
            Test - 1. Unauthorized
         */
-        let mut err = execute(
+        let err = execute(
             deps.as_mut(),
             env.clone(),
             mock_info("not-creator", &[]),
@@ -562,12 +569,12 @@ mod tests {
     }
 
     #[test]
-    fn test__try_replace_validator_success() {
+    fn test_try_replace_validator_success() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
 
-        let res = instantiate_contract(
+        let _res = instantiate_contract(
             &mut deps,
             &info,
             &env,
@@ -643,22 +650,26 @@ mod tests {
             &*get_some_validators_test_1(),
             &*get_some_delegations_test_1(),
         );
-        VALIDATORS_TO_STAKED_QUOTA.save(
-            deps.as_mut().storage,
-            &Addr::unchecked("valid0001"),
-            &StakeQuota {
-                amount: Coin::new(2000_u128, "uluna".to_string()),
-                stake_fraction: Decimal::from_ratio(1_u128, 2_u128),
-            },
-        );
+        VALIDATORS_TO_STAKED_QUOTA
+            .save(
+                deps.as_mut().storage,
+                &Addr::unchecked("valid0001"),
+                &StakeQuota {
+                    amount: Coin::new(2000_u128, "uluna".to_string()),
+                    stake_fraction: Decimal::from_ratio(1_u128, 2_u128),
+                },
+            )
+            .unwrap();
 
-        STATE.update(
-            deps.as_mut().storage,
-            |mut state| -> Result<_, ContractError> {
-                state.total_staked_tokens = Uint128::new(4000_u128);
-                Ok(state)
-            },
-        );
+        STATE
+            .update(
+                deps.as_mut().storage,
+                |mut state| -> Result<_, ContractError> {
+                    state.total_staked_tokens = Uint128::new(4000_u128);
+                    Ok(state)
+                },
+            )
+            .unwrap();
         let res = execute(
             deps.as_mut(),
             env.clone(),
@@ -770,24 +781,28 @@ mod tests {
             &*get_some_delegations_test_2(),
         );
         // assume reinvest has not been run
-        VALIDATORS_TO_STAKED_QUOTA.save(
-            deps.as_mut().storage,
-            &Addr::unchecked("valid0001"),
-            &StakeQuota {
-                amount: Coin::new(2000_u128, "uluna".to_string()),
-                stake_fraction: Decimal::from_ratio(1_u128, 2_u128),
-            },
-        );
+        VALIDATORS_TO_STAKED_QUOTA
+            .save(
+                deps.as_mut().storage,
+                &Addr::unchecked("valid0001"),
+                &StakeQuota {
+                    amount: Coin::new(2000_u128, "uluna".to_string()),
+                    stake_fraction: Decimal::from_ratio(1_u128, 2_u128),
+                },
+            )
+            .unwrap();
 
-        STATE.update(
-            deps.as_mut().storage,
-            |mut state| -> Result<_, ContractError> {
-                state.validator_pool =
-                    vec![Addr::unchecked("valid0001"), Addr::unchecked("valid0002")];
-                state.total_staked_tokens = Uint128::new(2000_u128);
-                Ok(state)
-            },
-        );
+        STATE
+            .update(
+                deps.as_mut().storage,
+                |mut state| -> Result<_, ContractError> {
+                    state.validator_pool =
+                        vec![Addr::unchecked("valid0001"), Addr::unchecked("valid0002")];
+                    state.total_staked_tokens = Uint128::new(2000_u128);
+                    Ok(state)
+                },
+            )
+            .unwrap();
         let res = execute(
             deps.as_mut(),
             env.clone(),
@@ -830,12 +845,12 @@ mod tests {
     }
 
     #[test]
-    fn test__try_add_validator_fail() {
+    fn test_try_add_validator_fail() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
 
-        let res = instantiate_contract(
+        let _res = instantiate_contract(
             &mut deps,
             &info,
             &env,
@@ -851,7 +866,7 @@ mod tests {
         /*
            Test - 1. Unauthorized
         */
-        let mut err = execute(
+        let err = execute(
             deps.as_mut(),
             env.clone(),
             mock_info("not-creator", &[]),
@@ -865,7 +880,7 @@ mod tests {
         /*
            Test - 2. Validator already in pool
         */
-        let mut err = execute(
+        let err = execute(
             deps.as_mut(),
             env.clone(),
             mock_info("creator", &[]),
@@ -882,7 +897,7 @@ mod tests {
         /*
            Test - 3. Validator does not exist in blockchain
         */
-        let mut err = execute(
+        let err = execute(
             deps.as_mut(),
             env.clone(),
             mock_info("creator", &[]),
@@ -895,7 +910,7 @@ mod tests {
     }
 
     #[test]
-    fn test__try_add_validator_success() {
+    fn test_try_add_validator_success() {
         fn get_some_validators() -> Vec<Validator> {
             vec![
                 Validator {
@@ -923,7 +938,7 @@ mod tests {
         let info = mock_info("creator", &[]);
         let env = mock_env();
 
-        let res = instantiate_contract(
+        let _res = instantiate_contract(
             &mut deps,
             &info,
             &env,
@@ -940,7 +955,7 @@ mod tests {
         deps.querier
             .update_staking("uluna", &*get_some_validators(), &[]);
 
-        let res = execute(
+        let _res = execute(
             deps.as_mut(),
             env.clone(),
             mock_info("creator", &[]),
@@ -966,12 +981,12 @@ mod tests {
     }
 
     #[test]
-    fn test__try_transfer_undelegated_rewards_fail() {
+    fn test_try_transfer_undelegated_rewards_fail() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
 
-        let res = instantiate_contract(
+        let _res = instantiate_contract(
             &mut deps,
             &info,
             &env,
@@ -984,7 +999,7 @@ mod tests {
             Option::from("uluna".to_string()),
         );
 
-        let mut err = execute(
+        let err = execute(
             deps.as_mut(),
             env.clone(),
             mock_info("not-scc", &[]),
@@ -1015,12 +1030,12 @@ mod tests {
     }
 
     #[test]
-    fn test__try_transfer_undelegated_rewards_success() {
+    fn test_try_transfer_undelegated_rewards_success() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
 
-        let res = instantiate_contract(
+        let _res = instantiate_contract(
             &mut deps,
             &info,
             &env,
@@ -1036,13 +1051,15 @@ mod tests {
         /*
            Test - 1. amount is equal to the unaccounted funds
         */
-        STATE.update(
-            deps.as_mut().storage,
-            |mut state| -> Result<_, ContractError> {
-                state.manager_seed_funds = Uint128::new(1000_u128);
-                Ok(state)
-            },
-        );
+        STATE
+            .update(
+                deps.as_mut().storage,
+                |mut state| -> Result<_, ContractError> {
+                    state.manager_seed_funds = Uint128::new(1000_u128);
+                    Ok(state)
+                },
+            )
+            .unwrap();
 
         deps.querier.update_balance(
             env.contract.address.clone(),
@@ -1052,18 +1069,20 @@ mod tests {
             ],
         );
 
-        STATE.update(
-            deps.as_mut().storage,
-            |mut state| -> Result<_, ContractError> {
-                state.uninvested_rewards = Coin::new(300_u128, "uluna".to_string());
-                state.unswapped_rewards = vec![
-                    Coin::new(200_u128, "uluna".to_string()),
-                    Coin::new(500_u128, "uusd".to_string()),
-                    Coin::new(300_u128, "ukrt".to_string()),
-                ];
-                Ok(state)
-            },
-        );
+        STATE
+            .update(
+                deps.as_mut().storage,
+                |mut state| -> Result<_, ContractError> {
+                    state.uninvested_rewards = Coin::new(300_u128, "uluna".to_string());
+                    state.unswapped_rewards = vec![
+                        Coin::new(200_u128, "uluna".to_string()),
+                        Coin::new(500_u128, "uusd".to_string()),
+                        Coin::new(300_u128, "ukrt".to_string()),
+                    ];
+                    Ok(state)
+                },
+            )
+            .unwrap();
 
         let res = execute(
             deps.as_mut(),
@@ -1095,18 +1114,20 @@ mod tests {
             ],
         );
 
-        STATE.update(
-            deps.as_mut().storage,
-            |mut state| -> Result<_, ContractError> {
-                state.uninvested_rewards = Coin::new(300_u128, "uluna".to_string());
-                state.unswapped_rewards = vec![
-                    Coin::new(200_u128, "uluna".to_string()),
-                    Coin::new(500_u128, "uusd".to_string()),
-                    Coin::new(300_u128, "ukrt".to_string()),
-                ];
-                Ok(state)
-            },
-        );
+        STATE
+            .update(
+                deps.as_mut().storage,
+                |mut state| -> Result<_, ContractError> {
+                    state.uninvested_rewards = Coin::new(300_u128, "uluna".to_string());
+                    state.unswapped_rewards = vec![
+                        Coin::new(200_u128, "uluna".to_string()),
+                        Coin::new(500_u128, "uusd".to_string()),
+                        Coin::new(300_u128, "ukrt".to_string()),
+                    ];
+                    Ok(state)
+                },
+            )
+            .unwrap();
 
         let res = execute(
             deps.as_mut(),
@@ -1138,18 +1159,20 @@ mod tests {
             ],
         );
 
-        STATE.update(
-            deps.as_mut().storage,
-            |mut state| -> Result<_, ContractError> {
-                state.uninvested_rewards = Coin::new(300_u128, "uluna".to_string());
-                state.unswapped_rewards = vec![
-                    Coin::new(200_u128, "uluna".to_string()),
-                    Coin::new(500_u128, "uusd".to_string()),
-                    Coin::new(300_u128, "ukrt".to_string()),
-                ];
-                Ok(state)
-            },
-        );
+        STATE
+            .update(
+                deps.as_mut().storage,
+                |mut state| -> Result<_, ContractError> {
+                    state.uninvested_rewards = Coin::new(300_u128, "uluna".to_string());
+                    state.unswapped_rewards = vec![
+                        Coin::new(200_u128, "uluna".to_string()),
+                        Coin::new(500_u128, "uusd".to_string()),
+                        Coin::new(300_u128, "ukrt".to_string()),
+                    ];
+                    Ok(state)
+                },
+            )
+            .unwrap();
 
         let res = execute(
             deps.as_mut(),
@@ -1172,12 +1195,12 @@ mod tests {
     }
 
     #[test]
-    fn test__try_claim_airdrops_fail() {
+    fn test_try_claim_airdrops_fail() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
 
-        let res = instantiate_contract(
+        let _res = instantiate_contract(
             &mut deps,
             &info,
             &env,
@@ -1196,7 +1219,7 @@ mod tests {
             Binary::from(vec![01, 02, 03, 04, 05, 06, 07, 08])
         }
 
-        let mut err = execute(
+        let err = execute(
             deps.as_mut(),
             env.clone(),
             mock_info("not-scc", &[]),
@@ -1213,12 +1236,12 @@ mod tests {
     }
 
     #[test]
-    fn test__try_claim_airdrops_success() {
+    fn test_try_claim_airdrops_success() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
 
-        let res = instantiate_contract(
+        let _res = instantiate_contract(
             &mut deps,
             &info,
             &env,
@@ -1272,11 +1295,6 @@ mod tests {
                 })
             ]
         ));
-        let state_response: GetStateResponse =
-            from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::GetState {}).unwrap())
-                .unwrap();
-        assert_ne!(state_response.state, None);
-        let state = state_response.state.unwrap();
 
         let res = execute(
             deps.as_mut(),
@@ -1311,20 +1329,15 @@ mod tests {
                 })
             ]
         ));
-        let state_response: GetStateResponse =
-            from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::GetState {}).unwrap())
-                .unwrap();
-        assert_ne!(state_response.state, None);
-        let state = state_response.state.unwrap();
     }
 
     #[test]
-    fn test__try_undelegate_rewards_fail() {
+    fn test_try_undelegate_rewards_fail() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
 
-        let res = instantiate_contract(
+        let _res = instantiate_contract(
             &mut deps,
             &info,
             &env,
@@ -1337,7 +1350,7 @@ mod tests {
             Option::from("uluna".to_string()),
         );
 
-        let mut err = execute(
+        let err = execute(
             deps.as_mut(),
             env.clone(),
             mock_info("not-scc", &[]),
@@ -1370,13 +1383,15 @@ mod tests {
         /*
            requested amount is greater than total_staked_tokens
         */
-        STATE.update(
-            deps.as_mut().storage,
-            |mut state| -> Result<_, ContractError> {
-                state.total_staked_tokens = Uint128::new(1000_u128);
-                Ok(state)
-            },
-        );
+        STATE
+            .update(
+                deps.as_mut().storage,
+                |mut state| -> Result<_, ContractError> {
+                    state.total_staked_tokens = Uint128::new(1000_u128);
+                    Ok(state)
+                },
+            )
+            .unwrap();
 
         let res = execute(
             deps.as_mut(),
@@ -1399,12 +1414,12 @@ mod tests {
     }
 
     #[test]
-    fn test__try_undelegate_rewards_success() {
+    fn test_try_undelegate_rewards_success() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
 
-        let res = instantiate_contract(
+        let _res = instantiate_contract(
             &mut deps,
             &info,
             &env,
@@ -1423,28 +1438,34 @@ mod tests {
         /*
            Test - 1. Normal undelegation
         */
-        VALIDATORS_TO_STAKED_QUOTA.save(
-            deps.as_mut().storage,
-            &valid1,
-            &StakeQuota {
-                amount: Coin::new(500_u128, "uluna"),
-                stake_fraction: Decimal::from_ratio(1_u128, 2_u128),
-            },
-        );
+        VALIDATORS_TO_STAKED_QUOTA
+            .save(
+                deps.as_mut().storage,
+                &valid1,
+                &StakeQuota {
+                    amount: Coin::new(500_u128, "uluna"),
+                    stake_fraction: Decimal::from_ratio(1_u128, 2_u128),
+                },
+            )
+            .unwrap();
 
-        VALIDATORS_TO_STAKED_QUOTA.save(
-            deps.as_mut().storage,
-            &valid2,
-            &StakeQuota {
-                amount: Coin::new(500_u128, "uluna"),
-                stake_fraction: Decimal::from_ratio(1_u128, 2_u128),
-            },
-        );
+        VALIDATORS_TO_STAKED_QUOTA
+            .save(
+                deps.as_mut().storage,
+                &valid2,
+                &StakeQuota {
+                    amount: Coin::new(500_u128, "uluna"),
+                    stake_fraction: Decimal::from_ratio(1_u128, 2_u128),
+                },
+            )
+            .unwrap();
 
-        STATE.update(deps.as_mut().storage, |mut state| -> StdResult<_> {
-            state.total_staked_tokens = Uint128::new(1000_u128);
-            Ok(state)
-        });
+        STATE
+            .update(deps.as_mut().storage, |mut state| -> StdResult<_> {
+                state.total_staked_tokens = Uint128::new(1000_u128);
+                Ok(state)
+            })
+            .unwrap();
         let res = execute(
             deps.as_mut(),
             env.clone(),
@@ -1503,28 +1524,34 @@ mod tests {
         /*
            Test - 2. 100% undelegation
         */
-        VALIDATORS_TO_STAKED_QUOTA.save(
-            deps.as_mut().storage,
-            &valid1,
-            &StakeQuota {
-                amount: Coin::new(500_u128, "uluna"),
-                stake_fraction: Decimal::from_ratio(1_u128, 2_u128),
-            },
-        );
+        VALIDATORS_TO_STAKED_QUOTA
+            .save(
+                deps.as_mut().storage,
+                &valid1,
+                &StakeQuota {
+                    amount: Coin::new(500_u128, "uluna"),
+                    stake_fraction: Decimal::from_ratio(1_u128, 2_u128),
+                },
+            )
+            .unwrap();
 
-        VALIDATORS_TO_STAKED_QUOTA.save(
-            deps.as_mut().storage,
-            &valid2,
-            &StakeQuota {
-                amount: Coin::new(500_u128, "uluna"),
-                stake_fraction: Decimal::from_ratio(1_u128, 2_u128),
-            },
-        );
+        VALIDATORS_TO_STAKED_QUOTA
+            .save(
+                deps.as_mut().storage,
+                &valid2,
+                &StakeQuota {
+                    amount: Coin::new(500_u128, "uluna"),
+                    stake_fraction: Decimal::from_ratio(1_u128, 2_u128),
+                },
+            )
+            .unwrap();
 
-        STATE.update(deps.as_mut().storage, |mut state| -> StdResult<_> {
-            state.total_staked_tokens = Uint128::new(1000_u128);
-            Ok(state)
-        });
+        STATE
+            .update(deps.as_mut().storage, |mut state| -> StdResult<_> {
+                state.total_staked_tokens = Uint128::new(1000_u128);
+                Ok(state)
+            })
+            .unwrap();
         let res = execute(
             deps.as_mut(),
             env.clone(),
@@ -1576,12 +1603,12 @@ mod tests {
     }
 
     #[test]
-    fn test__try_reinvest__fail() {
+    fn test_try_reinvest_fail() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
 
-        let res = instantiate_contract(
+        let _res = instantiate_contract(
             &mut deps,
             &info,
             &env,
@@ -1594,7 +1621,7 @@ mod tests {
             Option::from("uluna".to_string()),
         );
 
-        let mut err = execute(
+        let err = execute(
             deps.as_mut(),
             env.clone(),
             mock_info("not-creator", &[]),
@@ -1621,12 +1648,12 @@ mod tests {
     }
 
     #[test]
-    fn test__try_reinvest__success() {
+    fn test_try_reinvest_success() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
 
-        let res = instantiate_contract(
+        let _res = instantiate_contract(
             &mut deps,
             &info,
             &env,
@@ -1664,12 +1691,12 @@ mod tests {
             ]
         }
 
-        let deleg1 = Addr::unchecked("deleg0001".to_string());
-        let deleg2 = Addr::unchecked("deleg0002".to_string());
-        let deleg3 = Addr::unchecked("deleg0003".to_string());
+        let _deleg1 = Addr::unchecked("deleg0001".to_string());
+        let _deleg2 = Addr::unchecked("deleg0002".to_string());
+        let _deleg3 = Addr::unchecked("deleg0003".to_string());
         let valid1 = Addr::unchecked("valid0001".to_string());
         let valid2 = Addr::unchecked("valid0002".to_string());
-        let valid3 = Addr::unchecked("valid0003".to_string());
+        let _valid3 = Addr::unchecked("valid0003".to_string());
 
         /*
            Test - 1. First reinvest
@@ -1677,11 +1704,13 @@ mod tests {
         deps.querier
             .update_staking("test", &*get_validators(), &*get_zero_delegations());
 
-        STATE.update(deps.as_mut().storage, |mut state| -> StdResult<_> {
-            state.uninvested_rewards = Coin::new(1000_u128, "uluna");
-            Ok(state)
-        });
-        let mut res = execute(
+        STATE
+            .update(deps.as_mut().storage, |mut state| -> StdResult<_> {
+                state.uninvested_rewards = Coin::new(1000_u128, "uluna");
+                Ok(state)
+            })
+            .unwrap();
+        let res = execute(
             deps.as_mut(),
             env.clone(),
             mock_info("creator", &[Coin::new(100_u128, "uluna")]),
@@ -1740,30 +1769,36 @@ mod tests {
         deps.querier
             .update_staking("test", &*get_validators(), &*get_delegations());
 
-        STATE.update(deps.as_mut().storage, |mut state| -> StdResult<_> {
-            state.uninvested_rewards = Coin::new(1000_u128, "uluna");
-            state.total_staked_tokens = Uint128::new(4000_u128);
-            Ok(state)
-        });
+        STATE
+            .update(deps.as_mut().storage, |mut state| -> StdResult<_> {
+                state.uninvested_rewards = Coin::new(1000_u128, "uluna");
+                state.total_staked_tokens = Uint128::new(4000_u128);
+                Ok(state)
+            })
+            .unwrap();
 
-        VALIDATORS_TO_STAKED_QUOTA.save(
-            deps.as_mut().storage,
-            &valid1,
-            &StakeQuota {
-                amount: Coin::new(2000_u128, "uluna"),
-                stake_fraction: Decimal::from_ratio(1_u128, 2_u128),
-            },
-        );
-        VALIDATORS_TO_STAKED_QUOTA.save(
-            deps.as_mut().storage,
-            &valid1,
-            &StakeQuota {
-                amount: Coin::new(2000_u128, "uluna"),
-                stake_fraction: Decimal::from_ratio(1_u128, 2_u128),
-            },
-        );
+        VALIDATORS_TO_STAKED_QUOTA
+            .save(
+                deps.as_mut().storage,
+                &valid1,
+                &StakeQuota {
+                    amount: Coin::new(2000_u128, "uluna"),
+                    stake_fraction: Decimal::from_ratio(1_u128, 2_u128),
+                },
+            )
+            .unwrap();
+        VALIDATORS_TO_STAKED_QUOTA
+            .save(
+                deps.as_mut().storage,
+                &valid1,
+                &StakeQuota {
+                    amount: Coin::new(2000_u128, "uluna"),
+                    stake_fraction: Decimal::from_ratio(1_u128, 2_u128),
+                },
+            )
+            .unwrap();
 
-        let mut res = execute(
+        let res = execute(
             deps.as_mut(),
             env.clone(),
             mock_info("creator", &[Coin::new(100_u128, "uluna")]),
@@ -1822,28 +1857,34 @@ mod tests {
         deps.querier
             .update_staking("test", &*get_validators(), &*get_delegations());
 
-        STATE.update(deps.as_mut().storage, |mut state| -> StdResult<_> {
-            state.uninvested_rewards = Coin::new(1000_u128, "uluna");
-            state.total_staked_tokens = Uint128::new(5000_u128);
-            Ok(state)
-        });
-        VALIDATORS_TO_STAKED_QUOTA.save(
-            deps.as_mut().storage,
-            &valid1,
-            &StakeQuota {
-                amount: Coin::new(2500_u128, "uluna"),
-                stake_fraction: Decimal::from_ratio(1_u128, 2_u128),
-            },
-        );
-        VALIDATORS_TO_STAKED_QUOTA.save(
-            deps.as_mut().storage,
-            &valid1,
-            &StakeQuota {
-                amount: Coin::new(2500_u128, "uluna"),
-                stake_fraction: Decimal::from_ratio(1_u128, 2_u128),
-            },
-        );
-        let mut res = execute(
+        STATE
+            .update(deps.as_mut().storage, |mut state| -> StdResult<_> {
+                state.uninvested_rewards = Coin::new(1000_u128, "uluna");
+                state.total_staked_tokens = Uint128::new(5000_u128);
+                Ok(state)
+            })
+            .unwrap();
+        VALIDATORS_TO_STAKED_QUOTA
+            .save(
+                deps.as_mut().storage,
+                &valid1,
+                &StakeQuota {
+                    amount: Coin::new(2500_u128, "uluna"),
+                    stake_fraction: Decimal::from_ratio(1_u128, 2_u128),
+                },
+            )
+            .unwrap();
+        VALIDATORS_TO_STAKED_QUOTA
+            .save(
+                deps.as_mut().storage,
+                &valid1,
+                &StakeQuota {
+                    amount: Coin::new(2500_u128, "uluna"),
+                    stake_fraction: Decimal::from_ratio(1_u128, 2_u128),
+                },
+            )
+            .unwrap();
+        let res = execute(
             deps.as_mut(),
             env.clone(),
             mock_info("creator", &[Coin::new(100_u128, "uluna")]),
@@ -1898,12 +1939,12 @@ mod tests {
     }
 
     #[test]
-    fn test__try_transfer_rewards__fail() {
+    fn test_try_transfer_rewards_fail() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
 
-        let res = instantiate_contract(
+        let _res = instantiate_contract(
             &mut deps,
             &info,
             &env,
@@ -1916,7 +1957,7 @@ mod tests {
             Option::from("uluna".to_string()),
         );
 
-        let mut err = execute(
+        let err = execute(
             deps.as_mut(),
             env.clone(),
             mock_info("not-scc-contract", &[]),
@@ -1977,12 +2018,12 @@ mod tests {
     }
 
     #[test]
-    fn test__try_transfer_rewards_success() {
+    fn test_try_transfer_rewards_success() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
 
-        let res = instantiate_contract(
+        let _res = instantiate_contract(
             &mut deps,
             &info,
             &env,
@@ -1998,7 +2039,7 @@ mod tests {
         /*
            Test - 1. First reinvest
         */
-        let mut res = execute(
+        let res = execute(
             deps.as_mut(),
             env.clone(),
             mock_info(
@@ -2035,12 +2076,14 @@ mod tests {
         /*
            Test - 2. Reinvest with existing uninvested_rewards
         */
-        STATE.update(deps.as_mut().storage, |mut state| -> StdResult<_> {
-            state.uninvested_rewards = Coin::new(1000_u128, "uluna");
-            Ok(state)
-        });
+        STATE
+            .update(deps.as_mut().storage, |mut state| -> StdResult<_> {
+                state.uninvested_rewards = Coin::new(1000_u128, "uluna");
+                Ok(state)
+            })
+            .unwrap();
 
-        let mut res = execute(
+        let res = execute(
             deps.as_mut(),
             env.clone(),
             mock_info(
@@ -2076,12 +2119,12 @@ mod tests {
     }
 
     #[test]
-    fn test__try_redeem_rewards_success() {
+    fn test_try_redeem_rewards_success() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
 
-        let res = instantiate_contract(
+        let _res = instantiate_contract(
             &mut deps,
             &info,
             &env,
@@ -2097,7 +2140,7 @@ mod tests {
         deps.querier
             .update_staking("test", &*get_validators(), &*get_delegations());
 
-        let mut res = execute(
+        let res = execute(
             deps.as_mut(),
             env.clone(),
             mock_info("creator", &[]),
@@ -2116,7 +2159,7 @@ mod tests {
                 })
             ]
         );
-        let mut state = STATE.load(deps.as_mut().storage).unwrap();
+        let state = STATE.load(deps.as_mut().storage).unwrap();
         assert!(check_equal_vec(
             state.unswapped_rewards,
             vec![Coin::new(90, "urew1"), Coin::new(60, "uluna")]
