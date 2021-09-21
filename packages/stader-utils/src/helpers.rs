@@ -13,14 +13,6 @@ pub fn send_funds_msg(recipient_addr: &Addr, funds: &[Coin]) -> BankMsg {
     }
 }
 
-pub fn u128_from_decimal(a: Decimal) -> u128 {
-    a.numerator() / a.denominator()
-}
-
-pub fn uint128_from_decimal(a: Decimal) -> Uint128 {
-    Uint128::new(u128_from_decimal(a))
-}
-
 // Skips denoms whose exchange rate cannot be found.
 pub fn query_exchange_rates(
     querier: QuerierWrapper,
