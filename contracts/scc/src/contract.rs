@@ -332,9 +332,9 @@ pub fn try_fetch_undelegated_rewards_from_strategies(
             continue;
         };
 
-        let last_reconciled_batch_id = strategy_info.reconciled_batch_id_pointer;
+        let last_reconciled_batch_id = strategy_info.next_reconciliation_batch_id;
         let mut current_batch_being_reconciled = last_reconciled_batch_id;
-        for i in (last_reconciled_batch_id)..(strategy_info.undelegation_batch_id_pointer) {
+        for i in (last_reconciled_batch_id)..(strategy_info.next_undelegation_batch_id) {
             let mut undelegation_batch = if let Some(undelegation_batch) = UNDELEGATION_BATCH_MAP
                 .may_load(deps.storage, (U64Key::new(i), U64Key::new(strategy_id)))?
             {
@@ -418,7 +418,7 @@ pub fn try_fetch_undelegated_rewards_from_strategies(
             current_batch_being_reconciled += 1;
         }
 
-        strategy_info.reconciled_batch_id_pointer = current_batch_being_reconciled;
+        strategy_info.next_reconciliation_batch_id = current_batch_being_reconciled;
         STRATEGY_MAP.save(deps.storage, U64Key::new(strategy_id), &strategy_info)?;
     }
 
@@ -490,7 +490,7 @@ pub fn try_undelegate_from_strategies(
             strategy_s_t_ratio,
         ));
 
-        let current_undelegation_batch_id = strategy_info.undelegation_batch_id_pointer;
+        let current_undelegation_batch_id = strategy_info.next_undelegation_batch_id;
 
         UNDELEGATION_BATCH_MAP.update(
             deps.storage,
@@ -524,7 +524,7 @@ pub fn try_undelegate_from_strategies(
             strategy_info.current_undelegated_shares,
         );
         strategy_info.current_undelegated_shares = Decimal::zero();
-        strategy_info.undelegation_batch_id_pointer = current_undelegation_batch_id + 1;
+        strategy_info.next_undelegation_batch_id = current_undelegation_batch_id + 1;
 
         messages.push(WasmMsg::Execute {
             contract_addr: String::from(strategy_info.sic_contract_address.clone()),
@@ -618,7 +618,7 @@ pub fn try_undelegate_user_rewards(
     UNDELEGATION_BATCH_MAP.update(
         deps.storage,
         (
-            U64Key::new(strategy_info.undelegation_batch_id_pointer),
+            U64Key::new(strategy_info.next_undelegation_batch_id),
             U64Key::new(strategy_id),
         ),
         |batch_opt| -> Result<_, ContractError> {
@@ -694,7 +694,7 @@ pub fn try_undelegate_user_rewards(
             amount,
             shares: user_undelegated_shares,
             strategy_id,
-            undelegation_batch_id: strategy_info.undelegation_batch_id_pointer,
+            undelegation_batch_id: strategy_info.next_undelegation_batch_id,
         });
 
     STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
