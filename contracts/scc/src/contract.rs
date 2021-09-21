@@ -1024,127 +1024,18 @@ pub fn try_deposit_funds(
         return Ok(Response::new().add_attribute("0 funds sent", "1"));
     }
 
-    let user_addr = info.sender;
-    let config = CONFIG.load(deps.storage)?;
-    let mut user_reward_info = USER_REWARD_INFO_MAP
-        .may_load(deps.storage, &user_addr)?
-        .unwrap_or_else(|| UserRewardInfo::new(config.default_user_portfolio.clone()));
+    let user_addr = info.sender.clone();
 
-    let strategy_split = get_strategy_split(
-        deps.storage,
-        &config,
-        strategy_override,
-        &user_reward_info,
-        funds.amount,
-    )?;
-
-    let mut total_rewards_in_scc: Uint128 = Uint128::zero();
-    let mut failed_sics: Vec<String> = vec![];
-    let mut messages: Vec<WasmMsg> = vec![];
-    for s2a in strategy_split.iter() {
-        let strategy_id = *s2a.0;
-        let amount = *s2a.1;
-
-        if amount.is_zero() {
-            continue;
-        }
-
-        // this is the retain rewards strategy
-        if strategy_id.eq(&0) {
-            user_reward_info.pending_rewards = user_reward_info
-                .pending_rewards
-                .checked_add(amount)
-                .unwrap();
-            total_rewards_in_scc = total_rewards_in_scc.checked_add(amount).unwrap();
-            continue;
-        }
-
-        let mut strategy_info = if let Some(strategy_info) =
-            STRATEGY_MAP.may_load(deps.storage, U64Key::new(strategy_id))?
-        {
-            strategy_info
-        } else {
-            // this ideally won't happen as non-existing strategies funds will be pushed
-            // to the fall back strategy
-            continue;
-        };
-
-        // fetch the total tokens from the SIC contract and update the S/T ratio for the strategy
-        // compute the S/T ratio only once as we are batching up reward transfer messages. Jus' cache
-        // it up in a map like we always do.
-        let strategy_shares_per_token_ratio: Decimal =
-            match get_strategy_shares_per_token_ratio(deps.querier, &strategy_info) {
-                Ok(result) => result,
-                Err(_) => {
-                    failed_sics.push(strategy_info.name);
-                    continue;
-                }
-            };
-        strategy_info.shares_per_token_ratio = strategy_shares_per_token_ratio;
-
-        let mut user_strategy_info = if let Some(i) = (0..user_reward_info.strategies.len())
-            .find(|&i| user_reward_info.strategies[i].strategy_id.eq(&strategy_id))
-        {
-            &mut user_reward_info.strategies[i]
-        } else {
-            let new_user_strategy_info: UserStrategyInfo =
-                UserStrategyInfo::new(strategy_id, strategy_info.global_airdrop_pointer.clone());
-            user_reward_info.strategies.push(new_user_strategy_info);
-            user_reward_info.strategies.last_mut().unwrap()
-        };
-
-        // update the user airdrop pointer and allocate the user pending airdrops for the strategy
-        let user_airdrops = if let Some(user_airdrops) = get_user_airdrops(
-            &strategy_info.global_airdrop_pointer,
-            &user_strategy_info.airdrop_pointer,
-            user_strategy_info.shares,
-        ) {
-            user_strategy_info.airdrop_pointer = strategy_info.global_airdrop_pointer.clone();
-            user_airdrops
-        } else {
-            vec![]
-        };
-        user_reward_info.pending_airdrops = merge_coin_vector(
-            &user_reward_info.pending_airdrops,
-            CoinVecOp {
-                fund: user_airdrops,
-                operation: Operation::Add,
-            },
-        );
-
-        // update user shares based on the S/T ratio
-        let user_shares = decimal_multiplication_in_256(
-            strategy_shares_per_token_ratio,
-            get_decimal_from_uint128(amount),
-        );
-        user_strategy_info.shares =
-            decimal_summation_in_256(user_strategy_info.shares, user_shares);
-        // update total strategy shares by adding up the user_shares
-        strategy_info.total_shares =
-            decimal_summation_in_256(strategy_info.total_shares, user_shares);
-
-        messages.push(WasmMsg::Execute {
-            contract_addr: strategy_info.sic_contract_address.to_string(),
-            msg: to_binary(&sic_execute_msg::TransferRewards {}).unwrap(),
-            funds: vec![Coin::new(amount.u128(), state.scc_denom.clone())],
-        });
-
-        STRATEGY_MAP.save(deps.storage, U64Key::new(strategy_id), &strategy_info)?;
-    }
-
-    USER_REWARD_INFO_MAP.save(deps.storage, &user_addr, &user_reward_info)?;
-
-    STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
-        state.rewards_in_scc = state
-            .rewards_in_scc
-            .checked_add(total_rewards_in_scc)
-            .unwrap();
-        Ok(state)
-    })?;
-
-    Ok(Response::new()
-        .add_messages(messages)
-        .add_attribute("failed_sics", failed_sics.join(",")))
+    try_deposit_funds_to_strategies(
+        deps,
+        _env,
+        info,
+        vec![UpdateUserRewardsRequest {
+            user: user_addr,
+            funds: funds.amount,
+            strategy_id: strategy_override,
+        }],
+    )
 }
 
 pub fn try_update_user_rewards(
@@ -1157,6 +1048,17 @@ pub fn try_update_user_rewards(
     if info.sender != state.delegator_contract {
         return Err(ContractError::Unauthorized {});
     }
+
+    try_deposit_funds_to_strategies(deps, _env, info, update_user_rewards_requests)
+}
+
+fn try_deposit_funds_to_strategies(
+    deps: DepsMut,
+    _env: Env,
+    _info: MessageInfo,
+    update_user_rewards_requests: Vec<UpdateUserRewardsRequest>,
+) -> Result<Response, ContractError> {
+    let state = STATE.load(deps.storage)?;
 
     if update_user_rewards_requests.is_empty() {
         return Ok(Response::new().add_attribute("zero_update_user_rewards_requests", "1"));
