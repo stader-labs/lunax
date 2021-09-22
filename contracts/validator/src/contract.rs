@@ -386,11 +386,6 @@ pub fn redelegate(
     }
     src_meta.staked = src_meta.staked.checked_sub(amount).unwrap();
     let src_delegation_opt = deps.querier.query_delegation(&env.contract.address, &src)?;
-    // let src_rewards = if src_delegation_opt.is_none() {
-    //     vec![]
-    // } else {
-    //     src_delegation_opt.unwrap().accumulated_rewards
-    // };
     let src_rewards = if let Some(src_delegation) = src_delegation_opt {
         src_delegation.accumulated_rewards
     } else {
