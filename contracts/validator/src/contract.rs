@@ -183,8 +183,8 @@ pub fn remove_validator(
             WasmMsg::Execute {
                 contract_addr: env.contract.address.to_string(),
                 msg: to_binary(&ExecuteMsg::Redelegate {
-                    src: val_addr.clone(),
-                    dst: redelegate_addr.clone(),
+                    src: val_addr,
+                    dst: redelegate_addr,
                     amount: val_meta.staked,
                 })
                 .unwrap(),
@@ -223,8 +223,9 @@ pub fn stake_to_validator(
     let full_delegation = deps
         .querier
         .query_delegation(&env.contract.address, &val_addr)?;
-    let accrued_rewards: Vec<Coin> = if full_delegation.is_some() {
-        full_delegation.unwrap().accumulated_rewards
+
+    let accrued_rewards: Vec<Coin> = if let Some(fd) = full_delegation {
+        fd.accumulated_rewards
     } else {
         vec![]
     };
@@ -233,10 +234,7 @@ pub fn stake_to_validator(
         deps.storage,
         &val_addr,
         &VMeta {
-            staked: val_meta
-                .staked
-                .checked_add(stake_amount.amount.clone())
-                .unwrap(),
+            staked: val_meta.staked.checked_add(stake_amount.amount).unwrap(),
             accrued_rewards: merge_coin_vector(
                 &val_meta.accrued_rewards,
                 CoinVecOp {
@@ -388,10 +386,10 @@ pub fn redelegate(
     }
     src_meta.staked = src_meta.staked.checked_sub(amount).unwrap();
     let src_delegation_opt = deps.querier.query_delegation(&env.contract.address, &src)?;
-    let src_rewards = if src_delegation_opt.is_none() {
-        vec![]
+    let src_rewards = if let Some(src_delegation) = src_delegation_opt {
+        src_delegation.accumulated_rewards
     } else {
-        src_delegation_opt.unwrap().accumulated_rewards
+        vec![]
     };
     src_meta.accrued_rewards = merge_coin_vector(
         &src_meta.accrued_rewards,
@@ -404,10 +402,10 @@ pub fn redelegate(
     let mut dst_meta = dst_meta_opt.unwrap();
     dst_meta.staked = dst_meta.staked.checked_add(amount).unwrap();
     let dst_delegation_opt = deps.querier.query_delegation(&env.contract.address, &dst)?;
-    let dst_rewards = if dst_delegation_opt.is_none() {
-        vec![]
+    let dst_rewards = if let Some(dst_delegation) = dst_delegation_opt {
+        dst_delegation.accumulated_rewards
     } else {
-        dst_delegation_opt.unwrap().accumulated_rewards
+        vec![]
     };
     dst_meta.accrued_rewards = merge_coin_vector(
         &dst_meta.accrued_rewards,
@@ -483,8 +481,8 @@ pub fn undelegate(
         .querier
         .query_delegation(&env.contract.address, &val_addr)?;
 
-    let acc_rewards = if full_delegation_opt.is_some() {
-        full_delegation_opt.unwrap().accumulated_rewards
+    let acc_rewards = if let Some(fd) = full_delegation_opt {
+        fd.accumulated_rewards
     } else {
         vec![]
     };
@@ -500,7 +498,7 @@ pub fn undelegate(
 
     STATE.update(deps.storage, |mut state| -> StdResult<_> {
         state.unswapped_rewards = merge_coin_vector(
-            &state.unswapped_rewards.clone(),
+            &state.unswapped_rewards,
             CoinVecOp {
                 fund: acc_rewards,
                 operation: Operation::Add,
@@ -511,7 +509,7 @@ pub fn undelegate(
 
     Ok(Response::new().add_message(StakingMsg::Undelegate {
         validator: val_addr.to_string(),
-        amount: Coin::new(amount.u128(), config.vault_denom.to_string()),
+        amount: Coin::new(amount.u128(), config.vault_denom),
     }))
 }
 
@@ -527,7 +525,7 @@ pub fn update_airdrop_registry(
     validate(&config, &info, &env, vec![Verify::SenderManager])?;
     AIRDROP_REGISTRY.save(
         deps.storage,
-        denom.clone(),
+        denom,
         &AirdropRegistryInfo {
             airdrop_contract,
             token_contract,
@@ -552,9 +550,7 @@ pub fn redeem_airdrop_and_transfer(
         return Err(ContractError::ZeroAmount {});
     }
 
-    let airdrop_contract_opt = AIRDROP_REGISTRY
-        .may_load(deps.storage, denom.clone())
-        .unwrap();
+    let airdrop_contract_opt = AIRDROP_REGISTRY.may_load(deps.storage, denom).unwrap();
     if airdrop_contract_opt.is_none() {
         return Err(ContractError::AirdropNotRegistered {});
     }
@@ -570,8 +566,8 @@ pub fn redeem_airdrop_and_transfer(
         WasmMsg::Execute {
             contract_addr: airdrop_registry_info.token_contract.to_string(),
             msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                recipient: String::from(config.scc_contract.clone()),
-                amount: amount,
+                recipient: String::from(config.scc_contract),
+                amount,
             })
             .unwrap(),
             funds: vec![],
@@ -758,7 +754,7 @@ pub fn transfer_reconciled_funds(
         .amount;
     let total_base_funds_in_vault = deps
         .querier
-        .query_balance(env.contract.address, vault_denom.clone())
+        .query_balance(env.contract.address, vault_denom)
         .unwrap()
         .amount;
 
@@ -886,12 +882,12 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
 pub fn query_config(deps: Deps) -> StdResult<GetConfigResponse> {
     let config: Config = CONFIG.load(deps.storage)?;
-    Ok(GetConfigResponse { config: config })
+    Ok(GetConfigResponse { config })
 }
 
 pub fn query_state(deps: Deps) -> StdResult<GetStateResponse> {
     let state: State = STATE.load(deps.storage)?;
-    Ok(GetStateResponse { state: state })
+    Ok(GetStateResponse { state })
 }
 
 pub fn query_validator_meta(deps: Deps, val_addr: Addr) -> StdResult<GetValidatorMetaResponse> {
