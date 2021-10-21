@@ -1,9 +1,8 @@
 use crate::state::{
     BatchUndelegationRecord, Config, PoolRegistryInfo, BATCH_UNDELEGATION_REGISTRY, POOL_REGISTRY,
-    VALIDATOR_REGISTRY,
 };
 use crate::ContractError;
-use cosmwasm_std::{Addr, Env, MessageInfo, Storage, Uint128};
+use cosmwasm_std::{Addr, Env, MessageInfo, Storage, Uint128, QuerierWrapper, FullDelegation};
 use cw_storage_plus::U64Key;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -80,43 +79,64 @@ pub fn get_verified_pool(
 // Take in validator staked amounts into pool if the pool size is bigger.
 pub fn get_validator_for_deposit(
     storage: &mut dyn Storage,
-    validators: Vec<Addr>,
+    querier: QuerierWrapper,
+    env: Env,
+    validators: Vec<Addr>
 ) -> Result<Addr, ContractError> {
     if validators.is_empty() {
         return Err(ContractError::NoValidatorsInPool {});
     }
-    let mut min_staked = Uint128::new(u128::MAX);
-    let mut min_val_addr = Addr::unchecked("invalid_address");
-    for val_addr in validators {
-        let val_meta = VALIDATOR_REGISTRY.load(storage, &val_addr).unwrap();
-        if min_staked.ge(&val_meta.staked) {
-            min_val_addr = val_addr;
-            min_staked = val_meta.staked;
-        }
-    }
 
-    Ok(min_val_addr)
+    let mut stake_tuples = vec![];
+    for val_addr in validators {
+        if querier.query_validator(val_addr.clone())?.is_none() {
+            // Don't deposit to a jailed validator
+            continue;
+        }
+        let delegation_opt = querier.query_delegation(env.contract.address.clone(), val_addr.clone())?;
+        if delegation_opt.is_none() {
+            // No delegation. So use the validator
+            return Ok(val_addr);
+        }
+        stake_tuples.push((delegation_opt.unwrap().amount.amount.u128(), val_addr.to_string()))
+    }
+    if stake_tuples.is_empty() {
+        return Err(ContractError::AllValidatorsJailed {});
+    }
+    stake_tuples.sort();
+    Ok(Addr::unchecked(stake_tuples.first().unwrap().clone().1))
 }
 
 // Take in validator staked amounts into pool if the pool size is bigger.
-pub fn get_validator_for_undelegate(
+pub fn get_active_validators_sorted_by_stake(
     storage: &mut dyn Storage,
+    querier: QuerierWrapper,
+    env: Env,
     validators: Vec<Addr>,
-) -> Result<Addr, ContractError> {
+) -> Result<Vec<(Uint128, String)>, ContractError> {
     if validators.is_empty() {
         return Err(ContractError::NoValidatorsInPool {});
     }
-    let mut max_staked = Uint128::zero();
-    let mut max_val_addr = Addr::unchecked("invalid_address");
+    let mut stake_tuples = vec![];
     for val_addr in validators {
-        let val_meta = VALIDATOR_REGISTRY.load(storage, &val_addr).unwrap();
-        if max_staked.le(&val_meta.staked) {
-            max_val_addr = val_addr;
-            max_staked = val_meta.staked;
+        if querier.query_validator(val_addr.clone())?.is_none() {
+            // Don't deposit to a jailed validator
+            continue;
+        }
+        let delegation_opt = querier.query_delegation(env.contract.address.clone(), val_addr.clone())?;
+        if delegation_opt.is_none() {
+            // No delegation. So can
+            stake_tuples.push((Uint128::zero(), val_addr.to_string()));
+        } else {
+            stake_tuples.push((delegation_opt.unwrap().amount.amount, val_addr.to_string()))
         }
     }
-
-    Ok(max_val_addr)
+    if stake_tuples.is_empty() {
+        return Err(ContractError::AllValidatorsJailed {});
+    }
+    stake_tuples.sort();
+    println!("Stake Tuples|{:?}", stake_tuples);
+    Ok(stake_tuples)
 }
 
 pub fn create_new_undelegation_batch(

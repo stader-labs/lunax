@@ -1,4 +1,4 @@
-use crate::state::{AirdropRegistryInfo, Config, State, VMeta};
+use crate::state::{Config, State, VMeta};
 use cosmwasm_std::{Addr, Binary, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -9,6 +9,7 @@ pub struct InstantiateMsg {
     pub pools_contract: Addr,
     pub scc_contract: Addr,
     pub delegator_contract: Addr,
+    pub airdrop_withdraw_contract: Addr,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -17,6 +18,9 @@ pub struct MigrateMsg {}
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
+    SetRewardWithdrawAddress {
+        reward_contract: Addr,
+    },
     AddValidator {
         val_addr: Addr,
     },
@@ -40,32 +44,24 @@ pub enum ExecuteMsg {
         amount: Uint128,
     },
     RedeemAirdropAndTransfer {
-        airdrop_token: String,
         amount: Uint128,
         claim_msg: Binary,
-    },
-    SwapAndTransfer {
-        validators: Vec<Addr>,
-        identifier: String,
+        airdrop_contract: Addr,
+        cw20_contract: Addr, // Send message to this addr to move airdrops.
     },
 
     TransferReconciledFunds {
         amount: Uint128,
     },
 
-    UpdateAirdropRegistry {
-        denom: String,
-        airdrop_contract: Addr,
-        token_contract: Addr,
-    },
     AddSlashingFunds {},
     RemoveSlashingFunds {
         amount: Uint128,
     },
     UpdateConfig {
         pools_contract: Option<Addr>,
-        scc_contract: Option<Addr>,
         delegator_contract: Option<Addr>,
+        airdrop_withdraw_contract: Option<Addr>
     },
 }
 
@@ -75,7 +71,6 @@ pub enum QueryMsg {
     Config {},
     State {},
     ValidatorMeta { val_addr: Addr },
-    AirdropMeta { token: String },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -91,9 +86,4 @@ pub struct GetStateResponse {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct GetValidatorMetaResponse {
     pub val_meta: Option<VMeta>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct GetAirdropMetaResponse {
-    pub airdrop_meta: Option<AirdropRegistryInfo>,
 }

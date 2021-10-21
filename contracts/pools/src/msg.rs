@@ -1,6 +1,6 @@
 use crate::state::{
     AirdropRate, AirdropRegistryInfo, BatchUndelegationRecord, Config, ConfigUpdateRequest,
-    PoolRegistryInfo, State, ValInfo,
+    PoolRegistryInfo, State,
 };
 use cosmwasm_std::{Addr, Uint128};
 use schemars::JsonSchema;
@@ -9,7 +9,6 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
     pub vault_denom: String,
-    pub validator_contract: Addr,
     pub delegator_contract: Addr,
     pub unbonding_period: Option<u64>,
     pub unbonding_buffer: Option<u64>,
@@ -22,6 +21,8 @@ pub struct InstantiateMsg {
 pub enum ExecuteMsg {
     AddPool {
         name: String,
+        validator_contract: Addr,
+        reward_contract: Addr,
     },
     AddValidator {
         val_addr: Addr,
@@ -29,6 +30,8 @@ pub enum ExecuteMsg {
     },
     RemoveValidator {
         val_addr: Addr,
+        redel_addr: Addr,
+        pool_id: u64
     },
     Deposit {
         pool_id: u64,
@@ -37,6 +40,9 @@ pub enum ExecuteMsg {
         pool_id: u64,
     },
     Swap {
+        pool_id: u64,
+    },
+    SendRewardsToScc {
         pool_id: u64,
     },
     QueueUndelegate {
@@ -55,8 +61,12 @@ pub enum ExecuteMsg {
         undelegate_id: u64,
         amount: Uint128,
     },
-    UpdateAirdropPointers {
-        airdrop_amount: Uint128,
+    UpdateAirdropRegistry {
+        airdrop_token: String,
+        airdrop_contract: Addr,
+        cw20_contract: Addr,
+    },
+    ClaimAirdrops {
         rates: Vec<AirdropRate>,
     },
     UpdateConfig {
@@ -70,7 +80,7 @@ pub enum QueryMsg {
     Config {},
     State {},
     Pool { pool_id: u64 },
-    Validator { val_addr: Addr },
+    // ValidatorInPool { val_addr: Addr, pool_id: u64 },
     BatchUndelegation { pool_id: u64, batch_id: u64 },
 }
 
@@ -87,10 +97,7 @@ pub struct QueryStateResponse {
 pub struct QueryPoolResponse {
     pub pool: Option<PoolRegistryInfo>,
 }
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct QueryValidatorResponse {
-    pub val: Option<ValInfo>,
-}
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct QueryBatchUndelegationResponse {
     pub batch: Option<BatchUndelegationRecord>,

@@ -1,24 +1,15 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{
-    attr, to_binary, Addr, Attribute, Binary, Coin, ContractResult, Deps, DepsMut, DistributionMsg,
-    Env, Event, MessageInfo, Reply, Response, StakingMsg, StdResult, SubMsg,
-    SubMsgExecutionResponse, Uint128, WasmMsg,
-};
+use cosmwasm_std::{attr, to_binary, Addr, Attribute, Binary, Coin, ContractResult, Deps, DepsMut, DistributionMsg, Env, Event, MessageInfo, Reply, Response, StakingMsg, StdResult, SubMsg, SubMsgExecutionResponse, Uint128, WasmMsg, CosmosMsg, ReplyOn};
 
 use crate::error::ContractError;
 use crate::msg::{
-    ExecuteMsg, GetAirdropMetaResponse, GetConfigResponse, GetStateResponse,
+    ExecuteMsg, GetConfigResponse, GetStateResponse,
     GetValidatorMetaResponse, InstantiateMsg, MigrateMsg, QueryMsg,
 };
-use crate::operations::{
-    EVENT_REDELEGATE_ID, EVENT_REDELEGATE_KEY_DST_ADDR, EVENT_REDELEGATE_KEY_SRC_ADDR,
-    EVENT_REDELEGATE_TYPE,
-};
+use crate::operations::{EVENT_REDELEGATE_ID, EVENT_REDELEGATE_KEY_DST_ADDR, EVENT_REDELEGATE_KEY_SRC_ADDR, EVENT_REDELEGATE_TYPE, MESSAGE_REPLY_REWARD_INST_ID, EVENT_INSTANTIATE_TYPE, EVENT_INSTANTIATE_KEY_CONTRACT_ADDR};
 use crate::request_validation::{validate, Verify};
-use crate::state::{
-    AirdropRegistryInfo, Config, State, VMeta, AIRDROP_REGISTRY, CONFIG, STATE, VALIDATOR_REGISTRY,
-};
+use crate::state::{Config, State, VMeta, CONFIG, STATE, VALIDATOR_REGISTRY};
 use cw2::set_contract_version;
 use cw20::Cw20ExecuteMsg;
 use stader_utils::coin_utils::{
@@ -42,13 +33,12 @@ pub fn instantiate(
         manager: info.sender.clone(),
         vault_denom: msg.vault_denom,
         pools_contract: msg.pools_contract,
-        scc_contract: msg.scc_contract,
         delegator_contract: msg.delegator_contract,
+        airdrop_withdraw_contract: msg.airdrop_withdraw_contract,
     };
-    validate(&config, &info, &env, vec![Verify::NoFunds])?;
+
     let state = State {
         slashing_funds: Uint128::zero(),
-        unswapped_rewards: vec![],
     };
     CONFIG.save(deps.storage, &config)?;
     STATE.save(deps.storage, &state)?;
@@ -75,6 +65,8 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     match msg {
+        ExecuteMsg::SetRewardWithdrawAddress { reward_contract } =>
+            set_reward_withdraw_address(deps, info, env, reward_contract),
         ExecuteMsg::AddValidator { val_addr } => add_validator(deps, info, env, val_addr),
         ExecuteMsg::RemoveValidator {
             val_addr,
@@ -89,41 +81,45 @@ pub fn execute(
             undelegate(deps, info, env, val_addr, amount)
         }
         ExecuteMsg::RedeemAirdropAndTransfer {
-            airdrop_token,
             amount,
             claim_msg,
-        } => redeem_airdrop_and_transfer(deps, env, info, airdrop_token, amount, claim_msg),
-        ExecuteMsg::SwapAndTransfer {
-            validators,
-            identifier,
-        } => swap_and_transfer(deps, info, env, validators, identifier),
+            airdrop_contract,
+            cw20_contract
+        } => redeem_airdrop_and_transfer(deps, env, info, amount, claim_msg, airdrop_contract, cw20_contract),
 
         ExecuteMsg::TransferReconciledFunds { amount } => {
             transfer_reconciled_funds(deps, info, env, amount)
         }
 
-        ExecuteMsg::UpdateAirdropRegistry {
-            denom,
-            airdrop_contract,
-            token_contract,
-        } => update_airdrop_registry(deps, info, env, denom, airdrop_contract, token_contract),
         ExecuteMsg::AddSlashingFunds {} => add_slashing_funds(deps, info, env),
         ExecuteMsg::RemoveSlashingFunds { amount } => {
             remove_slashing_funds(deps, info, env, amount)
         }
         ExecuteMsg::UpdateConfig {
             pools_contract,
-            scc_contract,
             delegator_contract,
+            airdrop_withdraw_contract
         } => update_config(
             deps,
             info,
             env,
             pools_contract,
-            scc_contract,
             delegator_contract,
+            airdrop_withdraw_contract
         ),
     }
+}
+
+// TODO - GM. Add tests
+pub fn set_reward_withdraw_address(
+    deps: DepsMut,
+    info: MessageInfo,
+    env: Env,
+    reward_contract: Addr,
+) -> Result<Response<TerraMsgWrapper>, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    validate(&config, &info, &env, vec![Verify::SenderPoolsContract])?;
+    Ok(Response::new().add_message(DistributionMsg::SetWithdrawAddress { address: reward_contract.to_string() }))
 }
 
 pub fn add_validator(
@@ -148,19 +144,12 @@ pub fn add_validator(
         return Err(ContractError::ValidatorNotDiscoverable {});
     }
 
-    VALIDATOR_REGISTRY.save(
-        deps.storage,
-        &val_addr,
-        &VMeta {
-            staked: Uint128::zero(),
-            accrued_rewards: vec![],
-        },
-    )?;
+    VALIDATOR_REGISTRY.save(deps.storage, &val_addr, &VMeta { staked: Uint128::zero() })?;
 
     Ok(Response::default())
 }
 
-// TODO - GM. Check if this handing off message works. Accrued rewards for validator should be zero.
+// Expects the redelegate address to be a validator on the pool
 pub fn remove_validator(
     deps: DepsMut,
     info: MessageInfo,
@@ -169,32 +158,32 @@ pub fn remove_validator(
     redelegate_addr: Addr,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let config = CONFIG.load(deps.storage)?;
-    validate(&config, &info, &env, vec![Verify::SenderManager])?;
+    validate(&config, &info, &env, vec![Verify::SenderPoolsContract])?;
 
     let val_meta_opt = VALIDATOR_REGISTRY.may_load(deps.storage, &val_addr)?;
     let redel_val_meta_opt = VALIDATOR_REGISTRY.may_load(deps.storage, &redelegate_addr)?;
     if val_meta_opt.is_none() || redel_val_meta_opt.is_none() {
         return Err(ContractError::ValidatorNotAdded {});
     }
+    // If the redelegating validator is jailed, for ex, this tx will fail and will roll back state changes
+
+    let mut src_meta = val_meta_opt.unwrap();
+    let mut dst_meta = redel_val_meta_opt.unwrap();
+    dst_meta.staked = dst_meta.staked.checked_add(src_meta.staked).unwrap();
+
+    VALIDATOR_REGISTRY.remove(deps.storage, &val_addr);
+    VALIDATOR_REGISTRY.save(deps.storage, &redelegate_addr, &dst_meta)?;
+
     let mut messages = vec![];
-    let val_meta = val_meta_opt.unwrap();
-    if val_meta.staked.ne(&Uint128::zero()) {
-        messages.push(SubMsg::reply_always(
-            WasmMsg::Execute {
-                contract_addr: env.contract.address.to_string(),
-                msg: to_binary(&ExecuteMsg::Redelegate {
-                    src: val_addr,
-                    dst: redelegate_addr,
-                    amount: val_meta.staked,
-                })
-                .unwrap(),
-                funds: vec![],
-            },
-            EVENT_REDELEGATE_ID,
-        ));
+    if src_meta.staked.ne(&Uint128::zero()) {
+        messages.push(StakingMsg::Redelegate {
+            src_validator: val_addr.to_string(),
+            dst_validator: redelegate_addr.to_string(),
+            amount: Coin::new(src_meta.staked.u128(), config.vault_denom),
+        });
     }
 
-    Ok(Response::new().add_submessages(messages))
+    Ok(Response::new().add_messages(messages))
 }
 
 // stake_to_validator can be called for each users message rather than a batch.
@@ -220,41 +209,13 @@ pub fn stake_to_validator(
     let val_meta = val_meta_opt.unwrap();
     let stake_amount = info.funds[0].clone();
 
-    let full_delegation = deps
-        .querier
-        .query_delegation(&env.contract.address, &val_addr)?;
-
-    let accrued_rewards: Vec<Coin> = if let Some(fd) = full_delegation {
-        fd.accumulated_rewards
-    } else {
-        vec![]
-    };
-
     VALIDATOR_REGISTRY.save(
         deps.storage,
         &val_addr,
         &VMeta {
             staked: val_meta.staked.checked_add(stake_amount.amount).unwrap(),
-            accrued_rewards: merge_coin_vector(
-                &val_meta.accrued_rewards,
-                CoinVecOp {
-                    fund: accrued_rewards.clone(),
-                    operation: Operation::Add,
-                },
-            ),
         },
     )?;
-
-    STATE.update(deps.storage, |mut state| -> StdResult<_> {
-        state.unswapped_rewards = merge_coin_vector(
-            &state.unswapped_rewards,
-            CoinVecOp {
-                fund: accrued_rewards,
-                operation: Operation::Add,
-            },
-        );
-        Ok(state)
-    })?;
 
     Ok(
         Response::new()
@@ -279,10 +240,11 @@ pub fn redeem_rewards(
     let mut failed_vals: Vec<String> = vec![];
     let mut logs: Vec<Attribute> = vec![];
     let mut total_slashing_difference = Uint128::zero();
-    let mut total_rewards = vec![];
     for val_addr in validators {
         let val_meta_opt = VALIDATOR_REGISTRY.may_load(deps.storage, &val_addr)?;
-        if val_meta_opt.is_none() {
+
+        // Skip validators that are currently jailed.
+        if val_meta_opt.is_none() || deps.querier.query_validator(val_addr.to_string())?.is_none() {
             failed_vals.push(val_addr.to_string());
             continue;
         }
@@ -311,23 +273,7 @@ pub fn redeem_rewards(
                 amount: Coin::new(difference.u128(), config.vault_denom.clone()),
             }));
         }
-        total_rewards = merge_coin_vector(
-            &total_rewards,
-            CoinVecOp {
-                fund: full_delegation.accumulated_rewards.clone(),
-                operation: Operation::Add,
-            },
-        );
-        val_meta.accrued_rewards = merge_coin_vector(
-            &val_meta.accrued_rewards.clone(),
-            CoinVecOp {
-                fund: full_delegation.accumulated_rewards,
-                operation: Operation::Add,
-            },
-        );
 
-        VALIDATOR_REGISTRY.save(deps.storage, &val_addr, &val_meta)?;
-        // Don't need explicit withdrawal msg for those validators to whom deposits are being added to compensate slasshing.
         messages.push(SubMsg::new(DistributionMsg::WithdrawDelegatorReward {
             validator: val_addr.to_string(),
         }));
@@ -338,13 +284,6 @@ pub fn redeem_rewards(
             .slashing_funds
             .checked_sub(total_slashing_difference)
             .unwrap();
-        state.unswapped_rewards = merge_coin_vector(
-            &state.unswapped_rewards,
-            CoinVecOp {
-                fund: total_rewards,
-                operation: Operation::Add,
-            },
-        );
         Ok(state)
     })?;
 
@@ -355,7 +294,7 @@ pub fn redeem_rewards(
 }
 
 // Make the caller handle errors with redelegation constraints
-// TODO- GM. Make this callable by manager too.
+// Serves as a mechanism for pool rebalancing and rescuing stake from jailed/tombstoned validators
 pub fn redelegate(
     deps: DepsMut,
     info: MessageInfo,
@@ -365,13 +304,12 @@ pub fn redelegate(
     amount: Uint128,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let config = CONFIG.load(deps.storage)?;
-    // Should the sender be manager or this contract for the submessage from remove_validator towards this message?
 
     validate(
         &config,
         &info,
         &env,
-        vec![Verify::SenderManagerOrPoolsContractOrSelf],
+        vec![Verify::SenderManagerOrPoolsContract],
     )?;
 
     let src_meta_opt = VALIDATOR_REGISTRY.may_load(deps.storage, &src)?;
@@ -385,58 +323,13 @@ pub fn redelegate(
         return Err(ContractError::InSufficientFunds {});
     }
     src_meta.staked = src_meta.staked.checked_sub(amount).unwrap();
-    let src_delegation_opt = deps.querier.query_delegation(&env.contract.address, &src)?;
-    let src_rewards = if let Some(src_delegation) = src_delegation_opt {
-        src_delegation.accumulated_rewards
-    } else {
-        vec![]
-    };
-    src_meta.accrued_rewards = merge_coin_vector(
-        &src_meta.accrued_rewards,
-        CoinVecOp {
-            operation: Operation::Add,
-            fund: src_rewards.clone(),
-        },
-    );
 
     let mut dst_meta = dst_meta_opt.unwrap();
     dst_meta.staked = dst_meta.staked.checked_add(amount).unwrap();
-    let dst_delegation_opt = deps.querier.query_delegation(&env.contract.address, &dst)?;
-    let dst_rewards = if let Some(dst_delegation) = dst_delegation_opt {
-        dst_delegation.accumulated_rewards
-    } else {
-        vec![]
-    };
-    dst_meta.accrued_rewards = merge_coin_vector(
-        &dst_meta.accrued_rewards,
-        CoinVecOp {
-            operation: Operation::Add,
-            fund: dst_rewards.clone(),
-        },
-    );
 
     VALIDATOR_REGISTRY.save(deps.storage, &src, &src_meta)?;
     VALIDATOR_REGISTRY.save(deps.storage, &dst, &dst_meta)?;
 
-    STATE.update(deps.storage, |mut state| -> StdResult<_> {
-        let total_redeemed_rewards = merge_coin_vector(
-            &src_rewards,
-            CoinVecOp {
-                operation: Operation::Add,
-                fund: dst_rewards,
-            },
-        );
-        state.unswapped_rewards = merge_coin_vector(
-            &state.unswapped_rewards,
-            CoinVecOp {
-                operation: Operation::Add,
-                fund: total_redeemed_rewards,
-            },
-        );
-        Ok(state)
-    })?;
-
-    // TODO - GM. Do we need both attr and events?
     Ok(Response::new()
         .add_message(StakingMsg::Redelegate {
             src_validator: src.to_string(),
@@ -447,16 +340,11 @@ pub fn redelegate(
             attr("Redelgation_src", &src.to_string()),
             attr("Redelgation_dst", &dst.to_string()),
             attr("Redelgation_amount", amount.to_string()),
-        ])
-        .add_event(
-            Event::new(EVENT_REDELEGATE_TYPE)
-                .add_attribute(EVENT_REDELEGATE_KEY_SRC_ADDR, &src.to_string())
-                .add_attribute(EVENT_REDELEGATE_KEY_DST_ADDR, &dst.to_string()),
-        ))
+        ]))
 }
 
 // No need to store undelegated funds here. Pools will store that.
-// TODO GM. Why do we need staked in this contract then? Sanity? \_(^_^)_/
+// TODO GM. Why do we need staked in this contract then? For slashing check!
 pub fn undelegate(
     deps: DepsMut,
     info: MessageInfo,
@@ -471,41 +359,17 @@ pub fn undelegate(
     if val_meta_opt.is_none() {
         return Err(ContractError::ValidatorNotAdded {});
     }
+    if amount.is_zero() {
+        return Err(ContractError::ZeroAmount {});
+    }
 
     let mut val_meta = val_meta_opt.unwrap();
     if val_meta.staked.lt(&amount) {
         return Err(ContractError::InSufficientFunds {});
     }
 
-    let full_delegation_opt = deps
-        .querier
-        .query_delegation(&env.contract.address, &val_addr)?;
-
-    let acc_rewards = if let Some(fd) = full_delegation_opt {
-        fd.accumulated_rewards
-    } else {
-        vec![]
-    };
     val_meta.staked = val_meta.staked.checked_sub(amount).unwrap();
-    val_meta.accrued_rewards = merge_coin_vector(
-        &val_meta.accrued_rewards,
-        CoinVecOp {
-            operation: Operation::Add,
-            fund: acc_rewards.clone(),
-        },
-    );
     VALIDATOR_REGISTRY.save(deps.storage, &val_addr, &val_meta)?;
-
-    STATE.update(deps.storage, |mut state| -> StdResult<_> {
-        state.unswapped_rewards = merge_coin_vector(
-            &state.unswapped_rewards,
-            CoinVecOp {
-                fund: acc_rewards,
-                operation: Operation::Add,
-            },
-        );
-        Ok(state)
-    })?;
 
     Ok(Response::new().add_message(StakingMsg::Undelegate {
         validator: val_addr.to_string(),
@@ -513,60 +377,32 @@ pub fn undelegate(
     }))
 }
 
-pub fn update_airdrop_registry(
-    deps: DepsMut,
-    info: MessageInfo,
-    env: Env,
-    denom: String,
-    airdrop_contract: Addr,
-    token_contract: Addr,
-) -> Result<Response<TerraMsgWrapper>, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
-    validate(&config, &info, &env, vec![Verify::SenderManager])?;
-    AIRDROP_REGISTRY.save(
-        deps.storage,
-        denom,
-        &AirdropRegistryInfo {
-            airdrop_contract,
-            token_contract,
-        },
-    )?;
-
-    Ok(Response::default())
-}
-
 pub fn redeem_airdrop_and_transfer(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    denom: String,
     amount: Uint128,
     claim_msg: Binary,
+    airdrop_contract: Addr,
+    cw20_contract: Addr,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let config = CONFIG.load(deps.storage)?;
-    validate(&config, &info, &env, vec![Verify::SenderManager])?;
+    validate(&config, &info, &env, vec![Verify::SenderPoolsContract])?;
 
     if amount.eq(&Uint128::zero()) {
         return Err(ContractError::ZeroAmount {});
     }
 
-    let airdrop_contract_opt = AIRDROP_REGISTRY.may_load(deps.storage, denom).unwrap();
-    if airdrop_contract_opt.is_none() {
-        return Err(ContractError::AirdropNotRegistered {});
-    }
-
-    let airdrop_registry_info = airdrop_contract_opt.unwrap();
-
     let messages: Vec<WasmMsg> = vec![
         WasmMsg::Execute {
-            contract_addr: airdrop_registry_info.airdrop_contract.to_string(),
+            contract_addr: airdrop_contract.to_string(),
             msg: claim_msg,
             funds: vec![],
         },
         WasmMsg::Execute {
-            contract_addr: airdrop_registry_info.token_contract.to_string(),
+            contract_addr: cw20_contract.to_string(),
             msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                recipient: String::from(config.scc_contract),
+                recipient: String::from(config.airdrop_withdraw_contract),
                 amount,
             })
             .unwrap(),
@@ -575,158 +411,6 @@ pub fn redeem_airdrop_and_transfer(
     ];
 
     Ok(Response::new().add_messages(messages))
-}
-
-// TODO: GM. Add tests for this.
-// Swap & Transfer in one tx ensures that delegators cannot deposit in between and get rewards for epoch.
-// Also simplifies one source of luna in validator contract.
-// Now there's only undelegated funds, rewards base, (deposits are sent to val in same tx) at any point.
-pub fn swap_and_transfer(
-    deps: DepsMut,
-    info: MessageInfo,
-    env: Env,
-    validators: Vec<Addr>,
-    identifier: String,
-) -> Result<Response<TerraMsgWrapper>, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
-    validate(&config, &info, &env, vec![Verify::SenderPoolsContract])?;
-    let mut logs: Vec<Attribute> = vec![];
-    let mut messages = vec![];
-    let mut failed_vals: Vec<String> = vec![];
-    let mut total_rewards = vec![];
-    for val_addr in validators.clone() {
-        let val_meta_opt = VALIDATOR_REGISTRY.may_load(deps.storage, &val_addr)?;
-        if val_meta_opt.is_none() {
-            failed_vals.push(val_addr.to_string());
-            continue;
-        }
-
-        let val_meta = val_meta_opt.unwrap();
-        total_rewards = merge_coin_vector(
-            &total_rewards,
-            CoinVecOp {
-                fund: val_meta.accrued_rewards,
-                operation: Operation::Add,
-            },
-        );
-    }
-
-    let denoms: Vec<String> = total_rewards
-        .iter()
-        .map(|item| item.denom.clone())
-        .collect();
-    let exchange_rates = query_exchange_rates(deps.querier, "uluna".to_string(), &denoms);
-    logs.push(attr("exhcnage_rate_size", exchange_rates.len().to_string()));
-    let mut failed_denoms: Vec<String> = denoms
-        .into_iter()
-        .filter(|item| !exchange_rates.contains_key(item))
-        .collect();
-    logs.push(attr("failed_denoms", failed_denoms.join(",")));
-    let mut total_transfer_amount = 0_u128;
-    let mut rewards_swapped = vec![]; // Coins that will be swapped.
-
-    for coin in total_rewards {
-        if coin.amount.eq(&Uint128::zero()) {
-            // don't need to be in failed coins or rewards swapped because 0 reward denoms can be cleared out.
-            continue;
-        } else if coin.denom.eq(&config.vault_denom) {
-            rewards_swapped = merge_coin_vector(
-                &rewards_swapped,
-                CoinVecOp {
-                    operation: Operation::Add,
-                    fund: vec![Coin::new(coin.amount.u128(), coin.denom.clone())], // Coin does not have copy
-                },
-            );
-            total_transfer_amount += coin.amount.u128();
-            logs.push(attr(format!("coin-{}", coin.denom), 1_u128.to_string()));
-            logs.push(attr(
-                format!("converted-coin-{}", coin.denom),
-                coin.amount.to_string(),
-            ));
-        } else if exchange_rates.contains_key(&coin.denom) {
-            let exchange_rate = *exchange_rates.get(&coin.denom).unwrap();
-            let coin_converted = multiply_coin_with_decimal(&coin, exchange_rate)
-                .amount
-                .u128();
-            logs.push(attr(
-                format!("coin-{}", coin.denom),
-                exchange_rate.to_string(),
-            ));
-            logs.push(attr(
-                format!("converted-coin-{}", coin.denom),
-                coin_converted.to_string(),
-            ));
-
-            if coin_converted == 0_u128 {
-                failed_denoms.push(coin.denom.clone());
-                continue;
-            }
-            total_transfer_amount += coin_converted;
-            messages.push(create_swap_msg(
-                Coin::new(coin.amount.u128(), coin.denom.clone()),
-                config.vault_denom.clone(),
-            ));
-
-            rewards_swapped = merge_coin_vector(
-                &rewards_swapped,
-                CoinVecOp {
-                    operation: Operation::Add,
-                    fund: vec![Coin::new(coin.amount.u128(), coin.denom.clone())], // Coin does not have copy
-                },
-            );
-        }
-    }
-
-    if total_transfer_amount == 0_u128 {
-        return Ok(Response::new().add_attributes(logs));
-    }
-
-    for val_addr in validators {
-        let val_meta_opt = VALIDATOR_REGISTRY.may_load(deps.storage, &val_addr)?;
-        if val_meta_opt.is_none() {
-            // Don't add to failed_vals again.
-            continue;
-        }
-        let mut val_meta = val_meta_opt.unwrap();
-        val_meta.accrued_rewards = val_meta
-            .clone()
-            .accrued_rewards
-            .into_iter()
-            .filter(|coin| failed_denoms.contains(&coin.denom))
-            .collect();
-
-        VALIDATOR_REGISTRY.save(deps.storage, &val_addr, &val_meta)?;
-    }
-
-    // TODO - GM. This should be a map entry with a pool_id as key.
-    STATE.update(deps.storage, |mut state| -> StdResult<_> {
-        state.unswapped_rewards = merge_coin_vector(
-            &state.unswapped_rewards,
-            CoinVecOp {
-                operation: Operation::Sub,
-                fund: rewards_swapped,
-            },
-        );
-        Ok(state)
-    })?;
-
-    logs.push(attr("failed_denoms", failed_denoms.join(",")));
-
-    Ok(Response::new()
-        .add_messages(messages)
-        .add_message(send_funds_msg(
-            &config.scc_contract,
-            &[Coin::new(total_transfer_amount, config.vault_denom)],
-        ))
-        .add_event(
-            Event::new(EVENT_SWAP_TYPE)
-                .add_attribute(EVENT_SWAP_KEY_AMOUNT, total_transfer_amount.to_string())
-                .add_attribute(EVENT_KEY_IDENTIFIER, identifier),
-        )
-        .add_attributes(logs)
-        .add_attribute("failed_validators", failed_vals.join(","))
-        .add_attribute("failed_denoms", failed_denoms.join(","))
-        .add_attribute("transfer_amount", total_transfer_amount.to_string()))
 }
 
 pub fn transfer_reconciled_funds(
@@ -745,13 +429,7 @@ pub fn transfer_reconciled_funds(
     let vault_denom = config.vault_denom.clone();
     let mut state = STATE.load(deps.storage)?;
     let current_slashing_funds = state.slashing_funds;
-    let base_funds_from_unswapped_rewards = state
-        .unswapped_rewards
-        .iter()
-        .find(|&x| x.denom.eq(&vault_denom))
-        .cloned()
-        .unwrap_or_else(|| Coin::new(0, vault_denom.clone()))
-        .amount;
+
     let total_base_funds_in_vault = deps
         .querier
         .query_balance(env.contract.address, vault_denom)
@@ -759,8 +437,6 @@ pub fn transfer_reconciled_funds(
         .amount;
 
     let unaccounted_base_funds = total_base_funds_in_vault
-        .checked_sub(base_funds_from_unswapped_rewards)
-        .unwrap()
         .checked_sub(current_slashing_funds)
         .unwrap();
 
@@ -779,10 +455,6 @@ pub fn transfer_reconciled_funds(
             &[Coin::new(amount.u128(), config.vault_denom)],
         ))
         .add_attribute("slashing_funds", current_slashing_funds.to_string())
-        .add_attribute(
-            "base_rewards_funds",
-            base_funds_from_unswapped_rewards.to_string(),
-        )
         .add_attribute("total_base_funds", total_base_funds_in_vault))
 }
 
@@ -849,8 +521,8 @@ pub fn update_config(
     info: MessageInfo,
     env: Env,
     pools_contract: Option<Addr>,
-    scc_contract: Option<Addr>,
     delegator_contract: Option<Addr>,
+    airdrop_withdraw_contract: Option<Addr>
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let config = CONFIG.load(deps.storage)?;
     validate(
@@ -862,7 +534,7 @@ pub fn update_config(
 
     CONFIG.update(deps.storage, |mut config| -> StdResult<_> {
         config.pools_contract = pools_contract.unwrap_or(config.pools_contract);
-        config.scc_contract = scc_contract.unwrap_or(config.scc_contract);
+        config.airdrop_withdraw_contract = airdrop_withdraw_contract.unwrap_or(config.airdrop_withdraw_contract);
         config.delegator_contract = delegator_contract.unwrap_or(config.delegator_contract);
         Ok(config)
     })?;
@@ -876,7 +548,6 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::Config {} => to_binary(&query_config(deps)?),
         QueryMsg::State {} => to_binary(&query_state(deps)?),
         QueryMsg::ValidatorMeta { val_addr } => to_binary(&query_validator_meta(deps, val_addr)?),
-        QueryMsg::AirdropMeta { token } => to_binary(&query_airdrop_meta(deps, token)?),
     }
 }
 
@@ -897,78 +568,93 @@ pub fn query_validator_meta(deps: Deps, val_addr: Addr) -> StdResult<GetValidato
     })
 }
 
-pub fn query_airdrop_meta(deps: Deps, token: String) -> StdResult<GetAirdropMetaResponse> {
-    let airdrop_meta_opt = AIRDROP_REGISTRY.may_load(deps.storage, token)?;
-    Ok(GetAirdropMetaResponse {
-        airdrop_meta: airdrop_meta_opt,
-    })
-}
-
-/**
-    SubMessage Signals
-*/
-
-#[cfg_attr(not(feature = "library"), entry_point)]
-pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractError> {
-    match msg.id {
-        // Called for remove_validator clean up.
-        0 => reply_remove_validator(deps, env, msg.id, msg.result),
-        _ => panic!("Cannot find operation id {:?}", msg.id),
-    }
-}
+// #[cfg_attr(not(feature = "library"), entry_point)]
+// pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractError> {
+//     match msg.id {
+//         // Called for remove_validator clean up.
+//         EVENT_REDELEGATE_ID => reply_remove_validator(deps, env, msg.id, msg.result),
+//         // MESSAGE_REPLY_REWARD_INST_ID => reply_reward_contract_inst(deps, env, msg.id, msg.result),
+//         _ => panic!("Cannot find operation id {:?}", msg.id),
+//     }
+// }
+//
+// // This is called with redelegate response originating from remove_validator.
+// pub fn reply_remove_validator(
+//     deps: DepsMut,
+//     _env: Env,
+//     _msg_id: u64,
+//     result: ContractResult<SubMsgExecutionResponse>,
+// ) -> Result<Response, ContractError> {
+//     if result.is_err() {
+//         return Err(ContractError::RedelegationFailed {});
+//     }
+//
+//     // TODO - GM. Handle error case as well.
+//     let res = result.unwrap();
+//     let mut keys: Vec<String> = vec![];
+//
+//     for event in res.events.clone() {
+//         keys.push(event.ty);
+//     }
+//
+//     let event_name = format!("wasm-{}", EVENT_REDELEGATE_TYPE);
+//     let event_opt = res.events.into_iter().find(|x| x.ty.eq(&event_name));
+//     if event_opt.is_none() {
+//         return Err(ContractError::RedelegationEventNotFound {});
+//     }
+//
+//     let attrs = event_opt.unwrap().attributes;
+//     let src_attr = attrs
+//         .clone()
+//         .into_iter()
+//         .find(|x| x.key.eq(&EVENT_REDELEGATE_KEY_SRC_ADDR))
+//         .unwrap();
+//     let dst_attr = attrs
+//         .into_iter()
+//         .find(|x| x.key.eq(&EVENT_REDELEGATE_KEY_DST_ADDR))
+//         .unwrap();
+//     let src_val_addr = Addr::unchecked(src_attr.value);
+//     let dst_val_addr = Addr::unchecked(dst_attr.value);
+//
+//     let mut dst_val_meta = VALIDATOR_REGISTRY.load(deps.storage, &dst_val_addr)?;
+//
+//     VALIDATOR_REGISTRY.save(deps.storage, &dst_val_addr, &dst_val_meta)?;
+//     VALIDATOR_REGISTRY.remove(deps.storage, &src_val_addr);
+//
+//     Ok(Response::new().add_attribute("Removed_val", src_val_addr.to_string()))
+// }
 
 // This is called with redelegate response originating from remove_validator.
-pub fn reply_remove_validator(
-    deps: DepsMut,
-    _env: Env,
-    _msg_id: u64,
-    result: ContractResult<SubMsgExecutionResponse>,
-) -> Result<Response, ContractError> {
-    if result.is_err() {
-        return Err(ContractError::RedelegationFailed {});
-    }
-
-    // TODO - GM. Handle error case as well.
-    let res = result.unwrap();
-    let mut keys: Vec<String> = vec![];
-
-    for event in res.events.clone() {
-        keys.push(event.ty);
-    }
-
-    let event_name = format!("wasm-{}", EVENT_REDELEGATE_TYPE);
-    let event_opt = res.events.into_iter().find(|x| x.ty.eq(&event_name));
-    if event_opt.is_none() {
-        return Err(ContractError::RedelegationEventNotFound {});
-    }
-
-    let attrs = event_opt.unwrap().attributes;
-    let src_attr = attrs
-        .clone()
-        .into_iter()
-        .find(|x| x.key.eq(&EVENT_REDELEGATE_KEY_SRC_ADDR))
-        .unwrap();
-    let dst_attr = attrs
-        .into_iter()
-        .find(|x| x.key.eq(&EVENT_REDELEGATE_KEY_DST_ADDR))
-        .unwrap();
-    let src_val_addr = Addr::unchecked(src_attr.value);
-    let dst_val_addr = Addr::unchecked(dst_attr.value);
-
-    let src_val_meta = VALIDATOR_REGISTRY.load(deps.storage, &src_val_addr)?;
-    let mut dst_val_meta = VALIDATOR_REGISTRY.load(deps.storage, &dst_val_addr)?;
-
-    // Staked fields would be taken care of redelegate message. Update accrued rewards field as well.
-    dst_val_meta.accrued_rewards = merge_coin_vector(
-        &dst_val_meta.accrued_rewards,
-        CoinVecOp {
-            fund: src_val_meta.accrued_rewards,
-            operation: Operation::Add,
-        },
-    );
-
-    VALIDATOR_REGISTRY.save(deps.storage, &dst_val_addr, &dst_val_meta)?;
-    VALIDATOR_REGISTRY.remove(deps.storage, &src_val_addr);
-
-    Ok(Response::new().add_attribute("Removed_val", src_val_addr.to_string()))
-}
+// pub fn reply_reward_contract_inst(
+//     deps: DepsMut,
+//     _env: Env,
+//     _msg_id: u64,
+//     result: ContractResult<SubMsgExecutionResponse>,
+// ) -> Result<Response, ContractError> {
+//     if result.is_err() {
+//         return Err(ContractError::RewardInstantiationFailed {});
+//     }
+//
+//     // TODO - GM. Handle error case as well.
+//     let res = result.unwrap();
+//     let mut keys: Vec<String> = vec![];
+//
+//     for event in res.events.clone() {
+//         keys.push(event.ty);
+//     }
+//
+//     let event_name = format!("wasm-{}", EVENT_INSTANTIATE_TYPE);
+//     let event_opt = res.events.into_iter().find(|x| x.ty.eq(&event_name));
+//     if event_opt.is_none() {
+//         return Err(ContractError::InstantiateEventNotFound {});
+//     }
+//
+//     let attrs = event_opt.unwrap().attributes;
+//     let reward_contract_addr_attr = attrs
+//         .clone()
+//         .into_iter()
+//         .find(|x| x.key.eq(&EVENT_INSTANTIATE_KEY_CONTRACT_ADDR))
+//         .unwrap();
+//
+//     Ok(Response::new().add_attribute("reward_contract_addr", reward_contract_addr_attr.value.to_string()))
+// }

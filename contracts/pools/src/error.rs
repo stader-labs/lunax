@@ -74,6 +74,22 @@ pub enum ContractError {
 
     #[error("Deposit amount cannot be less than min deposit amount")]
     MinDeposit {},
+
+    #[error("Provided validator contract is in use for another pool")]
+    ValidatorContractInUse {},
+
+    #[error("Provided reward contract is in use for another pool")]
+    RewardContractInUse {},
+
+    #[error("All validators in the pool are inactive/jailed")]
+    AllValidatorsJailed {},
+
+    #[error("Expected rewards to be non-zero for transfer to SCC")]
+    ZeroRewards {},
+
+    #[error("Validator to replace the removed validator should be different")]
+    RemoveValidatorsCannotBeSame {},
+
     // Add any other custom errors you like here.
     // Look at https://docs.rs/thiserror/1.0.21/thiserror/ for details.
 }

@@ -1,15 +1,14 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Addr, Decimal, Timestamp, Uint128};
+use cosmwasm_std::{Addr, Decimal, Timestamp, Uint128, Binary};
 use cw_storage_plus::{Item, Map, U64Key};
 use stader_utils::coin_utils::DecCoin;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
     pub manager: Addr,
-    pub vault_denom: String,
-    pub validator_contract: Addr,
+    pub vault_denom: String, // Will be the same as reward denom in reward contract
     pub delegator_contract: Addr,
     pub unbonding_period: u64,
     pub unbonding_buffer: u64,
@@ -27,7 +26,9 @@ pub struct State {
 pub struct PoolRegistryInfo {
     pub name: String,
     pub active: bool, // activates by default.
-    pub validators: Vec<Addr>,
+    pub validator_contract: Addr,
+    pub reward_contract: Addr,
+    pub validators: Vec<Addr>, // We estimate to have no more than 10 validators per pool.
     pub staked: Uint128,
     pub rewards_pointer: Decimal,
     pub airdrops_pointer: Vec<DecCoin>,
@@ -44,21 +45,7 @@ pub struct BatchUndelegationRecord {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct ValInfo {
-    pub pool_id: u64,
-    pub staked: Uint128,
-}
-
-// #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-// pub struct RedelMeta {
-//     pub pool_id: u64,
-//     pub amount: String,
-//     pub staked: Uint128,
-// }
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigUpdateRequest {
-    pub(crate) validator_contract: Option<Addr>,
     pub(crate) delegator_contract: Option<Addr>,
     pub(crate) min_deposit: Option<Uint128>,
     pub(crate) max_deposit: Option<Uint128>,
@@ -67,7 +54,10 @@ pub struct ConfigUpdateRequest {
 }
 
 pub const POOL_REGISTRY: Map<U64Key, PoolRegistryInfo> = Map::new("pool_registry");
-pub const VALIDATOR_REGISTRY: Map<&Addr, ValInfo> = Map::new("validator_registry");
+// Validator contract (that actually delegates) per pool
+pub const VALIDATOR_CONTRACTS: Map<&Addr, u64> = Map::new("validator_contracts");
+// Reward contract (that accrues rewards) per pool
+pub const REWARD_CONTRACTS: Map<&Addr, u64> = Map::new("reward_contracts");
 
 pub const CONFIG: Item<Config> = Item::new("config");
 pub const STATE: Item<State> = Item::new("state");
@@ -75,7 +65,7 @@ pub const STATE: Item<State> = Item::new("state");
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct AirdropRegistryInfo {
     pub airdrop_contract: Addr,
-    pub token_contract: Addr,
+    pub cw20_contract: Addr,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -83,6 +73,7 @@ pub struct AirdropRate {
     pub pool_id: u64,
     pub denom: String,
     pub amount: Uint128, // uAirdrop per 10^6 uBase
+    pub claim_msg: Binary,
 }
 
 // Map of airdrop token to the token contract
