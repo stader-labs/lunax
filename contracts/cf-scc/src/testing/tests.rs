@@ -3,7 +3,8 @@ mod tests {
     use crate::contract::{execute, instantiate, query};
 
     use crate::msg::{
-        ExecuteMsg, GetConfigResponse, InstantiateMsg, QueryMsg, UpdateUserRewardsRequest,
+        ExecuteMsg, GetConfigResponse, InstantiateMsg, QueryMsg, UpdateUserAirdropsRequest,
+        UpdateUserRewardsRequest,
     };
     use crate::state::{Config, USER_REWARDS};
     use crate::ContractError;
@@ -11,9 +12,10 @@ mod tests {
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
     };
     use cosmwasm_std::{
-        coins, from_binary, Addr, BankMsg, Coin, Empty, Env, MessageInfo, OwnedDeps, Response,
-        SubMsg, Uint128,
+        coins, from_binary, Addr, Attribute, BankMsg, Coin, Empty, Env, MessageInfo, OwnedDeps,
+        Response, SubMsg, Uint128,
     };
+    use stader_utils::test_helpers::check_equal_vec;
 
     fn instantiate_contract(
         deps: &mut OwnedDeps<MockStorage, MockApi, MockQuerier>,
@@ -55,6 +57,107 @@ mod tests {
                 delegator_contract: Addr::unchecked("delegator_contract")
             }
         );
+    }
+
+    #[test]
+    fn test_update_user_airdrops() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &coins(1000, "earth"));
+        let env = mock_env();
+
+        let _res = instantiate_contract(
+            &mut deps,
+            &info,
+            &env,
+            Some(String::from("delegator_contract")),
+        );
+
+        /*
+           Test - 1. Unauthorized
+        */
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("not-delegator", &[]),
+            ExecuteMsg::UpdateUserAirdrops {
+                update_user_airdrops_requests: vec![],
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::Unauthorized {}));
+
+        /*
+           Test - 2. No requests sent
+        */
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("delegator_contract", &[]),
+            ExecuteMsg::UpdateUserAirdrops {
+                update_user_airdrops_requests: vec![],
+            },
+        )
+        .unwrap();
+        assert_eq!(res.messages.len(), 0);
+        assert_eq!(res.attributes.len(), 1);
+        assert!(check_equal_vec(
+            res.attributes,
+            vec![Attribute {
+                key: "zero_user_airdrops_requests".to_string(),
+                value: "1".to_string()
+            }]
+        ));
+
+        /*
+           Test - 3. Airdrops come in
+        */
+        let user1 = Addr::unchecked("user1");
+        let user2 = Addr::unchecked("user2");
+
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("delegator_contract", &[]),
+            ExecuteMsg::UpdateUserAirdrops {
+                update_user_airdrops_requests: vec![
+                    UpdateUserAirdropsRequest {
+                        user: user1.clone(),
+                        pool_airdrops: vec![
+                            Coin::new(1000_u128, "anc".to_string()),
+                            Coin::new(2000_u128, "mir".to_string()),
+                        ],
+                    },
+                    UpdateUserAirdropsRequest {
+                        user: user2.clone(),
+                        pool_airdrops: vec![
+                            Coin::new(2000_u128, "anc".to_string()),
+                            Coin::new(3000_u128, "mir".to_string()),
+                        ],
+                    },
+                ],
+            },
+        )
+        .unwrap();
+        assert_eq!(res.messages.len(), 0);
+        assert_eq!(res.attributes.len(), 0);
+
+        let user1_info = USER_REWARDS.load(deps.as_mut().storage, &user1).unwrap();
+        let user2_info = USER_REWARDS.load(deps.as_mut().storage, &user2).unwrap();
+
+        assert!(check_equal_vec(
+            user1_info.airdrops,
+            vec![
+                Coin::new(1000_u128, "anc".to_string()),
+                Coin::new(2000_u128, "mir".to_string())
+            ]
+        ));
+        assert!(check_equal_vec(
+            user2_info.airdrops,
+            vec![
+                Coin::new(2000_u128, "anc".to_string()),
+                Coin::new(3000_u128, "mir".to_string())
+            ]
+        ));
     }
 
     #[test]
@@ -124,8 +227,8 @@ mod tests {
         let user2_rewards = USER_REWARDS
             .load(deps.as_mut().storage, &user2.clone())
             .unwrap();
-        assert_eq!(user1_rewards, Uint128::new(200));
-        assert_eq!(user2_rewards, Uint128::new(300));
+        assert_eq!(user1_rewards.amount, Uint128::new(200));
+        assert_eq!(user2_rewards.amount, Uint128::new(300));
 
         let res = execute(
             deps.as_mut(),
@@ -146,8 +249,8 @@ mod tests {
         let user2_rewards = USER_REWARDS
             .load(deps.as_mut().storage, &user2.clone())
             .unwrap();
-        assert_eq!(user1_rewards, Uint128::new(500));
-        assert_eq!(user2_rewards, Uint128::new(300));
+        assert_eq!(user1_rewards.amount, Uint128::new(500));
+        assert_eq!(user2_rewards.amount, Uint128::new(300));
     }
 
     #[test]

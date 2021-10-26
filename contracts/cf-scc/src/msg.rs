@@ -1,4 +1,4 @@
-use crate::state::Config;
+use crate::state::{Config, UserInfo};
 use cosmwasm_std::{Addr, Coin, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -13,6 +13,12 @@ pub struct UpdateUserRewardsRequest {
     pub user: Addr,
     // funds will be in native chain token
     pub funds: Uint128,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct UpdateUserAirdropsRequest {
+    pub user: Addr,
+    pub pool_airdrops: Vec<Coin>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -37,7 +43,9 @@ pub enum ExecuteMsg {
     UpdateUserRewards {
         update_user_rewards_requests: Vec<UpdateUserRewardsRequest>,
     },
-
+    UpdateUserAirdrops {
+        update_user_airdrops_requests: Vec<UpdateUserAirdropsRequest>,
+    },
     // Used for offline swapping of rewards to Stader tokens during CF.
     WithdrawFunds {
         withdraw_address: Addr,
@@ -60,5 +68,5 @@ pub struct GetConfigResponse {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct GetUserRewardResponse {
-    pub user_reward_info: Option<Uint128>,
+    pub user_reward_info: Option<UserInfo>,
 }

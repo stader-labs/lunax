@@ -8,10 +8,11 @@ use cosmwasm_std::{
 use crate::error::ContractError;
 use crate::msg::{
     ExecuteMsg, GetConfigResponse, GetUserRewardResponse, InstantiateMsg, MigrateMsg, QueryMsg,
-    UpdateUserRewardsRequest,
+    UpdateUserAirdropsRequest, UpdateUserRewardsRequest,
 };
-use crate::state::{Config, CONFIG, USER_REWARDS};
+use crate::state::{Config, UserInfo, CONFIG, USER_REWARDS};
 use cw2::set_contract_version;
+use stader_utils::coin_utils::{merge_coin_vector, CoinVecOp, Operation};
 
 const CONTRACT_NAME: &str = "cf-scc";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -49,12 +50,50 @@ pub fn execute(
         ExecuteMsg::UpdateUserRewards {
             update_user_rewards_requests,
         } => update_user_rewards(deps, _env, info, update_user_rewards_requests),
+        ExecuteMsg::UpdateUserAirdrops {
+            update_user_airdrops_requests,
+        } => update_user_airdrops(deps, _env, info, update_user_airdrops_requests),
         ExecuteMsg::WithdrawFunds {
             withdraw_address,
             amount,
             denom,
         } => withdraw_funds(deps, _env, info, withdraw_address, amount, denom),
     }
+}
+
+pub fn update_user_airdrops(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    update_user_airdrops_requests: Vec<UpdateUserAirdropsRequest>,
+) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    if info.sender != config.delegator_contract {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    if update_user_airdrops_requests.is_empty() {
+        return Ok(Response::new().add_attribute("zero_user_airdrops_requests", "1"));
+    }
+
+    for user_request in update_user_airdrops_requests {
+        let user_addr = user_request.user;
+        let user_airdrops = user_request.pool_airdrops;
+
+        USER_REWARDS.update(deps.storage, &user_addr, |user_info_opt| -> StdResult<_> {
+            let mut user_info = user_info_opt.unwrap_or(UserInfo::new());
+            user_info.airdrops = merge_coin_vector(
+                user_info.airdrops.as_slice(),
+                CoinVecOp {
+                    fund: user_airdrops,
+                    operation: Operation::Add,
+                },
+            );
+            Ok(user_info)
+        })?;
+    }
+
+    Ok(Response::default())
 }
 
 // Can only be called delegator contract
@@ -70,19 +109,17 @@ pub fn update_user_rewards(
     }
 
     if update_user_rewards_requests.is_empty() {
-        return Ok(Response::new().add_attribute("zero_user_airdrop_requests", "1"));
+        return Ok(Response::new().add_attribute("zero_user_rewards_requests", "1"));
     }
 
     for user_request in update_user_rewards_requests {
         let user_addr = user_request.user;
         let user_balance = user_request.funds;
 
-        USER_REWARDS.update(deps.storage, &user_addr, |balance| -> StdResult<_> {
-            let new_balance = balance
-                .unwrap_or(Uint128::zero())
-                .checked_add(user_balance)
-                .unwrap();
-            Ok(new_balance)
+        USER_REWARDS.update(deps.storage, &user_addr, |user_info_opt| -> StdResult<_> {
+            let mut user_info = user_info_opt.unwrap_or(UserInfo::new());
+            user_info.amount = user_info.amount.checked_add(user_balance).unwrap();
+            Ok(user_info)
         })?;
     }
 
