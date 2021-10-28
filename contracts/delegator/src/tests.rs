@@ -85,6 +85,7 @@ mod tests {
             amount: Uint128::new(30),
             pool_rewards_pointer: Decimal::from_ratio(12_u128, 60_u128),
             pool_airdrops_pointer: initial_airdrop_pointer.clone(),
+            pool_slashing_pointer: Decimal::one(),
         };
         let err = execute(
             deps.as_mut(),
@@ -114,6 +115,7 @@ mod tests {
                 amount: Uint128::new(0),
                 pool_rewards_pointer: initial_rewards_pointer.clone(),
                 pool_airdrops_pointer: initial_airdrop_pointer.clone(),
+                pool_slashing_pointer: Decimal::one(),
             },
         )
         .unwrap_err();
@@ -153,7 +155,6 @@ mod tests {
             .eq(&initial_rewards_pointer.clone()));
         assert!(user1_info.pending_airdrops.is_empty());
         assert!(user1_info.pending_rewards.is_zero());
-        assert!(user1_info.redelegations.is_empty());
         assert!(user1_info.undelegations.is_empty());
 
         let next_airdrop_pointer = vec![
@@ -171,6 +172,7 @@ mod tests {
                 amount: Uint128::new(50),
                 pool_rewards_pointer: next_reward_pointer.clone(),
                 pool_airdrops_pointer: next_airdrop_pointer.clone(),
+                pool_slashing_pointer: Decimal::one(),
             },
         )
         .unwrap();
@@ -203,7 +205,6 @@ mod tests {
             &vec![Coin::new(15, "uair1"), Coin::new(9, "uair2")]
         ));
         assert!(user1_info.pending_rewards.eq(&Uint128::new(18)));
-        assert!(user1_info.redelegations.is_empty());
         assert!(user1_info.undelegations.is_empty());
     }
 
@@ -234,6 +235,7 @@ mod tests {
             pool_rewards_pointer: next_reward_pointer.clone(),
             pool_airdrops_pointer: next_airdrop_pointer.clone(),
             from_pool: 22,
+            pool_slashing_pointer: Decimal::one(),
         };
         let err = execute(
             deps.as_mut(),
@@ -264,6 +266,7 @@ mod tests {
                 pool_rewards_pointer: Decimal::from_ratio(12_u128, 60_u128),
                 pool_airdrops_pointer: initial_airdrop_pointer.clone(),
                 from_pool: 0,
+                pool_slashing_pointer: Decimal::one(),
             },
         )
         .unwrap_err();
@@ -287,7 +290,7 @@ mod tests {
             pending_airdrops: vec![],
             rewards_pointer: initial_rewards_pointer.clone(),
             pending_rewards: Uint128::zero(),
-            redelegations: vec![],
+            slashing_pointer: Decimal::one(),
             undelegations: vec![],
         };
         USER_REGISTRY
@@ -352,7 +355,6 @@ mod tests {
             &vec![Coin::new(15, "uair1"), Coin::new(9, "uair2")]
         ));
         assert!(user1_info.pending_rewards.eq(&Uint128::new(18)));
-        assert!(user1_info.redelegations.is_empty());
         assert_eq!(user1_info.undelegations.len(), 1);
         assert_eq!(
             user1_info.undelegations[0],
@@ -360,7 +362,8 @@ mod tests {
                 batch_id: 13,
                 id: 1,
                 amount: Uint128::new(20),
-                pool_id: 22
+                pool_id: 22,
+                slashing_pointer: Decimal::one()
             }
         );
     }
@@ -378,8 +381,9 @@ mod tests {
         let initial_msg = ExecuteMsg::WithdrawFunds {
             user_addr: user1.clone(),
             pool_id: 22,
-            amount: Uint128::new(20),
             undelegate_id: 27,
+            undelegation_batch_slashing_pointer: Decimal::one(),
+            undelegation_batch_unbonding_slashing_ratio: Decimal::one(),
         };
         let err = execute(
             deps.as_mut(),
@@ -416,8 +420,8 @@ mod tests {
             pending_airdrops: vec![],
             rewards_pointer: Decimal::zero(),
             pending_rewards: Uint128::zero(),
-            redelegations: vec![],
             undelegations: vec![],
+            slashing_pointer: Decimal::one(),
         };
         USER_REGISTRY
             .save(
@@ -435,47 +439,35 @@ mod tests {
         )
         .unwrap_err();
         assert!(matches!(err, ContractError::RecordNotFound {}));
-        init_user_info.undelegations.push(UndelegationInfo {
-            batch_id: 88,
-            id: 27,
-            amount: Uint128::new(10),
-            pool_id: 22,
-        });
-        USER_REGISTRY
-            .save(
-                deps.as_mut().storage,
-                (&user1, U64Key::new(22)),
-                &init_user_info,
-            )
-            .unwrap();
 
-        let err = execute(
-            deps.as_mut(),
-            env.clone(),
-            pools_info.clone(),
-            initial_msg.clone(),
-        )
-        .unwrap_err();
-
-        assert!(matches!(err, ContractError::NonMatchingAmount {}));
         init_user_info.undelegations = vec![]; // Remove incorrect entry and add the right one.
         init_user_info.undelegations.push(UndelegationInfo {
             batch_id: 88,
             id: 27,
             amount: Uint128::new(20),
             pool_id: 22,
+            slashing_pointer: Decimal::one(),
         });
         init_user_info.undelegations.push(UndelegationInfo {
             batch_id: 88,
             id: 28,
             amount: Uint128::new(10),
             pool_id: 22,
+            slashing_pointer: Decimal::one(),
         });
         init_user_info.undelegations.push(UndelegationInfo {
             batch_id: 88,
             id: 29,
             amount: Uint128::new(3000),
             pool_id: 22,
+            slashing_pointer: Decimal::one(),
+        });
+        init_user_info.undelegations.push(UndelegationInfo {
+            batch_id: 88,
+            id: 30,
+            amount: Uint128::new(2000),
+            pool_id: 22,
+            slashing_pointer: Decimal::from_ratio(9_u128, 10_u128),
         });
         USER_REGISTRY
             .save(
@@ -503,22 +495,24 @@ mod tests {
         let user_info = USER_REGISTRY
             .load(deps.as_mut().storage, (&user1, U64Key::new(22)))
             .unwrap();
-        assert_eq!(user_info.undelegations.len(), 2);
+        assert_eq!(user_info.undelegations.len(), 3);
         assert_eq!(
             user_info.undelegations[0],
             UndelegationInfo {
                 batch_id: 88,
                 id: 28,
                 amount: Uint128::new(10),
-                pool_id: 22
+                pool_id: 22,
+                slashing_pointer: Decimal::one()
             }
         );
 
         let undel2 = ExecuteMsg::WithdrawFunds {
             user_addr: user1.clone(),
             pool_id: 22,
-            amount: Uint128::new(3000),
             undelegate_id: 29,
+            undelegation_batch_slashing_pointer: Decimal::one(),
+            undelegation_batch_unbonding_slashing_ratio: Decimal::one(),
         };
         let res = execute(deps.as_mut(), env.clone(), pools_info.clone(), undel2).unwrap();
         assert_eq!(res.messages.len(), 2);
@@ -534,6 +528,30 @@ mod tests {
             SubMsg::new(BankMsg::Send {
                 to_address: user1.to_string(),
                 amount: vec![Coin::new(2997, "utest")]
+            })
+        );
+
+        let undel3 = ExecuteMsg::WithdrawFunds {
+            user_addr: user1.clone(),
+            pool_id: 22,
+            undelegate_id: 30,
+            undelegation_batch_slashing_pointer: Decimal::from_ratio(81_u128, 100_u128),
+            undelegation_batch_unbonding_slashing_ratio: Decimal::from_ratio(9_u128, 10_u128),
+        };
+        let res = execute(deps.as_mut(), env.clone(), pools_info.clone(), undel3).unwrap();
+        assert_eq!(res.messages.len(), 2);
+        assert_eq!(
+            res.messages[0],
+            SubMsg::new(BankMsg::Send {
+                to_address: "protocol_fee_addr".to_string(),
+                amount: vec![Coin::new(1, "utest")]
+            })
+        );
+        assert_eq!(
+            res.messages[1],
+            SubMsg::new(BankMsg::Send {
+                to_address: user1.to_string(),
+                amount: vec![Coin::new(1619, "utest")]
             })
         );
     }
@@ -595,8 +613,8 @@ mod tests {
             pending_airdrops: vec![airdrop1.clone(), airdrop3.clone()],
             rewards_pointer: reward1_p,
             pending_rewards: reward1,
-            redelegations: vec![],
             undelegations: vec![],
+            slashing_pointer: Decimal::one(),
         };
         let init_user_info1_2 = UserPoolInfo {
             pool_id: 2,
@@ -607,8 +625,8 @@ mod tests {
             pending_airdrops: vec![airdrop1.clone()],
             rewards_pointer: reward1_p,
             pending_rewards: reward1,
-            redelegations: vec![],
             undelegations: vec![],
+            slashing_pointer: Decimal::one(),
         };
         let init_user_info2_1 = UserPoolInfo {
             pool_id: 1,
@@ -619,8 +637,8 @@ mod tests {
             pending_airdrops: vec![airdrop1.clone()],
             rewards_pointer: reward2_p,
             pending_rewards: reward2,
-            redelegations: vec![],
             undelegations: vec![],
+            slashing_pointer: Decimal::one(),
         };
         let init_user_info2_3 = UserPoolInfo {
             pool_id: 3,
@@ -631,8 +649,8 @@ mod tests {
             pending_airdrops: vec![airdrop3.clone()],
             rewards_pointer: reward1_p,
             pending_rewards: reward2,
-            redelegations: vec![],
             undelegations: vec![],
+            slashing_pointer: Decimal::one(),
         };
         let init_user_info3_3 = UserPoolInfo {
             pool_id: 3,
@@ -643,8 +661,8 @@ mod tests {
             pending_airdrops: vec![airdrop3.clone()],
             rewards_pointer: reward1_p,
             pending_rewards: reward2,
-            redelegations: vec![],
             undelegations: vec![],
+            slashing_pointer: Decimal::one(),
         };
 
         USER_REGISTRY
@@ -690,11 +708,13 @@ mod tests {
                     pool_id: 1,
                     airdrops_pointer: vec![airdrop2_p.clone(), airdrop4_p.clone()],
                     rewards_pointer: reward3_p.clone(),
+                    slashing_pointer: Decimal::one(),
                 },
                 PoolPointerInfo {
                     pool_id: 2,
                     airdrops_pointer: vec![airdrop2_p.clone(), airdrop4_p.clone()],
                     rewards_pointer: reward3_p.clone(),
+                    slashing_pointer: Decimal::one(),
                 },
             ],
         };

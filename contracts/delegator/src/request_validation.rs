@@ -4,9 +4,9 @@ use cosmwasm_std::{Decimal, Env, MessageInfo, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use stader_utils::coin_utils::{
-    deccoin_vec_to_coin_vec, decimal_subtraction_in_256, merge_coin_vector, merge_dec_coin_vector,
-    multiply_deccoin_vector_with_uint128, multiply_u128_with_decimal, CoinVecOp, DecCoin,
-    DecCoinVecOp, Operation,
+    deccoin_vec_to_coin_vec, decimal_division_in_256, decimal_subtraction_in_256,
+    merge_coin_vector, merge_dec_coin_vector, multiply_deccoin_vector_with_uint128,
+    multiply_u128_with_decimal, CoinVecOp, DecCoin, DecCoinVecOp, Operation,
 };
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -68,7 +68,17 @@ pub fn update_user_pointers(
     user_info: &mut UserPoolInfo,
     airdrops_pointer: Vec<DecCoin>,
     rewards_pointer: Decimal,
+    slashing_pointer: Decimal,
 ) {
+    if slashing_pointer.lt(&user_info.slashing_pointer) {
+        let ratio = decimal_division_in_256(slashing_pointer, user_info.slashing_pointer);
+        user_info.deposit.staked = Uint128::new(multiply_u128_with_decimal(
+            user_info.deposit.staked.u128(),
+            ratio,
+        ));
+        user_info.slashing_pointer = slashing_pointer;
+    }
+
     let airdrop_pointer_difference = merge_dec_coin_vector(
         &airdrops_pointer,
         DecCoinVecOp {

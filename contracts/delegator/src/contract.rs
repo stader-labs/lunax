@@ -13,13 +13,14 @@ use crate::state::{
 use crate::ContractError;
 use cosmwasm_std::{
     attr, to_binary, Addr, Binary, Coin, Decimal, Deps, DepsMut, Env, MessageInfo, Order, Response,
-    StdResult, Storage, Timestamp, Uint128, WasmMsg,
+    StdError, StdResult, Storage, Uint128, WasmMsg,
 };
 use cw_storage_plus::U64Key;
 use scc::msg::{ExecuteMsg as SccMsg, UpdateUserAirdropsRequest, UpdateUserRewardsRequest};
-use stader_utils::coin_utils::{multiply_u128_with_decimal, DecCoin};
+use stader_utils::coin_utils::{decimal_division_in_256, multiply_u128_with_decimal, DecCoin};
 use stader_utils::helpers::send_funds_msg;
 use std::collections::HashMap;
+use std::result::Result::Err;
 use terra_cosmwasm::TerraMsgWrapper;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -38,7 +39,6 @@ pub fn instantiate(
         protocol_fee_contract: msg.protocol_fee_contract,
     };
     let state = State {
-        next_redelegation_id: 1_u64,
         next_undelegation_id: 1_u64,
     };
     // TODO - GM. What happens when initiate function is called twice. Does it create two contracts?
@@ -62,6 +62,7 @@ pub fn execute(
             amount,
             pool_rewards_pointer,
             pool_airdrops_pointer,
+            pool_slashing_pointer,
         } => deposit(
             deps,
             info,
@@ -71,28 +72,7 @@ pub fn execute(
             amount,
             pool_rewards_pointer,
             pool_airdrops_pointer,
-        ),
-        ExecuteMsg::Redelegate {
-            user_addr,
-            batch_id,
-            from_pool,
-            to_pool,
-            amount,
-            eta,
-            pool_rewards_pointer,
-            pool_airdrops_pointer,
-        } => redelegate(
-            deps,
-            info,
-            env,
-            user_addr,
-            batch_id,
-            from_pool,
-            to_pool,
-            amount,
-            eta,
-            pool_rewards_pointer,
-            pool_airdrops_pointer,
+            pool_slashing_pointer,
         ),
         ExecuteMsg::Undelegate {
             user_addr,
@@ -101,6 +81,7 @@ pub fn execute(
             amount,
             pool_rewards_pointer,
             pool_airdrops_pointer,
+            pool_slashing_pointer,
         } => undelegate(
             deps,
             info,
@@ -111,13 +92,24 @@ pub fn execute(
             amount,
             pool_rewards_pointer,
             pool_airdrops_pointer,
+            pool_slashing_pointer,
         ),
         ExecuteMsg::WithdrawFunds {
             user_addr,
             pool_id,
+            undelegate_id, // Undelegate ID is unique to this contract. So we don't need a batch Id for cross check.
+            undelegation_batch_slashing_pointer,
+            undelegation_batch_unbonding_slashing_ratio,
+        } => withdraw_funds(
+            deps,
+            info,
+            env,
+            user_addr,
+            pool_id,
             undelegate_id,
-            amount,
-        } => withdraw_funds(deps, info, env, user_addr, pool_id, undelegate_id, amount),
+            undelegation_batch_slashing_pointer,
+            undelegation_batch_unbonding_slashing_ratio,
+        ),
         ExecuteMsg::AllocateRewards {
             user_addrs,
             pool_pointers,
@@ -149,6 +141,7 @@ pub fn deposit(
     amount: Uint128,
     pool_rewards_pointer: Decimal,
     pool_airdrops_pointer: Vec<DecCoin>,
+    pool_slashing_pointer: Decimal,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let config = CONFIG.load(deps.storage)?;
     validate(
@@ -175,10 +168,15 @@ pub fn deposit(
                 pending_airdrops: vec![],
                 rewards_pointer: pool_rewards_pointer,
                 pending_rewards: Uint128::zero(),
-                redelegations: vec![],
+                slashing_pointer: pool_slashing_pointer,
                 undelegations: vec![],
             });
-            update_user_pointers(&mut user_info, pool_airdrops_pointer, pool_rewards_pointer);
+            update_user_pointers(
+                &mut user_info,
+                pool_airdrops_pointer,
+                pool_rewards_pointer,
+                pool_slashing_pointer,
+            );
             user_info.deposit.staked = user_info.deposit.staked.checked_add(amount).unwrap();
 
             Ok(user_info)
@@ -192,67 +190,6 @@ pub fn deposit(
     ]))
 }
 
-// TODO - GM. Decrease pending rewards as well and update pointer. Write tests
-pub fn redelegate(
-    _deps: DepsMut,
-    _info: MessageInfo,
-    _env: Env,
-    _user_addr: Addr,
-    _batch_id: u64,
-    _from_pool: u64,
-    _to_pool: u64,
-    _amount: Uint128,
-    _eta: Option<Timestamp>,
-    _pool_rewards_pointer: Decimal,
-    _pool_airdrops_pointer: Vec<DecCoin>,
-) -> Result<Response<TerraMsgWrapper>, ContractError> {
-    // let config = CONFIG.load(deps.storage)?;
-    // validate(&config, &info, &env, vec![Verify::SenderPoolsContract])?;
-    //
-    // if amount == Uint128::zero() {
-    //     return Err(ContractError::ZeroAmount {});
-    // }
-    //
-    // if from_pool.eq(&to_pool) {
-    //     return Err(ContractError::NoOp {});
-    // }
-    //
-    // let mut from_meta = USER_REGISTRY.may_load(deps.storage, (&user_addr, U64Key::new(from_pool)))?.unwrap_or_else(|| UserPoolInfo {
-    //     deposit: DepositInfo { staked: Uint128::zero() },
-    //     airdrops_pointer: vec![],
-    //     pending_airdrops: vec![],
-    //     rewards_pointer: Decimal::zero(),
-    //     pending_rewards: Uint128::zero(),
-    //     redelegations: vec![],
-    //     undelegations: vec![]
-    // });
-    //
-    // if from_meta.deposit.staked.lt(&amount) {
-    //     return Err(ContractError::InSufficientFunds {})
-    // }
-    // let mut state = STATE.load(deps.storage)?;
-    //
-    // update_user_pointers(&mut from_meta, pool_airdrops_pointer, pool_rewards_pointer);
-    // from_meta.deposit.staked = from_meta.deposit.staked.checked_sub(amount).unwrap();
-    // from_meta.redelegations.push(RedelegationInfo { id: state.next_redelegation_id, batch_id, from_pool, to_pool, amount, eta });
-    //
-    // USER_REGISTRY.save(deps.storage, (&user_addr, U64Key::new(from_pool)), &from_meta);
-    //
-    // state.next_redelegation_id = state.next_redelegation_id + 1;
-    // STATE.save(deps.storage, &state)?;
-    //
-    // Ok(Response::new()
-    //     .add_attributes(vec![
-    //         attr("redelegate_amount", amount.to_string()),
-    //         attr("from_pool", from_pool.to_string()),
-    //         attr("to_pool", to_pool.to_string()),
-    //         attr("user_addr", user_addr.to_string()),
-    //         attr("eta", eta.unwrap_or_else(|| Timestamp::from_nanos(0)).to_string())
-    //     ])
-    // )
-    Err(ContractError::NotImplemented {})
-}
-
 pub fn undelegate(
     deps: DepsMut,
     info: MessageInfo,
@@ -263,6 +200,7 @@ pub fn undelegate(
     amount: Uint128,
     pool_rewards_pointer: Decimal,
     pool_airdrops_pointer: Vec<DecCoin>,
+    pool_slashing_pointer: Decimal,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let config = CONFIG.load(deps.storage)?;
     validate(
@@ -287,12 +225,18 @@ pub fn undelegate(
     }
     let mut state = STATE.load(deps.storage)?;
 
-    update_user_pointers(&mut user_meta, pool_airdrops_pointer, pool_rewards_pointer);
+    update_user_pointers(
+        &mut user_meta,
+        pool_airdrops_pointer,
+        pool_rewards_pointer,
+        pool_slashing_pointer,
+    );
     user_meta.undelegations.push(UndelegationInfo {
         batch_id,
         id: state.next_undelegation_id,
         amount,
         pool_id: from_pool,
+        slashing_pointer: pool_slashing_pointer,
     });
     user_meta.deposit.staked = user_meta.deposit.staked.checked_sub(amount).unwrap();
 
@@ -308,6 +252,8 @@ pub fn undelegate(
     ]))
 }
 
+// Don't need to update slashing pointers for the user as this is pure bookkeeping + send money out.
+// User deposits do not change.
 pub fn withdraw_funds(
     deps: DepsMut,
     info: MessageInfo,
@@ -315,7 +261,8 @@ pub fn withdraw_funds(
     user_addr: Addr,
     pool_id: u64,
     undelegate_id: u64,
-    amount: Uint128, // Necessary for pools contract bookkeeping.
+    undelegation_batch_slashing_pointer: Decimal,
+    undelegation_batch_unbonding_slashing_ratio: Decimal,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let config = CONFIG.load(deps.storage)?;
     validate(
@@ -331,23 +278,21 @@ pub fn withdraw_funds(
         return Err(ContractError::UserNotFound {});
     }
     let mut user_pool_meta = user_pool_meta_opt.unwrap();
-    let info_opt = user_pool_meta
-        .undelegations
+
+    let funds = compute_withdrawable_funds(
+        &mut user_pool_meta,
+        undelegate_id,
+        undelegation_batch_slashing_pointer,
+        undelegation_batch_unbonding_slashing_ratio,
+    )?;
+
+    let others: Vec<UndelegationInfo> = user_pool_meta
         .clone()
-        .into_iter()
-        .find(|x| x.id.eq(&undelegate_id));
-    if info_opt.is_none() {
-        return Err(ContractError::RecordNotFound {});
-    }
-    let info = info_opt.unwrap();
-    if info.amount.ne(&amount) {
-        return Err(ContractError::NonMatchingAmount {});
-    }
-    let others = user_pool_meta
         .undelegations
         .into_iter()
         .filter(|x| x.id.ne(&undelegate_id))
         .collect();
+
     user_pool_meta.undelegations = others;
     USER_REGISTRY.save(
         deps.storage,
@@ -357,8 +302,12 @@ pub fn withdraw_funds(
 
     let mut msgs = vec![];
     let mut logs = vec![];
-    let protocol_fee_amount = multiply_u128_with_decimal(amount.u128(), config.protocol_fee);
-    let user_amount = amount.u128() - protocol_fee_amount;
+
+    let withdrawable_amount = funds.1;
+    let protocol_fee_amount =
+        multiply_u128_with_decimal(withdrawable_amount.u128(), config.protocol_fee);
+
+    let user_amount = withdrawable_amount.u128() - protocol_fee_amount;
     if protocol_fee_amount != 0 {
         logs.push(attr("protocol_fee", protocol_fee_amount.to_string()));
         msgs.push(send_funds_msg(
@@ -367,11 +316,55 @@ pub fn withdraw_funds(
         ));
     }
     logs.push(attr("user_withdrawal", user_amount.to_string()));
-    msgs.push(send_funds_msg(
-        &user_addr,
-        &[Coin::new(user_amount, config.vault_denom)],
-    ));
+    if user_amount != 0 {
+        msgs.push(send_funds_msg(
+            &user_addr,
+            &[Coin::new(user_amount, config.vault_denom)],
+        ));
+    }
     Ok(Response::new().add_messages(msgs).add_attributes(logs))
+}
+
+// Provides for (actual_undelegation_amount, actual_withdrawable_amount) as result.
+pub fn compute_withdrawable_funds(
+    user_pool_meta: &mut UserPoolInfo,
+    undelegate_id: u64,
+    undelegation_slashing_pointer: Decimal, // Slashing pointer at the time of actual undelegation from pool
+    undelegation_batch_slashing_ratio: Decimal, // Slashing ratio indicating slashing during the 21 day period.
+) -> Result<(Uint128, Uint128), ContractError> {
+    let info_opt = user_pool_meta
+        .undelegations
+        .clone()
+        .into_iter()
+        .find(|x| x.id.eq(&undelegate_id));
+    if info_opt.is_none() {
+        return Err(ContractError::RecordNotFound {});
+    }
+    let info = info_opt.unwrap();
+
+    // info.slashing_pointer points to the slashing pointer of the pool when user has put in a request for undelegation.
+    // Typically info.slashing_pointer >= undelegation_slashing_pointer >= slashing_pointer_for_pool_now
+
+    // Amount that has been undelegated (A) is (info.amount * (new_slashing_pointer)) / (info.slashing_pointer)
+    // Amount that can be withdrawn is (A) * batch_unbonding_slashing_ratio
+
+    let mut actual_undelegated_amount = Uint128::new(multiply_u128_with_decimal(
+        info.amount.u128(),
+        undelegation_slashing_pointer,
+    ));
+    actual_undelegated_amount = Uint128::new(multiply_u128_with_decimal(
+        1_u128,
+        decimal_division_in_256(
+            Decimal::from_ratio(actual_undelegated_amount.u128(), 1_u128),
+            info.slashing_pointer,
+        ),
+    ));
+
+    let withdrawable_amount = Uint128::new(multiply_u128_with_decimal(
+        actual_undelegated_amount.u128(),
+        undelegation_batch_slashing_ratio,
+    ));
+    Ok((actual_undelegated_amount, withdrawable_amount))
 }
 
 pub fn allocate_rewards_and_airdrops(
@@ -410,6 +403,7 @@ pub fn allocate_rewards_and_airdrops(
                 &mut user_pool_info,
                 pool_pointer_info.airdrops_pointer,
                 pool_pointer_info.rewards_pointer,
+                pool_pointer_info.slashing_pointer,
             );
             scc_user_reward_requests.push(UpdateUserRewardsRequest {
                 user: user_addr.clone(),
@@ -501,6 +495,20 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_binary(&query_user_pool(deps, user_addr, pool_id)?)
         }
         QueryMsg::User { user_addr } => to_binary(&query_user(deps.storage, user_addr)?),
+        QueryMsg::ComputeUndelegationAmounts {
+            user_addr,
+            pool_id,
+            undelegate_id,
+            undelegation_slashing_pointer: pool_slashing_pointer,
+            batch_slashing_ratio,
+        } => to_binary(&query_withdrawable_funds(
+            deps,
+            user_addr,
+            pool_id,
+            undelegate_id,
+            pool_slashing_pointer,
+            batch_slashing_ratio,
+        )?),
     }
 }
 
@@ -530,4 +538,31 @@ pub fn query_user(storage: &dyn Storage, user_addr: Addr) -> StdResult<UserRespo
             res.push(x.unwrap().1);
         });
     Ok(UserResponse { info: res })
+}
+
+pub fn query_withdrawable_funds(
+    deps: Deps,
+    user_addr: Addr,
+    pool_id: u64,
+    undelegate_id: u64,
+    pool_slashing_pointer: Decimal,
+    batch_slashing_ratio: Decimal,
+) -> StdResult<(Uint128, Uint128)> {
+    let user_pool_meta_opt = USER_REGISTRY
+        .may_load(deps.storage, (&user_addr, U64Key::new(pool_id)))
+        .unwrap();
+    if user_pool_meta_opt.is_none() {
+        return Err(StdError::generic_err("user info not found"));
+    }
+    let mut user_pool_meta = user_pool_meta_opt.unwrap();
+    let x = compute_withdrawable_funds(
+        &mut user_pool_meta,
+        undelegate_id,
+        pool_slashing_pointer,
+        batch_slashing_ratio,
+    );
+    if x.is_err() {
+        return Err(StdError::generic_err("Undelegation record not found"));
+    }
+    Ok(x.unwrap())
 }

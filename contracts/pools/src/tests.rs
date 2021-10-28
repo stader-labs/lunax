@@ -1,27 +1,32 @@
 #[cfg(test)]
 mod tests {
     // use crate::contract::{execute, instantiate, query, reply, MESSAGE_REPLY_SWAP_ID};
+    use crate::contract::{check_slashing, execute, instantiate, query};
     use crate::error::ContractError;
+    use crate::mock_querier;
+    use crate::mock_querier::mock_dependencies_for_validator_querier;
     use crate::msg::{
         ExecuteMsg, InstantiateMsg, QueryConfigResponse, QueryMsg, QueryStateResponse,
     };
-    use crate::state::{AirdropRate, BatchUndelegationRecord, Config, ConfigUpdateRequest, PoolRegistryInfo, State, BATCH_UNDELEGATION_REGISTRY, CONFIG, POOL_REGISTRY, STATE, AIRDROP_REGISTRY, AirdropRegistryInfo};
+    use crate::state::{
+        AirdropRate, AirdropRegistryInfo, BatchUndelegationRecord, Config, ConfigUpdateRequest,
+        PoolConfigUpdateRequest, PoolRegistryInfo, State, VMeta, AIRDROP_REGISTRY,
+        BATCH_UNDELEGATION_REGISTRY, CONFIG, POOL_REGISTRY, STATE, VALIDATOR_META,
+    };
     use cosmwasm_std::testing::{
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
         MOCK_CONTRACT_ADDR,
     };
-    use crate::request_validation::{create_new_undelegation_batch, get_validator_for_deposit};
-    use cosmwasm_std::{attr, from_binary, to_binary, Addr, Coin, ContractResult, Decimal, Env, Event, FullDelegation, MessageInfo, OwnedDeps, Reply, Response, StdResult, SubMsg, SubMsgExecutionResponse, Uint128, Validator, WasmMsg, QueryRequest, Binary};
+    use cosmwasm_std::{
+        attr, from_binary, to_binary, Addr, Binary, Coin, Decimal, Env, FullDelegation,
+        MessageInfo, OwnedDeps, Response, SubMsg, Uint128, Validator, WasmMsg,
+    };
     use cw_storage_plus::U64Key;
     use delegator::msg::ExecuteMsg as DelegatorMsg;
+    use reward::msg::ExecuteMsg as RewardExecuteMsg;
     use stader_utils::coin_utils::{check_equal_deccoin_vector, DecCoin};
-    use stader_utils::event_constants::{
-        EVENT_KEY_IDENTIFIER, EVENT_SWAP_KEY_AMOUNT, EVENT_SWAP_TYPE,
-    };
     use terra_cosmwasm::TerraMsgWrapper;
     use validator::msg::ExecuteMsg as ValidatorMsg;
-    use reward::msg::ExecuteMsg as RewardExecuteMsg;
-    use crate::contract::{instantiate, query, execute};
 
     fn get_validators() -> Vec<Validator> {
         vec![
@@ -80,7 +85,8 @@ mod tests {
     ) -> Response<TerraMsgWrapper> {
         let instantiate_msg = InstantiateMsg {
             vault_denom: vault_denom.unwrap_or_else(|| "utest".to_string()),
-            delegator_contract: Addr::unchecked("delegator_addr"),
+            delegator_contract: Addr::unchecked("delegator_addr").to_string(),
+            scc_contract: Addr::unchecked("scc_addr").to_string(),
             unbonding_period: None,
             unbonding_buffer: None,
             min_deposit: Uint128::new(1000),
@@ -96,7 +102,8 @@ mod tests {
 
         let msg = InstantiateMsg {
             vault_denom: "utest".to_string(),
-            delegator_contract: Addr::unchecked("delegator_addr"),
+            delegator_contract: Addr::unchecked("delegator_addr").to_string(),
+            scc_contract: Addr::unchecked("scc_addr").to_string(),
             unbonding_period: None,
             unbonding_buffer: None,
             min_deposit: Uint128::new(1000),
@@ -106,6 +113,7 @@ mod tests {
             manager: Addr::unchecked("creator"),
             vault_denom: "utest".to_string(),
             delegator_contract: Addr::unchecked("delegator_addr"),
+            scc_contract: Addr::unchecked("scc_addr"),
             unbonding_period: 3600 * 24 * 21,
             unbonding_buffer: 3600,
             min_deposit: Uint128::new(1000),
@@ -138,13 +146,14 @@ mod tests {
             mock_info("other", &[]),
             ExecuteMsg::AddPool {
                 name: "Community Validator".to_string(),
-                validator_contract: Addr::unchecked("pool0_val_addr"),
-                reward_contract:  Addr::unchecked("pool0_rew_addr")
+                validator_contract: "pool0_val_addr".to_string(),
+                reward_contract: "pool0_rew_addr".to_string(),
+                protocol_fee_percent: Decimal::from_ratio(1_u128, 1000_u128),
+                protocol_fee_contract: "protocol_fee_addr".to_string(),
             },
         )
         .unwrap_err();
         assert!(matches!(err, ContractError::Unauthorized {}));
-
 
         assert!(POOL_REGISTRY
             .may_load(deps.as_mut().storage, U64Key::new(0))
@@ -160,19 +169,27 @@ mod tests {
             env.clone(),
             mock_info("creator", &[]),
             ExecuteMsg::AddPool {
-                name: "Community Pro".to_string(),
-                validator_contract: Addr::unchecked("pool0_val_addr"),
-                reward_contract:  Addr::unchecked("pool0_rew_addr")
+                name: "Community Validator".to_string(),
+                validator_contract: "pool0_val_addr".to_string(),
+                reward_contract: "pool0_rew_addr".to_string(),
+                protocol_fee_percent: Decimal::from_ratio(1_u128, 1000_u128),
+                protocol_fee_contract: "protocol_fee_addr".to_string(),
             },
         )
         .unwrap();
 
         assert_eq!(res.messages.len(), 1);
-        assert_eq!(res.messages[0], SubMsg::new(WasmMsg::Execute {
-            contract_addr: "pool0_val_addr".to_string(),
-            msg: to_binary(&ValidatorMsg::SetRewardWithdrawAddress { reward_contract: Addr::unchecked("pool0_rew_addr") }).unwrap(),
-            funds: vec![]
-        }));
+        assert_eq!(
+            res.messages[0],
+            SubMsg::new(WasmMsg::Execute {
+                contract_addr: "pool0_val_addr".to_string(),
+                msg: to_binary(&ValidatorMsg::SetRewardWithdrawAddress {
+                    reward_contract: Addr::unchecked("pool0_rew_addr")
+                })
+                .unwrap(),
+                funds: vec![]
+            })
+        );
 
         let state = STATE.load(deps.as_mut().storage).unwrap();
         assert_eq!(state.next_pool_id, 1_u64);
@@ -182,31 +199,36 @@ mod tests {
             .unwrap()
             .unwrap();
         let expected_pool_info = PoolRegistryInfo {
-            name: "Community Pro".to_string(),
+            name: "Community Validator".to_string(),
             validator_contract: Addr::unchecked("pool0_val_addr"),
-            reward_contract:  Addr::unchecked("pool0_rew_addr"),
+            reward_contract: Addr::unchecked("pool0_rew_addr"),
+            protocol_fee_contract: Addr::unchecked("protocol_fee_addr"),
             active: true,
             validators: vec![],
             staked: Default::default(),
             rewards_pointer: Default::default(),
             airdrops_pointer: vec![],
+            slashing_pointer: Decimal::one(),
             current_undelegation_batch_id: 1,
             last_reconciled_batch_id: 0,
+            protocol_fee_percent: Decimal::from_ratio(1_u128, 1000_u128),
         };
-        assert!(pool_meta.eq(&expected_pool_info));
+        assert_eq!(pool_meta, expected_pool_info);
 
         let batch_undelegation_info = BATCH_UNDELEGATION_REGISTRY
             .may_load(deps.as_mut().storage, (U64Key::new(0), U64Key::new(1)))
             .unwrap()
             .unwrap();
         let expected_batch_undelegation = BatchUndelegationRecord {
-            amount: Uint128::zero(),
+            prorated_amount: Default::default(),
+            undelegated_amount: Uint128::zero(),
             create_time: env.block.time,
             est_release_time: None,
-            withdrawable_time: None,
+            reconciled: false,
+            last_updated_slashing_pointer: Decimal::one(),
+            unbonding_slashing_ratio: Decimal::one(),
         };
         assert!(batch_undelegation_info.eq(&expected_batch_undelegation));
-
 
         let err = execute(
             deps.as_mut(),
@@ -214,11 +236,13 @@ mod tests {
             mock_info("creator", &[Coin::new(100, "utest")]),
             ExecuteMsg::AddPool {
                 name: "Community Validator".to_string(),
-                validator_contract: Addr::unchecked("pool0_val_addr"),
-                reward_contract:  Addr::unchecked("pool0_rew_addr")
+                validator_contract: "pool0_val_addr".to_string(),
+                reward_contract: "pool0_rew_addr".to_string(),
+                protocol_fee_percent: Decimal::from_ratio(1_u128, 1000_u128),
+                protocol_fee_contract: "protocol_fee_addr".to_string(),
             },
         )
-            .unwrap_err();
+        .unwrap_err();
         assert!(matches!(err, ContractError::ValidatorContractInUse {}));
 
         let err = execute(
@@ -227,11 +251,13 @@ mod tests {
             mock_info("creator", &[Coin::new(100, "utest")]),
             ExecuteMsg::AddPool {
                 name: "Community Validator".to_string(),
-                validator_contract: Addr::unchecked("new_pool0_val_addr"),
-                reward_contract:  Addr::unchecked("pool0_rew_addr")
+                validator_contract: "new_pool0_val_addr".to_string(),
+                reward_contract: "pool0_rew_addr".to_string(),
+                protocol_fee_percent: Decimal::from_ratio(1_u128, 1000_u128),
+                protocol_fee_contract: "protocol_fee_addr".to_string(),
             },
         )
-            .unwrap_err();
+        .unwrap_err();
         assert!(matches!(err, ContractError::RewardContractInUse {}));
     }
 
@@ -270,6 +296,11 @@ mod tests {
         .unwrap_err();
         assert!(matches!(err, ContractError::PoolNotFound {}));
 
+        assert!(VALIDATOR_META
+            .may_load(deps.as_mut().storage, (valid2.clone(), U64Key::new(12)))
+            .unwrap()
+            .is_none());
+
         POOL_REGISTRY
             .save(
                 deps.as_mut().storage,
@@ -279,10 +310,13 @@ mod tests {
                     active: false,
                     validator_contract: Addr::unchecked("pool_12_validator_addr"),
                     reward_contract: Addr::unchecked("reward_12_validator_addr"),
+                    protocol_fee_contract: Addr::unchecked("protocol_fee_addr"),
+                    protocol_fee_percent: Default::default(),
                     validators: vec![],
                     staked: Default::default(),
                     rewards_pointer: Default::default(),
                     airdrops_pointer: vec![],
+                    slashing_pointer: Decimal::one(),
                     current_undelegation_batch_id: 0,
                     last_reconciled_batch_id: 0,
                 },
@@ -313,6 +347,19 @@ mod tests {
             })
         );
 
+        let vmeta = VALIDATOR_META
+            .may_load(deps.as_mut().storage, (valid2.clone(), U64Key::new(12)))
+            .unwrap();
+        assert!(vmeta.is_some());
+        assert_eq!(
+            vmeta.unwrap(),
+            VMeta {
+                staked: Default::default(),
+                slashed: Default::default(),
+                filled: Default::default()
+            }
+        );
+
         let pool_meta = POOL_REGISTRY
             .may_load(deps.as_mut().storage, U64Key::new(12))
             .unwrap()
@@ -321,13 +368,16 @@ mod tests {
             name: "Random name".to_string(),
             validator_contract: Addr::unchecked("pool_12_validator_addr"),
             reward_contract: Addr::unchecked("reward_12_validator_addr"),
+            protocol_fee_contract: Addr::unchecked("protocol_fee_addr"),
             active: false,
             validators: vec![valid2.clone()],
             staked: Default::default(),
             rewards_pointer: Default::default(),
             airdrops_pointer: vec![],
+            slashing_pointer: Decimal::one(),
             current_undelegation_batch_id: 0,
             last_reconciled_batch_id: 0,
+            protocol_fee_percent: Default::default(),
         };
         assert!(pool_meta.eq(&expected_pool_info));
 
@@ -340,7 +390,7 @@ mod tests {
                 pool_id: 12,
             },
         )
-            .unwrap_err();
+        .unwrap_err();
         assert!(matches!(err, ContractError::ValidatorAssociatedToPool {}));
     }
 
@@ -349,8 +399,7 @@ mod tests {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
-        deps.querier
-            .update_staking("test", &*get_validators(), &*get_delegations());
+
         let valid1 = Addr::unchecked("valid0001");
         let valid2 = Addr::unchecked("valid0002");
 
@@ -362,42 +411,32 @@ mod tests {
             ExecuteMsg::RemoveValidator {
                 val_addr: valid1.clone(),
                 redel_addr: valid2.clone(),
-                pool_id: 12
+                pool_id: 12,
             },
         )
-            .unwrap_err();
+        .unwrap_err();
         assert!(matches!(err, ContractError::Unauthorized {}));
 
-        let err = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info("creator", &[]),
-            ExecuteMsg::RemoveValidator {
-                val_addr: valid1.clone(),
-                redel_addr: valid2.clone(),
-                pool_id: 12
-            },
-        )
-            .unwrap_err();
-        assert!(matches!(err, ContractError::PoolNotFound {}));
-
-        let mut pool_info = PoolRegistryInfo {
-            name: "Random name".to_string(),
-            active: false,
-            validator_contract: Addr::unchecked("pool_12_validator_addr"),
-            reward_contract: Addr::unchecked("reward_12_validator_addr"),
-            validators: vec![],
-            staked: Default::default(),
-            rewards_pointer: Default::default(),
-            airdrops_pointer: vec![],
-            current_undelegation_batch_id: 0,
-            last_reconciled_batch_id: 0,
-        };
-        POOL_REGISTRY
+        VALIDATOR_META
             .save(
                 deps.as_mut().storage,
-                U64Key::new(12),
-                &pool_info,
+                (valid1.clone(), U64Key::new(12)),
+                &VMeta {
+                    staked: Uint128::new(1000),
+                    slashed: Default::default(),
+                    filled: Default::default(),
+                },
+            )
+            .unwrap();
+        VALIDATOR_META
+            .save(
+                deps.as_mut().storage,
+                (valid2.clone(), U64Key::new(12)),
+                &VMeta {
+                    staked: Uint128::new(1000),
+                    slashed: Default::default(),
+                    filled: Default::default(),
+                },
             )
             .unwrap();
 
@@ -407,12 +446,80 @@ mod tests {
             mock_info("creator", &[]),
             ExecuteMsg::RemoveValidator {
                 val_addr: valid1.clone(),
-                redel_addr: valid1.clone(),
-                pool_id: 12
+                redel_addr: valid2.clone(),
+                pool_id: 12,
             },
         )
-            .unwrap_err();
-        assert!(matches!(err, ContractError::RemoveValidatorsCannotBeSame {}));
+        .unwrap_err();
+        assert!(matches!(err, ContractError::PoolNotFound {}));
+
+        let mut pool_info = PoolRegistryInfo {
+            name: "Random name".to_string(),
+            active: false,
+            validator_contract: Addr::unchecked("pool_12_validator_addr"),
+            reward_contract: Addr::unchecked("reward_12_validator_addr"),
+            protocol_fee_contract: Addr::unchecked("protocol_fee_addr"),
+            protocol_fee_percent: Default::default(),
+            validators: vec![],
+            staked: Uint128::new(2000),
+            rewards_pointer: Default::default(),
+            airdrops_pointer: vec![],
+            slashing_pointer: Decimal::one(),
+            current_undelegation_batch_id: 1,
+            last_reconciled_batch_id: 0,
+        };
+        POOL_REGISTRY
+            .save(deps.as_mut().storage, U64Key::new(12), &pool_info)
+            .unwrap();
+
+        BATCH_UNDELEGATION_REGISTRY
+            .save(
+                deps.as_mut().storage,
+                (U64Key::new(12), U64Key::new(1)),
+                &BatchUndelegationRecord {
+                    prorated_amount: Decimal::from_ratio(100_u128, 1_u128),
+                    undelegated_amount: Uint128::new(0),
+                    create_time: Default::default(),
+                    est_release_time: None,
+                    reconciled: false,
+                    last_updated_slashing_pointer: Default::default(),
+                    unbonding_slashing_ratio: Default::default(),
+                },
+            )
+            .unwrap();
+
+        let all_delegations = vec![
+            FullDelegation {
+                delegator: Addr::unchecked("pool_12_validator_addr"),
+                validator: "valid0001".to_string(),
+                amount: Coin::new(1000, "utest"),
+                can_redelegate: Default::default(),
+                accumulated_rewards: vec![],
+            },
+            FullDelegation {
+                delegator: Addr::unchecked("pool_12_validator_addr"),
+                validator: "valid0002".to_string(),
+                amount: Coin::new(800, "utest"),
+                can_redelegate: Default::default(),
+                accumulated_rewards: vec![],
+            },
+        ];
+
+        deps.querier
+            .update_staking("test", &*get_validators(), &*all_delegations);
+
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::RemoveValidator {
+                val_addr: valid1.clone(),
+                redel_addr: valid1.clone(),
+                pool_id: 12,
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::ValidatorsCannotBeSame {}));
 
         let err = execute(
             deps.as_mut(),
@@ -421,14 +528,16 @@ mod tests {
             ExecuteMsg::RemoveValidator {
                 val_addr: valid1.clone(),
                 redel_addr: valid2.clone(),
-                pool_id: 12
+                pool_id: 12,
             },
         )
-            .unwrap_err();
+        .unwrap_err();
         assert!(matches!(err, ContractError::ValidatorNotAdded {}));
 
         pool_info.validators.push(valid1.clone());
-        POOL_REGISTRY.save(deps.as_mut().storage, U64Key::new(12), &pool_info).unwrap();
+        POOL_REGISTRY
+            .save(deps.as_mut().storage, U64Key::new(12), &pool_info)
+            .unwrap();
 
         let err = execute(
             deps.as_mut(),
@@ -437,14 +546,74 @@ mod tests {
             ExecuteMsg::RemoveValidator {
                 val_addr: valid1.clone(),
                 redel_addr: valid2.clone(),
-                pool_id: 12
+                pool_id: 12,
             },
         )
-            .unwrap_err();
+        .unwrap_err();
         assert!(matches!(err, ContractError::ValidatorNotAdded {}));
 
-        pool_info.validators.push(valid2.clone());
-        POOL_REGISTRY.save(deps.as_mut().storage, U64Key::new(12), &pool_info).unwrap();
+        // RESET FOR HAPPY PATH ====================================================================
+        let pool_info = PoolRegistryInfo {
+            name: "Random name".to_string(),
+            active: false,
+            validator_contract: Addr::unchecked("pool_12_validator_addr"),
+            reward_contract: Addr::unchecked("reward_12_validator_addr"),
+            protocol_fee_contract: Addr::unchecked("protocol_fee_addr"),
+            protocol_fee_percent: Default::default(),
+            validators: vec![valid1.clone(), valid2.clone()],
+            staked: Uint128::new(2000),
+            rewards_pointer: Default::default(),
+            airdrops_pointer: vec![],
+            slashing_pointer: Decimal::one(),
+            current_undelegation_batch_id: 1,
+            last_reconciled_batch_id: 0,
+        };
+        POOL_REGISTRY
+            .save(deps.as_mut().storage, U64Key::new(12), &pool_info)
+            .unwrap();
+
+        BATCH_UNDELEGATION_REGISTRY
+            .save(
+                deps.as_mut().storage,
+                (U64Key::new(12), U64Key::new(1)),
+                &BatchUndelegationRecord {
+                    prorated_amount: Decimal::from_ratio(100_u128, 1_u128),
+                    undelegated_amount: Uint128::new(0),
+                    create_time: Default::default(),
+                    est_release_time: None,
+                    reconciled: false,
+                    last_updated_slashing_pointer: Decimal::one(),
+                    unbonding_slashing_ratio: Decimal::one(),
+                },
+            )
+            .unwrap();
+
+        POOL_REGISTRY
+            .save(deps.as_mut().storage, U64Key::new(12), &pool_info)
+            .unwrap();
+
+        VALIDATOR_META
+            .save(
+                deps.as_mut().storage,
+                (valid1.clone(), U64Key::new(12)),
+                &VMeta {
+                    staked: Uint128::new(1000),
+                    slashed: Default::default(),
+                    filled: Default::default(),
+                },
+            )
+            .unwrap();
+        VALIDATOR_META
+            .save(
+                deps.as_mut().storage,
+                (valid2.clone(), U64Key::new(12)),
+                &VMeta {
+                    staked: Uint128::new(1000),
+                    slashed: Default::default(),
+                    filled: Default::default(),
+                },
+            )
+            .unwrap();
 
         let res = execute(
             deps.as_mut(),
@@ -453,10 +622,10 @@ mod tests {
             ExecuteMsg::RemoveValidator {
                 val_addr: valid1.clone(),
                 redel_addr: valid2.clone(),
-                pool_id: 12
+                pool_id: 12,
             },
         )
-            .unwrap();
+        .unwrap();
 
         assert_eq!(res.messages.len(), 1);
         assert_eq!(
@@ -467,7 +636,7 @@ mod tests {
                     val_addr: valid1.clone(),
                     redelegate_addr: valid2.clone()
                 })
-                    .unwrap(),
+                .unwrap(),
                 funds: vec![]
             })
         );
@@ -480,15 +649,354 @@ mod tests {
             name: "Random name".to_string(),
             validator_contract: Addr::unchecked("pool_12_validator_addr"),
             reward_contract: Addr::unchecked("reward_12_validator_addr"),
+            protocol_fee_contract: Addr::unchecked("protocol_fee_addr"),
             active: false,
             validators: vec![valid2.clone()],
-            staked: Default::default(),
+            staked: Uint128::new(1800),
             rewards_pointer: Default::default(),
             airdrops_pointer: vec![],
-            current_undelegation_batch_id: 0,
+            slashing_pointer: Decimal::from_ratio(9_u128, 10_u128),
+            current_undelegation_batch_id: 1,
+            last_reconciled_batch_id: 0,
+            protocol_fee_percent: Default::default(),
+        };
+        assert_eq!(pool_meta, expected_pool_info);
+
+        let val2_meta = VALIDATOR_META
+            .load(deps.as_mut().storage, (valid2.clone(), U64Key::new(12)))
+            .unwrap();
+        assert_eq!(
+            val2_meta,
+            VMeta {
+                staked: Uint128::new(1800),
+                slashed: Uint128::new(200),
+                filled: Default::default()
+            }
+        );
+
+        assert!(VALIDATOR_META
+            .may_load(deps.as_mut().storage, (valid1.clone(), U64Key::new(12)))
+            .unwrap()
+            .is_none());
+        let batch = BATCH_UNDELEGATION_REGISTRY
+            .load(deps.as_mut().storage, (U64Key::new(12), U64Key::new(1)))
+            .unwrap();
+        assert_eq!(
+            batch.last_updated_slashing_pointer,
+            Decimal::from_ratio(9_u128, 10_u128)
+        );
+        assert_eq!(batch.undelegated_amount, Uint128::new(0));
+        assert_eq!(batch.prorated_amount, Decimal::from_ratio(90_u128, 1_u128));
+    }
+
+    #[test]
+    fn test_rebalance_pool() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &[]);
+        let env = mock_env();
+
+        let valid1 = Addr::unchecked("valid0001");
+        let valid2 = Addr::unchecked("valid0002");
+
+        instantiate_contract(&mut deps, &info, &env, None);
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("other", &[]),
+            ExecuteMsg::RemoveValidator {
+                val_addr: valid1.clone(),
+                redel_addr: valid2.clone(),
+                pool_id: 12,
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::Unauthorized {}));
+
+        VALIDATOR_META
+            .save(
+                deps.as_mut().storage,
+                (valid1.clone(), U64Key::new(12)),
+                &VMeta {
+                    staked: Uint128::new(1000),
+                    slashed: Default::default(),
+                    filled: Default::default(),
+                },
+            )
+            .unwrap();
+        VALIDATOR_META
+            .save(
+                deps.as_mut().storage,
+                (valid2.clone(), U64Key::new(12)),
+                &VMeta {
+                    staked: Uint128::new(1000),
+                    slashed: Default::default(),
+                    filled: Default::default(),
+                },
+            )
+            .unwrap();
+
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::RemoveValidator {
+                val_addr: valid1.clone(),
+                redel_addr: valid2.clone(),
+                pool_id: 12,
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::PoolNotFound {}));
+
+        let mut pool_info = PoolRegistryInfo {
+            name: "Random name".to_string(),
+            active: false,
+            validator_contract: Addr::unchecked("pool_12_validator_addr"),
+            reward_contract: Addr::unchecked("reward_12_validator_addr"),
+            protocol_fee_contract: Addr::unchecked("protocol_fee_addr"),
+            protocol_fee_percent: Default::default(),
+            validators: vec![],
+            staked: Uint128::new(2000),
+            rewards_pointer: Default::default(),
+            airdrops_pointer: vec![],
+            slashing_pointer: Decimal::one(),
+            current_undelegation_batch_id: 1,
             last_reconciled_batch_id: 0,
         };
-        assert!(pool_meta.eq(&expected_pool_info));
+        POOL_REGISTRY
+            .save(deps.as_mut().storage, U64Key::new(12), &pool_info)
+            .unwrap();
+
+        BATCH_UNDELEGATION_REGISTRY
+            .save(
+                deps.as_mut().storage,
+                (U64Key::new(12), U64Key::new(1)),
+                &BatchUndelegationRecord {
+                    prorated_amount: Decimal::from_ratio(100_u128, 1_u128),
+                    undelegated_amount: Uint128::new(100),
+                    create_time: Default::default(),
+                    est_release_time: None,
+                    reconciled: false,
+                    last_updated_slashing_pointer: Default::default(),
+                    unbonding_slashing_ratio: Default::default(),
+                },
+            )
+            .unwrap();
+
+        let all_delegations = vec![
+            FullDelegation {
+                delegator: Addr::unchecked("pool_12_validator_addr"),
+                validator: "valid0001".to_string(),
+                amount: Coin::new(1000, "utest"),
+                can_redelegate: Default::default(),
+                accumulated_rewards: vec![],
+            },
+            FullDelegation {
+                delegator: Addr::unchecked("pool_12_validator_addr"),
+                validator: "valid0002".to_string(),
+                amount: Coin::new(800, "utest"),
+                can_redelegate: Default::default(),
+                accumulated_rewards: vec![],
+            },
+        ];
+
+        deps.querier
+            .update_staking("test", &*get_validators(), &*all_delegations);
+
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::RebalancePool {
+                val_addr: valid1.clone(),
+                redel_addr: valid1.clone(),
+                pool_id: 12,
+                amount: Uint128::new(300),
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::ValidatorsCannotBeSame {}));
+
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::RebalancePool {
+                val_addr: valid1.clone(),
+                redel_addr: valid2.clone(),
+                pool_id: 12,
+                amount: Uint128::new(300),
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::ValidatorNotAdded {}));
+
+        pool_info.validators.push(valid1.clone());
+        POOL_REGISTRY
+            .save(deps.as_mut().storage, U64Key::new(12), &pool_info)
+            .unwrap();
+
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::RebalancePool {
+                val_addr: valid1.clone(),
+                redel_addr: valid2.clone(),
+                pool_id: 12,
+                amount: Uint128::new(300),
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::ValidatorNotAdded {}));
+
+        // RESET FOR HAPPY PATH ====================================================================
+        let pool_info = PoolRegistryInfo {
+            name: "Random name".to_string(),
+            active: false,
+            validator_contract: Addr::unchecked("pool_12_validator_addr"),
+            reward_contract: Addr::unchecked("reward_12_validator_addr"),
+            protocol_fee_contract: Addr::unchecked("protocol_fee_addr"),
+            protocol_fee_percent: Default::default(),
+            validators: vec![valid1.clone(), valid2.clone()],
+            staked: Uint128::new(2000),
+            rewards_pointer: Default::default(),
+            airdrops_pointer: vec![],
+            slashing_pointer: Decimal::one(),
+            current_undelegation_batch_id: 1,
+            last_reconciled_batch_id: 0,
+        };
+        POOL_REGISTRY
+            .save(deps.as_mut().storage, U64Key::new(12), &pool_info)
+            .unwrap();
+
+        BATCH_UNDELEGATION_REGISTRY
+            .save(
+                deps.as_mut().storage,
+                (U64Key::new(12), U64Key::new(1)),
+                &BatchUndelegationRecord {
+                    prorated_amount: Decimal::from_ratio(100_u128, 1_u128),
+                    undelegated_amount: Uint128::new(0),
+                    create_time: Default::default(),
+                    est_release_time: None,
+                    reconciled: false,
+                    last_updated_slashing_pointer: Decimal::one(),
+                    unbonding_slashing_ratio: Decimal::one(),
+                },
+            )
+            .unwrap();
+
+        POOL_REGISTRY
+            .save(deps.as_mut().storage, U64Key::new(12), &pool_info)
+            .unwrap();
+
+        VALIDATOR_META
+            .save(
+                deps.as_mut().storage,
+                (valid1.clone(), U64Key::new(12)),
+                &VMeta {
+                    staked: Uint128::new(1000),
+                    slashed: Default::default(),
+                    filled: Default::default(),
+                },
+            )
+            .unwrap();
+        VALIDATOR_META
+            .save(
+                deps.as_mut().storage,
+                (valid2.clone(), U64Key::new(12)),
+                &VMeta {
+                    staked: Uint128::new(1000),
+                    slashed: Default::default(),
+                    filled: Default::default(),
+                },
+            )
+            .unwrap();
+
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::RebalancePool {
+                val_addr: valid1.clone(),
+                redel_addr: valid2.clone(),
+                pool_id: 12,
+                amount: Uint128::new(300),
+            },
+        )
+        .unwrap();
+
+        assert_eq!(res.messages.len(), 1);
+        assert_eq!(
+            res.messages[0],
+            SubMsg::new(WasmMsg::Execute {
+                contract_addr: "pool_12_validator_addr".to_string(),
+                msg: to_binary(&ValidatorMsg::Redelegate {
+                    src: valid1.clone(),
+                    dst: valid2.clone(),
+                    amount: Uint128::new(300)
+                })
+                .unwrap(),
+                funds: vec![]
+            })
+        );
+
+        let pool_meta = POOL_REGISTRY
+            .may_load(deps.as_mut().storage, U64Key::new(12))
+            .unwrap()
+            .unwrap();
+        let expected_pool_info = PoolRegistryInfo {
+            name: "Random name".to_string(),
+            validator_contract: Addr::unchecked("pool_12_validator_addr"),
+            reward_contract: Addr::unchecked("reward_12_validator_addr"),
+            protocol_fee_contract: Addr::unchecked("protocol_fee_addr"),
+            active: false,
+            validators: vec![valid1.clone(), valid2.clone()],
+            staked: Uint128::new(1800),
+            rewards_pointer: Default::default(),
+            airdrops_pointer: vec![],
+            slashing_pointer: Decimal::from_ratio(9_u128, 10_u128),
+            current_undelegation_batch_id: 1,
+            last_reconciled_batch_id: 0,
+            protocol_fee_percent: Default::default(),
+        };
+        assert_eq!(pool_meta, expected_pool_info);
+
+        let val2_meta = VALIDATOR_META
+            .load(deps.as_mut().storage, (valid2.clone(), U64Key::new(12)))
+            .unwrap();
+        assert_eq!(
+            val2_meta,
+            VMeta {
+                staked: Uint128::new(1100),
+                slashed: Uint128::new(200),
+                filled: Default::default()
+            }
+        );
+        let val1_meta = VALIDATOR_META
+            .load(deps.as_mut().storage, (valid1.clone(), U64Key::new(12)))
+            .unwrap();
+        assert_eq!(
+            val1_meta,
+            VMeta {
+                staked: Uint128::new(700),
+                slashed: Uint128::new(0),
+                filled: Default::default()
+            }
+        );
+        let batch = BATCH_UNDELEGATION_REGISTRY
+            .load(deps.as_mut().storage, (U64Key::new(12), U64Key::new(1)))
+            .unwrap();
+        assert_eq!(
+            batch.last_updated_slashing_pointer,
+            Decimal::from_ratio(9_u128, 10_u128)
+        );
+        assert_eq!(batch.prorated_amount, Decimal::from_ratio(90_u128, 1_u128));
+        assert_eq!(
+            batch.last_updated_slashing_pointer,
+            Decimal::from_ratio(9_u128, 10_u128)
+        );
+        assert_eq!(batch.undelegated_amount, Uint128::new(0));
     }
 
     #[test]
@@ -501,8 +1009,6 @@ mod tests {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info(&user1.clone().to_string(), &[]);
         let env = mock_env();
-        deps.querier
-            .update_staking("test", &*get_validators(), &*get_delegations());
 
         instantiate_contract(&mut deps, &info, &env, None);
         let err = execute(
@@ -517,10 +1023,13 @@ mod tests {
         let err = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info(&user1.clone().to_string(), &[Coin::new(1_000_000_000_001, "utest")]),
+            mock_info(
+                &user1.clone().to_string(),
+                &[Coin::new(1_000_000_000_001, "utest")],
+            ),
             ExecuteMsg::Deposit { pool_id: 12 },
         )
-            .unwrap_err();
+        .unwrap_err();
         assert!(matches!(err, ContractError::MaxDeposit {}));
 
         let err = execute(
@@ -529,7 +1038,7 @@ mod tests {
             mock_info(&user1.clone().to_string(), &[Coin::new(1, "utest")]),
             ExecuteMsg::Deposit { pool_id: 12 },
         )
-            .unwrap_err();
+        .unwrap_err();
         assert!(matches!(err, ContractError::MinDeposit {}));
 
         let err = execute(
@@ -538,7 +1047,7 @@ mod tests {
             mock_info(&user1.clone().to_string(), &[Coin::new(3000, "utest")]),
             ExecuteMsg::Deposit { pool_id: 12 },
         )
-            .unwrap_err();
+        .unwrap_err();
         assert!(matches!(err, ContractError::PoolNotFound {}));
 
         let mut pool_info = PoolRegistryInfo {
@@ -546,18 +1055,39 @@ mod tests {
             active: false,
             validator_contract: Addr::unchecked("pool_12_validator_addr"),
             reward_contract: Addr::unchecked("reward_12_validator_addr"),
-            validators: vec![valid1.clone(), valid2.clone(), valid3.clone(), valid4.clone(), Addr::unchecked("valid0005").clone()],
+            protocol_fee_contract: Addr::unchecked("protocol_fee_addr"),
+            protocol_fee_percent: Default::default(),
+            validators: vec![
+                valid1.clone(),
+                valid2.clone(),
+                valid3.clone(),
+                valid4.clone(),
+                Addr::unchecked("valid0005").clone(),
+            ],
             staked: Uint128::new(450),
             rewards_pointer: Decimal::zero(),
             airdrops_pointer: vec![],
+            slashing_pointer: Decimal::one(),
             current_undelegation_batch_id: 1,
             last_reconciled_batch_id: 0,
         };
         POOL_REGISTRY
+            .save(deps.as_mut().storage, U64Key::new(12), &pool_info)
+            .unwrap();
+
+        BATCH_UNDELEGATION_REGISTRY
             .save(
                 deps.as_mut().storage,
-                U64Key::new(12),
-                &pool_info,
+                (U64Key::new(12), U64Key::new(1)),
+                &BatchUndelegationRecord {
+                    prorated_amount: Default::default(),
+                    undelegated_amount: Default::default(),
+                    create_time: Default::default(),
+                    est_release_time: None,
+                    reconciled: false,
+                    last_updated_slashing_pointer: Default::default(),
+                    unbonding_slashing_ratio: Default::default(),
+                },
             )
             .unwrap();
 
@@ -567,20 +1097,97 @@ mod tests {
             mock_info(&user1.clone().to_string(), &[Coin::new(3000, "utest")]),
             ExecuteMsg::Deposit { pool_id: 12 },
         )
-            .unwrap_err();
+        .unwrap_err();
         assert!(matches!(err, ContractError::PoolInactive {}));
 
         pool_info.active = true;
         POOL_REGISTRY
+            .save(deps.as_mut().storage, U64Key::new(12), &pool_info)
+            .unwrap();
+
+        VALIDATOR_META
             .save(
                 deps.as_mut().storage,
-                U64Key::new(12),
-                &pool_info,
+                (valid1.clone(), U64Key::new(12)),
+                &VMeta {
+                    staked: Uint128::new(100),
+                    slashed: Default::default(),
+                    filled: Default::default(),
+                },
+            )
+            .unwrap();
+        VALIDATOR_META
+            .save(
+                deps.as_mut().storage,
+                (valid2.clone(), U64Key::new(12)),
+                &VMeta {
+                    staked: Uint128::new(100),
+                    slashed: Default::default(),
+                    filled: Default::default(),
+                },
+            )
+            .unwrap();
+        VALIDATOR_META
+            .save(
+                deps.as_mut().storage,
+                (valid3.clone(), U64Key::new(12)),
+                &VMeta {
+                    staked: Uint128::new(1000),
+                    slashed: Default::default(),
+                    filled: Default::default(),
+                },
+            )
+            .unwrap();
+        VALIDATOR_META
+            .save(
+                deps.as_mut().storage,
+                (valid4.clone(), U64Key::new(12)),
+                &VMeta {
+                    staked: Uint128::new(1000),
+                    slashed: Default::default(),
+                    filled: Default::default(),
+                },
+            )
+            .unwrap();
+        VALIDATOR_META
+            .save(
+                deps.as_mut().storage,
+                (Addr::unchecked("valid0005").clone(), U64Key::new(12)),
+                &VMeta {
+                    staked: Uint128::new(1000),
+                    slashed: Default::default(),
+                    filled: Default::default(),
+                },
             )
             .unwrap();
 
         /* Validator 5 is not discoverable - essentially jailed. So don't deposit in any case */
         // CASE 1 - Val 1,2,3 are discoverable. Val 4 does not have a delegation. So val4 should get picked.
+
+        let all_delegations = vec![
+            FullDelegation {
+                delegator: Addr::unchecked("pool_12_validator_addr"), // Validator contract
+                validator: "valid0001".to_string(),
+                amount: Coin::new(200, "utest"),
+                can_redelegate: Default::default(),
+                accumulated_rewards: vec![],
+            },
+            FullDelegation {
+                delegator: Addr::unchecked("pool_12_validator_addr"), // Validator contract
+                validator: "valid0002".to_string(),
+                amount: Coin::new(100, "utest"),
+                can_redelegate: Default::default(),
+                accumulated_rewards: vec![],
+            },
+            FullDelegation {
+                delegator: Addr::unchecked("pool_12_validator_addr"), // Validator contract
+                validator: "valid0003".to_string(),
+                amount: Coin::new(150, "utest"),
+                can_redelegate: Default::default(),
+                accumulated_rewards: vec![],
+            },
+        ];
+
         let mut validators_discoverable = get_validators();
         validators_discoverable.push(Validator {
             address: "valid0004".to_string(),
@@ -590,7 +1197,7 @@ mod tests {
         });
 
         deps.querier
-            .update_staking("test", &*validators_discoverable, &*get_delegations());
+            .update_staking("test", &validators_discoverable, &all_delegations);
         let res = execute(
             deps.as_mut(),
             env.clone(),
@@ -608,7 +1215,8 @@ mod tests {
                     amount: Uint128::new(3000),
                     pool_id: 12,
                     pool_rewards_pointer: Decimal::zero(),
-                    pool_airdrops_pointer: vec![]
+                    pool_airdrops_pointer: vec![],
+                    pool_slashing_pointer: Decimal::one()
                 })
                 .unwrap(),
                 funds: vec![]
@@ -632,6 +1240,7 @@ mod tests {
         assert_eq!(pool_meta.staked, Uint128::new(3450));
 
         // CASE 2 - Val 1,2,3 are discoverable. Val1, 2 each have 1000, val4 has 3000, val3 has 0 delegations. So pick val3
+
         let mut validators_discoverable = get_validators();
         validators_discoverable.push(Validator {
             address: "valid0004".to_string(),
@@ -640,24 +1249,39 @@ mod tests {
             max_change_rate: Decimal::zero(),
         });
 
-        let mut validator_delegations = get_delegations();
-        validator_delegations.push(FullDelegation {
-            delegator: Addr::unchecked(MOCK_CONTRACT_ADDR),
-            validator: valid4.to_string(),
-            amount: Coin::new(3000, "utest"),
-            can_redelegate: Default::default(),
-            accumulated_rewards: vec![]
-        });
+        let all_delegations = vec![
+            FullDelegation {
+                delegator: Addr::unchecked("pool_12_validator_addr"), // Validator contract
+                validator: "valid0001".to_string(),
+                amount: Coin::new(200, "utest"),
+                can_redelegate: Default::default(),
+                accumulated_rewards: vec![],
+            },
+            FullDelegation {
+                delegator: Addr::unchecked("pool_12_validator_addr"), // Validator contract
+                validator: "valid0002".to_string(),
+                amount: Coin::new(250, "utest"),
+                can_redelegate: Default::default(),
+                accumulated_rewards: vec![],
+            },
+            FullDelegation {
+                delegator: Addr::unchecked("pool_12_validator_addr"),
+                validator: valid4.to_string(),
+                amount: Coin::new(3000, "utest"),
+                can_redelegate: Default::default(),
+                accumulated_rewards: vec![],
+            },
+        ];
 
         deps.querier
-            .update_staking("test", &*validators_discoverable, &*validator_delegations);
+            .update_staking("test", &*validators_discoverable, &*all_delegations);
         let res = execute(
             deps.as_mut(),
             env.clone(),
             mock_info(&user1.clone().to_string(), &[Coin::new(1000, "utest")]),
             ExecuteMsg::Deposit { pool_id: 12 },
         )
-            .unwrap();
+        .unwrap();
         assert_eq!(res.messages.len(), 2);
         assert_eq!(
             res.messages[0],
@@ -668,9 +1292,10 @@ mod tests {
                     amount: Uint128::new(1000),
                     pool_id: 12,
                     pool_rewards_pointer: Decimal::zero(),
-                    pool_airdrops_pointer: vec![]
+                    pool_airdrops_pointer: vec![],
+                    pool_slashing_pointer: Decimal::one()
                 })
-                    .unwrap(),
+                .unwrap(),
                 funds: vec![]
             })
         );
@@ -681,7 +1306,7 @@ mod tests {
                 msg: to_binary(&ValidatorMsg::Stake {
                     val_addr: valid3.clone(),
                 })
-                    .unwrap(),
+                .unwrap(),
                 funds: vec![Coin::new(1000, "utest")]
             })
         );
@@ -700,32 +1325,46 @@ mod tests {
             max_change_rate: Decimal::zero(),
         });
 
-        let mut validator_delegations = get_delegations();
-        validator_delegations.pop();
-        validator_delegations.push(FullDelegation {
-            delegator: Addr::unchecked(MOCK_CONTRACT_ADDR),
-            validator: valid3.to_string(),
-            amount: Coin::new(1000, "utest"),
-            can_redelegate: Default::default(),
-            accumulated_rewards: vec![]
-        });
-        validator_delegations.push(FullDelegation {
-            delegator: Addr::unchecked(MOCK_CONTRACT_ADDR),
-            validator: valid4.to_string(),
-            amount: Coin::new(3000, "utest"),
-            can_redelegate: Default::default(),
-            accumulated_rewards: vec![]
-        });
+        let all_delegations = vec![
+            FullDelegation {
+                delegator: Addr::unchecked("pool_12_validator_addr"), // Validator contract
+                validator: "valid0001".to_string(),
+                amount: Coin::new(500, "utest"),
+                can_redelegate: Default::default(),
+                accumulated_rewards: vec![],
+            },
+            FullDelegation {
+                delegator: Addr::unchecked("pool_12_validator_addr"), // Validator contract
+                validator: "valid0002".to_string(),
+                amount: Coin::new(500, "utest"),
+                can_redelegate: Default::default(),
+                accumulated_rewards: vec![],
+            },
+            FullDelegation {
+                delegator: Addr::unchecked("pool_12_validator_addr"),
+                validator: valid3.to_string(),
+                amount: Coin::new(500, "utest"),
+                can_redelegate: Default::default(),
+                accumulated_rewards: vec![],
+            },
+            FullDelegation {
+                delegator: Addr::unchecked("pool_12_validator_addr"),
+                validator: valid4.to_string(),
+                amount: Coin::new(2950, "utest"),
+                can_redelegate: Default::default(),
+                accumulated_rewards: vec![],
+            },
+        ];
 
         deps.querier
-            .update_staking("test", &*validators_discoverable, &*validator_delegations);
+            .update_staking("test", &*validators_discoverable, &*all_delegations);
         let res = execute(
             deps.as_mut(),
             env.clone(),
             mock_info(&user1.clone().to_string(), &[Coin::new(5000, "utest")]),
             ExecuteMsg::Deposit { pool_id: 12 },
         )
-            .unwrap();
+        .unwrap();
         assert_eq!(res.messages.len(), 2);
         assert_eq!(
             res.messages[0],
@@ -736,9 +1375,10 @@ mod tests {
                     amount: Uint128::new(5000),
                     pool_id: 12,
                     pool_rewards_pointer: Decimal::zero(),
-                    pool_airdrops_pointer: vec![]
+                    pool_airdrops_pointer: vec![],
+                    pool_slashing_pointer: Decimal::one()
                 })
-                    .unwrap(),
+                .unwrap(),
                 funds: vec![]
             })
         );
@@ -749,7 +1389,7 @@ mod tests {
                 msg: to_binary(&ValidatorMsg::Stake {
                     val_addr: valid1.clone(),
                 })
-                    .unwrap(),
+                .unwrap(),
                 funds: vec![Coin::new(5000, "utest")]
             })
         );
@@ -758,6 +1398,8 @@ mod tests {
             .load(deps.as_mut().storage, U64Key::new(12))
             .unwrap();
         assert_eq!(pool_meta.staked, Uint128::new(9450));
+
+        // NOT CHECKING FOR VALIDATOR_META updates
     }
 
     #[test]
@@ -790,12 +1432,30 @@ mod tests {
                     active: true,
                     validator_contract: Addr::unchecked("pool_12_validator_addr"),
                     reward_contract: Addr::unchecked("reward_12_validator_addr"),
+                    protocol_fee_contract: Addr::unchecked("pool_12_protocol_addr"),
+                    protocol_fee_percent: Default::default(),
                     validators: vec![valid1.clone(), valid2.clone(), valid3.clone()],
                     staked: Uint128::new(450),
                     rewards_pointer: Decimal::zero(),
                     airdrops_pointer: vec![],
+                    slashing_pointer: Default::default(),
                     current_undelegation_batch_id: 1,
                     last_reconciled_batch_id: 0,
+                },
+            )
+            .unwrap();
+        BATCH_UNDELEGATION_REGISTRY
+            .save(
+                deps.as_mut().storage,
+                (U64Key::new(12), U64Key::new(1)),
+                &BatchUndelegationRecord {
+                    prorated_amount: Decimal::from_ratio(40_u128, 1_u128),
+                    undelegated_amount: Uint128::zero(),
+                    create_time: env.block.time,
+                    est_release_time: None,
+                    reconciled: false,
+                    last_updated_slashing_pointer: Decimal::one(),
+                    unbonding_slashing_ratio: Decimal::one(),
                 },
             )
             .unwrap();
@@ -847,7 +1507,7 @@ mod tests {
             mock_info("creator", &[]),
             ExecuteMsg::Swap { pool_id: 12 },
         )
-            .unwrap_err();
+        .unwrap_err();
         assert!(matches!(err, ContractError::PoolNotFound {}));
 
         POOL_REGISTRY
@@ -859,10 +1519,13 @@ mod tests {
                     active: true,
                     validator_contract: Addr::unchecked("pool_12_validator_addr"),
                     reward_contract: Addr::unchecked("pool_12_reward_addr"),
+                    protocol_fee_contract: Addr::unchecked("pool_12_protocol_addr"),
+                    protocol_fee_percent: Default::default(),
                     validators: vec![valid1.clone(), valid2.clone(), valid3.clone()],
                     staked: Uint128::new(450),
                     rewards_pointer: Decimal::zero(),
                     airdrops_pointer: vec![],
+                    slashing_pointer: Default::default(),
                     current_undelegation_batch_id: 1,
                     last_reconciled_batch_id: 0,
                 },
@@ -878,14 +1541,11 @@ mod tests {
         assert_eq!(res.messages.len(), 1);
         assert_eq!(
             res.messages[0],
-            SubMsg::new(
-                WasmMsg::Execute {
-                    contract_addr: "pool_12_reward_addr".to_string(),
-                    msg: to_binary(&RewardExecuteMsg::Swap {})
-                    .unwrap(),
-                    funds: vec![]
-                },
-            )
+            SubMsg::new(WasmMsg::Execute {
+                contract_addr: "pool_12_reward_addr".to_string(),
+                msg: to_binary(&RewardExecuteMsg::Swap {}).unwrap(),
+                funds: vec![]
+            },)
         );
     }
 
@@ -906,7 +1566,7 @@ mod tests {
             mock_info("other", &[]),
             ExecuteMsg::SendRewardsToScc { pool_id: 12 },
         )
-            .unwrap_err();
+        .unwrap_err();
         assert!(matches!(err, ContractError::Unauthorized {}));
 
         let err = execute(
@@ -915,7 +1575,7 @@ mod tests {
             mock_info("creator", &[]),
             ExecuteMsg::SendRewardsToScc { pool_id: 12 },
         )
-            .unwrap_err();
+        .unwrap_err();
         assert!(matches!(err, ContractError::PoolNotFound {}));
 
         POOL_REGISTRY
@@ -927,10 +1587,13 @@ mod tests {
                     active: true,
                     validator_contract: Addr::unchecked("pool_12_validator_addr"),
                     reward_contract: Addr::unchecked("pool_12_reward_addr"),
+                    protocol_fee_contract: Addr::unchecked("pool_12_protocol_addr"),
+                    protocol_fee_percent: Decimal::from_ratio(2_u128, 100_u128), // 2 percent
                     validators: vec![valid1.clone(), valid2.clone(), valid3.clone()],
                     staked: Uint128::new(450),
                     rewards_pointer: Decimal::zero(),
                     airdrops_pointer: vec![],
+                    slashing_pointer: Default::default(),
                     current_undelegation_batch_id: 1,
                     last_reconciled_batch_id: 0,
                 },
@@ -943,28 +1606,34 @@ mod tests {
             mock_info("creator", &[]),
             ExecuteMsg::SendRewardsToScc { pool_id: 12 },
         )
-            .unwrap_err();
+        .unwrap_err();
         assert!(matches!(err, ContractError::ZeroRewards {}));
 
-        deps.querier.update_balance(Addr::unchecked("pool_12_reward_addr"), vec![Coin::new(1234, "utest")]);
+        deps.querier.update_balance(
+            Addr::unchecked("pool_12_reward_addr"),
+            vec![Coin::new(1234, "utest")],
+        );
         let res = execute(
             deps.as_mut(),
             env.clone(),
             mock_info("creator", &[]),
             ExecuteMsg::SendRewardsToScc { pool_id: 12 },
         )
-            .unwrap();
+        .unwrap();
         assert_eq!(res.messages.len(), 1);
         assert_eq!(
             res.messages[0],
-            SubMsg::new(
-                WasmMsg::Execute {
-                    contract_addr: "pool_12_reward_addr".to_string(),
-                    msg: to_binary(&RewardExecuteMsg::Transfer { amount: Uint128::new(1234) })
-                        .unwrap(),
-                    funds: vec![]
-                },
-            )
+            SubMsg::new(WasmMsg::Execute {
+                contract_addr: "pool_12_reward_addr".to_string(),
+                msg: to_binary(&RewardExecuteMsg::Transfer {
+                    reward_amount: Uint128::new(1210),
+                    reward_withdraw_contract: Addr::unchecked("scc_addr"),
+                    protocol_fee_amount: Uint128::new(24),
+                    protocol_fee_contract: Addr::unchecked("pool_12_protocol_addr"),
+                })
+                .unwrap(),
+                funds: vec![]
+            },)
         );
     }
 
@@ -977,10 +1646,68 @@ mod tests {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info(&user1.clone().to_string(), &[]);
         let env = mock_env();
+
+        let all_delegations = vec![
+            FullDelegation {
+                delegator: Addr::unchecked("pool_12_validator_addr"), // Validator contract
+                validator: "valid0001".to_string(),
+                amount: Coin::new(150, "utest"),
+                can_redelegate: Default::default(),
+                accumulated_rewards: vec![],
+            },
+            FullDelegation {
+                delegator: Addr::unchecked("pool_12_validator_addr"), // Validator contract
+                validator: "valid0002".to_string(),
+                amount: Coin::new(150, "utest"),
+                can_redelegate: Default::default(),
+                accumulated_rewards: vec![],
+            },
+            FullDelegation {
+                delegator: Addr::unchecked("pool_12_validator_addr"),
+                validator: valid3.to_string(),
+                amount: Coin::new(105, "utest"),
+                can_redelegate: Default::default(),
+                accumulated_rewards: vec![],
+            },
+        ];
         deps.querier
-            .update_staking("test", &*get_validators(), &*get_delegations());
+            .update_staking("test", &*get_validators(), &*all_delegations);
 
         instantiate_contract(&mut deps, &info, &env, None);
+
+        VALIDATOR_META
+            .save(
+                deps.as_mut().storage,
+                (valid1.clone(), U64Key::new(12)),
+                &VMeta {
+                    staked: Uint128::new(150),
+                    slashed: Default::default(),
+                    filled: Default::default(),
+                },
+            )
+            .unwrap();
+        VALIDATOR_META
+            .save(
+                deps.as_mut().storage,
+                (valid2.clone(), U64Key::new(12)),
+                &VMeta {
+                    staked: Uint128::new(150),
+                    slashed: Default::default(),
+                    filled: Default::default(),
+                },
+            )
+            .unwrap();
+        VALIDATOR_META
+            .save(
+                deps.as_mut().storage,
+                (valid3.clone(), U64Key::new(12)),
+                &VMeta {
+                    staked: Uint128::new(150),
+                    slashed: Default::default(),
+                    filled: Default::default(),
+                },
+            )
+            .unwrap();
 
         POOL_REGISTRY
             .save(
@@ -991,10 +1718,13 @@ mod tests {
                     active: false,
                     validator_contract: Addr::unchecked("pool_12_validator_addr"),
                     reward_contract: Addr::unchecked("pool_12_reward_addr"),
+                    protocol_fee_contract: Addr::unchecked("pool_12_protocol_addr"),
+                    protocol_fee_percent: Decimal::from_ratio(1_u128, 1000_u128),
                     validators: vec![valid1.clone(), valid2.clone(), valid3.clone()],
                     staked: Uint128::new(450),
                     rewards_pointer: Decimal::zero(),
                     airdrops_pointer: vec![],
+                    slashing_pointer: Decimal::one(),
                     current_undelegation_batch_id: 1,
                     last_reconciled_batch_id: 0,
                 },
@@ -1005,10 +1735,13 @@ mod tests {
                 deps.as_mut().storage,
                 (U64Key::new(12), U64Key::new(1)),
                 &BatchUndelegationRecord {
-                    amount: Uint128::new(40),
+                    prorated_amount: Decimal::from_ratio(40_u128, 1_u128),
+                    undelegated_amount: Uint128::zero(),
                     create_time: env.block.time,
                     est_release_time: None,
-                    withdrawable_time: None,
+                    reconciled: false,
+                    last_updated_slashing_pointer: Decimal::one(),
+                    unbonding_slashing_ratio: Decimal::one(),
                 },
             )
             .unwrap();
@@ -1034,7 +1767,8 @@ mod tests {
                     from_pool: 12,
                     amount: Uint128::new(20),
                     pool_rewards_pointer: Decimal::zero(),
-                    pool_airdrops_pointer: vec![]
+                    pool_airdrops_pointer: vec![],
+                    pool_slashing_pointer: Decimal::one() // Note that updated pool pointer slashing isn't propagated by design
                 })
                 .unwrap(),
                 funds: vec![]
@@ -1044,12 +1778,19 @@ mod tests {
         let pool_meta = POOL_REGISTRY
             .load(deps.as_mut().storage, U64Key::new(12))
             .unwrap();
-        assert_eq!(pool_meta.staked, Uint128::new(450));
+        assert_eq!(pool_meta.staked, Uint128::new(405)); // Slashing has reduced this.
+        assert_eq!(
+            pool_meta.slashing_pointer,
+            Decimal::from_ratio(9_u128, 10_u128)
+        ); // Slashing has reduced this.
 
         let batch_und = BATCH_UNDELEGATION_REGISTRY
             .load(deps.as_mut().storage, (U64Key::new(12), U64Key::new(1)))
             .unwrap();
-        assert_eq!(batch_und.amount, Uint128::new(60));
+        assert_eq!(
+            batch_und.prorated_amount,
+            Decimal::from_ratio(54_u128, 1_u128)
+        ); // because even the 20 newly deposited gets slashing adjusted to 18
     }
 
     #[test]
@@ -1061,8 +1802,67 @@ mod tests {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
+        let all_delegations = vec![
+            FullDelegation {
+                delegator: Addr::unchecked("pool_12_validator_addr"), // Validator contract
+                validator: "valid0001".to_string(),
+                amount: Coin::new(1000, "utest"),
+                can_redelegate: Default::default(),
+                accumulated_rewards: vec![],
+            },
+            FullDelegation {
+                delegator: Addr::unchecked("pool_12_validator_addr"), // Validator contract
+                validator: "valid0002".to_string(),
+                amount: Coin::new(1000, "utest"),
+                can_redelegate: Default::default(),
+                accumulated_rewards: vec![],
+            },
+            FullDelegation {
+                delegator: Addr::unchecked("pool_12_validator_addr"),
+                validator: valid3.to_string(),
+                amount: Coin::new(0, "utest"),
+                can_redelegate: Default::default(),
+                accumulated_rewards: vec![],
+            },
+        ];
         deps.querier
-            .update_staking("test", &*get_validators(), &*get_delegations());
+            .update_staking("test", &*get_validators(), &*all_delegations);
+
+        instantiate_contract(&mut deps, &info, &env, None);
+
+        VALIDATOR_META
+            .save(
+                deps.as_mut().storage,
+                (valid1.clone(), U64Key::new(12)),
+                &VMeta {
+                    staked: Uint128::new(1000),
+                    slashed: Default::default(),
+                    filled: Default::default(),
+                },
+            )
+            .unwrap();
+        VALIDATOR_META
+            .save(
+                deps.as_mut().storage,
+                (valid2.clone(), U64Key::new(12)),
+                &VMeta {
+                    staked: Uint128::new(1000),
+                    slashed: Default::default(),
+                    filled: Default::default(),
+                },
+            )
+            .unwrap();
+        VALIDATOR_META
+            .save(
+                deps.as_mut().storage,
+                (valid3.clone(), U64Key::new(12)),
+                &VMeta {
+                    staked: Uint128::new(0),
+                    slashed: Default::default(),
+                    filled: Default::default(),
+                },
+            )
+            .unwrap();
 
         instantiate_contract(&mut deps, &info, &env, None);
         let err = execute(
@@ -1089,10 +1889,18 @@ mod tests {
                     active: false,
                     validator_contract: Addr::unchecked("pool_12_validator_addr"),
                     reward_contract: Addr::unchecked("pool_12_reward_addr"),
-                    validators: vec![valid1.clone(), valid2.clone(), valid3.clone(), valid4.clone()],
+                    protocol_fee_contract: Addr::unchecked("pool_12_protocol_addr"),
+                    protocol_fee_percent: Decimal::from_ratio(1_u128, 1000_u128),
+                    validators: vec![
+                        valid1.clone(),
+                        valid2.clone(),
+                        valid3.clone(),
+                        valid4.clone(),
+                    ],
                     staked: Uint128::new(1450),
                     rewards_pointer: Decimal::zero(),
                     airdrops_pointer: vec![],
+                    slashing_pointer: Decimal::one(),
                     current_undelegation_batch_id: 1,
                     last_reconciled_batch_id: 0,
                 },
@@ -1103,10 +1911,13 @@ mod tests {
                 deps.as_mut().storage,
                 (U64Key::new(12), U64Key::new(1)),
                 &BatchUndelegationRecord {
-                    amount: Uint128::new(0),
+                    prorated_amount: Decimal::zero(),
+                    undelegated_amount: Uint128::new(0),
                     create_time: env.block.time,
                     est_release_time: None,
-                    withdrawable_time: None,
+                    reconciled: false,
+                    last_updated_slashing_pointer: Decimal::one(),
+                    unbonding_slashing_ratio: Decimal::one(),
                 },
             )
             .unwrap();
@@ -1124,10 +1935,13 @@ mod tests {
                 deps.as_mut().storage,
                 (U64Key::new(12), U64Key::new(1)),
                 &BatchUndelegationRecord {
-                    amount: Uint128::new(40),
+                    prorated_amount: Decimal::from_ratio(403_u128, 10_u128),
+                    undelegated_amount: Uint128::new(0),
                     create_time: env.block.time,
                     est_release_time: None,
-                    withdrawable_time: None,
+                    reconciled: false,
+                    last_updated_slashing_pointer: Decimal::one(),
+                    unbonding_slashing_ratio: Decimal::one(),
                 },
             )
             .unwrap();
@@ -1156,38 +1970,47 @@ mod tests {
         let pool_meta = POOL_REGISTRY
             .load(deps.as_mut().storage, U64Key::new(12))
             .unwrap();
-        assert_eq!(pool_meta.staked, Uint128::new(1410)); // Staked amount is deducted when user undelegates in the first place
+        assert_eq!(pool_meta.staked, Uint128::new(1410)); // Staked amount is deducted on actual undelegation
         assert_eq!(pool_meta.current_undelegation_batch_id, 2);
         assert_eq!(pool_meta.last_reconciled_batch_id, 0);
 
         let batch_und = BATCH_UNDELEGATION_REGISTRY
             .load(deps.as_mut().storage, (U64Key::new(12), U64Key::new(1)))
             .unwrap();
-        assert_eq!(batch_und.amount, Uint128::new(40));
+        assert_eq!(
+            batch_und.prorated_amount,
+            Decimal::from_ratio(403_u128, 10_u128)
+        );
+        assert_eq!(batch_und.undelegated_amount, Uint128::new(40));
         assert_eq!(
             batch_und.est_release_time.unwrap(),
             env.block.time.plus_seconds(21 * 24 * 3600)
         );
-        assert_eq!(
-            batch_und.withdrawable_time.unwrap(),
-            env.block.time.plus_seconds(21 * 24 * 3600 + 3600)
-        );
+        assert!(!batch_und.reconciled);
 
         assert!(BATCH_UNDELEGATION_REGISTRY
             .may_load(deps.as_mut().storage, (U64Key::new(12), U64Key::new(2)))
             .unwrap()
             .is_some());
 
-        let mut validator_delegations = get_delegations();
-        validator_delegations[1] = FullDelegation {
-            delegator: Addr::unchecked(MOCK_CONTRACT_ADDR),
-            validator: valid2.to_string(),
-            amount: Coin::new(960, "utest"),
-            can_redelegate: Default::default(),
-            accumulated_rewards: vec![]
-        };
+        let all_delegations = vec![
+            FullDelegation {
+                delegator: Addr::unchecked("pool_12_validator_addr"), // Validator contract
+                validator: "valid0001".to_string(),
+                amount: Coin::new(1000, "utest"),
+                can_redelegate: Default::default(),
+                accumulated_rewards: vec![],
+            },
+            FullDelegation {
+                delegator: Addr::unchecked("pool_12_validator_addr"), // Validator contract
+                validator: "valid0002".to_string(),
+                amount: Coin::new(960, "utest"),
+                can_redelegate: Default::default(),
+                accumulated_rewards: vec![],
+            },
+        ];
         deps.querier
-            .update_staking("test", &*get_validators(), &*validator_delegations);
+            .update_staking("test", &*get_validators(), &*all_delegations);
 
         // Undelegate from multiple validators
         BATCH_UNDELEGATION_REGISTRY
@@ -1195,10 +2018,13 @@ mod tests {
                 deps.as_mut().storage,
                 (U64Key::new(12), U64Key::new(2)),
                 &BatchUndelegationRecord {
-                    amount: Uint128::new(1200),
+                    prorated_amount: Decimal::from_ratio(120040_u128, 100_u128),
+                    undelegated_amount: Uint128::new(0),
                     create_time: env.block.time,
                     est_release_time: None,
-                    withdrawable_time: None,
+                    reconciled: false,
+                    last_updated_slashing_pointer: Decimal::one(),
+                    unbonding_slashing_ratio: Decimal::one(),
                 },
             )
             .unwrap();
@@ -1250,13 +2076,23 @@ mod tests {
         let valid1 = Addr::unchecked("valid0001");
         let valid2 = Addr::unchecked("valid0002");
         let valid3 = Addr::unchecked("valid0003");
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies_for_validator_querier(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
         deps.querier
             .update_staking("test", &*get_validators(), &*get_delegations());
 
-        instantiate_contract(&mut deps, &info, &env, None);
+        let instantiate_msg = InstantiateMsg {
+            vault_denom: "utest".to_string(),
+            delegator_contract: Addr::unchecked("delegator_addr").to_string(),
+            scc_contract: Addr::unchecked("scc_addr").to_string(),
+            unbonding_period: None,
+            unbonding_buffer: None,
+            min_deposit: Uint128::new(1000),
+            max_deposit: Uint128::new(1_000_000_000_000),
+        };
+
+        instantiate(deps.as_mut(), env.clone(), info.clone(), instantiate_msg).unwrap();
 
         let timestamp_now = env.block.time;
         // let timestamp_before = env.block.time.minus_seconds(21 * 24 * 3600);
@@ -1279,10 +2115,13 @@ mod tests {
                     active: true,
                     validator_contract: Addr::unchecked("pool_12_validator_addr"),
                     reward_contract: Addr::unchecked("pool_12_reward_addr"),
+                    protocol_fee_contract: Addr::unchecked("pool_12_protocol_addr"),
+                    protocol_fee_percent: Decimal::from_ratio(1_u128, 1000_u128),
                     validators: vec![valid1.clone(), valid2.clone(), valid3.clone()],
                     staked: Uint128::new(450),
                     rewards_pointer: Decimal::zero(),
                     airdrops_pointer: vec![],
+                    slashing_pointer: Decimal::one(),
                     current_undelegation_batch_id: 9,
                     last_reconciled_batch_id: 5,
                 },
@@ -1293,10 +2132,13 @@ mod tests {
                 deps.as_mut().storage,
                 (U64Key::new(12), U64Key::new(5)),
                 &BatchUndelegationRecord {
-                    amount: Uint128::new(10),
+                    prorated_amount: Decimal::from_ratio(10_u128, 1_u128),
+                    undelegated_amount: Uint128::new(10),
                     create_time: env.block.time,
                     est_release_time: Some(timestamp_now),
-                    withdrawable_time: Some(timestamp_now),
+                    last_updated_slashing_pointer: Decimal::from_ratio(9_u128, 10_u128),
+                    reconciled: true,
+                    unbonding_slashing_ratio: Decimal::one(),
                 },
             )
             .unwrap();
@@ -1305,10 +2147,13 @@ mod tests {
                 deps.as_mut().storage,
                 (U64Key::new(12), U64Key::new(6)),
                 &BatchUndelegationRecord {
-                    amount: Uint128::new(20),
+                    prorated_amount: Decimal::from_ratio(20_u128, 1_u128),
+                    undelegated_amount: Uint128::new(20),
                     create_time: env.block.time,
                     est_release_time: Some(timestamp_now),
-                    withdrawable_time: Some(timestamp_now),
+                    reconciled: false,
+                    last_updated_slashing_pointer: Decimal::from_ratio(9_u128, 10_u128),
+                    unbonding_slashing_ratio: Decimal::one(),
                 },
             )
             .unwrap();
@@ -1317,10 +2162,13 @@ mod tests {
                 deps.as_mut().storage,
                 (U64Key::new(12), U64Key::new(7)),
                 &BatchUndelegationRecord {
-                    amount: Uint128::new(70),
+                    prorated_amount: Decimal::from_ratio(70_u128, 1_u128),
+                    undelegated_amount: Uint128::new(63),
                     create_time: env.block.time,
                     est_release_time: Some(timestamp_now),
-                    withdrawable_time: Some(timestamp_now),
+                    reconciled: false,
+                    last_updated_slashing_pointer: Decimal::from_ratio(81_u128, 100_u128),
+                    unbonding_slashing_ratio: Decimal::one(),
                 },
             )
             .unwrap();
@@ -1329,10 +2177,13 @@ mod tests {
                 deps.as_mut().storage,
                 (U64Key::new(12), U64Key::new(8)),
                 &BatchUndelegationRecord {
-                    amount: Uint128::new(120),
+                    prorated_amount: Decimal::from_ratio(10_u128, 1_u128),
+                    undelegated_amount: Uint128::new(10),
                     create_time: env.block.time,
                     est_release_time: Some(timestamp_now.plus_seconds(1)),
-                    withdrawable_time: Some(timestamp_now.plus_seconds(1)),
+                    reconciled: false,
+                    last_updated_slashing_pointer: Decimal::one(),
+                    unbonding_slashing_ratio: Decimal::one(),
                 },
             )
             .unwrap();
@@ -1341,10 +2192,13 @@ mod tests {
                 deps.as_mut().storage,
                 (U64Key::new(12), U64Key::new(9)),
                 &BatchUndelegationRecord {
-                    amount: Uint128::new(50),
+                    prorated_amount: Decimal::from_ratio(10_u128, 1_u128),
+                    undelegated_amount: Uint128::new(10),
                     create_time: env.block.time,
                     est_release_time: Some(timestamp_now.plus_seconds(1)),
-                    withdrawable_time: Some(timestamp_now.plus_seconds(1)),
+                    reconciled: false,
+                    last_updated_slashing_pointer: Decimal::one(),
+                    unbonding_slashing_ratio: Decimal::one(),
                 },
             )
             .unwrap();
@@ -1361,7 +2215,7 @@ mod tests {
             SubMsg::new(WasmMsg::Execute {
                 contract_addr: "pool_12_validator_addr".to_string(),
                 msg: to_binary(&ValidatorMsg::TransferReconciledFunds {
-                    amount: Uint128::new(90),
+                    amount: Uint128::new(81), // Querier has been hardcoded to return 81
                 })
                 .unwrap(),
                 funds: vec![]
@@ -1372,17 +2226,45 @@ mod tests {
             .load(deps.as_mut().storage, U64Key::new(12))
             .unwrap();
         assert_eq!(pool_meta.last_reconciled_batch_id, 7);
+
+        let batch_6 = BATCH_UNDELEGATION_REGISTRY
+            .load(deps.as_mut().storage, (U64Key::new(12), U64Key::new(7)))
+            .unwrap();
+        assert_eq!(
+            batch_6.unbonding_slashing_ratio,
+            Decimal::from_ratio(975903614457831325_u128, 1_000_000_000_000_000_000_u128)
+        );
+        assert!(batch_6.reconciled);
+
+        let batch_7 = BATCH_UNDELEGATION_REGISTRY
+            .load(deps.as_mut().storage, (U64Key::new(12), U64Key::new(7)))
+            .unwrap();
+        assert_eq!(
+            batch_7.unbonding_slashing_ratio,
+            Decimal::from_ratio(975903614457831325_u128, 1_000_000_000_000_000_000_u128)
+        );
+        assert!(batch_7.reconciled);
     }
 
     #[test]
     fn test_withdraw_funds_to_wallet() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_querier::mock_dependencies_for_delegator_querier(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
         deps.querier
             .update_staking("test", &*get_validators(), &*get_delegations());
 
-        instantiate_contract(&mut deps, &info, &env, None);
+        let instantiate_msg = InstantiateMsg {
+            vault_denom: "utest".to_string(),
+            delegator_contract: Addr::unchecked("delegator_addr").to_string(),
+            scc_contract: Addr::unchecked("scc_addr").to_string(),
+            unbonding_period: None,
+            unbonding_buffer: None,
+            min_deposit: Uint128::new(1000),
+            max_deposit: Uint128::new(1_000_000_000_000),
+        };
+
+        instantiate(deps.as_mut(), env.clone(), info.clone(), instantiate_msg).unwrap();
 
         let err = execute(
             deps.as_mut(),
@@ -1392,7 +2274,6 @@ mod tests {
                 pool_id: 12,
                 batch_id: 9,
                 undelegate_id: 21,
-                amount: Uint128::new(45),
             },
         )
         .unwrap_err();
@@ -1406,7 +2287,6 @@ mod tests {
                 pool_id: 12,
                 batch_id: 9,
                 undelegate_id: 21,
-                amount: Uint128::new(45),
             },
         )
         .unwrap_err();
@@ -1417,10 +2297,13 @@ mod tests {
                 deps.as_mut().storage,
                 (U64Key::new(12), U64Key::new(9)),
                 &BatchUndelegationRecord {
-                    amount: Uint128::new(500),
+                    prorated_amount: Decimal::from_ratio(500_u128, 1_u128),
+                    undelegated_amount: Uint128::zero(),
                     create_time: env.block.time.minus_seconds(2),
                     est_release_time: Some(env.block.time.plus_seconds(1)),
-                    withdrawable_time: Some(env.block.time.plus_seconds(2)),
+                    reconciled: false,
+                    last_updated_slashing_pointer: Decimal::one(),
+                    unbonding_slashing_ratio: Decimal::one(),
                 },
             )
             .unwrap();
@@ -1433,25 +2316,31 @@ mod tests {
                 pool_id: 12,
                 batch_id: 9,
                 undelegate_id: 21,
-                amount: Uint128::new(45),
             },
         )
         .unwrap_err();
-        assert!(matches!(err, ContractError::UndelegationNotWithdrawable {}));
+        assert!(matches!(
+            err,
+            ContractError::UndelegationBatchNotReconciled {}
+        ));
 
+        let final_und_batch = BatchUndelegationRecord {
+            prorated_amount: Decimal::from_ratio(500_u128, 1_u128),
+            undelegated_amount: Uint128::zero(),
+            create_time: env.block.time.minus_seconds(2),
+            est_release_time: Some(env.block.time),
+            reconciled: true,
+            last_updated_slashing_pointer: Decimal::from_ratio(9_u128, 10_u128),
+            unbonding_slashing_ratio: Decimal::from_ratio(8_u128, 10_u128),
+        };
         BATCH_UNDELEGATION_REGISTRY
             .save(
                 deps.as_mut().storage,
                 (U64Key::new(12), U64Key::new(9)),
-                &BatchUndelegationRecord {
-                    amount: Uint128::new(500),
-                    create_time: env.block.time.minus_seconds(2),
-                    est_release_time: Some(env.block.time),
-                    withdrawable_time: Some(env.block.time),
-                },
+                &final_und_batch,
             )
             .unwrap();
-
+        // Querier hardcoded to return an undelegated money of 100 and withdrawable money of 80
         let res = execute(
             deps.as_mut(),
             env.clone(),
@@ -1460,7 +2349,6 @@ mod tests {
                 pool_id: 12,
                 batch_id: 9,
                 undelegate_id: 21,
-                amount: Uint128::new(45),
             },
         )
         .unwrap();
@@ -1473,7 +2361,10 @@ mod tests {
                     user_addr: Addr::unchecked("any"),
                     pool_id: 12,
                     undelegate_id: 21,
-                    amount: Uint128::new(45),
+                    undelegation_batch_slashing_pointer: Decimal::from_ratio(9_u128, 10_u128),
+                    undelegation_batch_unbonding_slashing_ratio: Decimal::from_ratio(
+                        8_u128, 10_u128
+                    ),
                 })
                 .unwrap(),
                 funds: vec![]
@@ -1483,7 +2374,7 @@ mod tests {
         let batch_und_meta = BATCH_UNDELEGATION_REGISTRY
             .load(deps.as_mut().storage, (U64Key::new(12), U64Key::new(9)))
             .unwrap();
-        assert_eq!(batch_und_meta.amount, Uint128::new(455));
+        assert_eq!(batch_und_meta, final_und_batch);
     }
 
     #[test]
@@ -1503,9 +2394,7 @@ mod tests {
 
         instantiate_contract(&mut deps, &info, &env, None);
 
-        let execute_msg = ExecuteMsg::ClaimAirdrops {
-            rates: vec![],
-        };
+        let execute_msg = ExecuteMsg::ClaimAirdrops { rates: vec![] };
         let err = execute(
             deps.as_mut(),
             env.clone(),
@@ -1523,6 +2412,7 @@ mod tests {
                     name: "RandomName".to_string(),
                     validator_contract: Addr::unchecked("pool_12_validator_addr"),
                     reward_contract: Addr::unchecked("pool_12_reward_addr"),
+                    protocol_fee_contract: Addr::unchecked("pool_27_protocol_addr"),
                     active: false,
                     validators: vec![valid1.clone(), valid2.clone(), valid3.clone()],
                     staked: Uint128::new(280),
@@ -1531,8 +2421,10 @@ mod tests {
                         Decimal::from_ratio(28_u128, 280_u128),
                         "uair1",
                     )],
+                    slashing_pointer: Default::default(),
                     current_undelegation_batch_id: 9,
                     last_reconciled_batch_id: 5,
+                    protocol_fee_percent: Default::default(),
                 },
             )
             .unwrap();
@@ -1544,6 +2436,7 @@ mod tests {
                     name: "RandomName".to_string(),
                     validator_contract: Addr::unchecked("pool_27_validator_addr"),
                     reward_contract: Addr::unchecked("pool_27_reward_addr"),
+                    protocol_fee_contract: Addr::unchecked("pool_27_protocol_addr"),
                     active: false,
                     validators: vec![valid1.clone(), valid2.clone(), valid3.clone()],
                     staked: Uint128::new(640),
@@ -1552,21 +2445,35 @@ mod tests {
                         Decimal::from_ratio(28_u128, 280_u128),
                         "uair2",
                     )],
+                    slashing_pointer: Default::default(),
                     current_undelegation_batch_id: 9,
                     last_reconciled_batch_id: 5,
+                    protocol_fee_percent: Default::default(),
                 },
             )
             .unwrap();
 
-        AIRDROP_REGISTRY.save(deps.as_mut().storage, "uair1".to_string(), &AirdropRegistryInfo {
-            airdrop_contract: Addr::unchecked("uair1_airdrop_contract"),
-            cw20_contract: Addr::unchecked("uair1_cw20_contract"),
-        }).unwrap();
+        AIRDROP_REGISTRY
+            .save(
+                deps.as_mut().storage,
+                "uair1".to_string(),
+                &AirdropRegistryInfo {
+                    airdrop_contract: Addr::unchecked("uair1_airdrop_contract"),
+                    cw20_contract: Addr::unchecked("uair1_cw20_contract"),
+                },
+            )
+            .unwrap();
 
-        AIRDROP_REGISTRY.save(deps.as_mut().storage, "uair2".to_string(), &AirdropRegistryInfo {
-            airdrop_contract: Addr::unchecked("uair2_airdrop_contract"),
-            cw20_contract: Addr::unchecked("uair2_cw20_contract"),
-        }).unwrap();
+        AIRDROP_REGISTRY
+            .save(
+                deps.as_mut().storage,
+                "uair2".to_string(),
+                &AirdropRegistryInfo {
+                    airdrop_contract: Addr::unchecked("uair2_airdrop_contract"),
+                    cw20_contract: Addr::unchecked("uair2_cw20_contract"),
+                },
+            )
+            .unwrap();
 
         POOL_REGISTRY
             .save(
@@ -1577,6 +2484,8 @@ mod tests {
                     active: true,
                     validator_contract: Addr::unchecked("pool_12_validator_addr"),
                     reward_contract: Addr::unchecked("pool_12_reward_addr"),
+                    protocol_fee_contract: Addr::unchecked("pool_27_protocol_addr"),
+                    protocol_fee_percent: Default::default(),
                     validators: vec![valid1.clone(), valid2.clone(), valid3.clone()],
                     staked: Uint128::new(280),
                     rewards_pointer: Decimal::zero(),
@@ -1584,6 +2493,8 @@ mod tests {
                         Decimal::from_ratio(28_u128, 280_u128),
                         "uair1",
                     )],
+
+                    slashing_pointer: Default::default(),
                     current_undelegation_batch_id: 9,
                     last_reconciled_batch_id: 5,
                 },
@@ -1597,6 +2508,7 @@ mod tests {
                     name: "RandomName".to_string(),
                     validator_contract: Addr::unchecked("pool_27_validator_addr"),
                     reward_contract: Addr::unchecked("pool_27_reward_addr"),
+                    protocol_fee_contract: Addr::unchecked("pool_27_protocol_addr"),
                     active: true,
                     validators: vec![valid1.clone(), valid2.clone(), valid3.clone()],
                     staked: Uint128::new(640),
@@ -1605,8 +2517,10 @@ mod tests {
                         Decimal::from_ratio(64_u128, 640_u128),
                         "uair2",
                     )],
+                    slashing_pointer: Default::default(),
                     current_undelegation_batch_id: 9,
                     last_reconciled_batch_id: 5,
+                    protocol_fee_percent: Default::default(),
                 },
             )
             .unwrap();
@@ -1617,25 +2531,25 @@ mod tests {
                     pool_id: 12,
                     denom: "uair1".to_string(),
                     amount: Uint128::new(14),
-                    claim_msg: get_airdrop_claim_msg()
+                    claim_msg: get_airdrop_claim_msg(),
                 },
                 AirdropRate {
                     pool_id: 27,
                     denom: "uair1".to_string(),
                     amount: Uint128::new(16),
-                    claim_msg: get_airdrop_claim_msg()
+                    claim_msg: get_airdrop_claim_msg(),
                 },
                 AirdropRate {
                     pool_id: 12,
                     denom: "uair2".to_string(),
                     amount: Uint128::new(14),
-                    claim_msg: get_airdrop_claim_msg()
+                    claim_msg: get_airdrop_claim_msg(),
                 },
                 AirdropRate {
                     pool_id: 27,
                     denom: "uair2".to_string(),
                     amount: Uint128::new(16),
-                    claim_msg: get_airdrop_claim_msg()
+                    claim_msg: get_airdrop_claim_msg(),
                 },
             ],
         };
@@ -1648,77 +2562,212 @@ mod tests {
         )
         .unwrap();
         assert_eq!(res.messages.len(), 4);
-        assert_eq!(res.messages[0], SubMsg::new(WasmMsg::Execute {
-            contract_addr: "pool_12_validator_addr".to_string(),
-            msg: to_binary(&ValidatorMsg::RedeemAirdropAndTransfer {
-                amount: Uint128::new(14),
-                claim_msg: get_airdrop_claim_msg(),
-                airdrop_contract: Addr::unchecked("uair1_airdrop_contract"),
-                cw20_contract: Addr::unchecked("uair1_cw20_contract")
-            }).unwrap(),
-            funds: vec![]
-        }));
-        assert_eq!(res.messages[1], SubMsg::new(WasmMsg::Execute {
-            contract_addr: "pool_27_validator_addr".to_string(),
-            msg: to_binary(&ValidatorMsg::RedeemAirdropAndTransfer {
-                amount: Uint128::new(16),
-                claim_msg: get_airdrop_claim_msg(),
-                airdrop_contract: Addr::unchecked("uair1_airdrop_contract"),
-                cw20_contract: Addr::unchecked("uair1_cw20_contract")
-            }).unwrap(),
-            funds: vec![]
-        }));
-        assert_eq!(res.messages[2], SubMsg::new(WasmMsg::Execute {
-            contract_addr: "pool_12_validator_addr".to_string(),
-            msg: to_binary(&ValidatorMsg::RedeemAirdropAndTransfer {
-                amount: Uint128::new(14),
-                claim_msg: get_airdrop_claim_msg(),
-                airdrop_contract: Addr::unchecked("uair2_airdrop_contract"),
-                cw20_contract: Addr::unchecked("uair2_cw20_contract")
-            }).unwrap(),
-            funds: vec![]
-        }));
-        assert_eq!(res.messages[3], SubMsg::new(WasmMsg::Execute {
-            contract_addr: "pool_27_validator_addr".to_string(),
-            msg: to_binary(&ValidatorMsg::RedeemAirdropAndTransfer {
-                amount: Uint128::new(16),
-                claim_msg: get_airdrop_claim_msg(),
-                airdrop_contract: Addr::unchecked("uair2_airdrop_contract"),
-                cw20_contract: Addr::unchecked("uair2_cw20_contract")
-            }).unwrap(),
-            funds: vec![]
-        }));
+        assert_eq!(
+            res.messages[0],
+            SubMsg::new(WasmMsg::Execute {
+                contract_addr: "pool_12_validator_addr".to_string(),
+                msg: to_binary(&ValidatorMsg::RedeemAirdropAndTransfer {
+                    amount: Uint128::new(14),
+                    claim_msg: get_airdrop_claim_msg(),
+                    airdrop_contract: Addr::unchecked("uair1_airdrop_contract"),
+                    cw20_contract: Addr::unchecked("uair1_cw20_contract")
+                })
+                .unwrap(),
+                funds: vec![]
+            })
+        );
+        assert_eq!(
+            res.messages[1],
+            SubMsg::new(WasmMsg::Execute {
+                contract_addr: "pool_27_validator_addr".to_string(),
+                msg: to_binary(&ValidatorMsg::RedeemAirdropAndTransfer {
+                    amount: Uint128::new(16),
+                    claim_msg: get_airdrop_claim_msg(),
+                    airdrop_contract: Addr::unchecked("uair1_airdrop_contract"),
+                    cw20_contract: Addr::unchecked("uair1_cw20_contract")
+                })
+                .unwrap(),
+                funds: vec![]
+            })
+        );
+        assert_eq!(
+            res.messages[2],
+            SubMsg::new(WasmMsg::Execute {
+                contract_addr: "pool_12_validator_addr".to_string(),
+                msg: to_binary(&ValidatorMsg::RedeemAirdropAndTransfer {
+                    amount: Uint128::new(14),
+                    claim_msg: get_airdrop_claim_msg(),
+                    airdrop_contract: Addr::unchecked("uair2_airdrop_contract"),
+                    cw20_contract: Addr::unchecked("uair2_cw20_contract")
+                })
+                .unwrap(),
+                funds: vec![]
+            })
+        );
+        assert_eq!(
+            res.messages[3],
+            SubMsg::new(WasmMsg::Execute {
+                contract_addr: "pool_27_validator_addr".to_string(),
+                msg: to_binary(&ValidatorMsg::RedeemAirdropAndTransfer {
+                    amount: Uint128::new(16),
+                    claim_msg: get_airdrop_claim_msg(),
+                    airdrop_contract: Addr::unchecked("uair2_airdrop_contract"),
+                    cw20_contract: Addr::unchecked("uair2_cw20_contract")
+                })
+                .unwrap(),
+                funds: vec![]
+            })
+        );
 
         let pool_12 = POOL_REGISTRY
             .load(deps.as_mut().storage, U64Key::new(12))
             .unwrap();
         let expected_pool12_pointers = vec![
-            DecCoin::new(
-                Decimal::from_ratio(15_u128, 100_u128),
-                "uair1"
-            ),
-            DecCoin::new(
-                Decimal::from_ratio(14_u128, 280_u128),
-                "uair2"
-            ),
+            DecCoin::new(Decimal::from_ratio(15_u128, 100_u128), "uair1"),
+            DecCoin::new(Decimal::from_ratio(14_u128, 280_u128), "uair2"),
         ];
-        assert!(check_equal_deccoin_vector(&pool_12.airdrops_pointer, &expected_pool12_pointers));
+        assert!(check_equal_deccoin_vector(
+            &pool_12.airdrops_pointer,
+            &expected_pool12_pointers
+        ));
         let pool_27 = POOL_REGISTRY
             .load(deps.as_mut().storage, U64Key::new(27))
             .unwrap();
         let expected_pool27_pointers = vec![
-            DecCoin::new(
-                Decimal::from_ratio(16_u128, 640_u128),
-                "uair1"
-            ),
-            DecCoin::new(
-                Decimal::from_ratio(80_u128, 640_u128),
-                "uair2"
-            ),
+            DecCoin::new(Decimal::from_ratio(16_u128, 640_u128), "uair1"),
+            DecCoin::new(Decimal::from_ratio(80_u128, 640_u128), "uair2"),
         ];
-        assert!(check_equal_deccoin_vector(&pool_27.airdrops_pointer, &expected_pool27_pointers));
+        assert!(check_equal_deccoin_vector(
+            &pool_27.airdrops_pointer,
+            &expected_pool27_pointers
+        ));
     }
 
+    #[test]
+    fn test_update_pool_config() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &[]);
+        let env = mock_env();
+
+        instantiate_contract(&mut deps, &info, &env, None);
+        let valid1 = Addr::unchecked("0001");
+        let initial_msg = ExecuteMsg::UpdatePoolMetadata {
+            pool_id: 12,
+            pool_config_update_request: PoolConfigUpdateRequest {
+                active: None,
+                reward_contract: None,
+                protocol_fee_contract: None,
+                protocol_fee_percent: None,
+            },
+        };
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("other", &[]),
+            initial_msg.clone(),
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::Unauthorized {}));
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[Coin::new(14, "utest")]),
+            initial_msg.clone(),
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::FundsNotExpected {}));
+
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            initial_msg.clone(),
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::PoolNotFound {}));
+
+        let initial_pool_info = PoolRegistryInfo {
+            name: "asdf".to_string(),
+            active: true,
+            validator_contract: Addr::unchecked("validator_addr"),
+            reward_contract: Addr::unchecked("reward_addr"),
+            protocol_fee_contract: Addr::unchecked("protocol_fee_addr"),
+            protocol_fee_percent: Decimal::from_ratio(1_u128, 1000_u128),
+            validators: vec![valid1.clone()],
+            staked: Uint128::new(240),
+            rewards_pointer: Decimal::from_ratio(12_u128, 240_u128),
+            airdrops_pointer: vec![DecCoin::new(
+                Decimal::from_ratio(10_u128, 240_u128),
+                "uair1",
+            )],
+            slashing_pointer: Decimal::from_ratio(1_u128, 1000_u128),
+            current_undelegation_batch_id: 1,
+            last_reconciled_batch_id: 0,
+        };
+
+        POOL_REGISTRY
+            .save(deps.as_mut().storage, U64Key::new(12), &initial_pool_info)
+            .unwrap();
+
+        let mut expected_pool_info = initial_pool_info.clone();
+        let pool_info = POOL_REGISTRY
+            .load(deps.as_mut().storage, U64Key::new(12))
+            .unwrap();
+        assert_eq!(pool_info, expected_pool_info);
+
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            initial_msg.clone(),
+        )
+        .unwrap();
+        assert!(res.messages.is_empty());
+        let pool_info = POOL_REGISTRY
+            .load(deps.as_mut().storage, U64Key::new(12))
+            .unwrap();
+        assert_eq!(pool_info, expected_pool_info);
+
+        expected_pool_info = PoolRegistryInfo {
+            name: "asdf".to_string(),
+            active: false,
+            validator_contract: Addr::unchecked("validator_addr"),
+            reward_contract: Addr::unchecked("new_reward_addr"),
+            protocol_fee_contract: Addr::unchecked("new_protocol_fee_addr"),
+            protocol_fee_percent: Decimal::from_ratio(2_u128, 1000_u128),
+            validators: vec![valid1.clone()],
+            staked: Uint128::new(240),
+            rewards_pointer: Decimal::from_ratio(12_u128, 240_u128),
+            airdrops_pointer: vec![DecCoin::new(
+                Decimal::from_ratio(10_u128, 240_u128),
+                "uair1",
+            )],
+            slashing_pointer: Decimal::from_ratio(1_u128, 1000_u128),
+            current_undelegation_batch_id: 1,
+            last_reconciled_batch_id: 0,
+        };
+
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::UpdatePoolMetadata {
+                pool_id: 12,
+                pool_config_update_request: PoolConfigUpdateRequest {
+                    active: Some(false),
+                    reward_contract: Some("new_reward_addr".to_string()),
+                    protocol_fee_contract: Some("new_protocol_fee_addr".to_string()),
+                    protocol_fee_percent: Some(Decimal::from_ratio(2_u128, 1000_u128)),
+                },
+            },
+        )
+        .unwrap();
+        assert!(res.messages.is_empty());
+        let pool_info = POOL_REGISTRY
+            .load(deps.as_mut().storage, U64Key::new(12))
+            .unwrap();
+        assert_eq!(pool_info, expected_pool_info);
+    }
 
     #[test]
     fn test_update_config() {
@@ -1731,6 +2780,7 @@ mod tests {
         let initial_msg = ExecuteMsg::UpdateConfig {
             config_request: ConfigUpdateRequest {
                 delegator_contract: None,
+                scc_contract: None,
                 min_deposit: None,
                 max_deposit: None,
                 unbonding_period: None,
@@ -1758,6 +2808,7 @@ mod tests {
             manager: Addr::unchecked("creator"),
             vault_denom: "utest".to_string(),
             delegator_contract: Addr::unchecked("delegator_addr"),
+            scc_contract: Addr::unchecked("scc_addr"),
             unbonding_period: 1814400,
             unbonding_buffer: 3600,
             min_deposit: Uint128::new(1000),
@@ -1781,6 +2832,7 @@ mod tests {
             manager: Addr::unchecked("creator"),
             vault_denom: "utest".to_string(),
             delegator_contract: Addr::unchecked("new_delegator_addr"),
+            scc_contract: Addr::unchecked("new_scc_addr"),
             unbonding_period: 1814401,
             unbonding_buffer: 3601,
             min_deposit: Uint128::new(1001),
@@ -1794,6 +2846,7 @@ mod tests {
             ExecuteMsg::UpdateConfig {
                 config_request: ConfigUpdateRequest {
                     delegator_contract: Some(Addr::unchecked("new_delegator_addr")),
+                    scc_contract: Some(Addr::unchecked("new_scc_addr")),
                     min_deposit: Some(Uint128::new(1001)),
                     max_deposit: Some(Uint128::new(1_000_000_000_001)),
                     unbonding_period: Some(1814401),
@@ -1830,8 +2883,8 @@ mod tests {
             other_info.clone(),
             ExecuteMsg::UpdateAirdropRegistry {
                 airdrop_token: denom.clone(),
-                airdrop_contract: airdrop_contract.clone(),
-                cw20_contract: token_contract.clone(),
+                airdrop_contract: airdrop_contract.clone().to_string(),
+                cw20_contract: token_contract.clone().to_string(),
             },
         )
         .unwrap_err();
@@ -1847,8 +2900,8 @@ mod tests {
             info.clone(),
             ExecuteMsg::UpdateAirdropRegistry {
                 airdrop_token: denom.clone(),
-                airdrop_contract: airdrop_contract.clone(),
-                cw20_contract: token_contract.clone(),
+                airdrop_contract: airdrop_contract.clone().to_string(),
+                cw20_contract: token_contract.clone().to_string(),
             },
         )
         .unwrap();
@@ -1861,5 +2914,194 @@ mod tests {
         let info = airdrop_registry_info.unwrap();
         assert_eq!(info.airdrop_contract, airdrop_contract.clone());
         assert_eq!(info.cw20_contract, token_contract.clone());
+    }
+
+    #[test]
+    fn test_check_slashing() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &[]);
+        let env = mock_env();
+        let valid1 = Addr::unchecked("valid0001");
+        let valid2 = Addr::unchecked("valid0002");
+        let valid3 = Addr::unchecked("valid0003");
+
+        instantiate_contract(&mut deps, &info, &env, None);
+
+        let all_delegations = vec![
+            FullDelegation {
+                delegator: Addr::unchecked("pool_12_validator_addr"), // Validator contract
+                validator: "valid0001".to_string(),
+                amount: Coin::new(150, "utest"),
+                can_redelegate: Default::default(),
+                accumulated_rewards: vec![],
+            },
+            FullDelegation {
+                delegator: Addr::unchecked("pool_12_validator_addr"), // Validator contract
+                validator: "valid0002".to_string(),
+                amount: Coin::new(60, "utest"),
+                can_redelegate: Default::default(),
+                accumulated_rewards: vec![],
+            },
+            FullDelegation {
+                delegator: Addr::unchecked("pool_12_validator_addr"), // Validator contract
+                validator: "valid0003".to_string(),
+                amount: Coin::new(33, "utest"),
+                can_redelegate: Default::default(),
+                accumulated_rewards: vec![],
+            },
+        ];
+
+        let mut validators_discoverable = get_validators();
+        validators_discoverable.push(Validator {
+            address: "valid0004".to_string(),
+            commission: Decimal::zero(),
+            max_commission: Decimal::zero(),
+            max_change_rate: Decimal::zero(),
+        });
+
+        deps.querier
+            .update_staking("test", &validators_discoverable, &all_delegations);
+
+        let initial_pool_info = PoolRegistryInfo {
+            name: "ASDF".to_string(),
+            active: true,
+            validator_contract: Addr::unchecked("pool_12_validator_addr"),
+            reward_contract: Addr::unchecked("reward_addr"),
+            protocol_fee_contract: Addr::unchecked("protocol_fee_addr"),
+            protocol_fee_percent: Decimal::from_ratio(1_u128, 1000_u128),
+            validators: vec![valid1.clone(), valid2.clone(), valid3.clone()],
+            staked: Uint128::new(270),
+            rewards_pointer: Decimal::from_ratio(12_u128, 240_u128),
+            airdrops_pointer: vec![DecCoin::new(
+                Decimal::from_ratio(10_u128, 240_u128),
+                "uair1",
+            )],
+            slashing_pointer: Decimal::from_ratio(9_u128, 10_u128),
+            current_undelegation_batch_id: 3,
+            last_reconciled_batch_id: 2,
+        };
+        POOL_REGISTRY
+            .save(deps.as_mut().storage, U64Key::new(12), &initial_pool_info)
+            .unwrap();
+
+        VALIDATOR_META
+            .save(
+                deps.as_mut().storage,
+                (valid1.clone(), U64Key::new(12)),
+                &VMeta {
+                    staked: Uint128::new(150),
+                    slashed: Default::default(),
+                    filled: Default::default(),
+                },
+            )
+            .unwrap();
+        VALIDATOR_META
+            .save(
+                deps.as_mut().storage,
+                (valid2.clone(), U64Key::new(12)),
+                &VMeta {
+                    staked: Uint128::new(60),
+                    slashed: Default::default(),
+                    filled: Default::default(),
+                },
+            )
+            .unwrap();
+        VALIDATOR_META
+            .save(
+                deps.as_mut().storage,
+                (valid3.clone(), U64Key::new(12)),
+                &VMeta {
+                    staked: Uint128::new(60),
+                    slashed: Default::default(),
+                    filled: Default::default(),
+                },
+            )
+            .unwrap();
+
+        BATCH_UNDELEGATION_REGISTRY
+            .save(
+                deps.as_mut().storage,
+                (U64Key::new(12), U64Key::new(3)),
+                &BatchUndelegationRecord {
+                    prorated_amount: Decimal::from_ratio(201_u128, 1_u128),
+                    undelegated_amount: Uint128::zero(),
+                    create_time: Default::default(),
+                    est_release_time: None,
+                    reconciled: false,
+                    last_updated_slashing_pointer: Decimal::from_ratio(9_u128, 10_u128),
+                    unbonding_slashing_ratio: Decimal::one(),
+                },
+            )
+            .unwrap();
+
+        check_slashing(&mut deps.as_mut(), env, 12).unwrap();
+
+        let vmeta_1 = VALIDATOR_META
+            .load(deps.as_mut().storage, (valid1.clone(), U64Key::new(12)))
+            .unwrap();
+        let vmeta_2 = VALIDATOR_META
+            .load(deps.as_mut().storage, (valid2.clone(), U64Key::new(12)))
+            .unwrap();
+        let vmeta_3 = VALIDATOR_META
+            .load(deps.as_mut().storage, (valid3.clone(), U64Key::new(12)))
+            .unwrap();
+
+        assert_eq!(
+            vmeta_1,
+            VMeta {
+                staked: Uint128::new(150),
+                slashed: Default::default(),
+                filled: Default::default()
+            }
+        );
+        assert_eq!(
+            vmeta_2,
+            VMeta {
+                staked: Uint128::new(60),
+                slashed: Default::default(),
+                filled: Default::default()
+            }
+        );
+        assert_eq!(
+            vmeta_3,
+            VMeta {
+                staked: Uint128::new(33),
+                slashed: Uint128::new(27),
+                filled: Default::default()
+            }
+        );
+
+        let pool_registry = POOL_REGISTRY
+            .load(deps.as_mut().storage, U64Key::new(12))
+            .unwrap();
+        assert_eq!(pool_registry.staked, Uint128::new(243));
+        assert_eq!(
+            pool_registry.slashing_pointer,
+            Decimal::from_ratio(81_u128, 100_u128)
+        );
+        assert_eq!(
+            pool_registry.rewards_pointer,
+            initial_pool_info.rewards_pointer
+        ); // No change
+        assert_eq!(
+            pool_registry.airdrops_pointer,
+            initial_pool_info.airdrops_pointer
+        ); // No change
+
+        let batch = BATCH_UNDELEGATION_REGISTRY
+            .load(deps.as_mut().storage, (U64Key::new(12), U64Key::new(3)))
+            .unwrap();
+        assert_eq!(
+            batch,
+            BatchUndelegationRecord {
+                prorated_amount: Decimal::from_ratio(1809_u128, 10_u128),
+                undelegated_amount: Uint128::new(0),
+                create_time: Default::default(),
+                est_release_time: None,
+                reconciled: false,
+                last_updated_slashing_pointer: Decimal::from_ratio(81_u128, 100_u128),
+                unbonding_slashing_ratio: Decimal::one()
+            }
+        );
     }
 }

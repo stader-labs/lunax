@@ -3,15 +3,15 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum ContractError {
-    #[error("{0}")]
+    #[error("Reward-Contract: {0}")]
     Std(#[from] StdError),
 
-    #[error("Unauthorized")]
+    #[error("Reward-Contract: Unauthorized")]
     Unauthorized {},
 
-    #[error("No sufficient funds for transfer")]
+    #[error("Reward-Contract: No sufficient funds for transfer")]
     InSufficientFunds {},
 
-    #[error("Amount cannot be zero")]
+    #[error("Reward-Contract: Amount cannot be zero")]
     ZeroAmount {},
 }

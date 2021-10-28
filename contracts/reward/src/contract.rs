@@ -2,16 +2,17 @@
 use cosmwasm_std::entry_point;
 
 use crate::error::ContractError;
-use crate::msg::{
-    ExecuteMsg, GetConfigResponse, InstantiateMsg, MigrateMsg, QueryMsg,
-};
+use crate::msg::{ExecuteMsg, GetConfigResponse, InstantiateMsg, MigrateMsg, QueryMsg};
 
 use crate::state::{Config, CONFIG};
 use cw2::set_contract_version;
 
-use terra_cosmwasm::{create_swap_msg, TerraMsgWrapper, ExchangeRatesResponse, TerraQuerier};
+use cosmwasm_std::{
+    attr, to_binary, Addr, Binary, Coin, Deps, DepsMut, Env, MessageInfo, Response, StdResult,
+    Uint128,
+};
 use stader_utils::helpers::send_funds_msg;
-use cosmwasm_std::{DepsMut, Env, MessageInfo, Response, attr, Uint128, Coin, StdResult, Addr, Deps, Binary, to_binary};
+use terra_cosmwasm::{create_swap_msg, ExchangeRatesResponse, TerraMsgWrapper, TerraQuerier};
 
 const CONTRACT_NAME: &str = "reward";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -26,8 +27,7 @@ pub fn instantiate(
     let config = Config {
         manager: info.sender.clone(),
         reward_denom: msg.reward_denom,
-        pools_contract: msg.pools_contract,
-        scc_contract: msg.scc_contract,
+        pools_contract: deps.api.addr_validate(msg.pools_contract.as_str())?,
     };
     CONFIG.save(deps.storage, &config)?;
 
@@ -53,22 +53,32 @@ pub fn execute(
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     match msg {
         ExecuteMsg::Swap {} => swap(deps, info, env),
-        ExecuteMsg::Transfer { amount } => transfer(deps, info, env, amount),
-
-        ExecuteMsg::UpdateConfig {
-            pools_contract,
-            scc_contract,
-        } => update_config(
+        ExecuteMsg::Transfer {
+            reward_amount,
+            reward_withdraw_contract,
+            protocol_fee_amount: protocol_fee,
+            protocol_fee_contract,
+        } => transfer(
             deps,
             info,
             env,
-            pools_contract,
-            scc_contract,
+            reward_amount,
+            reward_withdraw_contract,
+            protocol_fee,
+            protocol_fee_contract,
         ),
+
+        ExecuteMsg::UpdateConfig { pools_contract } => {
+            update_config(deps, info, env, pools_contract)
+        }
     }
 }
 // Swaps all rewards accrued in this contract to reward denom - luna.
-pub fn swap(deps: DepsMut, info: MessageInfo, env: Env, ) -> Result<Response<TerraMsgWrapper>, ContractError> {
+pub fn swap(
+    deps: DepsMut,
+    info: MessageInfo,
+    env: Env,
+) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
     if info.sender != config.pools_contract {
@@ -76,25 +86,28 @@ pub fn swap(deps: DepsMut, info: MessageInfo, env: Env, ) -> Result<Response<Ter
     }
 
     let mut messages = vec![];
-    let total_rewards = deps.querier.query_all_balances(env.contract.address).unwrap();
-    let denoms: Vec<String> = total_rewards.iter().map(|item| item.denom.clone()).collect();
+    let total_rewards = deps
+        .querier
+        .query_all_balances(env.contract.address)
+        .unwrap();
+    let denoms: Vec<String> = total_rewards
+        .iter()
+        .map(|item| item.denom.clone())
+        .collect();
 
-    let mut is_listed = true;
-    if query_exchange_rates(&deps, config.reward_denom.clone(), denoms).is_err() {
-        is_listed = false;
-    }
+    let exchange_rates = query_exchange_rates(&deps, config.reward_denom.clone(), denoms)?;
+    let known_denoms: Vec<String> = exchange_rates
+        .exchange_rates
+        .iter()
+        .map(|item| item.quote_denom.clone())
+        .collect();
 
     for coin in total_rewards {
-        if coin.denom == config.reward_denom.clone() {
+        if coin.denom == config.reward_denom.clone() || !known_denoms.contains(&coin.denom) {
             continue;
         }
-        if is_listed {
-            messages.push(create_swap_msg(coin, config.reward_denom.to_string()));
-        } else if query_exchange_rates(&deps, config.reward_denom.clone(), vec![coin.denom.clone()])
-            .is_ok()
-        {
-            messages.push(create_swap_msg(coin, config.reward_denom.to_string()));
-        }
+
+        messages.push(create_swap_msg(coin, config.reward_denom.to_string()));
     }
 
     let res = Response::new()
@@ -104,25 +117,47 @@ pub fn swap(deps: DepsMut, info: MessageInfo, env: Env, ) -> Result<Response<Ter
     Ok(res)
 }
 
-// Transfers luna to SCC at the behest of SCC contract
-pub fn transfer(deps: DepsMut, info: MessageInfo, env: Env, amount: Uint128) -> Result<Response<TerraMsgWrapper>, ContractError> {
+// Transfers luna to SCC at the behest of Pools contract
+pub fn transfer(
+    deps: DepsMut,
+    info: MessageInfo,
+    env: Env,
+    reward_amount: Uint128,
+    reward_withdraw_contract: Addr,
+    protocol_fee: Uint128,
+    protocol_fee_contract: Addr,
+) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
     if info.sender != config.pools_contract {
         return Err(ContractError::Unauthorized {});
     }
 
-    if amount.is_zero() {
-        return Err(ContractError::ZeroAmount {});
-    }
-
-    if deps.querier.query_balance(env.contract.address, config.reward_denom.clone()).unwrap().amount.lt(&amount) {
+    let total_withdrawal_amount = reward_amount.checked_add(protocol_fee).unwrap();
+    if deps
+        .querier
+        .query_balance(env.contract.address, config.reward_denom.clone())
+        .unwrap()
+        .amount
+        .lt(&total_withdrawal_amount)
+    {
         return Err(ContractError::InSufficientFunds {});
     }
+    let mut msgs = vec![];
+    if !reward_amount.is_zero() {
+        msgs.push(send_funds_msg(
+            &reward_withdraw_contract,
+            &vec![Coin::new(reward_amount.u128(), config.reward_denom.clone())],
+        ));
+    }
 
-    Ok(Response::new().add_message(
-        send_funds_msg(&config.scc_contract, &vec![Coin::new(amount.u128(), config.reward_denom)]))
-    )
+    if !protocol_fee.is_zero() {
+        msgs.push(send_funds_msg(
+            &protocol_fee_contract,
+            &vec![Coin::new(protocol_fee.u128(), config.reward_denom)],
+        ));
+    }
+    Ok(Response::new().add_messages(msgs))
 }
 
 pub fn query_exchange_rates(
@@ -139,21 +174,19 @@ pub fn update_config(
     deps: DepsMut,
     info: MessageInfo,
     _env: Env,
-    pools_contract: Option<Addr>,
-    scc_contract: Option<Addr>,
+    pools_contract: Option<String>,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
+    let mut config = CONFIG.load(deps.storage)?;
 
     if info.sender != config.manager {
         return Err(ContractError::Unauthorized {});
     }
 
-    CONFIG.update(deps.storage, |mut config| -> StdResult<_> {
-        config.pools_contract = pools_contract.unwrap_or(config.pools_contract);
-        config.scc_contract = scc_contract.unwrap_or(config.scc_contract);
-        Ok(config)
-    })?;
+    if pools_contract.is_some() {
+        config.pools_contract = deps.api.addr_validate(pools_contract.unwrap().as_str())?;
+    }
 
+    CONFIG.save(deps.storage, &config)?;
     Ok(Response::default())
 }
 

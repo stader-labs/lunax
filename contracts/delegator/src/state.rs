@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Addr, Coin, Decimal, Timestamp, Uint128};
+use cosmwasm_std::{Addr, Coin, Decimal, Uint128};
 use cw_storage_plus::{Item, Map, U64Key};
 use stader_utils::coin_utils::DecCoin;
 
@@ -11,13 +11,12 @@ pub struct Config {
     pub vault_denom: String,
     pub pools_contract: Addr,
     pub scc_contract: Addr,
-    pub protocol_fee: Decimal,
-    pub protocol_fee_contract: Addr,
+    pub protocol_fee: Decimal, // Used as a fee when a delegator withdraws staked funds.
+    pub protocol_fee_contract: Addr, // Contract for the above fee. typically the revenue or treasury contract.
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct State {
-    pub next_redelegation_id: u64,
     pub next_undelegation_id: u64,
 }
 
@@ -28,22 +27,13 @@ pub struct UndelegationInfo {
     pub id: u64,
     pub amount: Uint128,
     pub pool_id: u64,
+    pub slashing_pointer: Decimal,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct DepositInfo {
     pub staked: Uint128,
     // in process ones can be added here although we don't need to for the current model
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct RedelegationInfo {
-    pub id: u64,
-    pub batch_id: u64,
-    pub from_pool: u64, // This is redundant because added to from_pool id.
-    pub to_pool: u64,
-    pub amount: Uint128,
-    pub eta: Option<Timestamp>, // Time for redelegation to be completed
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -54,7 +44,7 @@ pub struct UserPoolInfo {
     pub pending_airdrops: Vec<Coin>,
     pub rewards_pointer: Decimal,
     pub pending_rewards: Uint128,
-    pub redelegations: Vec<RedelegationInfo>,
+    pub slashing_pointer: Decimal,
     pub undelegations: Vec<UndelegationInfo>,
 }
 
@@ -63,6 +53,7 @@ pub struct PoolPointerInfo {
     pub pool_id: u64,
     pub airdrops_pointer: Vec<DecCoin>,
     pub rewards_pointer: Decimal,
+    pub slashing_pointer: Decimal,
 }
 
 // (User_Addr, Pool_id) -> UserPoolInfo
