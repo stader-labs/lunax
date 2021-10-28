@@ -28,3 +28,4 @@ impl UserInfo {
 pub const CONFIG: Item<Config> = Item::new("config");
 
 pub const USER_REWARDS: Map<&Addr, UserInfo> = Map::new("user_rewards");
+pub const CW20_CONTRACTS_MAP: Map<&str, Addr> = Map::new("cw20_contracts_map");

@@ -52,6 +52,11 @@ pub enum ExecuteMsg {
         amount: Uint128,
         denom: String,
     },
+    WithdrawAirdrops {},
+    RegisterCw20Contract {
+        token: String,
+        cw20_contract: String,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -59,6 +64,7 @@ pub enum ExecuteMsg {
 pub enum QueryMsg {
     GetUserRewardInfo { user: Addr },
     GetConfig {},
+    GetCw20Contract { token: String },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -69,4 +75,9 @@ pub struct GetConfigResponse {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct GetUserRewardResponse {
     pub user_reward_info: Option<UserInfo>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct GetCw20ContractResponse {
+    pub cw20_contract: Option<Addr>,
 }

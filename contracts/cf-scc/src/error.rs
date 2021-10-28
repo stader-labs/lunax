@@ -11,4 +11,10 @@ pub enum ContractError {
 
     #[error("Amount cannot be zero")]
     AmountZero {},
+
+    #[error("User info does not exist")]
+    UserInfoDoesNotExist {},
+
+    #[error("Cw20 contract not registered `{0}`")]
+    Cw20ContractNotRegistered(String),
 }
