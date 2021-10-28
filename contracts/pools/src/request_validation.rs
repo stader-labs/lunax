@@ -2,21 +2,14 @@ use crate::state::{
     BatchUndelegationRecord, Config, PoolRegistryInfo, BATCH_UNDELEGATION_REGISTRY, POOL_REGISTRY,
 };
 use crate::ContractError;
-use cosmwasm_std::{Addr, Env, MessageInfo, Storage, Uint128, QuerierWrapper, FullDelegation};
+use cosmwasm_std::{Addr, Decimal, Env, MessageInfo, QuerierWrapper, Storage, Uint128};
 use cw_storage_plus::U64Key;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub enum Verify {
-    // If info.sender != manager, throw error
     SenderManager,
-
-    // SenderPoolsContract,
-    //
-    // SenderManagerOrPoolsContract,
-    //
-    // SenderManagerOrPoolsContractOrSelf,
 
     //Info.funds is expected to be one
     NonZeroSingleInfoFund,
@@ -78,10 +71,9 @@ pub fn get_verified_pool(
 
 // Take in validator staked amounts into pool if the pool size is bigger.
 pub fn get_validator_for_deposit(
-    storage: &mut dyn Storage,
     querier: QuerierWrapper,
-    env: Env,
-    validators: Vec<Addr>
+    validator_contract: Addr,
+    validators: Vec<Addr>,
 ) -> Result<Addr, ContractError> {
     if validators.is_empty() {
         return Err(ContractError::NoValidatorsInPool {});
@@ -93,12 +85,17 @@ pub fn get_validator_for_deposit(
             // Don't deposit to a jailed validator
             continue;
         }
-        let delegation_opt = querier.query_delegation(env.contract.address.clone(), val_addr.clone())?;
+        let delegation_opt =
+            querier.query_delegation(validator_contract.clone(), val_addr.clone())?;
+
         if delegation_opt.is_none() {
             // No delegation. So use the validator
             return Ok(val_addr);
         }
-        stake_tuples.push((delegation_opt.unwrap().amount.amount.u128(), val_addr.to_string()))
+        stake_tuples.push((
+            delegation_opt.unwrap().amount.amount.u128(),
+            val_addr.to_string(),
+        ))
     }
     if stake_tuples.is_empty() {
         return Err(ContractError::AllValidatorsJailed {});
@@ -109,9 +106,8 @@ pub fn get_validator_for_deposit(
 
 // Take in validator staked amounts into pool if the pool size is bigger.
 pub fn get_active_validators_sorted_by_stake(
-    storage: &mut dyn Storage,
     querier: QuerierWrapper,
-    env: Env,
+    validator_contract: Addr,
     validators: Vec<Addr>,
 ) -> Result<Vec<(Uint128, String)>, ContractError> {
     if validators.is_empty() {
@@ -123,7 +119,8 @@ pub fn get_active_validators_sorted_by_stake(
             // Don't deposit to a jailed validator
             continue;
         }
-        let delegation_opt = querier.query_delegation(env.contract.address.clone(), val_addr.clone())?;
+        let delegation_opt =
+            querier.query_delegation(validator_contract.clone(), val_addr.clone())?;
         if delegation_opt.is_none() {
             // No delegation. So can
             stake_tuples.push((Uint128::zero(), val_addr.to_string()));
@@ -135,7 +132,6 @@ pub fn get_active_validators_sorted_by_stake(
         return Err(ContractError::AllValidatorsJailed {});
     }
     stake_tuples.sort();
-    println!("Stake Tuples|{:?}", stake_tuples);
     Ok(stake_tuples)
 }
 
@@ -153,10 +149,13 @@ pub fn create_new_undelegation_batch(
         storage,
         (U64Key::new(pool_id), U64Key::new(new_batch_id)),
         &BatchUndelegationRecord {
-            amount: Uint128::zero(),
+            prorated_amount: Decimal::zero(),
+            undelegated_amount: Uint128::zero(),
             create_time: env.block.time,
             est_release_time: None,
-            withdrawable_time: None,
+            reconciled: false,
+            last_updated_slashing_pointer: pool_meta.slashing_pointer,
+            unbonding_slashing_ratio: Decimal::one(),
         },
     )?;
     Ok(())

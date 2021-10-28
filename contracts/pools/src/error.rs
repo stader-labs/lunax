@@ -3,93 +3,92 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum ContractError {
-    #[error("{0}")]
+    #[error("Pools-Contract: {0}")]
     Std(#[from] StdError),
 
-    #[error("Unauthorized")]
+    #[error("Pools-Contract: Unauthorized")]
     Unauthorized {},
 
-    #[error("Funds not found")]
+    #[error("Pools-Contract: Funds not found")]
     NoFunds {},
 
-    #[error("Multiple funds found instead of one")]
+    #[error("Pools-Contract: Multiple funds found instead of one")]
     MultipleFunds {},
 
-    #[error("Funds denom not matching vault denom")]
+    #[error("Pools-Contract: Funds denom not matching vault denom")]
     InvalidDenom {},
 
-    #[error("Validator not discoverable on blockchain")]
+    #[error("Pools-Contract: Validator not discoverable on blockchain")]
     ValidatorNotDiscoverable {},
 
-    #[error("Please add validator to contract and retry")]
+    #[error("Pools-Contract: Please add validator to contract and retry")]
     ValidatorNotAdded {},
 
-    #[error("Validator already associated to a pool")]
+    #[error("Pools-Contract: Validator already associated to a pool")]
     ValidatorAssociatedToPool {},
 
-    #[error("No sufficient funds for transfer")]
+    #[error("Pools-Contract: No sufficient funds for transfer")]
     InSufficientFunds {},
 
-    #[error("Airdrop is not registered")]
+    #[error("Pools-Contract: Airdrop is not registered")]
     AirdropNotRegistered {},
 
-    #[error("Amount cannot be zero")]
+    #[error("Pools-Contract: Amount cannot be zero")]
     ZeroAmount {},
 
-    #[error("Redelegation has failed for the provided validators")]
+    #[error("Pools-Contract: Redelegation has failed for the provided validators")]
     RedelegationFailed {},
 
-    #[error("Submessage event object not found")]
+    #[error("Pools-Contract: Submessage event object not found")]
     EventNotFound {},
 
-    #[error("Pool requested is not found")]
+    #[error("Pools-Contract: Pool requested is not found")]
     PoolNotFound {},
 
-    #[error("Pool requested is not active")]
+    #[error("Pools-Contract: Pool requested is not active")]
     PoolInactive {},
 
-    #[error("No validators in selected pool")]
+    #[error("Pools-Contract: No validators in selected pool")]
     NoValidatorsInPool {},
 
-    #[error("Swap failed with validator contract")]
+    #[error("Pools-Contract: Swap failed with validator contract")]
     SwapFailed {},
 
-    #[error("Unexpectedly, no operation was required")]
+    #[error("Pools-Contract: Unexpectedly, no operation was required")]
     NoOp {},
 
-    #[error("Undelegation batch not found")]
+    #[error("Pools-Contract: Undelegation batch not found")]
     UndelegationBatchNotFound {},
 
-    #[error("Undelegation request not ready to be withdrawn")]
-    UndelegationNotWithdrawable {},
+    #[error("Pools-Contract: Undelegation batch not reconciled yet")]
+    UndelegationBatchNotReconciled {},
 
-    #[error("Mismatching amounts provided")]
+    #[error("Pools-Contract: Mismatching amounts provided")]
     MismatchingAmounts {},
 
-    #[error("Funds not expected with request")]
+    #[error("Pools-Contract: Funds not expected with request")]
     FundsNotExpected {},
 
-    #[error("Deposit amount cannot be greater than max deposit amount")]
+    #[error("Pools-Contract: Deposit amount cannot be greater than max deposit amount")]
     MaxDeposit {},
 
-    #[error("Deposit amount cannot be less than min deposit amount")]
+    #[error("Pools-Contract: Deposit amount cannot be less than min deposit amount")]
     MinDeposit {},
 
-    #[error("Provided validator contract is in use for another pool")]
+    #[error("Pools-Contract: Provided validator contract is in use for another pool")]
     ValidatorContractInUse {},
 
-    #[error("Provided reward contract is in use for another pool")]
+    #[error("Pools-Contract: Provided reward contract is in use for another pool")]
     RewardContractInUse {},
 
-    #[error("All validators in the pool are inactive/jailed")]
+    #[error("Pools-Contract: All validators in the pool are inactive/jailed")]
     AllValidatorsJailed {},
 
-    #[error("Expected rewards to be non-zero for transfer to SCC")]
+    #[error("Pools-Contract: Expected rewards to be non-zero for transfer to SCC")]
     ZeroRewards {},
 
-    #[error("Validator to replace the removed validator should be different")]
-    RemoveValidatorsCannotBeSame {},
-
+    #[error("Pools-Contract: Validator to redelegate should be different from source validator")]
+    ValidatorsCannotBeSame {},
     // Add any other custom errors you like here.
     // Look at https://docs.rs/thiserror/1.0.21/thiserror/ for details.
 }

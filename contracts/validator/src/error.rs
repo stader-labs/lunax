@@ -3,62 +3,61 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum ContractError {
-    #[error("{0}")]
+    #[error("Validator-Contract: {0}")]
     Std(#[from] StdError),
 
-    #[error("Unauthorized")]
+    #[error("Validator-Contract: Unauthorized")]
     Unauthorized {},
 
-    #[error("Funds not found")]
+    #[error("Validator-Contract: Funds not found")]
     NoFunds {},
 
-    #[error("Funds found but not expected")]
+    #[error("Validator-Contract: Funds found but not expected")]
     FundsNotExpected {},
 
-    #[error("Multiple funds found instead of one")]
+    #[error("Validator-Contract: Multiple funds found instead of one")]
     MultipleFunds {},
 
-    #[error("Funds denom not matching vault denom")]
+    #[error("Validator-Contract: Funds denom not matching vault denom")]
     InvalidDenom {},
 
-    #[error("Validator not discoverable on blockchain")]
+    #[error("Validator-Contract: Validator not discoverable on blockchain")]
     ValidatorNotDiscoverable {},
 
-    #[error("Please add validator to contract and retry")]
+    #[error("Validator-Contract: Please add validator to contract and retry")]
     ValidatorNotAdded {},
 
-    #[error("Validator already exists in contract")]
+    #[error("Validator-Contract: Validator already exists in contract")]
     ValidatorAlreadyExists {},
 
-    #[error("No sufficient funds for transfer")]
+    #[error("Validator-Contract: No sufficient funds for transfer")]
     InSufficientFunds {},
 
-    #[error("Airdrop is not registered")]
+    #[error("Validator-Contract: Airdrop is not registered")]
     AirdropNotRegistered {},
 
-    #[error("Amount cannot be zero")]
+    #[error("Validator-Contract: Amount cannot be zero")]
     ZeroAmount {},
 
-    #[error("Redelegation has failed for the provided validators")]
+    #[error("Validator-Contract: Redelegation has failed for the provided validators")]
     RedelegationFailed {},
 
-    #[error("Redelegation event object not found")]
+    #[error("Validator-Contract: Redelegation event object not found")]
     RedelegationEventNotFound {},
 
-    #[error("Not enough slashing funds")]
+    #[error("Validator-Contract: Not enough slashing funds")]
     NotEnoughSlashingFunds {},
 
-    #[error("No Delegation found")]
+    #[error("Validator-Contract: No Delegation found")]
     DelegationNotFound {},
 
-    #[error("Mismatching funds")]
+    #[error("Validator-Contract: Mismatching funds")]
     MismatchingFunds {},
 
-    #[error("Reward contract instantiate message failed")]
+    #[error("Validator-Contract: Reward contract instantiate message failed")]
     RewardInstantiationFailed {},
 
-    #[error("Instantiate event from reward contract missing")]
-    InstantiateEventNotFound {}
-    // Add any other custom errors you like here.
-    // Look at https://docs.rs/thiserror/1.0.21/thiserror/ for details.
+    #[error("Validator-Contract: Instantiate event from reward contract missing")]
+    InstantiateEventNotFound {}, // Add any other custom errors you like here.
+                                 // Look at https://docs.rs/thiserror/1.0.21/thiserror/ for details.
 }

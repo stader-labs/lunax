@@ -1,15 +1,16 @@
 use crate::state::{
     AirdropRate, AirdropRegistryInfo, BatchUndelegationRecord, Config, ConfigUpdateRequest,
-    PoolRegistryInfo, State,
+    PoolConfigUpdateRequest, PoolRegistryInfo, State,
 };
-use cosmwasm_std::{Addr, Uint128};
+use cosmwasm_std::{Addr, Decimal, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
     pub vault_denom: String,
-    pub delegator_contract: Addr,
+    pub delegator_contract: String,
+    pub scc_contract: String,
     pub unbonding_period: Option<u64>,
     pub unbonding_buffer: Option<u64>,
     pub min_deposit: Uint128,
@@ -21,8 +22,10 @@ pub struct InstantiateMsg {
 pub enum ExecuteMsg {
     AddPool {
         name: String,
-        validator_contract: Addr,
-        reward_contract: Addr,
+        validator_contract: String,
+        reward_contract: String,
+        protocol_fee_percent: Decimal,
+        protocol_fee_contract: String,
     },
     AddValidator {
         val_addr: Addr,
@@ -31,7 +34,13 @@ pub enum ExecuteMsg {
     RemoveValidator {
         val_addr: Addr,
         redel_addr: Addr,
-        pool_id: u64
+        pool_id: u64,
+    },
+    RebalancePool {
+        pool_id: u64,
+        amount: Uint128,
+        val_addr: Addr,
+        redel_addr: Addr,
     },
     Deposit {
         pool_id: u64,
@@ -59,18 +68,26 @@ pub enum ExecuteMsg {
         pool_id: u64,
         batch_id: u64,
         undelegate_id: u64,
-        amount: Uint128,
     },
     UpdateAirdropRegistry {
         airdrop_token: String,
-        airdrop_contract: Addr,
-        cw20_contract: Addr,
+        airdrop_contract: String,
+        cw20_contract: String,
     },
     ClaimAirdrops {
         rates: Vec<AirdropRate>,
     },
     UpdateConfig {
         config_request: ConfigUpdateRequest,
+    },
+    UpdatePoolMetadata {
+        pool_id: u64,
+        pool_config_update_request: PoolConfigUpdateRequest,
+    },
+    SimulateSlashing {
+        pool_id: u64,
+        val_addr: Addr,
+        amount: Uint128,
     },
 }
 

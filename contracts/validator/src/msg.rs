@@ -1,4 +1,4 @@
-use crate::state::{Config, State, VMeta};
+use crate::state::Config;
 use cosmwasm_std::{Addr, Binary, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 pub struct InstantiateMsg {
     pub vault_denom: String,
     pub pools_contract: Addr,
-    pub scc_contract: Addr,
+    pub scc_contract: Addr, // DON'T NEED THIS.
     pub delegator_contract: Addr,
     pub airdrop_withdraw_contract: Addr,
 }
@@ -53,15 +53,10 @@ pub enum ExecuteMsg {
     TransferReconciledFunds {
         amount: Uint128,
     },
-
-    AddSlashingFunds {},
-    RemoveSlashingFunds {
-        amount: Uint128,
-    },
     UpdateConfig {
         pools_contract: Option<Addr>,
         delegator_contract: Option<Addr>,
-        airdrop_withdraw_contract: Option<Addr>
+        airdrop_withdraw_contract: Option<Addr>,
     },
 }
 
@@ -69,8 +64,8 @@ pub enum ExecuteMsg {
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     Config {},
-    State {},
     ValidatorMeta { val_addr: Addr },
+    GetUnaccountedBaseFunds {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -79,11 +74,6 @@ pub struct GetConfigResponse {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct GetStateResponse {
-    pub state: State,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct GetValidatorMetaResponse {
-    pub val_meta: Option<VMeta>,
+    pub val_meta: bool,
 }

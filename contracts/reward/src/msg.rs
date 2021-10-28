@@ -6,8 +6,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
     pub reward_denom: String,
-    pub pools_contract: Addr,
-    pub scc_contract: Addr,
+    pub pools_contract: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -17,10 +16,14 @@ pub struct MigrateMsg {}
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
     Swap {}, // Swap rewards into reward denom - luna
-    Transfer { amount: Uint128 }, // Transfer swapped rewards to SCC.
+    Transfer {
+        reward_amount: Uint128,
+        reward_withdraw_contract: Addr,
+        protocol_fee_amount: Uint128,
+        protocol_fee_contract: Addr,
+    }, // Transfer swapped rewards to SCC.
     UpdateConfig {
-        pools_contract: Option<Addr>,
-        scc_contract: Option<Addr>,
+        pools_contract: Option<String>,
     },
 }
 

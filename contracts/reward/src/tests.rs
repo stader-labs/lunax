@@ -3,13 +3,12 @@ mod tests {
     use crate::contract::{execute, instantiate, query};
     use crate::error::ContractError;
     use crate::msg::{ExecuteMsg, GetConfigResponse, InstantiateMsg, QueryMsg};
-    use crate::state::{Config,CONFIG};
+    use crate::state::{Config, CONFIG};
     use cosmwasm_std::testing::{
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
     };
     use cosmwasm_std::{
-        from_binary, Addr, BankMsg, Coin, Env, MessageInfo, OwnedDeps, Response,
-        SubMsg, Uint128,
+        from_binary, Addr, BankMsg, Coin, Env, MessageInfo, OwnedDeps, Response, SubMsg, Uint128,
     };
     use terra_cosmwasm::TerraMsgWrapper;
 
@@ -21,8 +20,7 @@ mod tests {
     ) -> Response<TerraMsgWrapper> {
         let instantiate_msg = InstantiateMsg {
             reward_denom: vault_denom.unwrap_or_else(|| "utest".to_string()),
-            pools_contract: Addr::unchecked("pools_addr"),
-            scc_contract: Addr::unchecked("scc_addr"),
+            pools_contract: "pools_addr".to_string(),
         };
 
         return instantiate(deps.as_mut(), env.clone(), info.clone(), instantiate_msg).unwrap();
@@ -34,14 +32,12 @@ mod tests {
 
         let msg = InstantiateMsg {
             reward_denom: "utest".to_string(),
-            pools_contract: Addr::unchecked("pools_addr"),
-            scc_contract: Addr::unchecked("scc_addr"),
+            pools_contract: "pools_addr".to_string(),
         };
         let expected_config = Config {
             manager: Addr::unchecked("creator"),
             reward_denom: "utest".to_string(),
             pools_contract: Addr::unchecked("pools_addr"),
-            scc_contract: Addr::unchecked("scc_addr"),
         };
         let info = mock_info("creator", &[]);
 
@@ -61,52 +57,81 @@ mod tests {
         let info = mock_info("creator", &[]);
         let env = mock_env();
         instantiate_contract(&mut deps, &info, &env, None);
+        let reward_withdraw_contract = Addr::unchecked("reward_withdraw_contract");
+        let protocol_fee_contract = Addr::unchecked("protocol_fee_contract");
         let err = execute(
             deps.as_mut(),
             env.clone(),
             mock_info("creator", &[]),
             ExecuteMsg::Transfer {
-                amount: Uint128::new(300)
+                reward_amount: Uint128::new(300),
+                reward_withdraw_contract: reward_withdraw_contract.clone(),
+                protocol_fee_amount: Uint128::zero(),
+                protocol_fee_contract: protocol_fee_contract.clone(),
             },
         )
-            .unwrap_err();
+        .unwrap_err();
         assert!(matches!(err, ContractError::Unauthorized {}));
 
+        deps.querier
+            .update_balance(env.contract.address.clone(), vec![Coin::new(100, "utest")]);
         let err = execute(
             deps.as_mut(),
             env.clone(),
             mock_info("pools_addr", &[]),
             ExecuteMsg::Transfer {
-                amount: Uint128::new(0)
+                reward_amount: Uint128::new(300),
+                reward_withdraw_contract: reward_withdraw_contract.clone(),
+                protocol_fee_amount: Uint128::zero(),
+                protocol_fee_contract: protocol_fee_contract.clone(),
             },
         )
-            .unwrap_err();
-        assert!(matches!(err, ContractError::ZeroAmount {}));
-
-        deps.querier.update_balance(env.contract.address.clone(), vec![Coin::new(100, "utest")]);
-        let err = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info("pools_addr", &[]),
-            ExecuteMsg::Transfer {
-                amount: Uint128::new(200)
-            },
-        )
-            .unwrap_err();
+        .unwrap_err();
         assert!(matches!(err, ContractError::InSufficientFunds {}));
 
-        deps.querier.update_balance(env.contract.address.clone(), vec![Coin::new(2000, "utest")]);
+        deps.querier
+            .update_balance(env.contract.address.clone(), vec![Coin::new(2000, "utest")]);
         let res = execute(
             deps.as_mut(),
             env.clone(),
             mock_info("pools_addr", &[]),
             ExecuteMsg::Transfer {
-                amount: Uint128::new(200)
+                reward_amount: Uint128::zero(),
+                reward_withdraw_contract: reward_withdraw_contract.clone(),
+                protocol_fee_amount: Uint128::zero(),
+                protocol_fee_contract: protocol_fee_contract.clone(),
             },
         )
-            .unwrap();
-        assert_eq!(res.messages.len(), 1);
-        assert_eq!(res.messages[0], SubMsg::new(BankMsg::Send { to_address: "scc_addr".to_string(), amount: vec![Coin::new(200, "utest")] }));
+        .unwrap();
+        assert!(res.messages.is_empty());
+
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("pools_addr", &[]),
+            ExecuteMsg::Transfer {
+                reward_amount: Uint128::new(200),
+                reward_withdraw_contract: reward_withdraw_contract.clone(),
+                protocol_fee_amount: Uint128::new(2),
+                protocol_fee_contract: protocol_fee_contract.clone(),
+            },
+        )
+        .unwrap();
+        assert_eq!(res.messages.len(), 2);
+        assert_eq!(
+            res.messages[0],
+            SubMsg::new(BankMsg::Send {
+                to_address: reward_withdraw_contract.to_string(),
+                amount: vec![Coin::new(200, "utest")]
+            })
+        );
+        assert_eq!(
+            res.messages[1],
+            SubMsg::new(BankMsg::Send {
+                to_address: protocol_fee_contract.to_string(),
+                amount: vec![Coin::new(2, "utest")]
+            })
+        );
     }
 
     #[test]
@@ -119,7 +144,6 @@ mod tests {
 
         let initial_msg = ExecuteMsg::UpdateConfig {
             pools_contract: None,
-            scc_contract: None
         };
         let err = execute(
             deps.as_mut(),
@@ -127,14 +151,13 @@ mod tests {
             mock_info("other", &[]),
             initial_msg.clone(),
         )
-            .unwrap_err();
+        .unwrap_err();
         assert!(matches!(err, ContractError::Unauthorized {}));
 
         let mut expected_config = Config {
             manager: Addr::unchecked("creator"),
             reward_denom: "utest".to_string(),
             pools_contract: Addr::unchecked("pools_addr"),
-            scc_contract: Addr::unchecked("scc_addr")
         };
         let config = CONFIG.load(deps.as_mut().storage).unwrap();
         assert_eq!(config, expected_config);
@@ -145,7 +168,7 @@ mod tests {
             mock_info("creator", &[]),
             initial_msg.clone(),
         )
-            .unwrap();
+        .unwrap();
         assert!(res.messages.is_empty());
         let config = CONFIG.load(deps.as_mut().storage).unwrap();
         assert_eq!(config, expected_config);
@@ -154,7 +177,6 @@ mod tests {
             manager: Addr::unchecked("creator"),
             reward_denom: "utest".to_string(),
             pools_contract: Addr::unchecked("new_pools_addr"),
-            scc_contract: Addr::unchecked("new_scc_addr")
         };
 
         let res = execute(
@@ -162,15 +184,13 @@ mod tests {
             env.clone(),
             mock_info("creator", &[]),
             ExecuteMsg::UpdateConfig {
-                pools_contract: Some(Addr::unchecked("new_pools_addr")),
-                scc_contract: Some(Addr::unchecked("new_scc_addr"))
+                pools_contract: Some("new_pools_addr".to_string()),
             }
-                .clone(),
+            .clone(),
         )
-            .unwrap();
+        .unwrap();
         assert!(res.messages.is_empty());
         let config = CONFIG.load(deps.as_mut().storage).unwrap();
         assert_eq!(config, expected_config);
     }
-
 }
