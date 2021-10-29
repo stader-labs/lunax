@@ -41,10 +41,9 @@
         "contract_genesis_timestamp",
         "manager",
         "manager_seed_funds",
+        "min_validator_pool_size",
         "scc_address",
         "strategy_denom",
-        "total_slashed_amount",
-        "total_staked_tokens",
         "uninvested_rewards",
         "unswapped_rewards",
         "validator_pool"
@@ -64,17 +63,16 @@
         "manager_seed_funds": {
           "$ref": "#/definitions/Uint128"
         },
+        "min_validator_pool_size": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
         "scc_address": {
           "$ref": "#/definitions/Addr"
         },
         "strategy_denom": {
           "type": "string"
-        },
-        "total_slashed_amount": {
-          "$ref": "#/definitions/Uint128"
-        },
-        "total_staked_tokens": {
-          "$ref": "#/definitions/Uint128"
         },
         "uninvested_rewards": {
           "$ref": "#/definitions/Coin"

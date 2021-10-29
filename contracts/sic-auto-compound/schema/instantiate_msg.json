@@ -18,6 +18,14 @@
     "manager_seed_funds": {
       "$ref": "#/definitions/Uint128"
     },
+    "min_validator_pool_size": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "uint64",
+      "minimum": 0.0
+    },
     "scc_address": {
       "$ref": "#/definitions/Addr"
     },

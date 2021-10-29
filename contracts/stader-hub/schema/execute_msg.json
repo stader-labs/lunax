@@ -1,15 +1,27 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "ExecuteMsg",
-  "anyOf": [
+  "oneOf": [
     {
       "type": "object",
       "required": [
-        "increment"
+        "add_contract"
       ],
       "properties": {
-        "increment": {
-          "type": "object"
+        "add_contract": {
+          "type": "object",
+          "required": [
+            "addr",
+            "name"
+          ],
+          "properties": {
+            "addr": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            }
+          }
         }
       },
       "additionalProperties": false
@@ -17,18 +29,17 @@
     {
       "type": "object",
       "required": [
-        "reset"
+        "remove_contract"
       ],
       "properties": {
-        "reset": {
+        "remove_contract": {
           "type": "object",
           "required": [
-            "count"
+            "name"
           ],
           "properties": {
-            "count": {
-              "type": "integer",
-              "format": "int32"
+            "name": {
+              "type": "string"
             }
           }
         }

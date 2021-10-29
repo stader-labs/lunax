@@ -9,6 +9,9 @@ pub struct State {
     pub manager: Addr,
 }
 
+pub const MAX_PAGINATION_LIMIT: u32 = 30;
+pub const DEFAULT_PAGINATION_LIMIT: u32 = 10;
+
 pub const STATE: Item<State> = Item::new("state");
 
 pub const CONTRACTS: Map<String, Addr> = Map::new("contracts");

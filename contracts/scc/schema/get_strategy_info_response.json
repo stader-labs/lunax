@@ -60,14 +60,14 @@
         "global_airdrop_pointer",
         "is_active",
         "name",
-        "reconciled_batch_id_pointer",
+        "next_reconciliation_batch_id",
+        "next_undelegation_batch_id",
         "shares_per_token_ratio",
         "sic_contract_address",
         "total_airdrops_accumulated",
         "total_shares",
         "unbonding_buffer",
-        "unbonding_period",
-        "undelegation_batch_id_pointer"
+        "unbonding_period"
       ],
       "properties": {
         "current_undelegated_shares": {
@@ -85,7 +85,12 @@
         "name": {
           "type": "string"
         },
-        "reconciled_batch_id_pointer": {
+        "next_reconciliation_batch_id": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "next_undelegation_batch_id": {
           "type": "integer",
           "format": "uint64",
           "minimum": 0.0
@@ -111,11 +116,6 @@
           "minimum": 0.0
         },
         "unbonding_period": {
-          "type": "integer",
-          "format": "uint64",
-          "minimum": 0.0
-        },
-        "undelegation_batch_id_pointer": {
           "type": "integer",
           "format": "uint64",
           "minimum": 0.0
