@@ -1,14 +1,14 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "QueryMsg",
-  "anyOf": [
+  "oneOf": [
     {
       "type": "object",
       "required": [
-        "get_config"
+        "config"
       ],
       "properties": {
-        "get_config": {
+        "config": {
           "type": "object"
         }
       },
@@ -17,22 +17,10 @@
     {
       "type": "object",
       "required": [
-        "get_state"
+        "validator_meta"
       ],
       "properties": {
-        "get_state": {
-          "type": "object"
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "type": "object",
-      "required": [
-        "get_validator_meta"
-      ],
-      "properties": {
-        "get_validator_meta": {
+        "validator_meta": {
           "type": "object",
           "required": [
             "val_addr"
@@ -49,19 +37,11 @@
     {
       "type": "object",
       "required": [
-        "get_airdrop_meta"
+        "get_unaccounted_base_funds"
       ],
       "properties": {
-        "get_airdrop_meta": {
-          "type": "object",
-          "required": [
-            "token"
-          ],
-          "properties": {
-            "token": {
-              "type": "string"
-            }
-          }
+        "get_unaccounted_base_funds": {
+          "type": "object"
         }
       },
       "additionalProperties": false

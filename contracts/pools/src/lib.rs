@@ -1,9 +1,10 @@
 pub mod contract;
 mod error;
-mod mock_querier;
 pub mod msg;
 mod request_validation;
 pub mod state;
-mod tests;
+
+#[cfg(test)]
+mod testing;
 
 pub use crate::error::ContractError;

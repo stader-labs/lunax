@@ -6,17 +6,16 @@ use cosmwasm_std::{
 };
 
 use crate::error::ContractError;
-use crate::helpers::get_unaccounted_funds;
+use crate::helpers::{get_pool_stake_info, get_unaccounted_funds};
 use crate::msg::{
     ExecuteMsg, GetFulfillableUndelegatedFundsResponse, GetStateResponse, GetTotalTokensResponse,
     InstantiateMsg, MigrateMsg, QueryMsg,
 };
-use crate::state::{StakeQuota, State, STATE, VALIDATORS_TO_STAKED_QUOTA};
+use crate::state::{State, STATE};
 use cw2::set_contract_version;
 use stader_utils::coin_utils::{merge_coin, merge_coin_vector, CoinOp, CoinVecOp, Operation};
 use stader_utils::helpers::send_funds_msg;
 use std::cmp::min;
-use std::collections::HashMap;
 use terra_cosmwasm::{create_swap_msg, SwapResponse, TerraMsgWrapper, TerraQuerier};
 
 const CONTRACT_NAME: &str = "sic-auto-compound";
@@ -40,9 +39,6 @@ pub fn instantiate(
         validator_pool: msg.initial_validators,
         unswapped_rewards: vec![],
         uninvested_rewards: Coin::new(0_u128, msg.strategy_denom),
-
-        total_staked_tokens: Uint128::zero(),
-        total_slashed_amount: Uint128::zero(),
     };
 
     STATE.save(deps.storage, &state)?;
@@ -112,7 +108,7 @@ pub fn update_config(
     _env: Env,
     info: MessageInfo,
     min_validator_pool_size: Option<u64>,
-    scc_address: Option<Addr>,
+    scc_address: Option<String>,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let mut state = STATE.load(deps.storage)?;
     if info.sender != state.manager {
@@ -124,7 +120,7 @@ pub fn update_config(
     }
 
     if let Some(sa) = scc_address {
-        state.scc_address = sa;
+        state.scc_address = deps.api.addr_validate(sa.as_str())?;
     }
 
     STATE.save(deps.storage, &state)?;
@@ -136,12 +132,14 @@ pub fn remove_validator(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    validator: Addr,
+    validator: String,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let state = STATE.load(deps.storage)?;
     if info.sender != state.manager {
         return Err(ContractError::Unauthorized {});
     }
+
+    let validator = deps.api.addr_validate(validator.as_str())?;
 
     if !state.validator_pool.contains(&validator) {
         return Err(ContractError::ValidatorNotInPool {});
@@ -169,8 +167,6 @@ pub fn remove_validator(
             Ok(state)
         })?;
 
-        VALIDATORS_TO_STAKED_QUOTA.remove(deps.storage, &validator);
-
         return Ok(Response::default());
     }
 
@@ -193,8 +189,6 @@ pub fn remove_validator(
         .into_iter()
         .filter(|x| x.ne(&validator))
         .collect();
-    let strategy_denom = state.strategy_denom;
-    let total_staked_tokens = state.total_staked_tokens;
 
     let validator_to_redelegate = new_validator_pool
         .get((_env.block.time.seconds() as usize) % (new_validator_pool.len()))
@@ -202,35 +196,8 @@ pub fn remove_validator(
     redelegation_messages.push(StakingMsg::Redelegate {
         src_validator: validator.to_string(),
         dst_validator: validator_to_redelegate.to_string(),
-        amount: validator_staked_coin.clone(),
+        amount: validator_staked_coin,
     });
-
-    VALIDATORS_TO_STAKED_QUOTA.remove(deps.storage, &validator);
-    VALIDATORS_TO_STAKED_QUOTA.update(
-        deps.storage,
-        validator_to_redelegate,
-        |stake_quota_opt| -> Result<_, ContractError> {
-            let mut stake_quota = stake_quota_opt.unwrap_or(StakeQuota {
-                amount: Coin::new(0_u128, strategy_denom),
-                stake_fraction: Decimal::zero(),
-            });
-
-            stake_quota.amount = merge_coin(
-                stake_quota.amount,
-                CoinOp {
-                    fund: validator_staked_coin,
-                    operation: Operation::Add,
-                },
-            );
-            stake_quota.stake_fraction = if total_staked_tokens.is_zero() {
-                Decimal::zero()
-            } else {
-                Decimal::from_ratio(stake_quota.amount.amount, total_staked_tokens)
-            };
-
-            Ok(stake_quota)
-        },
-    )?;
 
     STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
         state.unswapped_rewards = merge_coin_vector(
@@ -253,13 +220,16 @@ pub fn replace_validator(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    src_validator: Addr,
-    dst_validator: Addr,
+    src_validator: String,
+    dst_validator: String,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let state = STATE.load(deps.storage)?;
     if info.sender != state.manager {
         return Err(ContractError::Unauthorized {});
     }
+
+    let src_validator = deps.api.addr_validate(src_validator.as_str())?;
+    let dst_validator = deps.api.addr_validate(dst_validator.as_str())?;
 
     if src_validator.eq(&dst_validator) {
         return Ok(Response::default());
@@ -290,13 +260,8 @@ pub fn replace_validator(
 
     let mut redelegation_msgs: Vec<StakingMsg> = vec![];
     let mut rewards_msgs: Vec<DistributionMsg> = vec![];
-    let mut src_validator_staked_amount = Uint128::zero();
     let mut src_validator_rewards: Vec<Coin> = vec![];
     if let Some(src_validator_delegation) = src_validator_delegation_opt {
-        src_validator_staked_amount = src_validator_staked_amount
-            .checked_add(src_validator_delegation.amount.amount)
-            .unwrap();
-
         // drain the validator rewards
         src_validator_rewards = src_validator_delegation.accumulated_rewards;
         rewards_msgs.push(DistributionMsg::WithdrawDelegatorReward {
@@ -310,25 +275,6 @@ pub fn replace_validator(
             amount: src_validator_delegation.can_redelegate,
         });
     }
-
-    let stake_fraction: Decimal = if state.total_staked_tokens.is_zero() {
-        Decimal::zero()
-    } else {
-        Decimal::from_ratio(src_validator_staked_amount, state.total_staked_tokens)
-    };
-    VALIDATORS_TO_STAKED_QUOTA.save(
-        deps.storage,
-        &dst_validator,
-        &StakeQuota {
-            amount: Coin::new(
-                src_validator_staked_amount.u128(),
-                state.strategy_denom.clone(),
-            ),
-            stake_fraction,
-        },
-    )?;
-
-    VALIDATORS_TO_STAKED_QUOTA.remove(deps.storage, &src_validator);
 
     STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
         state.validator_pool = state
@@ -356,13 +302,14 @@ pub fn add_validator(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    validator: Addr,
+    validator: String,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let state = STATE.load(deps.storage)?;
     if info.sender != state.manager {
         return Err(ContractError::Unauthorized {});
     }
 
+    let validator = deps.api.addr_validate(validator.as_str())?;
     // check if validator is already in the pool
     if state.validator_pool.contains(&validator) {
         return Err(ContractError::ValidatorAlreadyExistsInPool {});
@@ -386,12 +333,13 @@ pub fn add_validator(
     Ok(Response::default())
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn claim_airdrops(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    airdrop_token_contract: Addr,
-    cw20_token_contract: Addr,
+    airdrop_token_contract: String,
+    cw20_token_contract: String,
     _airdrop_token: String,
     amount: Uint128,
     claim_msg: Binary,
@@ -401,6 +349,8 @@ pub fn claim_airdrops(
         return Err(ContractError::Unauthorized {});
     }
 
+    let airdrop_token_contract = deps.api.addr_validate(airdrop_token_contract.as_str())?;
+    let cw20_token_contract = deps.api.addr_validate(cw20_token_contract.as_str())?;
     // this wasm-msg will transfer the airdrops from the airdrop cw20 token contract to the
     // SIC contract
     let mut messages: Vec<WasmMsg> = vec![WasmMsg::Execute {
@@ -454,7 +404,6 @@ pub fn swap(
             // TODO: bchain99 - I think this could mean that there is no swap possible for the pair.
             if coin_swap_wrapped.is_err() {
                 // TODO: bchain99 - Check if this is needed. Check the cases when the query_swap can fail.
-                logs.push(attr("failed_to_swap", reward_coin.to_string()));
                 failed_coins.push(reward_coin);
                 continue;
             }
@@ -491,6 +440,8 @@ pub fn swap(
         Ok(state)
     })?;
 
+    let failed_swap_denoms: Vec<String> = failed_coins.iter().map(|x| x.denom.clone()).collect();
+    logs.push(attr("failed_swap_denoms", failed_swap_denoms.join(",")));
     logs.push(attr("total_swapped_rewards", swapped_coin.to_string()));
 
     Ok(Response::new().add_messages(messages).add_attributes(logs))
@@ -564,73 +515,50 @@ pub fn undelegate_rewards(
     }
 
     if amount.is_zero() {
-        return Ok(Response::new().add_attribute("undelegated_zero_funds", "1"));
+        return Err(ContractError::ZeroUndelegation {});
     }
 
-    if amount.gt(&state.total_staked_tokens) {
-        return Ok(Response::new().add_attribute("amount_greater_than_total_tokens", "1"));
+    let pool_stake_info = get_pool_stake_info(
+        deps.querier,
+        _env.contract.address.to_string(),
+        state.validator_pool,
+    )?;
+    let validator_stake_map = pool_stake_info.0;
+    let total_staked_amount = pool_stake_info.1;
+    if amount.gt(&total_staked_amount) {
+        return Err(ContractError::NotEnoughFundsToUndelegate {});
     }
-
-    let new_total_staked_tokens = state.total_staked_tokens.checked_sub(amount).unwrap();
-    STATE.update(deps.storage, |mut state| -> StdResult<_> {
-        state.total_staked_tokens = new_total_staked_tokens;
-        Ok(state)
-    })?;
 
     // undelegate from each validator according to their staked fraction
     let mut messages: Vec<StakingMsg> = vec![];
     let strategy_denom = state.strategy_denom;
-    for validator in &state.validator_pool {
-        let validator_staked_quota_option = VALIDATORS_TO_STAKED_QUOTA
-            .may_load(deps.storage, validator)
-            .unwrap();
-        if validator_staked_quota_option.is_none() {
-            // validator has no stake. so don't undelegate from him.
-            continue;
+    let mut amount_to_undelegate = amount;
+    let mut sorted_validator_stake_map: Vec<(&Addr, &Uint128)> = validator_stake_map
+        .iter()
+        .collect::<Vec<(&Addr, &Uint128)>>();
+    sorted_validator_stake_map.sort();
+
+    for validator_stake in sorted_validator_stake_map.iter() {
+        if amount_to_undelegate.is_zero() {
+            break;
         }
 
-        let validator_staked_quota = validator_staked_quota_option.unwrap();
-        let total_delegated_amount = validator_staked_quota.amount.amount;
-        let stake_fraction = validator_staked_quota.stake_fraction;
+        let validator_addr = validator_stake.clone().0;
+        let validator_stake = *validator_stake.clone().1;
 
-        let mut unstake_amount = Uint128::zero();
-        if !stake_fraction.is_zero() {
-            unstake_amount = Uint128::new(
-                amount.u128() * stake_fraction.numerator() / stake_fraction.denominator(),
-            );
-
-            messages.push(StakingMsg::Undelegate {
-                validator: String::from(validator),
-                amount: Coin {
-                    denom: strategy_denom.clone(),
-                    amount: unstake_amount,
-                },
-            });
-        }
-
-        let new_validator_staked_amount = total_delegated_amount
-            .checked_sub(unstake_amount)
-            .unwrap_or_else(|_| Uint128::zero()) // to avoid any overflows
-            .u128();
-
-        let stake_quota: StakeQuota;
-        // we somehow have drained the complete pool out
-        if new_validator_staked_amount.eq(&0) || new_total_staked_tokens.is_zero() {
-            stake_quota = StakeQuota {
-                amount: Coin::new(0_u128, strategy_denom.clone()),
-                stake_fraction: Decimal::zero(),
-            }
+        let undelegatable_amount: Uint128;
+        if validator_stake.gt(&amount_to_undelegate) {
+            undelegatable_amount = amount_to_undelegate;
+            amount_to_undelegate = Uint128::zero();
         } else {
-            stake_quota = StakeQuota {
-                amount: Coin::new(new_validator_staked_amount, strategy_denom.clone()),
-                stake_fraction: Decimal::from_ratio(
-                    new_validator_staked_amount,
-                    new_total_staked_tokens,
-                ),
-            }
+            amount_to_undelegate = amount_to_undelegate.checked_sub(validator_stake).unwrap();
+            undelegatable_amount = validator_stake;
         }
 
-        VALIDATORS_TO_STAKED_QUOTA.save(deps.storage, validator, &stake_quota)?;
+        messages.push(StakingMsg::Undelegate {
+            validator: validator_addr.to_string(),
+            amount: Coin::new(undelegatable_amount.u128(), strategy_denom.clone()),
+        });
     }
 
     Ok(Response::new()
@@ -653,10 +581,6 @@ pub fn transfer_undelegated_rewards(
         return Err(ContractError::Unauthorized {});
     }
 
-    if amount.is_zero() {
-        return Ok(Response::new().add_attribute("undelegated_zero_funds", "1"));
-    }
-
     let unaccounted_funds = get_unaccounted_funds(deps.querier, _env.contract.address, &state);
 
     // this way of handling slashing makes us more optimistic while handling undelegation slashing.
@@ -672,7 +596,7 @@ pub fn transfer_undelegated_rewards(
     // no need to account for the undelegated funds separately as it will be deducted from the contract balance
     Ok(Response::new().add_message(send_funds_msg(
         &state.scc_address,
-        &vec![Coin::new(total_funds_to_send.u128(), state.strategy_denom)],
+        &[Coin::new(total_funds_to_send.u128(), state.strategy_denom)],
     )))
 }
 
@@ -693,36 +617,8 @@ pub fn reinvest(
     }
 
     let strategy_denom = state.strategy_denom;
-    let mut current_total_staked_tokens = Uint128::zero();
-    let mut validator_to_delegation_map: HashMap<&Addr, Uint128> = HashMap::new();
-    for validator in &state.validator_pool {
-        let result = deps
-            .querier
-            .query_delegation(&_env.contract.address, validator)?;
-        // this will happen if there is no delegation to the validator
-        if result.is_none() {
-            continue;
-        }
-
-        let full_delegation = result.unwrap();
-
-        validator_to_delegation_map.insert(validator, full_delegation.amount.amount);
-
-        current_total_staked_tokens = current_total_staked_tokens
-            .checked_add(full_delegation.amount.amount)
-            .unwrap();
-    }
-
-    let total_slashed_amount = state
-        .total_staked_tokens
-        .checked_sub(current_total_staked_tokens)
-        .unwrap_or_else(|_| Uint128::zero());
 
     let rewards_to_invest = state.uninvested_rewards.amount;
-
-    let new_current_staked_tokens = current_total_staked_tokens
-        .checked_add(rewards_to_invest)
-        .unwrap();
 
     let validator_pool_length = state.validator_pool.len();
     let even_split = rewards_to_invest.u128() / validator_pool_length as u128;
@@ -740,50 +636,32 @@ pub fn reinvest(
             });
         }
 
-        let current_validator_staked_amount = *(validator_to_delegation_map
-            .get(v)
-            .unwrap_or(&Uint128::zero()));
-        let new_validator_staked_amount = current_validator_staked_amount
-            .checked_add(delegation_amount)
-            .unwrap();
-        // validator stake quota will get updated as we are reconciling the validator stake
-        let new_validator_stake_quota: StakeQuota = StakeQuota {
-            amount: Coin {
-                denom: strategy_denom.clone(),
-                amount: new_validator_staked_amount,
-            },
-            stake_fraction: Decimal::from_ratio(
-                new_validator_staked_amount,
-                new_current_staked_tokens,
-            ),
-        };
-
-        VALIDATORS_TO_STAKED_QUOTA
-            .save(deps.storage, v, &new_validator_stake_quota)
-            .unwrap();
-
         extra_split = 0_u128;
     });
 
     STATE.update(deps.storage, |mut state| -> StdResult<_> {
-        state.total_staked_tokens = new_current_staked_tokens;
-        state.total_slashed_amount = state
-            .total_slashed_amount
-            .checked_add(total_slashed_amount)
-            .unwrap();
         state.uninvested_rewards = Coin::new(0_u128, strategy_denom);
         Ok(state)
     })?;
 
-    Ok(Response::new().add_messages(messages))
+    Ok(Response::new()
+        .add_message(WasmMsg::Execute {
+            contract_addr: _env.contract.address.to_string(),
+            msg: to_binary(&ExecuteMsg::RedeemRewards {}).unwrap(),
+            funds: vec![],
+        })
+        .add_messages(messages))
 }
 
 pub fn redeem_rewards(
     deps: DepsMut,
-    _env: Env,
-    _info: MessageInfo,
+    env: Env,
+    info: MessageInfo,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let state = STATE.load(deps.storage)?;
+    if info.sender != state.manager && info.sender != env.contract.address {
+        return Err(ContractError::Unauthorized {});
+    }
 
     let mut total_rewards: Vec<Coin> = vec![];
     let mut messages: Vec<DistributionMsg> = vec![];
@@ -791,7 +669,7 @@ pub fn redeem_rewards(
     for validator in &state.validator_pool {
         let result = deps
             .querier
-            .query_delegation(&_env.contract.address, validator)?;
+            .query_delegation(&env.contract.address, validator)?;
         if let Some(full_delegation) = result {
             total_rewards = merge_coin_vector(
                 &full_delegation.accumulated_rewards,
@@ -842,9 +720,14 @@ fn query_state(deps: Deps) -> StdResult<GetStateResponse> {
 }
 
 fn query_total_tokens(deps: Deps, _env: Env) -> StdResult<GetTotalTokensResponse> {
-    let state = STATE.load(deps.storage).unwrap();
+    let state = STATE.load(deps.storage)?;
+    let pool_stake_info = get_pool_stake_info(
+        deps.querier,
+        _env.contract.address.to_string(),
+        state.validator_pool,
+    )?;
     Ok(GetTotalTokensResponse {
-        total_tokens: Option::from(state.total_staked_tokens),
+        total_tokens: Some(pool_stake_info.1),
     })
 }
 

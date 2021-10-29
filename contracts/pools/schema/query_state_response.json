@@ -1,0 +1,28 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "QueryStateResponse",
+  "type": "object",
+  "required": [
+    "state"
+  ],
+  "properties": {
+    "state": {
+      "$ref": "#/definitions/State"
+    }
+  },
+  "definitions": {
+    "State": {
+      "type": "object",
+      "required": [
+        "next_pool_id"
+      ],
+      "properties": {
+        "next_pool_id": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        }
+      }
+    }
+  }
+}

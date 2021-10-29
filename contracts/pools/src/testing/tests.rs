@@ -3,8 +3,6 @@ mod tests {
     // use crate::contract::{execute, instantiate, query, reply, MESSAGE_REPLY_SWAP_ID};
     use crate::contract::{check_slashing, execute, instantiate, query};
     use crate::error::ContractError;
-    use crate::mock_querier;
-    use crate::mock_querier::mock_dependencies_for_validator_querier;
     use crate::msg::{
         ExecuteMsg, InstantiateMsg, QueryConfigResponse, QueryMsg, QueryStateResponse,
     };
@@ -13,6 +11,8 @@ mod tests {
         PoolConfigUpdateRequest, PoolRegistryInfo, State, VMeta, AIRDROP_REGISTRY,
         BATCH_UNDELEGATION_REGISTRY, CONFIG, POOL_REGISTRY, STATE, VALIDATOR_META,
     };
+    use crate::testing::mock_querier;
+    use crate::testing::mock_querier::mock_dependencies_for_validator_querier;
     use cosmwasm_std::testing::{
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
         MOCK_CONTRACT_ADDR,

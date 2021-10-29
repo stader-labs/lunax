@@ -3,7 +3,7 @@ use std::fs::create_dir_all;
 
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 
-use validator::msg::{ExecuteMsg, GetConfigResponse, InstantiateMsg, QueryMsg};
+use validator::msg::{ExecuteMsg, GetConfigResponse, GetValidatorMetaResponse, InstantiateMsg, QueryMsg};
 use validator::state::Config;
 
 fn main() {
@@ -17,4 +17,5 @@ fn main() {
     export_schema(&schema_for!(QueryMsg), &out_dir);
     export_schema(&schema_for!(Config), &out_dir);
     export_schema(&schema_for!(GetConfigResponse), &out_dir);
+    export_schema(&schema_for!(GetValidatorMetaResponse), &out_dir);
 }

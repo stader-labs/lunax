@@ -3,26 +3,18 @@
   "title": "Config",
   "type": "object",
   "required": [
-    "delegator_contract",
     "manager",
     "pools_contract",
-    "scc_contract",
-    "vault_denom"
+    "reward_denom"
   ],
   "properties": {
-    "delegator_contract": {
-      "$ref": "#/definitions/Addr"
-    },
     "manager": {
       "$ref": "#/definitions/Addr"
     },
     "pools_contract": {
       "$ref": "#/definitions/Addr"
     },
-    "scc_contract": {
-      "$ref": "#/definitions/Addr"
-    },
-    "vault_denom": {
+    "reward_denom": {
       "type": "string"
     }
   },

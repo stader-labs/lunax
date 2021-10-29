@@ -74,7 +74,7 @@ mod tests {
             mock_info("not-scc", &[]),
             ExecuteMsg::TransferRewards {},
         )
-        .unwrap_err();
+            .unwrap_err();
         assert!(matches!(err, ContractError::Unauthorized {}));
 
         let res = execute(
@@ -83,7 +83,7 @@ mod tests {
             mock_info(&*get_scc_contract_address(), &[]),
             ExecuteMsg::TransferRewards {},
         )
-        .unwrap();
+            .unwrap();
         assert_eq!(res.attributes.len(), 1);
         assert!(check_equal_vec(
             res.attributes,
@@ -105,7 +105,7 @@ mod tests {
             ),
             ExecuteMsg::TransferRewards {},
         )
-        .unwrap();
+            .unwrap();
         assert_eq!(res.attributes.len(), 1);
         assert!(check_equal_vec(
             res.attributes,
@@ -124,7 +124,7 @@ mod tests {
             ),
             ExecuteMsg::TransferRewards {},
         )
-        .unwrap();
+            .unwrap();
         assert_eq!(res.attributes.len(), 1);
         assert!(check_equal_vec(
             res.attributes,
@@ -154,7 +154,7 @@ mod tests {
             ),
             ExecuteMsg::TransferRewards {},
         )
-        .unwrap();
+            .unwrap();
 
         let state_response: GetStateResponse =
             from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::GetState {}).unwrap())
@@ -192,7 +192,7 @@ mod tests {
                 claim_msg: get_airdrop_claim_msg(),
             },
         )
-        .unwrap_err();
+            .unwrap_err();
         assert!(matches!(err, ContractError::Unauthorized {}));
     }
 
@@ -226,7 +226,7 @@ mod tests {
                 claim_msg: get_airdrop_claim_msg(),
             },
         )
-        .unwrap();
+            .unwrap();
         assert_eq!(res.messages.len(), 2);
         assert!(check_equal_vec(
             res.messages,
@@ -242,7 +242,7 @@ mod tests {
                         recipient: scc_address.to_string(),
                         amount: Uint128::new(1000_u128)
                     })
-                    .unwrap(),
+                        .unwrap(),
                     funds: vec![]
                 })
             ]
@@ -264,7 +264,7 @@ mod tests {
                 claim_msg: get_airdrop_claim_msg(),
             },
         )
-        .unwrap();
+            .unwrap();
         assert_eq!(res.messages.len(), 2);
         assert!(check_equal_vec(
             res.messages,
@@ -280,7 +280,7 @@ mod tests {
                         recipient: scc_address.to_string(),
                         amount: Uint128::new(1000_u128)
                     })
-                    .unwrap(),
+                        .unwrap(),
                     funds: vec![]
                 })
             ]
@@ -309,7 +309,7 @@ mod tests {
                 amount: Uint128::new(100_u128),
             },
         )
-        .unwrap_err();
+            .unwrap_err();
         assert!(matches!(err, ContractError::Unauthorized {}));
 
         let res = execute(
@@ -320,7 +320,7 @@ mod tests {
                 amount: Uint128::zero(),
             },
         )
-        .unwrap();
+            .unwrap();
         assert_eq!(res.attributes.len(), 1);
         assert!(check_equal_vec(
             res.attributes,
@@ -349,7 +349,7 @@ mod tests {
                 amount: Uint128::new(100_u128),
             },
         )
-        .unwrap();
+            .unwrap();
         assert_eq!(res.messages.len(), 1);
         assert!(check_equal_vec(
             res.messages,

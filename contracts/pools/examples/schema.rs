@@ -3,7 +3,10 @@ use std::fs::create_dir_all;
 
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 
-use pools::msg::{ExecuteMsg, InstantiateMsg, QueryConfigResponse, QueryMsg};
+use pools::msg::{
+    ExecuteMsg, GetAirdropMetaResponse, InstantiateMsg, QueryBatchUndelegationResponse,
+    QueryConfigResponse, QueryMsg, QueryPoolResponse, QueryStateResponse,
+};
 use pools::state::Config;
 
 fn main() {
@@ -17,4 +20,8 @@ fn main() {
     export_schema(&schema_for!(QueryMsg), &out_dir);
     export_schema(&schema_for!(Config), &out_dir);
     export_schema(&schema_for!(QueryConfigResponse), &out_dir);
+    export_schema(&schema_for!(QueryStateResponse), &out_dir);
+    export_schema(&schema_for!(QueryPoolResponse), &out_dir);
+    export_schema(&schema_for!(QueryBatchUndelegationResponse), &out_dir);
+    export_schema(&schema_for!(GetAirdropMetaResponse), &out_dir);
 }

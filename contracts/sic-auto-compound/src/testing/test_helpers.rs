@@ -1,3 +1,4 @@
+#[allow(dead_code)]
 use cosmwasm_std::{BankMsg, CosmosMsg};
 
 pub fn check_equal_vec<S: PartialEq>(v1: Vec<S>, v2: Vec<S>) -> bool {
@@ -21,9 +22,9 @@ pub fn check_equal_bnk_send_msgs(msg1: CosmosMsg, msg2: CosmosMsg) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use crate::coin_utils::DecCoin;
-    use crate::test_helpers::{check_equal_bnk_send_msgs, check_equal_vec};
-    use cosmwasm_std::{BankMsg, Coin, Decimal, SubMsg};
+    use crate::testing::test_helpers::{check_equal_bnk_send_msgs, check_equal_vec};
+    use cosmwasm_std::{BankMsg, Coin, Decimal};
+    use stader_utils::coin_utils::DecCoin;
 
     #[test]
     fn test_check_equal_bank_msg() {

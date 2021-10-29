@@ -6,61 +6,64 @@ pub enum ContractError {
     #[error("{0}")]
     Std(#[from] StdError),
 
-    #[error("Unauthorized")]
+    #[error("scc: Unauthorized")]
     Unauthorized {},
     // Add any other custom errors you like here.
     // Look at https://docs.rs/thiserror/1.0.21/thiserror/ for details.
-    #[error("Strategy info already exists")]
+    #[error("scc: Strategy info already exists")]
     StrategyInfoAlreadyExists {},
 
-    #[error("Strategy info does not exist")]
+    #[error("scc: Strategy info does not exist")]
     StrategyInfoDoesNotExist {},
 
-    #[error("Strategy does not support airdrops")]
+    #[error("scc: Strategy does not support airdrops")]
     StrategyDoesNotSupportAirdrop {},
 
-    #[error("Airdrop not registered")]
+    #[error("scc: Airdrop not registered")]
     AirdropNotRegistered {},
 
-    #[error("Cannot undelegate zero funds")]
+    #[error("scc: Cannot undelegate zero funds")]
     CannotUndelegateZeroFunds {},
 
-    #[error("User does not have rewards in the strategy")]
+    #[error("scc: User does not have rewards in the strategy")]
     UserNotInStrategy {},
 
-    #[error("User does not have enough rewards to undelegate")]
+    #[error("scc: User does not have enough rewards to undelegate")]
     UserDoesNotHaveEnoughRewards {},
 
-    #[error("Undelegation record not found")]
+    #[error("scc: Undelegation record not found")]
     UndelegationRecordNotFound {},
 
-    #[error("Undelegation batch not found")]
+    #[error("scc: Undelegation batch not found")]
     UndelegationBatchNotFound {},
 
-    #[error("Undelegation in unbonding period")]
+    #[error("scc: Undelegation in unbonding period")]
     UndelegationInUnbondingPeriod {},
 
-    #[error("Undelegation batch has not been released yet")]
+    #[error("scc: Undelegation batch has not been released yet")]
     UndelegationBatchNotReleased {},
 
-    #[error("User reward info does not exist")]
+    #[error("scc: User reward info does not exist")]
     UserRewardInfoDoesNotExist {},
 
-    #[error("User portfolio fraction is greater than one")]
+    #[error("scc: User portfolio fraction is greater than one")]
     InvalidPortfolioDepositFraction {},
 
-    #[error("SIC failed to return a result")]
+    #[error("scc: SIC failed to return a result")]
     SICFailedToReturnResult {},
 
-    #[error("No funds were sent")]
+    #[error("scc: No funds were sent")]
     NoFundsSent {},
 
-    #[error("Multiple coins sent, only luna is accepted")]
+    #[error("scc: Multiple coins sent, only luna is accepted")]
     MultipleCoinsSent {},
 
-    #[error("SCC can accept only luna")]
+    #[error("scc: SCC can accept only luna")]
     WrongDenomSent {},
 
-    #[error("User portfolio is invalid")]
+    #[error("scc: User portfolio is invalid")]
     InvalidUserPortfolio {},
+
+    #[error("scc: Zero amount sent")]
+    ZeroAmount {},
 }

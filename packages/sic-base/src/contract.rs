@@ -68,6 +68,7 @@ pub fn execute(
 
 // Note: Avoid erroring out in SIC too much. This can break the entire tx in SCC side.
 // Only error for authorization related stuff for now
+#[allow(clippy::too_many_arguments)]
 pub fn claim_airdrops(
     deps: DepsMut,
     _env: Env,
@@ -99,7 +100,7 @@ pub fn claim_airdrops(
             recipient: state.scc_address.to_string(),
             amount,
         })
-        .unwrap(),
+            .unwrap(),
         funds: vec![],
     });
 
