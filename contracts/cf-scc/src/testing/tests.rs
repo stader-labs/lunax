@@ -6,23 +6,17 @@ mod tests {
         ExecuteMsg, GetConfigResponse, InstantiateMsg, QueryMsg, UpdateUserAirdropsRequest,
         UpdateUserRewardsRequest,
     };
-    use crate::state::{Config, UserInfo, CW20_CONTRACTS_MAP, USER_REWARDS};
+    use crate::state::{Config, UserInfo, CW20_CONTRACTS_MAP, USER_REWARDS, CONFIG};
     use crate::ContractError;
     use cosmwasm_std::testing::{
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
     };
     use cosmwasm_std::{
-<<<<<<< HEAD
-        coins, from_binary, Addr, Attribute, BankMsg, Coin, Empty, Env, MessageInfo, OwnedDeps,
-        Response, SubMsg, Uint128,
-    };
-=======
         coins, from_binary, to_binary, Addr, Attribute, BankMsg, Coin, Empty, Env, MessageInfo,
         OwnedDeps, Response, SubMsg, Uint128, WasmMsg,
     };
     use cw20::Cw20ExecuteMsg;
->>>>>>> 00f81f56b546b62832f42044ff15c6c0516206d0
-    use stader_utils::test_helpers::check_equal_vec;
+    use crate::testing::test_helpers::check_equal_vec;
 
     fn instantiate_contract(
         deps: &mut OwnedDeps<MockStorage, MockApi, MockQuerier>,
@@ -67,11 +61,6 @@ mod tests {
     }
 
     #[test]
-<<<<<<< HEAD
-    fn test_update_user_airdrops() {
-        let mut deps = mock_dependencies(&[]);
-        let info = mock_info("creator", &coins(1000, "earth"));
-=======
     fn test_register_cw20_contract() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
@@ -253,7 +242,6 @@ mod tests {
     fn test_update_user_airdrops() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
->>>>>>> 00f81f56b546b62832f42044ff15c6c0516206d0
         let env = mock_env();
 
         let _res = instantiate_contract(
