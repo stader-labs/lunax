@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage};
 use cosmwasm_std::{
     from_binary, from_slice, to_binary, Addr, Binary, Coin, ContractResult, Decimal,
     FullDelegation, OwnedDeps, Querier, QuerierResult, QueryRequest, SystemError, SystemResult,
@@ -9,7 +10,6 @@ use std::collections::HashMap;
 
 use delegator::msg::QueryMsg as DelegatorQueryMsg;
 use stader_utils::coin_utils::{decimal_multiplication_in_256, u128_from_decimal};
-use stader_utils::mock::{MockApi, MockQuerier, MockStorage};
 use terra_cosmwasm::{
     SwapResponse, TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute,
 };

@@ -3,7 +3,7 @@ use std::fs::create_dir_all;
 
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 
-use delegator::msg::{ExecuteMsg, GetConfigResponse, InstantiateMsg, QueryMsg};
+use delegator::msg::{ExecuteMsg, GetConfigResponse, GetStateResponse, InstantiateMsg, QueryMsg, UserPoolResponse, UserResponse};
 use delegator::state::Config;
 
 fn main() {
@@ -17,4 +17,7 @@ fn main() {
     export_schema(&schema_for!(QueryMsg), &out_dir);
     export_schema(&schema_for!(Config), &out_dir);
     export_schema(&schema_for!(GetConfigResponse), &out_dir);
+    export_schema(&schema_for!(GetStateResponse), &out_dir);
+    export_schema(&schema_for!(UserPoolResponse), &out_dir);
+    export_schema(&schema_for!(UserResponse), &out_dir);
 }

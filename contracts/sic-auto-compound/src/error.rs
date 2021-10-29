@@ -31,23 +31,8 @@ pub enum ContractError {
     #[error("sic-ac: Cannot withdraw 0 coins")]
     ZeroWithdrawal {},
 
-    #[error("sic-ac: Undelegation batch does not exist")]
-    NonExistentUndelegationBatch {},
-
-    #[error("sic-ac: Undelegation batch does not have enough funds '{0}'")]
-    InsufficientFundsInUndelegationBatch(u64),
-
-    #[error("sic-ac: Undelegation batch is still in unbonding period '{0}'")]
-    UndelegationBatchInUnbondingPeriod(u64),
-
-    #[error("sic-ac: undelegation batch '{0}' has not been checked for slashing")]
-    SlashingNotChecked(u64),
-
-    #[error("sic-ac: Deposit can only be withdrawn after unbonding period is over")]
-    DepositInUnbondingPeriod {},
-
-    #[error("sic-ac: No undelegation batch for id '{0}'")]
-    NoUndelegationBatch(u64),
+    #[error("sic-ac: not enough funds staked to undelegate")]
+    NotEnoughFundsToUndelegate {},
 
     #[error("sic-ac: Not enough airdrops to withdraw '{0}'")]
     NotEnoughAirdrops(String),

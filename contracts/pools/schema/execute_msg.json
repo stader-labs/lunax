@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "ExecuteMsg",
-  "anyOf": [
+  "oneOf": [
     {
       "type": "object",
       "required": [
@@ -11,10 +11,26 @@
         "add_pool": {
           "type": "object",
           "required": [
-            "name"
+            "name",
+            "protocol_fee_contract",
+            "protocol_fee_percent",
+            "reward_contract",
+            "validator_contract"
           ],
           "properties": {
             "name": {
+              "type": "string"
+            },
+            "protocol_fee_contract": {
+              "type": "string"
+            },
+            "protocol_fee_percent": {
+              "$ref": "#/definitions/Decimal"
+            },
+            "reward_contract": {
+              "type": "string"
+            },
+            "validator_contract": {
               "type": "string"
             }
           }
@@ -57,9 +73,53 @@
         "remove_validator": {
           "type": "object",
           "required": [
+            "pool_id",
+            "redel_addr",
             "val_addr"
           ],
           "properties": {
+            "pool_id": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "redel_addr": {
+              "$ref": "#/definitions/Addr"
+            },
+            "val_addr": {
+              "$ref": "#/definitions/Addr"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "rebalance_pool"
+      ],
+      "properties": {
+        "rebalance_pool": {
+          "type": "object",
+          "required": [
+            "amount",
+            "pool_id",
+            "redel_addr",
+            "val_addr"
+          ],
+          "properties": {
+            "amount": {
+              "$ref": "#/definitions/Uint128"
+            },
+            "pool_id": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "redel_addr": {
+              "$ref": "#/definitions/Addr"
+            },
             "val_addr": {
               "$ref": "#/definitions/Addr"
             }
@@ -119,6 +179,28 @@
       ],
       "properties": {
         "swap": {
+          "type": "object",
+          "required": [
+            "pool_id"
+          ],
+          "properties": {
+            "pool_id": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "send_rewards_to_scc"
+      ],
+      "properties": {
+        "send_rewards_to_scc": {
           "type": "object",
           "required": [
             "pool_id"
@@ -213,15 +295,11 @@
         "withdraw_funds_to_wallet": {
           "type": "object",
           "required": [
-            "amount",
             "batch_id",
             "pool_id",
             "undelegate_id"
           ],
           "properties": {
-            "amount": {
-              "$ref": "#/definitions/Uint128"
-            },
             "batch_id": {
               "type": "integer",
               "format": "uint64",
@@ -245,24 +323,124 @@
     {
       "type": "object",
       "required": [
-        "update_airdrop_pointers"
+        "update_airdrop_registry"
       ],
       "properties": {
-        "update_airdrop_pointers": {
+        "update_airdrop_registry": {
           "type": "object",
           "required": [
-            "airdrop_amount",
+            "airdrop_contract",
+            "airdrop_token",
+            "cw20_contract"
+          ],
+          "properties": {
+            "airdrop_contract": {
+              "type": "string"
+            },
+            "airdrop_token": {
+              "type": "string"
+            },
+            "cw20_contract": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "claim_airdrops"
+      ],
+      "properties": {
+        "claim_airdrops": {
+          "type": "object",
+          "required": [
             "rates"
           ],
           "properties": {
-            "airdrop_amount": {
-              "$ref": "#/definitions/Uint128"
-            },
             "rates": {
               "type": "array",
               "items": {
                 "$ref": "#/definitions/AirdropRate"
               }
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "update_config"
+      ],
+      "properties": {
+        "update_config": {
+          "type": "object",
+          "required": [
+            "config_request"
+          ],
+          "properties": {
+            "config_request": {
+              "$ref": "#/definitions/ConfigUpdateRequest"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "update_pool_metadata"
+      ],
+      "properties": {
+        "update_pool_metadata": {
+          "type": "object",
+          "required": [
+            "pool_config_update_request",
+            "pool_id"
+          ],
+          "properties": {
+            "pool_config_update_request": {
+              "$ref": "#/definitions/PoolConfigUpdateRequest"
+            },
+            "pool_id": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "simulate_slashing"
+      ],
+      "properties": {
+        "simulate_slashing": {
+          "type": "object",
+          "required": [
+            "amount",
+            "pool_id",
+            "val_addr"
+          ],
+          "properties": {
+            "amount": {
+              "$ref": "#/definitions/Uint128"
+            },
+            "pool_id": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "val_addr": {
+              "$ref": "#/definitions/Addr"
             }
           }
         }
@@ -279,12 +457,16 @@
       "type": "object",
       "required": [
         "amount",
+        "claim_msg",
         "denom",
         "pool_id"
       ],
       "properties": {
         "amount": {
           "$ref": "#/definitions/Uint128"
+        },
+        "claim_msg": {
+          "$ref": "#/definitions/Binary"
         },
         "denom": {
           "type": "string"
@@ -293,6 +475,108 @@
           "type": "integer",
           "format": "uint64",
           "minimum": 0.0
+        }
+      }
+    },
+    "Binary": {
+      "description": "Binary is a wrapper around Vec<u8> to add base64 de/serialization with serde. It also adds some helper methods to help encode inline.\n\nThis is only needed as serde-json-{core,wasm} has a horrible encoding for Vec<u8>",
+      "type": "string"
+    },
+    "ConfigUpdateRequest": {
+      "type": "object",
+      "properties": {
+        "delegator_contract": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Addr"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "max_deposit": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Uint128"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "min_deposit": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Uint128"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "scc_contract": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Addr"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "unbonding_buffer": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "unbonding_period": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0.0
+        }
+      }
+    },
+    "Decimal": {
+      "description": "A fixed-point decimal value with 18 fractional digits, i.e. Decimal(1_000_000_000_000_000_000) == 1.0\n\nThe greatest possible value that can be represented is 340282366920938463463.374607431768211455 (which is (2^128 - 1) / 10^18)",
+      "type": "string"
+    },
+    "PoolConfigUpdateRequest": {
+      "type": "object",
+      "properties": {
+        "active": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "protocol_fee_contract": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "protocol_fee_percent": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Decimal"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reward_contract": {
+          "type": [
+            "string",
+            "null"
+          ]
         }
       }
     },

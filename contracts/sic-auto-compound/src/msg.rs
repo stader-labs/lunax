@@ -35,9 +35,9 @@ pub enum ExecuteMsg {
     // Called by the manager to claim airdrops from different protocols. Airdrop token contract fed from SCC.
     // The ownership of the airdrops is transferred back to the SCC.
     ClaimAirdrops {
-        airdrop_token_contract: Addr,
+        airdrop_token_contract: String,
         // used to transfer ownership from SIC to SCC
-        cw20_token_contract: Addr,
+        cw20_token_contract: String,
         // this is just for the SIC's reference.
         airdrop_token: String,
         amount: Uint128,
@@ -45,18 +45,18 @@ pub enum ExecuteMsg {
     },
     // Called by manager to add a validator to the current pool
     AddValidator {
-        validator: Addr,
+        validator: String,
     },
     ReplaceValidator {
-        src_validator: Addr,
-        dst_validator: Addr,
+        src_validator: String,
+        dst_validator: String,
     },
     RemoveValidator {
-        validator: Addr,
+        validator: String,
     },
     UpdateConfig {
         min_validator_pool_size: Option<u64>,
-        scc_address: Option<Addr>,
+        scc_address: Option<String>,
     },
 }
 

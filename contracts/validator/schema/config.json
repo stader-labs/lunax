@@ -3,13 +3,16 @@
   "title": "Config",
   "type": "object",
   "required": [
+    "airdrop_withdraw_contract",
     "delegator_contract",
     "manager",
     "pools_contract",
-    "scc_contract",
     "vault_denom"
   ],
   "properties": {
+    "airdrop_withdraw_contract": {
+      "$ref": "#/definitions/Addr"
+    },
     "delegator_contract": {
       "$ref": "#/definitions/Addr"
     },
@@ -17,9 +20,6 @@
       "$ref": "#/definitions/Addr"
     },
     "pools_contract": {
-      "$ref": "#/definitions/Addr"
-    },
-    "scc_contract": {
       "$ref": "#/definitions/Addr"
     },
     "vault_denom": {

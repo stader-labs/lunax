@@ -108,22 +108,26 @@ pub fn check_equal_coin_vector(coins1: &[Coin], coins2: &[Coin]) -> bool {
 // TODO - GM. Generalize map_to_vec for Coin and DecCoin
 pub fn map_to_coin_vec(coin_map: HashMap<String, Uint128>) -> Vec<Coin> {
     let mut coins: Vec<Coin> = vec![];
-    for denom in coin_map.keys() {
-        coins.push(Coin {
-            denom: denom.clone(),
-            amount: *coin_map.get(denom).unwrap(),
-        })
+    let mut sorted_coin_map: Vec<(&String, &Uint128)> =
+        coin_map.iter().collect::<Vec<(&String, &Uint128)>>();
+    sorted_coin_map.sort();
+    for denom_amount in coin_map.iter() {
+        let denom = denom_amount.0.clone();
+        let amount = *denom_amount.1;
+        coins.push(Coin { denom, amount })
     }
     coins
 }
 
 pub fn map_to_deccoin_vec(coin_map: HashMap<String, Decimal>) -> Vec<DecCoin> {
     let mut coins: Vec<DecCoin> = vec![];
-    for denom in coin_map.keys() {
-        coins.push(DecCoin {
-            denom: denom.clone(),
-            amount: *coin_map.get(denom).unwrap(),
-        })
+    let mut sorted_coin_map: Vec<(&String, &Decimal)> =
+        coin_map.iter().collect::<Vec<(&String, &Decimal)>>();
+    sorted_coin_map.sort();
+    for denom_amount in coin_map.iter() {
+        let denom = denom_amount.0.clone();
+        let amount = *denom_amount.1;
+        coins.push(DecCoin { denom, amount })
     }
     coins
 }
@@ -471,13 +475,15 @@ mod tests {
         subtract_coin_vector_from_map, subtract_deccoin_vector_from_map, CoinOp, CoinVecOp,
         DecCoin, DecCoinVecOp, DecimalOp, Operation,
     };
-    use crate::test_helpers::check_equal_vec;
-    use cosmwasm_std::testing::{
-        mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
-    };
-    use cosmwasm_std::{Coin, Decimal, Empty, Fraction, OwnedDeps, Response, Timestamp, Uint128};
+    use cosmwasm_std::{Coin, Decimal, Fraction, Uint128};
     use std::borrow::Borrow;
     use std::collections::HashMap;
+
+    pub fn check_equal_vec<S: PartialEq>(v1: Vec<S>, v2: Vec<S>) -> bool {
+        v1.len() == v2.len()
+            && v1.iter().all(|x| v2.contains(x))
+            && v2.iter().all(|x| v1.contains(x))
+    }
 
     macro_rules! hashmap {
         ($( $key: expr => $val: expr ),*) => {{
@@ -789,7 +795,7 @@ mod tests {
         let a = Decimal::from_ratio(5_u128, 1_u128);
         let b = Decimal::from_ratio(10_u128, 1_u128);
 
-        let res = decimal_subtraction_in_256(a, b);
+        decimal_subtraction_in_256(a, b);
     }
 
     #[test]
@@ -818,7 +824,7 @@ mod tests {
         let a = Decimal::from_ratio(5_u128, 1_u128);
         let b = Decimal::zero();
 
-        let res = decimal_division_in_256(a, b);
+        decimal_division_in_256(a, b);
     }
 
     #[test]
@@ -851,7 +857,7 @@ mod tests {
     fn test_merge_coin_sub_underflow() {
         let coin1 = Coin::new(100_u128, "uluna".to_string());
 
-        let res = merge_coin(
+        merge_coin(
             coin1,
             CoinOp {
                 fund: Coin::new(200_u128, "uluna".to_string()),
@@ -1125,7 +1131,7 @@ mod tests {
             Coin::new(300_u128, "uluna".to_string()),
         ];
 
-        let res = merge_coin_vector(
+        merge_coin_vector(
             b.borrow(),
             CoinVecOp {
                 fund: a,
@@ -1241,7 +1247,7 @@ mod tests {
             DecCoin::new(Decimal::from_ratio(300_u128, 1_u128), "uluna".to_string()),
         ];
 
-        let res = merge_dec_coin_vector(
+        merge_dec_coin_vector(
             b.borrow(),
             DecCoinVecOp {
                 fund: a,

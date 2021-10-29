@@ -1,7 +1,27 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "ExecuteMsg",
-  "anyOf": [
+  "oneOf": [
+    {
+      "type": "object",
+      "required": [
+        "set_reward_withdraw_address"
+      ],
+      "properties": {
+        "set_reward_withdraw_address": {
+          "type": "object",
+          "required": [
+            "reward_contract"
+          ],
+          "properties": {
+            "reward_contract": {
+              "$ref": "#/definitions/Addr"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
     {
       "type": "object",
       "required": [
@@ -150,46 +170,23 @@
         "redeem_airdrop_and_transfer": {
           "type": "object",
           "required": [
-            "airdrop_token",
+            "airdrop_contract",
             "amount",
-            "claim_msg"
+            "claim_msg",
+            "cw20_contract"
           ],
           "properties": {
-            "airdrop_token": {
-              "type": "string"
+            "airdrop_contract": {
+              "$ref": "#/definitions/Addr"
             },
             "amount": {
               "$ref": "#/definitions/Uint128"
             },
             "claim_msg": {
               "$ref": "#/definitions/Binary"
-            }
-          }
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "type": "object",
-      "required": [
-        "swap_and_transfer"
-      ],
-      "properties": {
-        "swap_and_transfer": {
-          "type": "object",
-          "required": [
-            "identifier",
-            "validators"
-          ],
-          "properties": {
-            "identifier": {
-              "type": "string"
             },
-            "validators": {
-              "type": "array",
-              "items": {
-                "$ref": "#/definitions/Addr"
-              }
+            "cw20_contract": {
+              "$ref": "#/definitions/Addr"
             }
           }
         }
@@ -219,57 +216,41 @@
     {
       "type": "object",
       "required": [
-        "update_airdrop_registry"
+        "update_config"
       ],
       "properties": {
-        "update_airdrop_registry": {
+        "update_config": {
           "type": "object",
-          "required": [
-            "airdrop_contract",
-            "denom",
-            "token_contract"
-          ],
           "properties": {
-            "airdrop_contract": {
-              "$ref": "#/definitions/Addr"
+            "airdrop_withdraw_contract": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Addr"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
-            "denom": {
-              "type": "string"
+            "delegator_contract": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Addr"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
-            "token_contract": {
-              "$ref": "#/definitions/Addr"
-            }
-          }
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "type": "object",
-      "required": [
-        "add_slashing_funds"
-      ],
-      "properties": {
-        "add_slashing_funds": {
-          "type": "object"
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "type": "object",
-      "required": [
-        "remove_slashing_funds"
-      ],
-      "properties": {
-        "remove_slashing_funds": {
-          "type": "object",
-          "required": [
-            "amount"
-          ],
-          "properties": {
-            "amount": {
-              "$ref": "#/definitions/Uint128"
+            "pools_contract": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Addr"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             }
           }
         }

@@ -5,11 +5,12 @@ use crate::state::{
 use cosmwasm_std::{Addr, Binary, Coin, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use std::ops::Add;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
     pub strategy_denom: String,
-    pub delegator_contract: Addr,
+    pub delegator_contract: String,
 
     pub default_user_portfolio: Option<Vec<UserStrategyPortfolio>>,
     pub default_fallback_strategy: Option<u64>,
@@ -17,6 +18,7 @@ pub struct InstantiateMsg {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct UpdateUserRewardsRequest {
+    // addr validation here should be done by the delegator contract when sent to the SCC
     pub user: Addr,
     // funds will be in native chain token
     pub funds: Uint128,
@@ -28,6 +30,7 @@ pub struct UpdateUserRewardsRequest {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct UpdateUserAirdropsRequest {
+    // addr validation here should be done by the delegator contract when sent to the SCC
     pub user: Addr,
     pub pool_airdrops: Vec<Coin>,
 }
@@ -74,7 +77,7 @@ pub enum ExecuteMsg {
     // registers a strategy. Strategies need to be activated once registered.
     RegisterStrategy {
         strategy_name: String,
-        sic_contract_address: Addr,
+        sic_contract_address: String,
         unbonding_buffer: u64,
         unbonding_period: u64,
     },
@@ -83,13 +86,14 @@ pub enum ExecuteMsg {
         strategy_id: u64,
         unbonding_period: Option<u64>,
         unbonding_buffer: Option<u64>,
+        sic_contract_address: Option<String>,
         is_active: Option<bool>,
     },
     // register the airdrop and its contracts.
     RegisterCw20Contracts {
         denom: String,
-        cw20_contract: Addr,
-        airdrop_contract: Addr,
+        cw20_contract: String,
+        airdrop_contract: String,
     },
     // undelegate all the queued up undelegation from all strategies. This takes into account
     // a cooling period for the strategy. Certain strategies cannot be undelegated from like "RETAIN_REWARDS"
@@ -124,7 +128,7 @@ pub enum ExecuteMsg {
         update_user_airdrops_requests: Vec<UpdateUserAirdropsRequest>,
     },
     UpdateConfig {
-        delegator_contract: Option<Addr>,
+        delegator_contract: Option<String>,
         default_user_portfolio: Option<Vec<UserStrategyPortfolio>>,
         fallback_strategy: Option<u64>,
     },
@@ -159,14 +163,29 @@ pub enum ExecuteMsg {
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     GetState {},
-    GetStrategyInfo { strategy_id: u64 },
-    GetUndelegationBatchInfo { strategy_id: u64, batch_id: u64 },
-    GetUserRewardInfo { user: Addr },
+    GetStrategyInfo {
+        strategy_id: u64,
+    },
+    GetUndelegationBatchInfo {
+        strategy_id: u64,
+        batch_id: u64,
+    },
+    GetUserRewardInfo {
+        user: String,
+    },
     GetConfig {},
-    GetStrategiesList {},
+    GetStrategiesList {
+        start_after: Option<u64>,
+        limit: Option<u32>,
+    },
     // rewards in SCC(retain rewards) + rewards in all strategies
-    GetAllStrategies {},
-    GetUser { user: Addr },
+    GetAllStrategies {
+        start_after: Option<u64>,
+        limit: Option<u32>,
+    },
+    GetUser {
+        user: String,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

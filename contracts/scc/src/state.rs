@@ -209,14 +209,18 @@ pub struct BatchUndelegationRecord {
     pub shares: Decimal,
     pub unbonding_slashing_ratio: Decimal,
     pub undelegation_s_t_ratio: Decimal,
-    pub create_time: Timestamp,
-    pub est_release_time: Timestamp,
+    pub create_time: Option<Timestamp>,
+    pub est_release_time: Option<Timestamp>,
+    pub withdrawal_time: Option<Timestamp>,
     pub undelegation_batch_status: UndelegationBatchStatus,
     pub released: bool,
 }
 
 pub const STATE: Item<State> = Item::new("state");
 pub const CONFIG: Item<Config> = Item::new("config");
+
+pub const MAX_PAGINATION_LIMIT: u32 = 30;
+pub const DEFAULT_PAGINATION_LIMIT: u32 = 10;
 
 pub const STRATEGY_MAP: Map<U64Key, StrategyInfo> = Map::new("strategy_map");
 pub const USER_REWARD_INFO_MAP: Map<&Addr, UserRewardInfo> = Map::new("user_reward_info_map");
