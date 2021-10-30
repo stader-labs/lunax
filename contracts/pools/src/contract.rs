@@ -164,6 +164,7 @@ pub fn simulate_slashing(
 
 // Expects to receive instantiated validator and reward contract for each pool.
 // Each pool is isolated by delegating from a separate contract.
+#[allow(clippy::too_many_arguments)]
 pub fn add_pool(
     deps: DepsMut,
     info: MessageInfo,
@@ -197,7 +198,7 @@ pub fn add_pool(
 
     let mut state = STATE.load(deps.storage)?;
     let pool_id = state.next_pool_id;
-    let pool_meta = PoolRegistryInfo {
+    let mut pool_meta = PoolRegistryInfo {
         name,
         active: true,
         validator_contract: validator_contract.clone(),
@@ -213,16 +214,11 @@ pub fn add_pool(
         last_reconciled_batch_id: 0_u64,
     };
     let pool_key = U64Key::new(pool_id);
-    POOL_REGISTRY.save(deps.storage, pool_key.clone(), &pool_meta)?;
-    VALIDATOR_CONTRACTS.save(deps.storage, &validator_contract.clone(), &pool_id)?;
-    REWARD_CONTRACTS.save(deps.storage, &reward_contract.clone(), &pool_id)?;
+    POOL_REGISTRY.save(deps.storage, pool_key, &pool_meta)?;
+    VALIDATOR_CONTRACTS.save(deps.storage, &validator_contract, &pool_id)?;
+    REWARD_CONTRACTS.save(deps.storage, &reward_contract, &pool_id)?;
 
-    create_new_undelegation_batch(
-        deps.storage,
-        env,
-        pool_id,
-        pool_meta.to_owned().borrow_mut(),
-    )?;
+    create_new_undelegation_batch(deps.storage, env, pool_id, pool_meta.borrow_mut())?;
 
     state.next_pool_id += 1;
     STATE.save(deps.storage, &state)?;
@@ -288,7 +284,7 @@ pub fn remove_validator_from_pool(
     let config = CONFIG.load(deps.storage)?;
     validate(&config, &info, &env, vec![Verify::SenderManager])?;
 
-    check_slashing(&mut deps, env.clone(), pool_id)?;
+    check_slashing(&mut deps, env, pool_id)?;
 
     let mut pool_meta = get_verified_pool(deps.storage, pool_id, false)?;
     if val_addr.eq(&redel_addr) {
@@ -331,7 +327,7 @@ pub fn remove_validator_from_pool(
     Ok(Response::new().add_message(WasmMsg::Execute {
         contract_addr: pool_meta.validator_contract.to_string(),
         msg: to_binary(&ValidatorExecuteMsg::RemoveValidator {
-            val_addr: val_addr,
+            val_addr,
             redelegate_addr: redel_addr,
         })
         .unwrap(),
@@ -351,7 +347,7 @@ pub fn rebalance_pool(
     let config = CONFIG.load(deps.storage)?;
     validate(&config, &info, &env, vec![Verify::SenderManager])?;
 
-    check_slashing(&mut deps, env.clone(), pool_id)?;
+    check_slashing(&mut deps, env, pool_id)?;
     let pool_meta = get_verified_pool(deps.storage, pool_id, false)?;
     if val_addr.eq(&redel_addr) {
         return Err(ContractError::ValidatorsCannotBeSame {});
@@ -504,7 +500,7 @@ pub fn deposit_to_pool(
 
     // Formula wise - we want to recompute user balance because slashing pointer has changed and then
     // add the money user wants to delegate. Money being added in this message should be considered post slashing.
-    check_slashing(&mut deps, env.clone(), pool_id)?;
+    check_slashing(&mut deps, env, pool_id)?;
 
     let mut pool_meta = get_verified_pool(deps.storage, pool_id, true)?;
     let user_addr = info.sender;
@@ -560,7 +556,7 @@ pub fn redeem_rewards(
     let config = CONFIG.load(deps.storage)?;
     validate(&config, &info, &env, vec![Verify::SenderManager])?;
 
-    check_slashing(&mut deps, env.clone(), pool_id)?;
+    check_slashing(&mut deps, env, pool_id)?;
 
     let pool_meta = get_verified_pool(deps.storage, pool_id, false)?;
     let messages = vec![WasmMsg::Execute {
@@ -701,7 +697,7 @@ pub fn queue_user_undelegation(
     // because pointer difference will be there.
     // This real time value of user undelegation amount is computed using pool_batch_slashing pointers
     // and delegator contract undelegation entry pointer.
-    check_slashing(&mut deps, env.clone(), pool_id)?;
+    check_slashing(&mut deps, env, pool_id)?;
 
     Ok(Response::new().add_message(message))
 }
@@ -750,7 +746,7 @@ pub fn undelegate_from_pool(
     let stake_tuples = get_active_validators_sorted_by_stake(
         deps.querier,
         pool_meta.validator_contract.clone(),
-        validators.clone(),
+        validators,
     )?;
 
     for index in (0..stake_tuples.len()).rev() {
@@ -887,7 +883,7 @@ pub fn withdraw_funds_to_wallet(
 
     let user_addr = info.sender;
     let key = (U64Key::from(pool_id), U64Key::from(batch_id));
-    let und_opt = BATCH_UNDELEGATION_REGISTRY.may_load(deps.storage, key.clone())?;
+    let und_opt = BATCH_UNDELEGATION_REGISTRY.may_load(deps.storage, key)?;
     if und_opt.is_none() {
         return Err(ContractError::UndelegationBatchNotFound {});
     }

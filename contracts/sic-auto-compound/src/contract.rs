@@ -1,8 +1,8 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, to_binary, Addr, Attribute, Binary, Coin, Decimal, Deps, DepsMut, DistributionMsg, Env,
-    Fraction, MessageInfo, Response, StakingMsg, StdResult, Uint128, WasmMsg,
+    attr, to_binary, Addr, Attribute, Binary, Coin, Deps, DepsMut, DistributionMsg, Env,
+    MessageInfo, Response, StakingMsg, StdResult, Uint128, WasmMsg,
 };
 
 use crate::error::ContractError;
@@ -538,21 +538,24 @@ pub fn undelegate_rewards(
         .collect::<Vec<(&Addr, &Uint128)>>();
     sorted_validator_stake_map.sort();
 
-    for validator_stake in sorted_validator_stake_map.iter() {
+    for v in sorted_validator_stake_map.iter() {
         if amount_to_undelegate.is_zero() {
             break;
         }
 
-        let validator_addr = validator_stake.clone().0;
-        let validator_stake = *validator_stake.clone().1;
+        let v = *v;
+        let validator_addr = v.0.clone();
+        let validator_stake_amount = *v.1;
 
         let undelegatable_amount: Uint128;
-        if validator_stake.gt(&amount_to_undelegate) {
+        if validator_stake_amount.gt(&amount_to_undelegate) {
             undelegatable_amount = amount_to_undelegate;
             amount_to_undelegate = Uint128::zero();
         } else {
-            amount_to_undelegate = amount_to_undelegate.checked_sub(validator_stake).unwrap();
-            undelegatable_amount = validator_stake;
+            amount_to_undelegate = amount_to_undelegate
+                .checked_sub(validator_stake_amount)
+                .unwrap();
+            undelegatable_amount = validator_stake_amount;
         }
 
         messages.push(StakingMsg::Undelegate {

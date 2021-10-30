@@ -26,7 +26,6 @@ use crate::state::{
 use crate::user::{compute_user_airdrops_across_strategies, get_user_airdrops};
 use cw2::set_contract_version;
 use cw_storage_plus::U64Key;
-use serde::de::Unexpected::Str;
 use sic_base::msg::ExecuteMsg as sic_execute_msg;
 use stader_utils::coin_utils::{
     decimal_division_in_256, decimal_multiplication_in_256, decimal_subtraction_in_256,
@@ -222,6 +221,7 @@ pub fn update_config(
     Ok(Response::default())
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn update_strategy(
     deps: DepsMut,
     _env: Env,

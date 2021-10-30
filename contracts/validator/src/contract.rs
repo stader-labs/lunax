@@ -27,7 +27,7 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let config = Config {
-        manager: info.sender.clone(),
+        manager: info.sender,
         vault_denom: msg.vault_denom,
         pools_contract: msg.pools_contract,
         delegator_contract: msg.delegator_contract,
@@ -162,7 +162,7 @@ pub fn remove_validator(
     let config = CONFIG.load(deps.storage)?;
     validate(&config, &info, &env, vec![Verify::SenderPoolsContract])?;
 
-    let val_meta_opt = VALIDATOR_REGISTRY.may_load(deps.storage, &val_addr.clone())?;
+    let val_meta_opt = VALIDATOR_REGISTRY.may_load(deps.storage, &val_addr)?;
     let redel_val_meta_opt = VALIDATOR_REGISTRY.may_load(deps.storage, &redelegate_addr)?;
     if val_meta_opt.is_none() || redel_val_meta_opt.is_none() {
         return Err(ContractError::ValidatorNotAdded {});
@@ -176,7 +176,7 @@ pub fn remove_validator(
         return Err(ContractError::ZeroAmount {});
     }
 
-    VALIDATOR_REGISTRY.remove(deps.storage, &val_addr.clone());
+    VALIDATOR_REGISTRY.remove(deps.storage, &val_addr);
     let src_val_delegation_amount = src_val_delegation_opt.unwrap().amount.amount;
 
     let mut messages = vec![];
@@ -273,8 +273,8 @@ pub fn redelegate(
 
     validate(&config, &info, &env, vec![Verify::SenderPoolsContract])?;
 
-    let src_meta_opt = VALIDATOR_REGISTRY.may_load(deps.storage, &src.clone())?;
-    let dst_meta_opt = VALIDATOR_REGISTRY.may_load(deps.storage, &dst.clone())?;
+    let src_meta_opt = VALIDATOR_REGISTRY.may_load(deps.storage, &src)?;
+    let dst_meta_opt = VALIDATOR_REGISTRY.may_load(deps.storage, &dst)?;
     if src_meta_opt.is_none() || dst_meta_opt.is_none() {
         return Err(ContractError::ValidatorNotAdded {});
     }
@@ -311,7 +311,7 @@ pub fn undelegate(
     let config = CONFIG.load(deps.storage)?;
     validate(&config, &info, &env, vec![Verify::SenderPoolsContract])?;
 
-    let val_meta_opt = VALIDATOR_REGISTRY.may_load(deps.storage, &val_addr.clone())?;
+    let val_meta_opt = VALIDATOR_REGISTRY.may_load(deps.storage, &val_addr)?;
     if val_meta_opt.is_none() {
         return Err(ContractError::ValidatorNotAdded {});
     }
@@ -467,5 +467,5 @@ pub fn query_validator_meta(deps: Deps, val_addr: Addr) -> StdResult<GetValidato
 
 pub fn query_unaccounted_base_funds(deps: Deps, env: Env) -> StdResult<Coin> {
     let config: Config = CONFIG.load(deps.storage)?;
-    Ok(get_unaccounted_base_funds(config, env, deps.querier)?)
+    get_unaccounted_base_funds(config, env, deps.querier)
 }

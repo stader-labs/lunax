@@ -1,6 +1,4 @@
-use cosmwasm_std::{Addr, BankMsg, Coin, Decimal, QuerierWrapper};
-use std::collections::HashMap;
-use terra_cosmwasm::TerraQuerier;
+use cosmwasm_std::{Addr, BankMsg, Coin};
 
 pub fn send_funds_msg(recipient_addr: &Addr, funds: &[Coin]) -> BankMsg {
     BankMsg::Send {

@@ -132,6 +132,7 @@ pub fn execute(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn deposit(
     deps: DepsMut,
     info: MessageInfo,
@@ -190,6 +191,7 @@ pub fn deposit(
     ]))
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn undelegate(
     deps: DepsMut,
     info: MessageInfo,
@@ -254,6 +256,7 @@ pub fn undelegate(
 
 // Don't need to update slashing pointers for the user as this is pure bookkeeping + send money out.
 // User deposits do not change.
+#[allow(clippy::too_many_arguments)]
 pub fn withdraw_funds(
     deps: DepsMut,
     info: MessageInfo,
@@ -440,7 +443,7 @@ pub fn allocate_rewards_and_airdrops(
     messages.push(WasmMsg::Execute {
         contract_addr: config.scc_contract.to_string(),
         msg: to_binary(&SccMsg::UpdateUserRewards {
-            update_user_rewards_requests: scc_user_reward_requests.clone(),
+            update_user_rewards_requests: scc_user_reward_requests,
         })
         .unwrap(),
         funds: vec![],

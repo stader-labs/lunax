@@ -25,7 +25,7 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let config = Config {
-        manager: info.sender.clone(),
+        manager: info.sender,
         reward_denom: msg.reward_denom,
         pools_contract: deps.api.addr_validate(msg.pools_contract.as_str())?,
     };
@@ -147,14 +147,14 @@ pub fn transfer(
     if !reward_amount.is_zero() {
         msgs.push(send_funds_msg(
             &reward_withdraw_contract,
-            &vec![Coin::new(reward_amount.u128(), config.reward_denom.clone())],
+            &[Coin::new(reward_amount.u128(), config.reward_denom.clone())],
         ));
     }
 
     if !protocol_fee.is_zero() {
         msgs.push(send_funds_msg(
             &protocol_fee_contract,
-            &vec![Coin::new(protocol_fee.u128(), config.reward_denom)],
+            &[Coin::new(protocol_fee.u128(), config.reward_denom)],
         ));
     }
     Ok(Response::new().add_messages(msgs))

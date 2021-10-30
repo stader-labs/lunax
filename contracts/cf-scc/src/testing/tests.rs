@@ -6,7 +6,8 @@ mod tests {
         ExecuteMsg, GetConfigResponse, InstantiateMsg, QueryMsg, UpdateUserAirdropsRequest,
         UpdateUserRewardsRequest,
     };
-    use crate::state::{Config, UserInfo, CW20_CONTRACTS_MAP, USER_REWARDS, CONFIG};
+    use crate::state::{Config, UserInfo, CONFIG, CW20_CONTRACTS_MAP, USER_REWARDS};
+    use crate::testing::test_helpers::check_equal_vec;
     use crate::ContractError;
     use cosmwasm_std::testing::{
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
@@ -16,7 +17,6 @@ mod tests {
         OwnedDeps, Response, SubMsg, Uint128, WasmMsg,
     };
     use cw20::Cw20ExecuteMsg;
-    use crate::testing::test_helpers::check_equal_vec;
 
     fn instantiate_contract(
         deps: &mut OwnedDeps<MockStorage, MockApi, MockQuerier>,

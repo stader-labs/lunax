@@ -154,7 +154,7 @@ pub fn update_user_airdrops(
         let user_airdrops = user_request.pool_airdrops;
 
         USER_REWARDS.update(deps.storage, &user_addr, |user_info_opt| -> StdResult<_> {
-            let mut user_info = user_info_opt.unwrap_or(UserInfo::new());
+            let mut user_info = user_info_opt.unwrap_or_else(UserInfo::new);
             user_info.airdrops = merge_coin_vector(
                 user_info.airdrops.as_slice(),
                 CoinVecOp {
@@ -190,7 +190,7 @@ pub fn update_user_rewards(
         let user_balance = user_request.funds;
 
         USER_REWARDS.update(deps.storage, &user_addr, |user_info_opt| -> StdResult<_> {
-            let mut user_info = user_info_opt.unwrap_or(UserInfo::new());
+            let mut user_info = user_info_opt.unwrap_or_else(UserInfo::new);
             user_info.amount = user_info.amount.checked_add(user_balance).unwrap();
             Ok(user_info)
         })?;

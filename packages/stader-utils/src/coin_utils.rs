@@ -127,7 +127,7 @@ pub fn map_to_deccoin_vec(coin_map: HashMap<String, Decimal>) -> Vec<DecCoin> {
     for denom_amount in coin_map.iter() {
         let denom = denom_amount.0.clone();
         let amount = *denom_amount.1;
-        coins.push(DecCoin { denom, amount })
+        coins.push(DecCoin { amount, denom })
     }
     coins
 }

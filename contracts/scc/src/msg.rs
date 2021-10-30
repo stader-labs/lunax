@@ -5,7 +5,6 @@ use crate::state::{
 use cosmwasm_std::{Addr, Binary, Coin, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::ops::Add;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
