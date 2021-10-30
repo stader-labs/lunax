@@ -11,8 +11,11 @@ pub enum ContractError {
     #[error("Unauthorized")]
     Unauthorized {},
 
-    #[error("Contract already exists")]
-    AlreadyExists { contract: ContractResponse },
+    #[error("Contract address already exists")]
+    ContractAlreadyExists {},
+
+    #[error("Contract name already exists")]
+    NameAlreadyExists {},
 
     #[error("Contract does not exist")]
     NotFound {},

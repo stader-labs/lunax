@@ -19,6 +19,9 @@ pub enum QueryMsg {
     GetContractByName {
         name: String,
     },
+    GetContractByAddr {
+        addr: Addr
+    },
     GetAllContracts {
         start_after: Option<String>,
         limit: Option<u32>,

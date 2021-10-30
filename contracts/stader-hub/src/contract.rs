@@ -8,7 +8,8 @@ use cw_storage_plus::Bound;
 
 use crate::error::ContractError;
 use crate::msg::{ContractResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state::{State, CONTRACTS, DEFAULT_PAGINATION_LIMIT, MAX_PAGINATION_LIMIT, STATE};
+use crate::state::{State, CONTRACTS, DEFAULT_PAGINATION_LIMIT, MAX_PAGINATION_LIMIT, STATE, NAMES};
+use std::ops::Deref;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -47,22 +48,33 @@ pub fn execute(
 }
 
 fn remove_contract(deps: DepsMut, name: String) -> Result<Response, ContractError> {
+    let name_opt = CONTRACTS.may_load(deps.storage, name.clone())?;
+    if name_opt.is_none() {
+        return Err(ContractError::NotFound {});
+    }
+    let addr = name_opt.unwrap();
     CONTRACTS.remove(deps.storage, name.clone());
+    NAMES.remove(deps.storage, addr.clone());
     Ok(Response::new()
         .add_attribute("method", "remove_contract")
-        .add_attribute("name", name))
+        .add_attribute("name", name)
+        .add_attribute("addr", addr))
 }
 
-pub fn add_contract(deps: DepsMut, name: String, addr: String) -> Result<Response, ContractError> {
+pub fn add_contract(deps: DepsMut, name_str: String, addr: String) -> Result<Response, ContractError> {
     let contract_addr = deps.api.addr_validate(addr.as_str())?;
-    let existing_contract =
-        get_contract_by_name_or_addr(deps.storage, name.clone(), &contract_addr)?;
+    let name = name_str.to_ascii_lowercase();
 
-    if let Some(ec) = existing_contract {
-        return Err(ContractError::AlreadyExists { contract: ec });
+    if CONTRACTS.may_load(deps.storage, name.clone())?.is_some() {
+        return Err(ContractError::NameAlreadyExists {});
+    }
+
+    if NAMES.may_load(deps.storage, contract_addr.clone())?.is_some() {
+        return Err(ContractError::ContractAlreadyExists {});
     }
 
     CONTRACTS.save(deps.storage, name.clone(), &contract_addr)?;
+    NAMES.save(deps.storage, contract_addr, &name.clone())?;
 
     Ok(Response::new()
         .add_attribute("method", "add_contract")
@@ -70,37 +82,16 @@ pub fn add_contract(deps: DepsMut, name: String, addr: String) -> Result<Respons
         .add_attribute("addr", addr))
 }
 
-fn get_contract_by_name_or_addr(
-    storage: &dyn Storage,
-    name: String,
-    addr: &Addr,
-) -> Result<Option<ContractResponse>, ContractError> {
-    let addr_by_name_search = CONTRACTS.may_load(storage, name.clone())?;
-    if let Some(result) = addr_by_name_search {
-        return Ok(Some(ContractResponse { name, addr: result }));
-    }
-
-    get_contract_by_addr(storage, addr)
-}
-
 fn get_contract_by_addr(
     storage: &dyn Storage,
-    addr: &Addr,
+    addr: Addr,
 ) -> Result<Option<ContractResponse>, ContractError> {
-    let tuple_by_addr_search_opt = CONTRACTS
-        .prefix(())
-        .range(storage, None, None, Order::Ascending)
-        .find(|x| x.is_ok() && x.as_ref().unwrap().1.eq(addr));
-
-    if tuple_by_addr_search_opt.is_none() {
+    let contract_name_opt = NAMES.may_load(storage, addr.clone())?;
+    if contract_name_opt.is_none() {
         return Ok(None);
     }
 
-    let (contract_name_in_vecu8, _) = tuple_by_addr_search_opt.unwrap()?;
-    Ok(Some(ContractResponse {
-        name: String::from_utf8(contract_name_in_vecu8).unwrap(),
-        addr: addr.clone(),
-    }))
+    Ok(Some(ContractResponse { name: contract_name_opt.unwrap(), addr }))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -110,6 +101,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_binary(&query_contracts(deps, start_after, limit)?)
         }
         QueryMsg::GetContractByName { name } => to_binary(&query_contract_by_name(deps, name)?),
+        QueryMsg::GetContractByAddr { addr } => to_binary(&query_contract_by_addr(deps, addr)?),
     }
 }
 
@@ -123,6 +115,21 @@ fn query_contract_by_name(deps: Deps, name: String) -> StdResult<ContractRespons
         }),
         None => Err(StdError::GenericErr {
             msg: "Contract not found".to_string(),
+        }),
+    }
+}
+
+
+fn query_contract_by_addr(deps: Deps, addr: Addr) -> StdResult<ContractResponse> {
+    let name_by_addr_opt = NAMES.may_load(deps.storage, addr.clone())?;
+
+    match name_by_addr_opt {
+        Some(name_by_addr) => Ok(ContractResponse {
+            name: name_by_addr,
+            addr,
+        }),
+        None => Err(StdError::GenericErr {
+            msg: "Entry not found".to_string(),
         }),
     }
 }
@@ -418,12 +425,12 @@ mod tests {
         assert_eq!(empty_vec_res, value);
 
         let contract1 = ContractResponse {
-            name: String::from("contract_A"),
-            addr: Addr::unchecked("contract_A"),
+            name: String::from("contract_a"),
+            addr: Addr::unchecked("contract_a"),
         };
         let contract2 = ContractResponse {
-            name: String::from("contract_B"),
-            addr: Addr::unchecked("contract_B"),
+            name: String::from("contract_b"),
+            addr: Addr::unchecked("contract_b"),
         };
 
         // TEST::Add a contract and make sure it is success
@@ -461,35 +468,18 @@ mod tests {
         let res = execute(deps.as_mut(), mock_env(), info.clone(), msg).unwrap_err();
         assert!(matches!(
             res,
-            ContractError::AlreadyExists {
-                contract: _contract1
-            }
+            ContractError::NameAlreadyExists {}
         ));
 
         // TEST::Add new Contract with already existing Name and make sure it fails
         let msg = ExecuteMsg::AddContract {
-            name: contract1.name.clone(),
-            addr: "RandomAddr".to_string(),
+            name: "randomName".to_string(),
+            addr: contract1.addr.to_string(),
         };
         let res = execute(deps.as_mut(), mock_env(), info.clone(), msg).unwrap_err();
         assert!(matches!(
             res,
-            ContractError::AlreadyExists {
-                contract: _contract1
-            }
-        ));
-
-        // TEST::Add new Contract with already existing Address and make sure it fails
-        let msg = ExecuteMsg::AddContract {
-            name: String::from("RandomName"),
-            addr: contract2.addr.to_string(),
-        };
-        let res = execute(deps.as_mut(), mock_env(), info.clone(), msg).unwrap_err();
-        assert!(matches!(
-            res,
-            ContractError::AlreadyExists {
-                contract: _contract1
-            }
+            ContractError::ContractAlreadyExists {}
         ));
 
         // TEST::Check the response of GetAllContracts {} ( Should have both the contracts )
@@ -503,7 +493,10 @@ mod tests {
         )
             .unwrap();
         let value: Vec<ContractResponse> = from_binary(&res).unwrap();
-        assert_eq!(vec![contract1.clone(), contract2.clone()], value);
+        assert_eq!(vec![contract1.clone(), contract2.clone()], value); // This test shuold be flaky because of vector ordering.
+
+        let name1 = NAMES.load(deps.as_mut().storage, contract1.addr.clone()).unwrap();
+        assert_eq!(name1, contract1.name.clone());
 
         // TEST::Get contract1 By name and assert the result is correct
         let res = query(
