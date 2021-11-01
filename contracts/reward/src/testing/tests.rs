@@ -20,7 +20,7 @@ mod tests {
     ) -> Response<TerraMsgWrapper> {
         let instantiate_msg = InstantiateMsg {
             reward_denom: vault_denom.unwrap_or_else(|| "utest".to_string()),
-            pools_contract: "pools_addr".to_string(),
+            staking_contract: "pools_addr".to_string(),
         };
 
         return instantiate(deps.as_mut(), env.clone(), info.clone(), instantiate_msg).unwrap();
@@ -32,12 +32,12 @@ mod tests {
 
         let msg = InstantiateMsg {
             reward_denom: "utest".to_string(),
-            pools_contract: "pools_addr".to_string(),
+            staking_contract: "pools_addr".to_string(),
         };
         let expected_config = Config {
             manager: Addr::unchecked("creator"),
             reward_denom: "utest".to_string(),
-            pools_contract: Addr::unchecked("pools_addr"),
+            staking_contract: Addr::unchecked("pools_addr"),
         };
         let info = mock_info("creator", &[]);
 
@@ -143,7 +143,7 @@ mod tests {
         instantiate_contract(&mut deps, &info, &env, None);
 
         let initial_msg = ExecuteMsg::UpdateConfig {
-            pools_contract: None,
+            staking_contract: None,
         };
         let err = execute(
             deps.as_mut(),
@@ -157,7 +157,7 @@ mod tests {
         let mut expected_config = Config {
             manager: Addr::unchecked("creator"),
             reward_denom: "utest".to_string(),
-            pools_contract: Addr::unchecked("pools_addr"),
+            staking_contract: Addr::unchecked("pools_addr"),
         };
         let config = CONFIG.load(deps.as_mut().storage).unwrap();
         assert_eq!(config, expected_config);
@@ -176,7 +176,7 @@ mod tests {
         expected_config = Config {
             manager: Addr::unchecked("creator"),
             reward_denom: "utest".to_string(),
-            pools_contract: Addr::unchecked("new_pools_addr"),
+            staking_contract: Addr::unchecked("new_pools_addr"),
         };
 
         let res = execute(
@@ -184,7 +184,7 @@ mod tests {
             env.clone(),
             mock_info("creator", &[]),
             ExecuteMsg::UpdateConfig {
-                pools_contract: Some("new_pools_addr".to_string()),
+                staking_contract: Some("new_pools_addr".to_string()),
             }
             .clone(),
         )

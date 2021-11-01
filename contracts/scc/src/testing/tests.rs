@@ -3349,7 +3349,7 @@ mod tests {
             },
         )
         .unwrap();
-        assert_eq!(res.attributes.len(), 3);
+        assert_eq!(res.attributes.len(), 2);
         assert!(check_equal_vec(
             res.attributes,
             vec![
@@ -3359,10 +3359,6 @@ mod tests {
                 },
                 Attribute {
                     key: "strategies_with_no_undelegations".to_string(),
-                    value: "".to_string()
-                },
-                Attribute {
-                    key: "failed_sics".to_string(),
                     value: "".to_string()
                 }
             ]
@@ -3639,7 +3635,7 @@ mod tests {
             },
         )
         .unwrap();
-        assert_eq!(res.attributes.len(), 3);
+        assert_eq!(res.attributes.len(), 2);
         assert!(check_equal_vec(
             res.attributes,
             vec![
@@ -3649,10 +3645,6 @@ mod tests {
                 },
                 Attribute {
                     key: "strategies_with_no_undelegations".to_string(),
-                    value: "".to_string()
-                },
-                Attribute {
-                    key: "failed_sics".to_string(),
                     value: "".to_string()
                 }
             ]
@@ -3916,7 +3908,7 @@ mod tests {
             },
         )
         .unwrap();
-        assert_eq!(res.attributes.len(), 3);
+        assert_eq!(res.attributes.len(), 2);
         assert!(check_equal_vec(
             res.attributes,
             vec![
@@ -3927,10 +3919,6 @@ mod tests {
                 Attribute {
                     key: "strategies_with_no_undelegations".to_string(),
                     value: "3".to_string()
-                },
-                Attribute {
-                    key: "failed_sics".to_string(),
-                    value: "".to_string()
                 }
             ]
         ));
@@ -6220,7 +6208,7 @@ mod tests {
             },
         )
         .unwrap();
-        assert_eq!(res.attributes.len(), 3);
+        assert_eq!(res.attributes.len(), 2);
         assert_eq!(res.messages.len(), 0);
         assert!(check_equal_vec(
             res.attributes,
@@ -6232,10 +6220,6 @@ mod tests {
                 Attribute {
                     key: "users_with_zero_deposits".to_string(),
                     value: "user1".to_string()
-                },
-                Attribute {
-                    key: "failed_sics".to_string(),
-                    value: "".to_string()
                 }
             ]
         ));

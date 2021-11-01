@@ -419,7 +419,6 @@ pub fn undelegate_from_strategies(
     }
 
     let mut failed_strategies: Vec<String> = vec![];
-    let mut failed_sics: Vec<String> = vec![];
     let mut strategies_with_no_undelegations: Vec<String> = vec![];
     let mut messages: Vec<WasmMsg> = vec![];
     for strategy_id in strategies {
@@ -443,10 +442,7 @@ pub fn undelegate_from_strategies(
             Ok(result) => {
                 strategy_s_t_ratio = result;
             }
-            Err(_) => {
-                failed_sics.push(strategy_info.name);
-                continue;
-            }
+            Err(_) => return Err(ContractError::SICFailedToReturnResult {}),
         }
 
         let undelegation_amount = uint128_from_decimal(decimal_division_in_256(
@@ -510,7 +506,6 @@ pub fn undelegate_from_strategies(
             "strategies_with_no_undelegations",
             strategies_with_no_undelegations.join(","),
         )
-        .add_attribute("failed_sics", failed_sics.join(","))
         .add_messages(messages))
 }
 
@@ -1073,7 +1068,6 @@ fn try_deposit_funds_to_strategies(
     }
 
     let mut failed_strategies: Vec<String> = vec![];
-    let mut failed_sics: Vec<String> = vec![];
     let mut users_with_zero_deposits: Vec<String> = vec![];
     // cache for the S/T ratio per strategy. We fetch it once and cache it up.
     let mut strategy_to_s_t_ratio: HashMap<u64, Decimal> = HashMap::new();
@@ -1141,10 +1135,7 @@ fn try_deposit_funds_to_strategies(
                     Ok(result) => {
                         current_strategy_shares_per_token_ratio = result;
                     }
-                    Err(_) => {
-                        failed_sics.push(strategy_info.name);
-                        continue;
-                    }
+                    Err(_) => return Err(ContractError::SICFailedToReturnResult {}),
                 }
                 strategy_info.shares_per_token_ratio = current_strategy_shares_per_token_ratio;
                 strategy_to_s_t_ratio.insert(strategy_id, current_strategy_shares_per_token_ratio);
@@ -1234,8 +1225,7 @@ fn try_deposit_funds_to_strategies(
         .add_attribute(
             "users_with_zero_deposits",
             users_with_zero_deposits.join(","),
-        )
-        .add_attribute("failed_sics", failed_sics.join(",")))
+        ))
 }
 
 // This assumes that the validator contract will transfer ownership of the airdrops

@@ -1,7 +1,9 @@
 #![allow(dead_code)]
 
+use crate::error::ContractError;
 use crate::state::State;
-use cosmwasm_std::{Addr, Coin, QuerierWrapper, StdResult, Uint128};
+use cosmwasm_std::{Addr, QuerierWrapper, StdResult, Uint128};
+use reward::msg::{QueryMsg as reward_query, SwappedAmountResponse};
 use std::collections::HashMap;
 
 pub fn get_unaccounted_funds(
@@ -12,25 +14,13 @@ pub fn get_unaccounted_funds(
     let strategy_denom: String = state.strategy_denom.clone();
 
     let total_base_funds_in_strategy = querier
-        .query_balance(contract_address, strategy_denom.clone())
+        .query_balance(contract_address, strategy_denom)
         .unwrap()
-        .amount;
-    let current_uninvested_rewards = state.uninvested_rewards.amount;
-    let base_funds_from_rewards = state
-        .unswapped_rewards
-        .iter()
-        .find(|&x| x.denom.eq(&strategy_denom))
-        .cloned()
-        .unwrap_or_else(|| Coin::new(0, strategy_denom))
         .amount;
     let manager_seed_funds = state.manager_seed_funds;
 
     total_base_funds_in_strategy
-        .checked_sub(current_uninvested_rewards)
-        .unwrap()
         .checked_sub(manager_seed_funds)
-        .unwrap()
-        .checked_sub(base_funds_from_rewards)
         .unwrap()
 }
 
@@ -47,7 +37,7 @@ pub fn get_pool_stake_info(
             if let Some(delegation) = querier.query_delegation(delegator.clone(), validator)? {
                 delegation.amount.amount
             } else {
-                Uint128::zero()
+                continue;
             };
 
         total_staked_tokens = total_staked_tokens.checked_add(stake_amount).unwrap();
@@ -57,4 +47,43 @@ pub fn get_pool_stake_info(
     }
 
     Ok((validator_stake_map, total_staked_tokens))
+}
+
+pub fn get_reward_tokens(querier: QuerierWrapper, reward_contract: Addr) -> StdResult<Uint128> {
+    let res: SwappedAmountResponse =
+        querier.query_wasm_smart(reward_contract.to_string(), &reward_query::SwappedAmount {})?;
+    Ok(res.amount)
+}
+
+pub fn get_validator_for_deposit(
+    querier: QuerierWrapper,
+    delegator: String,
+    validators: Vec<Addr>,
+) -> Result<Addr, ContractError> {
+    if validators.is_empty() {
+        return Err(ContractError::NoValidatorsInPool {});
+    }
+
+    let mut stake_tuples = vec![];
+    for val_addr in validators {
+        if querier.query_validator(val_addr.clone())?.is_none() {
+            // Don't deposit to a jailed validator
+            continue;
+        }
+        let delegation_opt = querier.query_delegation(delegator.clone(), val_addr.clone())?;
+
+        if delegation_opt.is_none() {
+            // No delegation. So use the validator
+            return Ok(val_addr);
+        }
+        stake_tuples.push((
+            delegation_opt.unwrap().amount.amount.u128(),
+            val_addr.to_string(),
+        ))
+    }
+    if stake_tuples.is_empty() {
+        return Err(ContractError::AllValidatorsJailed {});
+    }
+    stake_tuples.sort();
+    Ok(Addr::unchecked(stake_tuples.first().unwrap().clone().1))
 }

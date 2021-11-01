@@ -7,6 +7,7 @@ use std::collections::HashMap;
 
 use crate::msg::{GetFulfillableUndelegatedFundsResponse, GetTotalTokensResponse, QueryMsg};
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage};
+use reward::msg::{QueryMsg as reward_query, SwappedAmountResponse};
 use stader_utils::coin_utils::{decimal_multiplication_in_256, u128_from_decimal};
 use std::cmp::min;
 use terra_cosmwasm::{
@@ -148,31 +149,15 @@ impl WasmMockQuerier {
             }
             QueryRequest::Wasm(WasmQuery::Smart { contract_addr, msg }) => {
                 match from_binary(msg).unwrap() {
-                    QueryMsg::GetTotalTokens { .. } => {
-                        let contract_tokens = *self
-                            .stader_querier
-                            .contract_to_tokens
-                            .get(&Addr::unchecked(contract_addr))
-                            .unwrap();
-                        let res = GetTotalTokensResponse {
-                            total_tokens: Some(contract_tokens),
+                    reward_query::SwappedAmount {} => {
+                        let res = SwappedAmountResponse {
+                            amount: self.stader_querier.total_reward_tokens,
                         };
                         SystemResult::Ok(ContractResult::from(to_binary(&res)))
                     }
-                    QueryMsg::GetState { .. } => {
+                    reward_query::Config {} => {
                         let out = Binary::default();
                         SystemResult::Ok(ContractResult::from(to_binary(&out)))
-                    }
-                    QueryMsg::GetFulfillableUndelegatedFunds { amount } => {
-                        let fulfillable_amount = *self
-                            .stader_querier
-                            .contract_to_fulfillable_undelegations
-                            .get(&Addr::unchecked(contract_addr))
-                            .unwrap();
-                        let res = GetFulfillableUndelegatedFundsResponse {
-                            undelegated_funds: Some(min(amount, fulfillable_amount)),
-                        };
-                        SystemResult::Ok(ContractResult::from(to_binary(&res)))
                     }
                 }
             }
@@ -219,25 +204,18 @@ impl SwapQuerier {
 
 #[derive(Clone, Default)]
 struct StaderQuerier {
-    pub contract_to_tokens: HashMap<Addr, Uint128>,
-    pub contract_to_fulfillable_undelegations: HashMap<Addr, Uint128>,
+    pub total_reward_tokens: Uint128,
 }
 
 impl StaderQuerier {
     fn default() -> Self {
         StaderQuerier {
-            contract_to_tokens: HashMap::new(),
-            contract_to_fulfillable_undelegations: HashMap::new(),
+            total_reward_tokens: Uint128::zero(),
         }
     }
-    fn new(
-        contract_to_tokens: Option<HashMap<Addr, Uint128>>,
-        contract_to_fulfillable_undelegations: Option<HashMap<Addr, Uint128>>,
-    ) -> Self {
+    fn new(total_reward_tokens: Option<Uint128>) -> Self {
         StaderQuerier {
-            contract_to_tokens: contract_to_tokens.unwrap_or_default(),
-            contract_to_fulfillable_undelegations: contract_to_fulfillable_undelegations
-                .unwrap_or_default(),
+            total_reward_tokens: total_reward_tokens.unwrap_or_default(),
         }
     }
 }
@@ -252,13 +230,8 @@ impl WasmMockQuerier {
         }
     }
 
-    pub fn update_stader_balances(
-        &mut self,
-        contract_to_tokens: Option<HashMap<Addr, Uint128>>,
-        contract_to_fulfillable_undelegation: Option<HashMap<Addr, Uint128>>,
-    ) {
-        self.stader_querier =
-            StaderQuerier::new(contract_to_tokens, contract_to_fulfillable_undelegation);
+    pub fn update_stader_balances(&mut self, total_reward_tokens: Option<Uint128>) {
+        self.stader_querier = StaderQuerier::new(total_reward_tokens);
     }
 
     pub fn update_swap_rates(&mut self, swap_rates: Option<Vec<SwapRates>>) {

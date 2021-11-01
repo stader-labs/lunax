@@ -8,7 +8,8 @@ pub struct MigrateMsg {}
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
-    pub scc_address: Addr,
+    pub scc_address: String,
+    pub reward_contract_address: String,
     // denomination of the staking coin
     pub strategy_denom: String,
     // initial set of validators who make up the validator pool
@@ -30,7 +31,11 @@ pub enum ExecuteMsg {
         amount: Uint128,
     },
     Swap {},
-    Reinvest {},
+    Reinvest {
+        // if true, then only transferred_rewards are reinvested. rewards which are claimed by
+        // the reward contract are not reinvested
+        invest_transferred_rewards: Option<bool>,
+    },
     RedeemRewards {},
     // Called by the manager to claim airdrops from different protocols. Airdrop token contract fed from SCC.
     // The ownership of the airdrops is transferred back to the SCC.
@@ -52,11 +57,15 @@ pub enum ExecuteMsg {
         dst_validator: String,
     },
     RemoveValidator {
-        validator: String,
+        removed_val: String,
+        redelegate_val: String,
     },
     UpdateConfig {
         min_validator_pool_size: Option<u64>,
         scc_address: Option<String>,
+    },
+    SetRewardWithdrawAddress {
+        reward_contract: String,
     },
 }
 

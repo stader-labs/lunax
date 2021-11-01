@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
     pub reward_denom: String,
-    pub pools_contract: String,
+    pub staking_contract: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -23,7 +23,7 @@ pub enum ExecuteMsg {
         protocol_fee_contract: Addr,
     }, // Transfer swapped rewards to SCC.
     UpdateConfig {
-        pools_contract: Option<String>,
+        staking_contract: Option<String>,
     },
 }
 
@@ -31,9 +31,15 @@ pub enum ExecuteMsg {
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     Config {},
+    SwappedAmount {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct GetConfigResponse {
     pub config: Config,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct SwappedAmountResponse {
+    pub amount: Uint128,
 }

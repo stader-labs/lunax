@@ -46,6 +46,12 @@ pub enum ContractError {
     #[error("sic-ac: validator does not exist in pool")]
     ValidatorNotInPool {},
 
+    #[error("sic-ac: no validatos in pool")]
+    NoValidatorsInPool {},
+
+    #[error("sic-ac: all validators are jailed")]
+    AllValidatorsJailed {},
+
     #[error("sic-ac: validator pool size is at minimum. Cannot remove more validators")]
     CannotRemoveMoreValidators {},
 }

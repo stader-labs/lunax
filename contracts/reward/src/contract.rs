@@ -2,7 +2,9 @@
 use cosmwasm_std::entry_point;
 
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, GetConfigResponse, InstantiateMsg, MigrateMsg, QueryMsg};
+use crate::msg::{
+    ExecuteMsg, GetConfigResponse, InstantiateMsg, MigrateMsg, QueryMsg, SwappedAmountResponse,
+};
 
 use crate::state::{Config, CONFIG};
 use cw2::set_contract_version;
@@ -27,7 +29,7 @@ pub fn instantiate(
     let config = Config {
         manager: info.sender,
         reward_denom: msg.reward_denom,
-        pools_contract: deps.api.addr_validate(msg.pools_contract.as_str())?,
+        staking_contract: deps.api.addr_validate(msg.staking_contract.as_str())?,
     };
     CONFIG.save(deps.storage, &config)?;
 
@@ -68,9 +70,9 @@ pub fn execute(
             protocol_fee_contract,
         ),
 
-        ExecuteMsg::UpdateConfig { pools_contract } => {
-            update_config(deps, info, env, pools_contract)
-        }
+        ExecuteMsg::UpdateConfig {
+            staking_contract: pools_contract,
+        } => update_config(deps, info, env, pools_contract),
     }
 }
 // Swaps all rewards accrued in this contract to reward denom - luna.
@@ -81,7 +83,7 @@ pub fn swap(
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
-    if info.sender != config.pools_contract {
+    if info.sender != config.staking_contract {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -129,7 +131,7 @@ pub fn transfer(
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
-    if info.sender != config.pools_contract {
+    if info.sender != config.staking_contract {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -183,7 +185,7 @@ pub fn update_config(
     }
 
     if pools_contract.is_some() {
-        config.pools_contract = deps.api.addr_validate(pools_contract.unwrap().as_str())?;
+        config.staking_contract = deps.api.addr_validate(pools_contract.unwrap().as_str())?;
     }
 
     CONFIG.save(deps.storage, &config)?;
@@ -194,10 +196,24 @@ pub fn update_config(
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => to_binary(&query_config(deps)?),
+        QueryMsg::SwappedAmount {} => to_binary(&query_swapped_amount(deps, _env)?),
     }
 }
 
 pub fn query_config(deps: Deps) -> StdResult<GetConfigResponse> {
     let config: Config = CONFIG.load(deps.storage)?;
     Ok(GetConfigResponse { config })
+}
+
+pub fn query_swapped_amount(deps: Deps, env: Env) -> StdResult<SwappedAmountResponse> {
+    let config: Config = CONFIG.load(deps.storage)?;
+    let reward_denom = config.reward_denom;
+
+    let swapped_amount = deps
+        .querier
+        .query_balance(env.contract.address.to_string(), reward_denom)?;
+
+    Ok(SwappedAmountResponse {
+        amount: swapped_amount.amount,
+    })
 }
