@@ -175,8 +175,8 @@ pub fn remove_validator(
         return Err(ContractError::Unauthorized {});
     }
 
-    let removed_val = deps.api.addr_validate(removed_val.as_str())?;
-    let redelegate_val = deps.api.addr_validate(redelegate_val.as_str())?;
+    let removed_val = Addr::unchecked(removed_val);
+    let redelegate_val = Addr::unchecked(redelegate_val);
 
     if !state.validator_pool.contains(&removed_val) {
         return Err(ContractError::ValidatorNotInPool {});
@@ -243,8 +243,8 @@ pub fn replace_validator(
         return Err(ContractError::Unauthorized {});
     }
 
-    let src_validator = deps.api.addr_validate(src_validator.as_str())?;
-    let dst_validator = deps.api.addr_validate(dst_validator.as_str())?;
+    let src_validator = Addr::unchecked(src_validator);
+    let dst_validator = Addr::unchecked(dst_validator);
 
     if src_validator.eq(&dst_validator) {
         return Ok(Response::default());
@@ -307,7 +307,7 @@ pub fn add_validator(
         return Err(ContractError::Unauthorized {});
     }
 
-    let validator = deps.api.addr_validate(validator.as_str())?;
+    let validator = Addr::unchecked(validator);
     // check if validator is already in the pool
     if state.validator_pool.contains(&validator) {
         return Err(ContractError::ValidatorAlreadyExistsInPool {});

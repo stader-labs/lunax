@@ -2865,7 +2865,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(res.messages.len(), 2);
-        assert_eq!(
+        assert!(check_equal_vec(
             res.messages,
             vec![
                 SubMsg::new(DistributionMsg::WithdrawDelegatorReward {
@@ -2875,6 +2875,6 @@ mod tests {
                     validator: "valid0002".to_string(),
                 })
             ]
-        );
+        ));
     }
 }
