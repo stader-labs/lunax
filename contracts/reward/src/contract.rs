@@ -28,7 +28,7 @@ pub fn instantiate(
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let config = Config {
         manager: info.sender,
-        reward_denom: msg.reward_denom,
+        reward_denom: "uluna".to_string(),
         staking_contract: deps.api.addr_validate(msg.staking_contract.as_str())?,
     };
     CONFIG.save(deps.storage, &config)?;

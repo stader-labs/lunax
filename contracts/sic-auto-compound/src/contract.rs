@@ -38,7 +38,7 @@ pub fn instantiate(
             .addr_validate(msg.reward_contract_address.as_str())?,
         manager_seed_funds: msg.manager_seed_funds,
         min_validator_pool_size: msg.min_validator_pool_size.unwrap_or(3),
-        strategy_denom: msg.strategy_denom.clone(),
+        strategy_denom: "uluna".to_string(),
         contract_genesis_block_height: _env.block.height,
         contract_genesis_timestamp: _env.block.time,
         validator_pool: msg.initial_validators,

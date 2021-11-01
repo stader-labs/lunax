@@ -28,7 +28,7 @@ pub fn instantiate(
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let config = Config {
         manager: info.sender,
-        vault_denom: msg.vault_denom,
+        vault_denom: "uluna".to_string(),
         pools_contract: msg.pools_contract,
         delegator_contract: msg.delegator_contract,
         airdrop_withdraw_contract: msg.airdrop_withdraw_contract,

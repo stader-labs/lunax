@@ -56,22 +56,22 @@ mod tests {
             FullDelegation {
                 delegator: Addr::unchecked(MOCK_CONTRACT_ADDR),
                 validator: "valid0001".to_string(),
-                amount: Coin::new(1000, "utest"),
-                can_redelegate: Coin::new(1000, "utest"),
-                accumulated_rewards: vec![Coin::new(20, "utest"), Coin::new(30, "urew1")],
+                amount: Coin::new(1000, "uluna"),
+                can_redelegate: Coin::new(1000, "uluna"),
+                accumulated_rewards: vec![Coin::new(20, "uluna"), Coin::new(30, "urew1")],
             },
             FullDelegation {
                 delegator: Addr::unchecked(MOCK_CONTRACT_ADDR),
                 validator: "valid0002".to_string(),
-                amount: Coin::new(1000, "utest"),
-                can_redelegate: Coin::new(0, "utest"),
-                accumulated_rewards: vec![Coin::new(40, "utest"), Coin::new(60, "urew1")],
+                amount: Coin::new(1000, "uluna"),
+                can_redelegate: Coin::new(0, "uluna"),
+                accumulated_rewards: vec![Coin::new(40, "uluna"), Coin::new(60, "urew1")],
             },
             FullDelegation {
                 delegator: Addr::unchecked(MOCK_CONTRACT_ADDR),
                 validator: "valid0003".to_string(),
-                amount: Coin::new(0, "utest"),
-                can_redelegate: Coin::new(0, "utest"),
+                amount: Coin::new(0, "uluna"),
+                can_redelegate: Coin::new(0, "uluna"),
                 accumulated_rewards: vec![],
             },
         ]
@@ -84,7 +84,6 @@ mod tests {
         vault_denom: Option<String>,
     ) -> Response<TerraMsgWrapper> {
         let instantiate_msg = InstantiateMsg {
-            vault_denom: vault_denom.unwrap_or_else(|| "utest".to_string()),
             delegator_contract: Addr::unchecked("delegator_addr").to_string(),
             scc_contract: Addr::unchecked("scc_addr").to_string(),
             unbonding_period: None,
@@ -101,7 +100,6 @@ mod tests {
         let mut deps = mock_dependencies(&[]);
 
         let msg = InstantiateMsg {
-            vault_denom: "utest".to_string(),
             delegator_contract: Addr::unchecked("delegator_addr").to_string(),
             scc_contract: Addr::unchecked("scc_addr").to_string(),
             unbonding_period: None,
@@ -111,7 +109,7 @@ mod tests {
         };
         let expected_config = Config {
             manager: Addr::unchecked("creator"),
-            vault_denom: "utest".to_string(),
+            vault_denom: "uluna".to_string(),
             delegator_contract: Addr::unchecked("delegator_addr"),
             scc_contract: Addr::unchecked("scc_addr"),
             unbonding_period: 3600 * 24 * 21,
@@ -233,7 +231,7 @@ mod tests {
         let err = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info("creator", &[Coin::new(100, "utest")]),
+            mock_info("creator", &[Coin::new(100, "uluna")]),
             ExecuteMsg::AddPool {
                 name: "Community Validator".to_string(),
                 validator_contract: "pool0_val_addr".to_string(),
@@ -248,7 +246,7 @@ mod tests {
         let err = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info("creator", &[Coin::new(100, "utest")]),
+            mock_info("creator", &[Coin::new(100, "uluna")]),
             ExecuteMsg::AddPool {
                 name: "Community Validator".to_string(),
                 validator_contract: "new_pool0_val_addr".to_string(),
@@ -492,14 +490,14 @@ mod tests {
             FullDelegation {
                 delegator: Addr::unchecked("pool_12_validator_addr"),
                 validator: "valid0001".to_string(),
-                amount: Coin::new(1000, "utest"),
+                amount: Coin::new(1000, "uluna"),
                 can_redelegate: Default::default(),
                 accumulated_rewards: vec![],
             },
             FullDelegation {
                 delegator: Addr::unchecked("pool_12_validator_addr"),
                 validator: "valid0002".to_string(),
-                amount: Coin::new(800, "utest"),
+                amount: Coin::new(800, "uluna"),
                 can_redelegate: Default::default(),
                 accumulated_rewards: vec![],
             },
@@ -787,14 +785,14 @@ mod tests {
             FullDelegation {
                 delegator: Addr::unchecked("pool_12_validator_addr"),
                 validator: "valid0001".to_string(),
-                amount: Coin::new(1000, "utest"),
+                amount: Coin::new(1000, "uluna"),
                 can_redelegate: Default::default(),
                 accumulated_rewards: vec![],
             },
             FullDelegation {
                 delegator: Addr::unchecked("pool_12_validator_addr"),
                 validator: "valid0002".to_string(),
-                amount: Coin::new(800, "utest"),
+                amount: Coin::new(800, "uluna"),
                 can_redelegate: Default::default(),
                 accumulated_rewards: vec![],
             },
@@ -1025,7 +1023,7 @@ mod tests {
             env.clone(),
             mock_info(
                 &user1.clone().to_string(),
-                &[Coin::new(1_000_000_000_001, "utest")],
+                &[Coin::new(1_000_000_000_001, "uluna")],
             ),
             ExecuteMsg::Deposit { pool_id: 12 },
         )
@@ -1035,7 +1033,7 @@ mod tests {
         let err = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info(&user1.clone().to_string(), &[Coin::new(1, "utest")]),
+            mock_info(&user1.clone().to_string(), &[Coin::new(1, "uluna")]),
             ExecuteMsg::Deposit { pool_id: 12 },
         )
         .unwrap_err();
@@ -1044,7 +1042,7 @@ mod tests {
         let err = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info(&user1.clone().to_string(), &[Coin::new(3000, "utest")]),
+            mock_info(&user1.clone().to_string(), &[Coin::new(3000, "uluna")]),
             ExecuteMsg::Deposit { pool_id: 12 },
         )
         .unwrap_err();
@@ -1094,7 +1092,7 @@ mod tests {
         let err = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info(&user1.clone().to_string(), &[Coin::new(3000, "utest")]),
+            mock_info(&user1.clone().to_string(), &[Coin::new(3000, "uluna")]),
             ExecuteMsg::Deposit { pool_id: 12 },
         )
         .unwrap_err();
@@ -1168,21 +1166,21 @@ mod tests {
             FullDelegation {
                 delegator: Addr::unchecked("pool_12_validator_addr"), // Validator contract
                 validator: "valid0001".to_string(),
-                amount: Coin::new(200, "utest"),
+                amount: Coin::new(200, "uluna"),
                 can_redelegate: Default::default(),
                 accumulated_rewards: vec![],
             },
             FullDelegation {
                 delegator: Addr::unchecked("pool_12_validator_addr"), // Validator contract
                 validator: "valid0002".to_string(),
-                amount: Coin::new(100, "utest"),
+                amount: Coin::new(100, "uluna"),
                 can_redelegate: Default::default(),
                 accumulated_rewards: vec![],
             },
             FullDelegation {
                 delegator: Addr::unchecked("pool_12_validator_addr"), // Validator contract
                 validator: "valid0003".to_string(),
-                amount: Coin::new(150, "utest"),
+                amount: Coin::new(150, "uluna"),
                 can_redelegate: Default::default(),
                 accumulated_rewards: vec![],
             },
@@ -1201,7 +1199,7 @@ mod tests {
         let res = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info(&user1.clone().to_string(), &[Coin::new(3000, "utest")]),
+            mock_info(&user1.clone().to_string(), &[Coin::new(3000, "uluna")]),
             ExecuteMsg::Deposit { pool_id: 12 },
         )
         .unwrap();
@@ -1230,7 +1228,7 @@ mod tests {
                     val_addr: valid4.clone(),
                 })
                 .unwrap(),
-                funds: vec![Coin::new(3000, "utest")]
+                funds: vec![Coin::new(3000, "uluna")]
             })
         );
 
@@ -1253,21 +1251,21 @@ mod tests {
             FullDelegation {
                 delegator: Addr::unchecked("pool_12_validator_addr"), // Validator contract
                 validator: "valid0001".to_string(),
-                amount: Coin::new(200, "utest"),
+                amount: Coin::new(200, "uluna"),
                 can_redelegate: Default::default(),
                 accumulated_rewards: vec![],
             },
             FullDelegation {
                 delegator: Addr::unchecked("pool_12_validator_addr"), // Validator contract
                 validator: "valid0002".to_string(),
-                amount: Coin::new(250, "utest"),
+                amount: Coin::new(250, "uluna"),
                 can_redelegate: Default::default(),
                 accumulated_rewards: vec![],
             },
             FullDelegation {
                 delegator: Addr::unchecked("pool_12_validator_addr"),
                 validator: valid4.to_string(),
-                amount: Coin::new(3000, "utest"),
+                amount: Coin::new(3000, "uluna"),
                 can_redelegate: Default::default(),
                 accumulated_rewards: vec![],
             },
@@ -1278,7 +1276,7 @@ mod tests {
         let res = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info(&user1.clone().to_string(), &[Coin::new(1000, "utest")]),
+            mock_info(&user1.clone().to_string(), &[Coin::new(1000, "uluna")]),
             ExecuteMsg::Deposit { pool_id: 12 },
         )
         .unwrap();
@@ -1307,7 +1305,7 @@ mod tests {
                     val_addr: valid3.clone(),
                 })
                 .unwrap(),
-                funds: vec![Coin::new(1000, "utest")]
+                funds: vec![Coin::new(1000, "uluna")]
             })
         );
 
@@ -1329,28 +1327,28 @@ mod tests {
             FullDelegation {
                 delegator: Addr::unchecked("pool_12_validator_addr"), // Validator contract
                 validator: "valid0001".to_string(),
-                amount: Coin::new(500, "utest"),
+                amount: Coin::new(500, "uluna"),
                 can_redelegate: Default::default(),
                 accumulated_rewards: vec![],
             },
             FullDelegation {
                 delegator: Addr::unchecked("pool_12_validator_addr"), // Validator contract
                 validator: "valid0002".to_string(),
-                amount: Coin::new(500, "utest"),
+                amount: Coin::new(500, "uluna"),
                 can_redelegate: Default::default(),
                 accumulated_rewards: vec![],
             },
             FullDelegation {
                 delegator: Addr::unchecked("pool_12_validator_addr"),
                 validator: valid3.to_string(),
-                amount: Coin::new(500, "utest"),
+                amount: Coin::new(500, "uluna"),
                 can_redelegate: Default::default(),
                 accumulated_rewards: vec![],
             },
             FullDelegation {
                 delegator: Addr::unchecked("pool_12_validator_addr"),
                 validator: valid4.to_string(),
-                amount: Coin::new(2950, "utest"),
+                amount: Coin::new(2950, "uluna"),
                 can_redelegate: Default::default(),
                 accumulated_rewards: vec![],
             },
@@ -1361,7 +1359,7 @@ mod tests {
         let res = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info(&user1.clone().to_string(), &[Coin::new(5000, "utest")]),
+            mock_info(&user1.clone().to_string(), &[Coin::new(5000, "uluna")]),
             ExecuteMsg::Deposit { pool_id: 12 },
         )
         .unwrap();
@@ -1390,7 +1388,7 @@ mod tests {
                     val_addr: valid1.clone(),
                 })
                 .unwrap(),
-                funds: vec![Coin::new(5000, "utest")]
+                funds: vec![Coin::new(5000, "uluna")]
             })
         );
 
@@ -1611,7 +1609,7 @@ mod tests {
 
         deps.querier.update_balance(
             Addr::unchecked("pool_12_reward_addr"),
-            vec![Coin::new(1234, "utest")],
+            vec![Coin::new(1234, "uluna")],
         );
         let res = execute(
             deps.as_mut(),
@@ -1651,21 +1649,21 @@ mod tests {
             FullDelegation {
                 delegator: Addr::unchecked("pool_12_validator_addr"), // Validator contract
                 validator: "valid0001".to_string(),
-                amount: Coin::new(150, "utest"),
+                amount: Coin::new(150, "uluna"),
                 can_redelegate: Default::default(),
                 accumulated_rewards: vec![],
             },
             FullDelegation {
                 delegator: Addr::unchecked("pool_12_validator_addr"), // Validator contract
                 validator: "valid0002".to_string(),
-                amount: Coin::new(150, "utest"),
+                amount: Coin::new(150, "uluna"),
                 can_redelegate: Default::default(),
                 accumulated_rewards: vec![],
             },
             FullDelegation {
                 delegator: Addr::unchecked("pool_12_validator_addr"),
                 validator: valid3.to_string(),
-                amount: Coin::new(105, "utest"),
+                amount: Coin::new(105, "uluna"),
                 can_redelegate: Default::default(),
                 accumulated_rewards: vec![],
             },
@@ -1806,21 +1804,21 @@ mod tests {
             FullDelegation {
                 delegator: Addr::unchecked("pool_12_validator_addr"), // Validator contract
                 validator: "valid0001".to_string(),
-                amount: Coin::new(1000, "utest"),
+                amount: Coin::new(1000, "uluna"),
                 can_redelegate: Default::default(),
                 accumulated_rewards: vec![],
             },
             FullDelegation {
                 delegator: Addr::unchecked("pool_12_validator_addr"), // Validator contract
                 validator: "valid0002".to_string(),
-                amount: Coin::new(1000, "utest"),
+                amount: Coin::new(1000, "uluna"),
                 can_redelegate: Default::default(),
                 accumulated_rewards: vec![],
             },
             FullDelegation {
                 delegator: Addr::unchecked("pool_12_validator_addr"),
                 validator: valid3.to_string(),
-                amount: Coin::new(0, "utest"),
+                amount: Coin::new(0, "uluna"),
                 can_redelegate: Default::default(),
                 accumulated_rewards: vec![],
             },
@@ -1997,14 +1995,14 @@ mod tests {
             FullDelegation {
                 delegator: Addr::unchecked("pool_12_validator_addr"), // Validator contract
                 validator: "valid0001".to_string(),
-                amount: Coin::new(1000, "utest"),
+                amount: Coin::new(1000, "uluna"),
                 can_redelegate: Default::default(),
                 accumulated_rewards: vec![],
             },
             FullDelegation {
                 delegator: Addr::unchecked("pool_12_validator_addr"), // Validator contract
                 validator: "valid0002".to_string(),
-                amount: Coin::new(960, "utest"),
+                amount: Coin::new(960, "uluna"),
                 can_redelegate: Default::default(),
                 accumulated_rewards: vec![],
             },
@@ -2083,7 +2081,6 @@ mod tests {
             .update_staking("test", &*get_validators(), &*get_delegations());
 
         let instantiate_msg = InstantiateMsg {
-            vault_denom: "utest".to_string(),
             delegator_contract: Addr::unchecked("delegator_addr").to_string(),
             scc_contract: Addr::unchecked("scc_addr").to_string(),
             unbonding_period: None,
@@ -2255,7 +2252,6 @@ mod tests {
             .update_staking("test", &*get_validators(), &*get_delegations());
 
         let instantiate_msg = InstantiateMsg {
-            vault_denom: "utest".to_string(),
             delegator_contract: Addr::unchecked("delegator_addr").to_string(),
             scc_contract: Addr::unchecked("scc_addr").to_string(),
             unbonding_period: None,
@@ -2269,7 +2265,7 @@ mod tests {
         let err = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info("any", &[Coin::new(228, "utest")]),
+            mock_info("any", &[Coin::new(228, "uluna")]),
             ExecuteMsg::WithdrawFundsToWallet {
                 pool_id: 12,
                 batch_id: 9,
@@ -2398,7 +2394,7 @@ mod tests {
         let err = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info("any", &[Coin::new(228, "utest")]),
+            mock_info("any", &[Coin::new(228, "uluna")]),
             execute_msg.clone(),
         )
         .unwrap_err();
@@ -2671,7 +2667,7 @@ mod tests {
         let err = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info("creator", &[Coin::new(14, "utest")]),
+            mock_info("creator", &[Coin::new(14, "uluna")]),
             initial_msg.clone(),
         )
         .unwrap_err();
@@ -2798,7 +2794,7 @@ mod tests {
         let err = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info("creator", &[Coin::new(14, "utest")]),
+            mock_info("creator", &[Coin::new(14, "uluna")]),
             initial_msg.clone(),
         )
         .unwrap_err();
@@ -2806,7 +2802,7 @@ mod tests {
 
         let mut expected_config = Config {
             manager: Addr::unchecked("creator"),
-            vault_denom: "utest".to_string(),
+            vault_denom: "uluna".to_string(),
             delegator_contract: Addr::unchecked("delegator_addr"),
             scc_contract: Addr::unchecked("scc_addr"),
             unbonding_period: 1814400,
@@ -2830,7 +2826,7 @@ mod tests {
 
         expected_config = Config {
             manager: Addr::unchecked("creator"),
-            vault_denom: "utest".to_string(),
+            vault_denom: "uluna".to_string(),
             delegator_contract: Addr::unchecked("new_delegator_addr"),
             scc_contract: Addr::unchecked("new_scc_addr"),
             unbonding_period: 1814401,
@@ -2870,7 +2866,7 @@ mod tests {
         instantiate_contract(&mut deps, &info, &env, None);
         let other_info = mock_info(
             &Addr::unchecked("other").to_string(),
-            &[Coin::new(1200, "utest")],
+            &[Coin::new(1200, "uluna")],
         );
         let denom = "abc".to_string();
         let airdrop_contract = Addr::unchecked("def".to_string());
@@ -2931,21 +2927,21 @@ mod tests {
             FullDelegation {
                 delegator: Addr::unchecked("pool_12_validator_addr"), // Validator contract
                 validator: "valid0001".to_string(),
-                amount: Coin::new(150, "utest"),
+                amount: Coin::new(150, "uluna"),
                 can_redelegate: Default::default(),
                 accumulated_rewards: vec![],
             },
             FullDelegation {
                 delegator: Addr::unchecked("pool_12_validator_addr"), // Validator contract
                 validator: "valid0002".to_string(),
-                amount: Coin::new(60, "utest"),
+                amount: Coin::new(60, "uluna"),
                 can_redelegate: Default::default(),
                 accumulated_rewards: vec![],
             },
             FullDelegation {
                 delegator: Addr::unchecked("pool_12_validator_addr"), // Validator contract
                 validator: "valid0003".to_string(),
-                amount: Coin::new(33, "utest"),
+                amount: Coin::new(33, "uluna"),
                 can_redelegate: Default::default(),
                 accumulated_rewards: vec![],
             },

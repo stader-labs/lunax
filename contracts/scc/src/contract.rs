@@ -53,7 +53,7 @@ pub fn instantiate(
     let state = State {
         manager: info.sender.clone(),
         delegator_contract: deps.api.addr_validate(msg.delegator_contract.as_str())?,
-        scc_denom: msg.strategy_denom,
+        scc_denom: "uluna".to_string(),
         contract_genesis_block_height: _env.block.height,
         contract_genesis_timestamp: _env.block.time,
         next_undelegation_id: 0,

@@ -44,22 +44,22 @@ mod tests {
             FullDelegation {
                 delegator: Addr::unchecked(MOCK_CONTRACT_ADDR),
                 validator: "valid0001".to_string(),
-                amount: Coin::new(1000, "utest"),
-                can_redelegate: Coin::new(1000, "utest"),
-                accumulated_rewards: vec![Coin::new(20, "utest"), Coin::new(30, "urew1")],
+                amount: Coin::new(1000, "uluna"),
+                can_redelegate: Coin::new(1000, "uluna"),
+                accumulated_rewards: vec![Coin::new(20, "uluna"), Coin::new(30, "urew1")],
             },
             FullDelegation {
                 delegator: Addr::unchecked(MOCK_CONTRACT_ADDR),
                 validator: "valid0002".to_string(),
-                amount: Coin::new(1000, "utest"),
-                can_redelegate: Coin::new(0, "utest"),
-                accumulated_rewards: vec![Coin::new(40, "utest"), Coin::new(60, "urew1")],
+                amount: Coin::new(1000, "uluna"),
+                can_redelegate: Coin::new(0, "uluna"),
+                accumulated_rewards: vec![Coin::new(40, "uluna"), Coin::new(60, "urew1")],
             },
             FullDelegation {
                 delegator: Addr::unchecked(MOCK_CONTRACT_ADDR),
                 validator: "valid0003".to_string(),
-                amount: Coin::new(0, "utest"),
-                can_redelegate: Coin::new(0, "utest"),
+                amount: Coin::new(0, "uluna"),
+                can_redelegate: Coin::new(0, "uluna"),
                 accumulated_rewards: vec![],
             },
         ]
@@ -72,7 +72,6 @@ mod tests {
         vault_denom: Option<String>,
     ) -> Response<TerraMsgWrapper> {
         let instantiate_msg = InstantiateMsg {
-            vault_denom: vault_denom.unwrap_or_else(|| "utest".to_string()),
             pools_contract: Addr::unchecked("pools_addr"),
             scc_contract: Addr::unchecked("scc_addr"),
             delegator_contract: Addr::unchecked("delegator_addr"),
@@ -87,7 +86,6 @@ mod tests {
         let mut deps = mock_dependencies(&[]);
 
         let msg = InstantiateMsg {
-            vault_denom: "utest".to_string(),
             pools_contract: Addr::unchecked("pools_address"),
             scc_contract: Addr::unchecked("scc_addr"),
             delegator_contract: Addr::unchecked("delegator_addr"),
@@ -95,7 +93,7 @@ mod tests {
         };
         let expected_config = Config {
             manager: Addr::unchecked("creator"),
-            vault_denom: "utest".to_string(),
+            vault_denom: "uluna".to_string(),
             pools_contract: Addr::unchecked("pools_address"),
             delegator_contract: Addr::unchecked("delegator_addr"),
             airdrop_withdraw_contract: Addr::unchecked("airdrop_withdraw_addr"),
@@ -242,14 +240,14 @@ mod tests {
         .unwrap_err();
         assert!(matches!(err, ContractError::Unauthorized {}));
 
-        let pools_info = mock_info(&pools_addr.to_string(), &[Coin::new(1200, "utest")]);
+        let pools_info = mock_info(&pools_addr.to_string(), &[Coin::new(1200, "uluna")]);
 
         let err = execute(
             deps.as_mut(),
             env.clone(),
             mock_info(
                 &pools_addr.to_string(),
-                &[Coin::new(1200, "utest"), Coin::new(1000, "othercoin")],
+                &[Coin::new(1200, "uluna"), Coin::new(1000, "othercoin")],
             ),
             ExecuteMsg::Stake {
                 val_addr: valid1.clone(),
@@ -288,7 +286,7 @@ mod tests {
             res.messages[0],
             SubMsg::new(StakingMsg::Delegate {
                 validator: valid1.to_string(),
-                amount: Coin::new(1200, "utest")
+                amount: Coin::new(1200, "uluna")
             })
         );
 
@@ -344,7 +342,7 @@ mod tests {
             .unwrap()
             .is_none());
 
-        let pools_info = mock_info(&pools_addr.to_string(), &[Coin::new(1200, "utest")]);
+        let pools_info = mock_info(&pools_addr.to_string(), &[Coin::new(1200, "uluna")]);
         let res = execute(
             deps.as_mut(),
             env.clone(),
@@ -431,7 +429,7 @@ mod tests {
             .may_load(deps.as_mut().storage, &valid2)
             .unwrap()
             .is_none());
-        let pools_info = mock_info(&pools_addr.to_string(), &[Coin::new(1200, "utest")]);
+        let pools_info = mock_info(&pools_addr.to_string(), &[Coin::new(1200, "uluna")]);
         let err = execute(
             deps.as_mut(),
             env.clone(),
@@ -509,7 +507,7 @@ mod tests {
             SubMsg::new(StakingMsg::Redelegate {
                 src_validator: valid1.to_string(),
                 dst_validator: valid2.to_string(),
-                amount: Coin::new(15, "utest")
+                amount: Coin::new(15, "uluna")
             })
         );
     }
@@ -602,7 +600,7 @@ mod tests {
             res.messages[0],
             SubMsg::new(StakingMsg::Undelegate {
                 validator: valid1.to_string(),
-                amount: Coin::new(15, "utest")
+                amount: Coin::new(15, "uluna")
             })
         );
     }
@@ -798,7 +796,7 @@ mod tests {
             SubMsg::new(StakingMsg::Redelegate {
                 src_validator: valid1.to_string(),
                 dst_validator: valid2.to_string(),
-                amount: Coin::new(1000, "utest")
+                amount: Coin::new(1000, "uluna")
             })
         );
 
@@ -832,7 +830,7 @@ mod tests {
 
         let pools_info = mock_info(&Addr::unchecked("pools_addr").to_string(), &[]);
         deps.querier
-            .update_balance(env.contract.address.clone(), vec![Coin::new(4356, "utest")]);
+            .update_balance(env.contract.address.clone(), vec![Coin::new(4356, "uluna")]);
 
         let res = execute(
             deps.as_mut(),
@@ -848,13 +846,13 @@ mod tests {
             res.messages[0],
             SubMsg::new(BankMsg::Send {
                 to_address: Addr::unchecked("delegator_addr").to_string(),
-                amount: vec![Coin::new(400, "utest")]
+                amount: vec![Coin::new(400, "uluna")]
             })
         );
 
-        // Remove 400 utest as simulation from previous iteration withdraw
+        // Remove 400 uluna as simulation from previous iteration withdraw
         deps.querier
-            .update_balance(env.contract.address.clone(), vec![Coin::new(3956, "utest")]);
+            .update_balance(env.contract.address.clone(), vec![Coin::new(3956, "uluna")]);
 
         // Use slashing funds as well.
         let res = execute(
@@ -871,7 +869,7 @@ mod tests {
             res.messages[0],
             SubMsg::new(BankMsg::Send {
                 to_address: Addr::unchecked("delegator_addr").to_string(),
-                amount: vec![Coin::new(3000, "utest")]
+                amount: vec![Coin::new(3000, "uluna")]
             })
         );
     }
@@ -900,7 +898,7 @@ mod tests {
         let err = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info("creator", &[Coin::new(14, "utest")]),
+            mock_info("creator", &[Coin::new(14, "uluna")]),
             initial_msg.clone(),
         )
         .unwrap_err();
@@ -908,7 +906,7 @@ mod tests {
 
         let mut expected_config = Config {
             manager: Addr::unchecked("creator"),
-            vault_denom: "utest".to_string(),
+            vault_denom: "uluna".to_string(),
             pools_contract: Addr::unchecked("pools_addr"),
             delegator_contract: Addr::unchecked("delegator_addr"),
             airdrop_withdraw_contract: Addr::unchecked("airdrop_withdraw_addr"),
@@ -929,7 +927,7 @@ mod tests {
 
         expected_config = Config {
             manager: Addr::unchecked("creator"),
-            vault_denom: "utest".to_string(),
+            vault_denom: "uluna".to_string(),
             pools_contract: Addr::unchecked("new_pools_addr"),
             delegator_contract: Addr::unchecked("new_delegator_addr"),
             airdrop_withdraw_contract: Addr::unchecked("new_airdrop_withdraw_addr"),

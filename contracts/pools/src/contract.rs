@@ -40,7 +40,7 @@ pub fn instantiate(
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let config = Config {
         manager: info.sender.clone(),
-        vault_denom: msg.vault_denom,
+        vault_denom: "uluna".to_string(),
         delegator_contract: deps.api.addr_validate(msg.delegator_contract.as_str())?,
         scc_contract: deps.api.addr_validate(msg.scc_contract.as_str())?,
         unbonding_period: msg.unbonding_period.unwrap_or(21 * 24 * 3600),
@@ -132,34 +132,7 @@ pub fn execute(
             pool_id,
             pool_config_update_request,
         } => update_pool_metadata(deps, info, env, pool_id, pool_config_update_request),
-        ExecuteMsg::SimulateSlashing {
-            pool_id,
-            val_addr,
-            amount,
-        } => simulate_slashing(deps, info, env, pool_id, val_addr, amount),
     }
-}
-
-pub fn simulate_slashing(
-    deps: DepsMut,
-    info: MessageInfo,
-    env: Env,
-    pool_id: u64,
-    val_addr: Addr,
-    amount: Uint128,
-) -> Result<Response<TerraMsgWrapper>, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
-    validate(&config, &info, &env, vec![Verify::SenderManager])?;
-
-    let undel_msg = ValidatorExecuteMsg::Undelegate { val_addr, amount };
-
-    let pool_meta = get_verified_pool(deps.storage, pool_id, false)?;
-
-    Ok(Response::new().add_message(WasmMsg::Execute {
-        contract_addr: pool_meta.validator_contract.to_string(),
-        msg: to_binary(&undel_msg)?,
-        funds: vec![],
-    }))
 }
 
 // Expects to receive instantiated validator and reward contract for each pool.
@@ -806,9 +779,11 @@ pub fn reconcile_funds(
     let mut pool_meta = get_verified_pool(deps.storage, pool_id, false)?;
     let mut total_amount = Uint128::zero();
     let mut last_reconciled_id = pool_meta.last_reconciled_batch_id;
-    for batch_id in
-        pool_meta.last_reconciled_batch_id + 1..pool_meta.current_undelegation_batch_id + 1
-    {
+    let upper_bound = std::cmp::min(
+        pool_meta.current_undelegation_batch_id + 1,
+        pool_meta.last_reconciled_batch_id + 1 + 10,
+    );
+    for batch_id in pool_meta.last_reconciled_batch_id + 1..upper_bound {
         let key = (U64Key::new(pool_id), U64Key::new(batch_id));
         let batch_meta = BATCH_UNDELEGATION_REGISTRY.load(deps.storage, key.clone())?;
         if batch_meta.est_release_time.is_none()
@@ -840,9 +815,7 @@ pub fn reconcile_funds(
         Decimal::one()
     };
 
-    for batch_id in
-        pool_meta.last_reconciled_batch_id + 1..pool_meta.current_undelegation_batch_id + 1
-    {
+    for batch_id in pool_meta.last_reconciled_batch_id + 1..upper_bound {
         let key = (U64Key::new(pool_id), U64Key::new(batch_id));
         let mut batch_meta = BATCH_UNDELEGATION_REGISTRY.load(deps.storage, key.clone())?;
         if batch_meta.est_release_time.is_none()

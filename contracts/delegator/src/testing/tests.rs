@@ -24,7 +24,6 @@ mod tests {
         vault_denom: Option<String>,
     ) -> Response<TerraMsgWrapper> {
         let instantiate_msg = InstantiateMsg {
-            vault_denom: vault_denom.unwrap_or_else(|| "utest".to_string()),
             pools_contract: Addr::unchecked("pools_addr"),
             scc_contract: Addr::unchecked("scc_addr"),
             protocol_fee: Decimal::from_ratio(1_u128, 1000_u128), // 0.1%
@@ -39,7 +38,6 @@ mod tests {
         let mut deps = mock_dependencies(&[]);
 
         let msg = InstantiateMsg {
-            vault_denom: "utest".to_string(),
             pools_contract: Addr::unchecked("pools_address"),
             scc_contract: Addr::unchecked("scc_addr"),
             protocol_fee: Decimal::from_ratio(1_u128, 1000_u128), // 0.1%
@@ -47,7 +45,7 @@ mod tests {
         };
         let expected_config = Config {
             manager: Addr::unchecked("creator"),
-            vault_denom: "utest".to_string(),
+            vault_denom: "uluna".to_string(),
             pools_contract: Addr::unchecked("pools_address"),
             scc_contract: Addr::unchecked("scc_addr"),
             protocol_fee: Decimal::from_ratio(1_u128, 1000_u128),
@@ -99,7 +97,7 @@ mod tests {
         let err = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info("pools_addr", &[Coin::new(12, "utest")]),
+            mock_info("pools_addr", &[Coin::new(12, "uluna")]),
             initial_msg.clone(),
         )
         .unwrap_err();
@@ -249,7 +247,7 @@ mod tests {
         let err = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info("pools_addr", &[Coin::new(12, "utest")]),
+            mock_info("pools_addr", &[Coin::new(12, "uluna")]),
             initial_msg.clone(),
         )
         .unwrap_err();
@@ -396,7 +394,7 @@ mod tests {
         let err = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info("pools_addr", &[Coin::new(14, "utest")]),
+            mock_info("pools_addr", &[Coin::new(14, "uluna")]),
             initial_msg.clone(),
         )
         .unwrap_err();
@@ -489,7 +487,7 @@ mod tests {
             res.messages[0],
             SubMsg::new(BankMsg::Send {
                 to_address: user1.to_string(),
-                amount: vec![Coin::new(20, "utest")]
+                amount: vec![Coin::new(20, "uluna")]
             })
         );
         let user_info = USER_REGISTRY
@@ -520,14 +518,14 @@ mod tests {
             res.messages[0],
             SubMsg::new(BankMsg::Send {
                 to_address: "protocol_fee_addr".to_string(),
-                amount: vec![Coin::new(3, "utest")]
+                amount: vec![Coin::new(3, "uluna")]
             })
         );
         assert_eq!(
             res.messages[1],
             SubMsg::new(BankMsg::Send {
                 to_address: user1.to_string(),
-                amount: vec![Coin::new(2997, "utest")]
+                amount: vec![Coin::new(2997, "uluna")]
             })
         );
 
@@ -544,14 +542,14 @@ mod tests {
             res.messages[0],
             SubMsg::new(BankMsg::Send {
                 to_address: "protocol_fee_addr".to_string(),
-                amount: vec![Coin::new(1, "utest")]
+                amount: vec![Coin::new(1, "uluna")]
             })
         );
         assert_eq!(
             res.messages[1],
             SubMsg::new(BankMsg::Send {
                 to_address: user1.to_string(),
-                amount: vec![Coin::new(1619, "utest")]
+                amount: vec![Coin::new(1619, "uluna")]
             })
         );
     }
@@ -582,7 +580,7 @@ mod tests {
         let err = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info("creator", &[Coin::new(14, "utest")]),
+            mock_info("creator", &[Coin::new(14, "uluna")]),
             initial_msg.clone(),
         )
         .unwrap_err();
@@ -822,7 +820,7 @@ mod tests {
         let err = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info("creator", &[Coin::new(14, "utest")]),
+            mock_info("creator", &[Coin::new(14, "uluna")]),
             initial_msg.clone(),
         )
         .unwrap_err();
@@ -830,7 +828,7 @@ mod tests {
 
         let mut expected_config = Config {
             manager: Addr::unchecked("creator"),
-            vault_denom: "utest".to_string(),
+            vault_denom: "uluna".to_string(),
             pools_contract: Addr::unchecked("pools_addr"),
             scc_contract: Addr::unchecked("scc_addr"),
             protocol_fee: Decimal::from_ratio(1_u128, 1000_u128),
@@ -852,7 +850,7 @@ mod tests {
 
         expected_config = Config {
             manager: Addr::unchecked("creator"),
-            vault_denom: "utest".to_string(),
+            vault_denom: "uluna".to_string(),
             pools_contract: Addr::unchecked("new_pools_addr"),
             scc_contract: Addr::unchecked("new_scc_addr"),
             protocol_fee: Decimal::from_ratio(2_u128, 1000_u128),

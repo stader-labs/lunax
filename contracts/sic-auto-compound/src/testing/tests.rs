@@ -83,7 +83,6 @@ mod tests {
         let instantiate_msg = InstantiateMsg {
             scc_address: scc_address.to_string(),
             reward_contract_address: reward_contract_address.to_string(),
-            strategy_denom: strategy_denom.unwrap_or("uluna".to_string()),
             initial_validators: validators
                 .unwrap_or_else(|| vec![default_validator1, default_validator2]),
             min_validator_pool_size: Some(2),

@@ -42,7 +42,6 @@ mod tests {
         default_user_portfolio: Option<Vec<UserStrategyPortfolio>>,
     ) -> Response<Empty> {
         let msg = InstantiateMsg {
-            strategy_denom: strategy_denom.unwrap_or("uluna".to_string()),
             delegator_contract: delegator_contract.unwrap_or("delegator_contract".to_string()),
             default_user_portfolio,
             default_fallback_strategy: None,

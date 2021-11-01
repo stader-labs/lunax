@@ -8,7 +8,6 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
-    pub strategy_denom: String,
     pub delegator_contract: String,
 
     pub default_user_portfolio: Option<Vec<UserStrategyPortfolio>>,

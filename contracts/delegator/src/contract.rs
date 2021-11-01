@@ -32,7 +32,7 @@ pub fn instantiate(
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let config = Config {
         manager: info.sender.clone(),
-        vault_denom: msg.vault_denom,
+        vault_denom: "uluna".to_string(),
         pools_contract: msg.pools_contract,
         scc_contract: msg.scc_contract,
         protocol_fee: msg.protocol_fee,

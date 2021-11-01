@@ -10,8 +10,6 @@ pub struct MigrateMsg {}
 pub struct InstantiateMsg {
     pub scc_address: String,
     pub reward_contract_address: String,
-    // denomination of the staking coin
-    pub strategy_denom: String,
     // initial set of validators who make up the validator pool
     pub initial_validators: Vec<Addr>,
     // minimum number of validators in a pool

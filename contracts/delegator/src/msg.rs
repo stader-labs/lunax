@@ -6,7 +6,6 @@ use stader_utils::coin_utils::DecCoin;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
-    pub vault_denom: String,
     pub pools_contract: Addr,
     pub scc_contract: Addr,
     pub protocol_fee: Decimal,

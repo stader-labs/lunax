@@ -19,7 +19,6 @@ mod tests {
         vault_denom: Option<String>,
     ) -> Response<TerraMsgWrapper> {
         let instantiate_msg = InstantiateMsg {
-            reward_denom: vault_denom.unwrap_or_else(|| "utest".to_string()),
             staking_contract: "pools_addr".to_string(),
         };
 
@@ -31,12 +30,11 @@ mod tests {
         let mut deps = mock_dependencies(&[]);
 
         let msg = InstantiateMsg {
-            reward_denom: "utest".to_string(),
             staking_contract: "pools_addr".to_string(),
         };
         let expected_config = Config {
             manager: Addr::unchecked("creator"),
-            reward_denom: "utest".to_string(),
+            reward_denom: "uluna".to_string(),
             staking_contract: Addr::unchecked("pools_addr"),
         };
         let info = mock_info("creator", &[]);
@@ -74,7 +72,7 @@ mod tests {
         assert!(matches!(err, ContractError::Unauthorized {}));
 
         deps.querier
-            .update_balance(env.contract.address.clone(), vec![Coin::new(100, "utest")]);
+            .update_balance(env.contract.address.clone(), vec![Coin::new(100, "uluna")]);
         let err = execute(
             deps.as_mut(),
             env.clone(),
@@ -90,7 +88,7 @@ mod tests {
         assert!(matches!(err, ContractError::InSufficientFunds {}));
 
         deps.querier
-            .update_balance(env.contract.address.clone(), vec![Coin::new(2000, "utest")]);
+            .update_balance(env.contract.address.clone(), vec![Coin::new(2000, "uluna")]);
         let res = execute(
             deps.as_mut(),
             env.clone(),
@@ -122,14 +120,14 @@ mod tests {
             res.messages[0],
             SubMsg::new(BankMsg::Send {
                 to_address: reward_withdraw_contract.to_string(),
-                amount: vec![Coin::new(200, "utest")]
+                amount: vec![Coin::new(200, "uluna")]
             })
         );
         assert_eq!(
             res.messages[1],
             SubMsg::new(BankMsg::Send {
                 to_address: protocol_fee_contract.to_string(),
-                amount: vec![Coin::new(2, "utest")]
+                amount: vec![Coin::new(2, "uluna")]
             })
         );
     }
@@ -156,7 +154,7 @@ mod tests {
 
         let mut expected_config = Config {
             manager: Addr::unchecked("creator"),
-            reward_denom: "utest".to_string(),
+            reward_denom: "uluna".to_string(),
             staking_contract: Addr::unchecked("pools_addr"),
         };
         let config = CONFIG.load(deps.as_mut().storage).unwrap();
@@ -175,7 +173,7 @@ mod tests {
 
         expected_config = Config {
             manager: Addr::unchecked("creator"),
-            reward_denom: "utest".to_string(),
+            reward_denom: "uluna".to_string(),
             staking_contract: Addr::unchecked("new_pools_addr"),
         };
 

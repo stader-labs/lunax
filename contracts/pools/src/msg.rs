@@ -8,7 +8,6 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
-    pub vault_denom: String,
     pub delegator_contract: String,
     pub scc_contract: String,
     pub unbonding_period: Option<u64>,
@@ -83,11 +82,6 @@ pub enum ExecuteMsg {
     UpdatePoolMetadata {
         pool_id: u64,
         pool_config_update_request: PoolConfigUpdateRequest,
-    },
-    SimulateSlashing {
-        pool_id: u64,
-        val_addr: Addr,
-        amount: Uint128,
     },
 }
 
