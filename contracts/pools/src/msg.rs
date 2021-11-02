@@ -83,6 +83,11 @@ pub enum ExecuteMsg {
         pool_id: u64,
         pool_config_update_request: PoolConfigUpdateRequest,
     },
+    SimulateSlashing {
+        pool_id: u64,
+        val_addr: Addr,
+        amount: Uint128
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
