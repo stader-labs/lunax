@@ -1,6 +1,7 @@
 use crate::msg::{
-    ExecuteMsg, GetAirdropMetaResponse, InstantiateMsg, QueryBatchUndelegationResponse,
-    QueryConfigResponse, QueryMsg, QueryPoolResponse, QueryStateResponse,
+    ExecuteMsg, GetAirdropMetaResponse, GetValMetaResponse, InstantiateMsg,
+    QueryBatchUndelegationResponse, QueryConfigResponse, QueryMsg, QueryPoolResponse,
+    QueryStateResponse,
 };
 use crate::request_validation::{
     create_new_undelegation_batch, get_active_validators_sorted_by_stake,
@@ -19,7 +20,9 @@ use cosmwasm_std::{
     Response, StdResult, Uint128, WasmMsg, WasmQuery,
 };
 use cw_storage_plus::U64Key;
-use delegator::msg::ExecuteMsg as DelegatorMsg;
+use delegator::msg::QueryMsg as DelegatorQueryMsg;
+use delegator::msg::{ExecuteMsg as DelegatorExecuteMsg, UserPoolResponse};
+use delegator::state::PoolPointerInfo;
 use reward::msg::ExecuteMsg as RewardExecuteMsg;
 use stader_utils::coin_utils::{
     decimal_division_in_256, decimal_multiplication_in_256, decimal_summation_in_256,
@@ -135,8 +138,8 @@ pub fn execute(
         ExecuteMsg::SimulateSlashing {
             pool_id,
             val_addr,
-            amount
-        } => simulate_slashing(deps, info, env, pool_id, val_addr, amount)
+            amount,
+        } => simulate_slashing(deps, info, env, pool_id, val_addr, amount),
     }
 }
 
@@ -525,7 +528,7 @@ pub fn deposit_to_pool(
     let messages = vec![
         WasmMsg::Execute {
             contract_addr: config.delegator_contract.to_string(),
-            msg: to_binary(&DelegatorMsg::Deposit {
+            msg: to_binary(&DelegatorExecuteMsg::Deposit {
                 user_addr,
                 amount,
                 pool_id,
@@ -676,7 +679,7 @@ pub fn queue_user_undelegation(
     // Fire and forget will work here because if user transaction will fail then tx will fail this state change too.
     let message = WasmMsg::Execute {
         contract_addr: config.delegator_contract.to_string(),
-        msg: to_binary(&DelegatorMsg::Undelegate {
+        msg: to_binary(&DelegatorExecuteMsg::Undelegate {
             user_addr,
             batch_id: current_batch_id,
             from_pool: pool_id,
@@ -895,7 +898,7 @@ pub fn withdraw_funds_to_wallet(
 
     let msg = WasmMsg::Execute {
         contract_addr: config.delegator_contract.to_string(),
-        msg: to_binary(&DelegatorMsg::WithdrawFunds {
+        msg: to_binary(&DelegatorExecuteMsg::WithdrawFunds {
             user_addr,
             pool_id,
             undelegate_id,
@@ -1065,6 +1068,12 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::BatchUndelegation { pool_id, batch_id } => {
             to_binary(&query_batch_undelegate(deps, pool_id, batch_id)?)
         }
+        QueryMsg::GetUserComputedInfo { pool_id, user_addr } => {
+            to_binary(&query_user_computed_info(deps, user_addr, pool_id)?)
+        }
+        QueryMsg::GetValMeta { pool_id, val_addr } => {
+            to_binary(&query_val_meta(deps, pool_id, val_addr)?)
+        }
     }
 }
 
@@ -1097,5 +1106,40 @@ pub fn query_airdrop_meta(deps: Deps, token: String) -> StdResult<GetAirdropMeta
     let airdrop_meta_opt = AIRDROP_REGISTRY.may_load(deps.storage, token)?;
     Ok(GetAirdropMetaResponse {
         airdrop_meta: airdrop_meta_opt,
+    })
+}
+
+pub fn query_user_computed_info(
+    deps: Deps,
+    user_addr: Addr,
+    pool_id: u64,
+) -> StdResult<UserPoolResponse> {
+    let config: Config = CONFIG.load(deps.storage)?;
+    let pool_meta_opt = POOL_REGISTRY.may_load(deps.storage, U64Key::new(pool_id))?;
+    if pool_meta_opt.is_none() {
+        return Ok(UserPoolResponse { info: None });
+    }
+    let pool_meta = pool_meta_opt.unwrap();
+    let user_pool_response: UserPoolResponse =
+        deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: config.delegator_contract.to_string(),
+            msg: to_binary(&DelegatorQueryMsg::ComputeUserInfo {
+                user_addr,
+                pool_pointer_info: PoolPointerInfo {
+                    pool_id,
+                    airdrops_pointer: pool_meta.airdrops_pointer,
+                    rewards_pointer: pool_meta.rewards_pointer,
+                    slashing_pointer: pool_meta.slashing_pointer,
+                },
+            })?,
+        }))?;
+
+    return Ok(user_pool_response);
+}
+
+pub fn query_val_meta(deps: Deps, pool_id: u64, val_addr: Addr) -> StdResult<GetValMetaResponse> {
+    let val_meta_opt = VALIDATOR_META.may_load(deps.storage, (val_addr, U64Key::new(pool_id)))?;
+    Ok(GetValMetaResponse {
+        val_meta: val_meta_opt,
     })
 }

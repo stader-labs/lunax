@@ -1,6 +1,6 @@
 use crate::state::{
     AirdropRate, AirdropRegistryInfo, BatchUndelegationRecord, Config, ConfigUpdateRequest,
-    PoolConfigUpdateRequest, PoolRegistryInfo, State,
+    PoolConfigUpdateRequest, PoolRegistryInfo, State, VMeta,
 };
 use cosmwasm_std::{Addr, Decimal, Uint128};
 use schemars::JsonSchema;
@@ -86,8 +86,8 @@ pub enum ExecuteMsg {
     SimulateSlashing {
         pool_id: u64,
         val_addr: Addr,
-        amount: Uint128
-    }
+        amount: Uint128,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -98,6 +98,8 @@ pub enum QueryMsg {
     Pool { pool_id: u64 },
     // ValidatorInPool { val_addr: Addr, pool_id: u64 },
     BatchUndelegation { pool_id: u64, batch_id: u64 },
+    GetUserComputedInfo { pool_id: u64, user_addr: Addr },
+    GetValMeta { pool_id: u64, val_addr: Addr },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -122,4 +124,9 @@ pub struct QueryBatchUndelegationResponse {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct GetAirdropMetaResponse {
     pub airdrop_meta: Option<AirdropRegistryInfo>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct GetValMetaResponse {
+    pub val_meta: Option<VMeta>,
 }

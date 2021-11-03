@@ -8,7 +8,7 @@ use cosmwasm_std::{
 };
 use std::collections::HashMap;
 
-use delegator::msg::QueryMsg as DelegatorQueryMsg;
+use delegator::msg::{QueryMsg as DelegatorQueryMsg, UserPoolResponse};
 use stader_utils::coin_utils::{decimal_multiplication_in_256, u128_from_decimal};
 use terra_cosmwasm::{
     SwapResponse, TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute,
@@ -204,6 +204,11 @@ impl DelegatorWasmMockQuerier {
                 DelegatorQueryMsg::ComputeUndelegationAmounts { .. } => SystemResult::Ok(
                     ContractResult::from(to_binary(&(Uint128::new(100), Uint128::new(80)))),
                 ),
+                DelegatorQueryMsg::ComputeUserInfo { .. } => {
+                    SystemResult::Ok(ContractResult::from(to_binary(&UserPoolResponse {
+                        info: None,
+                    })))
+                }
             },
             _ => self.base.handle_query(request),
         }

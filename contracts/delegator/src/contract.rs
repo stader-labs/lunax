@@ -498,6 +498,14 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_binary(&query_user_pool(deps, user_addr, pool_id)?)
         }
         QueryMsg::User { user_addr } => to_binary(&query_user(deps.storage, user_addr)?),
+        QueryMsg::ComputeUserInfo {
+            user_addr,
+            pool_pointer_info,
+        } => to_binary(&query_compute_user_info(
+            deps,
+            user_addr,
+            pool_pointer_info,
+        )?),
         QueryMsg::ComputeUndelegationAmounts {
             user_addr,
             pool_id,
@@ -568,4 +576,28 @@ pub fn query_withdrawable_funds(
         return Err(StdError::generic_err("Undelegation record not found"));
     }
     Ok(x.unwrap())
+}
+
+pub fn query_compute_user_info(
+    deps: Deps,
+    user_addr: Addr,
+    pool_pointer_info: PoolPointerInfo,
+) -> StdResult<UserPoolResponse> {
+    let user_pool_opt = USER_REGISTRY.may_load(
+        deps.storage,
+        (&user_addr, U64Key::new(pool_pointer_info.pool_id)),
+    )?;
+    if user_pool_opt.is_none() {
+        return Ok(UserPoolResponse { info: None });
+    }
+    let mut user_pool_info = user_pool_opt.unwrap();
+    update_user_pointers(
+        &mut user_pool_info,
+        pool_pointer_info.airdrops_pointer,
+        pool_pointer_info.rewards_pointer,
+        pool_pointer_info.slashing_pointer,
+    );
+    Ok(UserPoolResponse {
+        info: Some(user_pool_info),
+    })
 }

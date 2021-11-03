@@ -63,6 +63,10 @@ pub enum QueryMsg {
         user_addr: Addr,
         pool_id: u64,
     },
+    ComputeUserInfo {
+        user_addr: Addr,
+        pool_pointer_info: PoolPointerInfo,
+    },
     ComputeUndelegationAmounts {
         user_addr: Addr,
         pool_id: u64,
