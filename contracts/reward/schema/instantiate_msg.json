@@ -3,14 +3,10 @@
   "title": "InstantiateMsg",
   "type": "object",
   "required": [
-    "pools_contract",
-    "reward_denom"
+    "staking_contract"
   ],
   "properties": {
-    "pools_contract": {
-      "type": "string"
-    },
-    "reward_denom": {
+    "staking_contract": {
       "type": "string"
     }
   }

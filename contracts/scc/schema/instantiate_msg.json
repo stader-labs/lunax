@@ -3,8 +3,7 @@
   "title": "InstantiateMsg",
   "type": "object",
   "required": [
-    "delegator_contract",
-    "strategy_denom"
+    "delegator_contract"
   ],
   "properties": {
     "default_fallback_strategy": {
@@ -25,9 +24,6 @@
       }
     },
     "delegator_contract": {
-      "type": "string"
-    },
-    "strategy_denom": {
       "type": "string"
     }
   },

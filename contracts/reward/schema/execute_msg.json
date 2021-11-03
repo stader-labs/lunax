@@ -55,7 +55,7 @@
         "update_config": {
           "type": "object",
           "properties": {
-            "pools_contract": {
+            "staking_contract": {
               "type": [
                 "string",
                 "null"

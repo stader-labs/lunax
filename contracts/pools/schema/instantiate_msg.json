@@ -6,8 +6,7 @@
     "delegator_contract",
     "max_deposit",
     "min_deposit",
-    "scc_contract",
-    "vault_denom"
+    "scc_contract"
   ],
   "properties": {
     "delegator_contract": {
@@ -37,9 +36,6 @@
       ],
       "format": "uint64",
       "minimum": 0.0
-    },
-    "vault_denom": {
-      "type": "string"
     }
   },
   "definitions": {

@@ -73,7 +73,15 @@
       ],
       "properties": {
         "reinvest": {
-          "type": "object"
+          "type": "object",
+          "properties": {
+            "invest_transferred_rewards": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          }
         }
       },
       "additionalProperties": false
@@ -179,10 +187,14 @@
         "remove_validator": {
           "type": "object",
           "required": [
-            "validator"
+            "redelegate_val",
+            "removed_val"
           ],
           "properties": {
-            "validator": {
+            "redelegate_val": {
+              "type": "string"
+            },
+            "removed_val": {
               "type": "string"
             }
           }
@@ -212,6 +224,26 @@
                 "string",
                 "null"
               ]
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "set_reward_withdraw_address"
+      ],
+      "properties": {
+        "set_reward_withdraw_address": {
+          "type": "object",
+          "required": [
+            "reward_contract"
+          ],
+          "properties": {
+            "reward_contract": {
+              "type": "string"
             }
           }
         }

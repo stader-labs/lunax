@@ -4,18 +4,18 @@
   "type": "object",
   "required": [
     "manager",
-    "pools_contract",
-    "reward_denom"
+    "reward_denom",
+    "staking_contract"
   ],
   "properties": {
     "manager": {
       "$ref": "#/definitions/Addr"
     },
-    "pools_contract": {
-      "$ref": "#/definitions/Addr"
-    },
     "reward_denom": {
       "type": "string"
+    },
+    "staking_contract": {
+      "$ref": "#/definitions/Addr"
     }
   },
   "definitions": {

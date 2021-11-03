@@ -6,8 +6,7 @@
     "airdrop_withdraw_contract",
     "delegator_contract",
     "pools_contract",
-    "scc_contract",
-    "vault_denom"
+    "scc_contract"
   ],
   "properties": {
     "airdrop_withdraw_contract": {
@@ -21,9 +20,6 @@
     },
     "scc_contract": {
       "$ref": "#/definitions/Addr"
-    },
-    "vault_denom": {
-      "type": "string"
     }
   },
   "definitions": {

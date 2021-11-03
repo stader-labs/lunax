@@ -5,8 +5,8 @@
   "required": [
     "initial_validators",
     "manager_seed_funds",
-    "scc_address",
-    "strategy_denom"
+    "reward_contract_address",
+    "scc_address"
   ],
   "properties": {
     "initial_validators": {
@@ -26,10 +26,10 @@
       "format": "uint64",
       "minimum": 0.0
     },
-    "scc_address": {
-      "$ref": "#/definitions/Addr"
+    "reward_contract_address": {
+      "type": "string"
     },
-    "strategy_denom": {
+    "scc_address": {
       "type": "string"
     }
   },

@@ -6,8 +6,7 @@
     "pools_contract",
     "protocol_fee",
     "protocol_fee_contract",
-    "scc_contract",
-    "vault_denom"
+    "scc_contract"
   ],
   "properties": {
     "pools_contract": {
@@ -21,9 +20,6 @@
     },
     "scc_contract": {
       "$ref": "#/definitions/Addr"
-    },
-    "vault_denom": {
-      "type": "string"
     }
   },
   "definitions": {
