@@ -243,6 +243,11 @@ pub fn redeem_rewards(
                 .querier
                 .query_validator(val_addr.to_string())?
                 .is_none()
+            || deps
+                .querier
+                .query_delegation(env.contract.address.clone(), val_addr.to_string())
+                .unwrap()
+                .is_none()
         {
             failed_vals.push(val_addr.to_string());
             continue;
