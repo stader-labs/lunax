@@ -57,6 +57,9 @@ pub enum ExecuteMsg {
         token: String,
         cw20_contract: String,
     },
+    UpdateConfig {
+        delegator_contract: Option<Addr>
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

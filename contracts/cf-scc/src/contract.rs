@@ -64,7 +64,28 @@ pub fn execute(
             token,
             cw20_contract,
         } => register_cw20_contract(deps, _env, info, token, cw20_contract),
+        ExecuteMsg::UpdateConfig { delegator_contract }
+            => update_config(deps, info, _env, delegator_contract),
     }
+}
+
+pub fn update_config(
+    deps: DepsMut,
+    info: MessageInfo,
+    _env: Env,
+    delegator_contract: Option<Addr>,
+) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    if info.sender != config.manager {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    CONFIG.update(deps.storage, |mut config| -> StdResult<_> {
+        config.delegator_contract = delegator_contract.unwrap_or_else(|| config.delegator_contract.clone());
+        Ok(config)
+    })?;
+
+    Ok(Response::default())
 }
 
 pub fn withdraw_airdrops(
