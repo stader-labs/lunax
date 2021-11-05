@@ -726,6 +726,31 @@ mod tests {
         assert!(matches!(err, ContractError::CannotRemoveMoreValidators {}));
 
         /*
+            Test - 3. Cannot remove more validators
+        */
+        STATE
+            .update(
+                deps.as_mut().storage,
+                |mut state| -> Result<_, ContractError> {
+                    state.min_validator_pool_size = 3;
+                    state.validator_pool = vec![Addr::unchecked("abc"), Addr::unchecked("def")];
+                    Ok(state)
+                },
+            )
+            .unwrap();
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::RemoveValidator {
+                removed_val: "abc".to_string(),
+                redelegate_val: "def".to_string(),
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::CannotRemoveMoreValidators {}));
+
+        /*
             Test - 4. Redelegation validator does not exist
         */
         STATE

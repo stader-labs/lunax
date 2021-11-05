@@ -185,7 +185,7 @@ pub fn remove_validator(
     if state
         .validator_pool
         .len()
-        .eq(&(state.min_validator_pool_size as usize))
+        .le(&(state.min_validator_pool_size as usize))
     {
         return Err(ContractError::CannotRemoveMoreValidators {});
     }
