@@ -495,4 +495,62 @@ mod tests {
             })
         );
     }
+
+    #[test]
+    fn test_update_config() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &[]);
+        let env = mock_env();
+
+        instantiate_contract(&mut deps, &info, &env, None);
+
+        let initial_msg = ExecuteMsg::UpdateConfig {
+            delegator_contract: None,
+        };
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("other", &[]),
+            initial_msg.clone(),
+        )
+            .unwrap_err();
+        assert!(matches!(err, ContractError::Unauthorized {}));
+
+        let mut expected_config = Config {
+            manager: Addr::unchecked("creator"),
+            delegator_contract: Addr::unchecked("delegator_contract")
+        };
+        let config = CONFIG.load(deps.as_mut().storage).unwrap();
+        assert_eq!(config, expected_config);
+
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            initial_msg.clone(),
+        )
+            .unwrap();
+        assert!(res.messages.is_empty());
+        let config = CONFIG.load(deps.as_mut().storage).unwrap();
+        assert_eq!(config, expected_config);
+
+        expected_config = Config {
+            manager: Addr::unchecked("creator"),
+            delegator_contract: Addr::unchecked("new_delegator_contract")
+        };
+
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::UpdateConfig {
+                delegator_contract: Some(Addr::unchecked("new_delegator_contract")),
+            }
+                .clone(),
+        )
+            .unwrap();
+        assert!(res.messages.is_empty());
+        let config = CONFIG.load(deps.as_mut().storage).unwrap();
+        assert_eq!(config, expected_config);
+    }
 }
