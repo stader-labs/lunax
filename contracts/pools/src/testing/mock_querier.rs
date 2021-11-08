@@ -8,6 +8,7 @@ use cosmwasm_std::{
 };
 use std::collections::HashMap;
 
+use cw20::BalanceResponse;
 use delegator::msg::{QueryMsg as DelegatorQueryMsg, UserPoolResponse};
 use stader_utils::coin_utils::{decimal_multiplication_in_256, u128_from_decimal};
 use terra_cosmwasm::{
@@ -210,6 +211,7 @@ impl DelegatorWasmMockQuerier {
                     })))
                 }
             },
+
             _ => self.base.handle_query(request),
         }
     }
@@ -298,20 +300,25 @@ impl ValidatorWasmMockQuerier {
             }) => {
                 panic!("WASMQUERY::RAW not implemented!")
             }
-            QueryRequest::Wasm(WasmQuery::Smart {
-                contract_addr: _,
-                msg,
-            }) => match from_binary(msg).unwrap() {
-                ValidatorQueryMsg::Config {} => {
-                    SystemResult::Ok(ContractResult::from(to_binary(&Binary::default())))
+            QueryRequest::Wasm(WasmQuery::Smart { contract_addr, msg }) => {
+                if contract_addr.starts_with("uair") {
+                    return SystemResult::Ok(ContractResult::from(to_binary(&BalanceResponse {
+                        balance: Uint128::new(20),
+                    })));
+                } else {
+                    match from_binary(msg).unwrap() {
+                        ValidatorQueryMsg::Config {} => {
+                            SystemResult::Ok(ContractResult::from(to_binary(&Binary::default())))
+                        }
+                        ValidatorQueryMsg::ValidatorMeta { .. } => {
+                            SystemResult::Ok(ContractResult::from(to_binary(&Binary::default())))
+                        }
+                        ValidatorQueryMsg::GetUnaccountedBaseFunds {} => SystemResult::Ok(
+                            ContractResult::from(to_binary(&Coin::new(81, "utest"))),
+                        ),
+                    }
                 }
-                ValidatorQueryMsg::ValidatorMeta { .. } => {
-                    SystemResult::Ok(ContractResult::from(to_binary(&Binary::default())))
-                }
-                ValidatorQueryMsg::GetUnaccountedBaseFunds {} => {
-                    SystemResult::Ok(ContractResult::from(to_binary(&Coin::new(81, "utest"))))
-                }
-            },
+            }
             _ => self.base.handle_query(request),
         }
     }

@@ -4,12 +4,14 @@ mod tests {
     use crate::contract::{check_slashing, execute, instantiate, query};
     use crate::error::ContractError;
     use crate::msg::{
-        ExecuteMsg, InstantiateMsg, QueryConfigResponse, QueryMsg, QueryStateResponse,
+        ExecuteMsg, InstantiateMsg, MerkleAirdropMsg, QueryConfigResponse, QueryMsg,
+        QueryStateResponse,
     };
     use crate::state::{
-        AirdropRate, AirdropRegistryInfo, BatchUndelegationRecord, Config, ConfigUpdateRequest,
-        PoolConfigUpdateRequest, PoolRegistryInfo, State, VMeta, AIRDROP_REGISTRY,
-        BATCH_UNDELEGATION_REGISTRY, CONFIG, POOL_REGISTRY, STATE, VALIDATOR_META,
+        AirdropRate, AirdropRegistryInfo, AirdropTransferRequest, BatchUndelegationRecord, Config,
+        ConfigUpdateRequest, PoolConfigUpdateRequest, PoolRegistryInfo, State, VMeta,
+        AIRDROP_REGISTRY, BATCH_UNDELEGATION_REGISTRY, CONFIG, POOL_REGISTRY, STATE,
+        VALIDATOR_META,
     };
     use crate::testing::mock_querier;
     use crate::testing::mock_querier::mock_dependencies_for_validator_querier;
@@ -18,8 +20,8 @@ mod tests {
         MOCK_CONTRACT_ADDR,
     };
     use cosmwasm_std::{
-        attr, from_binary, to_binary, Addr, Binary, Coin, Decimal, Env, FullDelegation,
-        MessageInfo, OwnedDeps, Response, SubMsg, Uint128, Validator, WasmMsg,
+        attr, from_binary, to_binary, Addr, Coin, Decimal, Env, FullDelegation, MessageInfo,
+        OwnedDeps, Response, SubMsg, Uint128, Validator, WasmMsg,
     };
     use cw_storage_plus::U64Key;
     use delegator::msg::ExecuteMsg as DelegatorMsg;
@@ -2381,9 +2383,6 @@ mod tests {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
-        fn get_airdrop_claim_msg() -> Binary {
-            Binary::from(vec![01, 02, 03, 04, 05, 06, 07, 08])
-        }
 
         deps.querier
             .update_staking("test", &*get_validators(), &*get_delegations());
@@ -2399,55 +2398,6 @@ mod tests {
         )
         .unwrap_err();
         assert!(matches!(err, ContractError::Unauthorized {}));
-
-        POOL_REGISTRY
-            .save(
-                deps.as_mut().storage,
-                U64Key::new(12),
-                &PoolRegistryInfo {
-                    name: "RandomName".to_string(),
-                    validator_contract: Addr::unchecked("pool_12_validator_addr"),
-                    reward_contract: Addr::unchecked("pool_12_reward_addr"),
-                    protocol_fee_contract: Addr::unchecked("pool_27_protocol_addr"),
-                    active: false,
-                    validators: vec![valid1.clone(), valid2.clone(), valid3.clone()],
-                    staked: Uint128::new(280),
-                    rewards_pointer: Decimal::zero(),
-                    airdrops_pointer: vec![DecCoin::new(
-                        Decimal::from_ratio(28_u128, 280_u128),
-                        "uair1",
-                    )],
-                    slashing_pointer: Default::default(),
-                    current_undelegation_batch_id: 9,
-                    last_reconciled_batch_id: 5,
-                    protocol_fee_percent: Default::default(),
-                },
-            )
-            .unwrap();
-        POOL_REGISTRY
-            .save(
-                deps.as_mut().storage,
-                U64Key::new(27),
-                &PoolRegistryInfo {
-                    name: "RandomName".to_string(),
-                    validator_contract: Addr::unchecked("pool_27_validator_addr"),
-                    reward_contract: Addr::unchecked("pool_27_reward_addr"),
-                    protocol_fee_contract: Addr::unchecked("pool_27_protocol_addr"),
-                    active: false,
-                    validators: vec![valid1.clone(), valid2.clone(), valid3.clone()],
-                    staked: Uint128::new(640),
-                    rewards_pointer: Decimal::zero(),
-                    airdrops_pointer: vec![DecCoin::new(
-                        Decimal::from_ratio(28_u128, 280_u128),
-                        "uair2",
-                    )],
-                    slashing_pointer: Default::default(),
-                    current_undelegation_batch_id: 9,
-                    last_reconciled_batch_id: 5,
-                    protocol_fee_percent: Default::default(),
-                },
-            )
-            .unwrap();
 
         AIRDROP_REGISTRY
             .save(
@@ -2471,54 +2421,47 @@ mod tests {
             )
             .unwrap();
 
+        let pool_12_initial = PoolRegistryInfo {
+            name: "RandomName".to_string(),
+            active: true,
+            validator_contract: Addr::unchecked("pool_12_validator_addr"),
+            reward_contract: Addr::unchecked("pool_12_reward_addr"),
+            protocol_fee_contract: Addr::unchecked("pool_27_protocol_addr"),
+            protocol_fee_percent: Default::default(),
+            validators: vec![valid1.clone(), valid2.clone(), valid3.clone()],
+            staked: Uint128::new(280),
+            rewards_pointer: Decimal::zero(),
+            airdrops_pointer: vec![DecCoin::new(
+                Decimal::from_ratio(28_u128, 280_u128),
+                "uair1",
+            )],
+            slashing_pointer: Default::default(),
+            current_undelegation_batch_id: 9,
+            last_reconciled_batch_id: 5,
+        };
         POOL_REGISTRY
-            .save(
-                deps.as_mut().storage,
-                U64Key::new(12),
-                &PoolRegistryInfo {
-                    name: "RandomName".to_string(),
-                    active: true,
-                    validator_contract: Addr::unchecked("pool_12_validator_addr"),
-                    reward_contract: Addr::unchecked("pool_12_reward_addr"),
-                    protocol_fee_contract: Addr::unchecked("pool_27_protocol_addr"),
-                    protocol_fee_percent: Default::default(),
-                    validators: vec![valid1.clone(), valid2.clone(), valid3.clone()],
-                    staked: Uint128::new(280),
-                    rewards_pointer: Decimal::zero(),
-                    airdrops_pointer: vec![DecCoin::new(
-                        Decimal::from_ratio(28_u128, 280_u128),
-                        "uair1",
-                    )],
-
-                    slashing_pointer: Default::default(),
-                    current_undelegation_batch_id: 9,
-                    last_reconciled_batch_id: 5,
-                },
-            )
+            .save(deps.as_mut().storage, U64Key::new(12), &pool_12_initial)
             .unwrap();
+        let pool_27_initial = PoolRegistryInfo {
+            name: "RandomName".to_string(),
+            validator_contract: Addr::unchecked("pool_27_validator_addr"),
+            reward_contract: Addr::unchecked("pool_27_reward_addr"),
+            protocol_fee_contract: Addr::unchecked("pool_27_protocol_addr"),
+            active: true,
+            validators: vec![valid1.clone(), valid2.clone(), valid3.clone()],
+            staked: Uint128::new(640),
+            rewards_pointer: Decimal::zero(),
+            airdrops_pointer: vec![DecCoin::new(
+                Decimal::from_ratio(64_u128, 640_u128),
+                "uair2",
+            )],
+            slashing_pointer: Default::default(),
+            current_undelegation_batch_id: 9,
+            last_reconciled_batch_id: 5,
+            protocol_fee_percent: Default::default(),
+        };
         POOL_REGISTRY
-            .save(
-                deps.as_mut().storage,
-                U64Key::new(27),
-                &PoolRegistryInfo {
-                    name: "RandomName".to_string(),
-                    validator_contract: Addr::unchecked("pool_27_validator_addr"),
-                    reward_contract: Addr::unchecked("pool_27_reward_addr"),
-                    protocol_fee_contract: Addr::unchecked("pool_27_protocol_addr"),
-                    active: true,
-                    validators: vec![valid1.clone(), valid2.clone(), valid3.clone()],
-                    staked: Uint128::new(640),
-                    rewards_pointer: Decimal::zero(),
-                    airdrops_pointer: vec![DecCoin::new(
-                        Decimal::from_ratio(64_u128, 640_u128),
-                        "uair2",
-                    )],
-                    slashing_pointer: Default::default(),
-                    current_undelegation_batch_id: 9,
-                    last_reconciled_batch_id: 5,
-                    protocol_fee_percent: Default::default(),
-                },
-            )
+            .save(deps.as_mut().storage, U64Key::new(27), &pool_27_initial)
             .unwrap();
 
         let execute_msg = ExecuteMsg::ClaimAirdrops {
@@ -2527,25 +2470,29 @@ mod tests {
                     pool_id: 12,
                     denom: "uair1".to_string(),
                     amount: Uint128::new(14),
-                    claim_msg: get_airdrop_claim_msg(),
+                    stage: 10,
+                    proof: vec!["proof".to_string()],
                 },
                 AirdropRate {
                     pool_id: 27,
                     denom: "uair1".to_string(),
                     amount: Uint128::new(16),
-                    claim_msg: get_airdrop_claim_msg(),
+                    stage: 10,
+                    proof: vec!["proof".to_string()],
                 },
                 AirdropRate {
                     pool_id: 12,
                     denom: "uair2".to_string(),
                     amount: Uint128::new(14),
-                    claim_msg: get_airdrop_claim_msg(),
+                    stage: 10,
+                    proof: vec!["proof".to_string()],
                 },
                 AirdropRate {
                     pool_id: 27,
                     denom: "uair2".to_string(),
                     amount: Uint128::new(16),
-                    claim_msg: get_airdrop_claim_msg(),
+                    stage: 10,
+                    proof: vec!["proof".to_string()],
                 },
             ],
         };
@@ -2562,11 +2509,15 @@ mod tests {
             res.messages[0],
             SubMsg::new(WasmMsg::Execute {
                 contract_addr: "pool_12_validator_addr".to_string(),
-                msg: to_binary(&ValidatorMsg::RedeemAirdropAndTransfer {
+                msg: to_binary(&ValidatorMsg::ClaimAirdrop {
                     amount: Uint128::new(14),
-                    claim_msg: get_airdrop_claim_msg(),
+                    claim_msg: to_binary(&MerkleAirdropMsg::Claim {
+                        stage: 10,
+                        amount: Uint128::new(14),
+                        proof: vec!["proof".to_string()],
+                    })
+                    .unwrap(),
                     airdrop_contract: Addr::unchecked("uair1_airdrop_contract"),
-                    cw20_contract: Addr::unchecked("uair1_cw20_contract")
                 })
                 .unwrap(),
                 funds: vec![]
@@ -2576,11 +2527,15 @@ mod tests {
             res.messages[1],
             SubMsg::new(WasmMsg::Execute {
                 contract_addr: "pool_27_validator_addr".to_string(),
-                msg: to_binary(&ValidatorMsg::RedeemAirdropAndTransfer {
+                msg: to_binary(&ValidatorMsg::ClaimAirdrop {
                     amount: Uint128::new(16),
-                    claim_msg: get_airdrop_claim_msg(),
+                    claim_msg: to_binary(&MerkleAirdropMsg::Claim {
+                        stage: 10,
+                        amount: Uint128::new(16),
+                        proof: vec!["proof".to_string()],
+                    })
+                    .unwrap(),
                     airdrop_contract: Addr::unchecked("uair1_airdrop_contract"),
-                    cw20_contract: Addr::unchecked("uair1_cw20_contract")
                 })
                 .unwrap(),
                 funds: vec![]
@@ -2590,11 +2545,15 @@ mod tests {
             res.messages[2],
             SubMsg::new(WasmMsg::Execute {
                 contract_addr: "pool_12_validator_addr".to_string(),
-                msg: to_binary(&ValidatorMsg::RedeemAirdropAndTransfer {
+                msg: to_binary(&ValidatorMsg::ClaimAirdrop {
                     amount: Uint128::new(14),
-                    claim_msg: get_airdrop_claim_msg(),
+                    claim_msg: to_binary(&MerkleAirdropMsg::Claim {
+                        stage: 10,
+                        amount: Uint128::new(14),
+                        proof: vec!["proof".to_string()],
+                    })
+                    .unwrap(),
                     airdrop_contract: Addr::unchecked("uair2_airdrop_contract"),
-                    cw20_contract: Addr::unchecked("uair2_cw20_contract")
                 })
                 .unwrap(),
                 funds: vec![]
@@ -2604,11 +2563,15 @@ mod tests {
             res.messages[3],
             SubMsg::new(WasmMsg::Execute {
                 contract_addr: "pool_27_validator_addr".to_string(),
-                msg: to_binary(&ValidatorMsg::RedeemAirdropAndTransfer {
+                msg: to_binary(&ValidatorMsg::ClaimAirdrop {
                     amount: Uint128::new(16),
-                    claim_msg: get_airdrop_claim_msg(),
+                    claim_msg: to_binary(&MerkleAirdropMsg::Claim {
+                        stage: 10,
+                        amount: Uint128::new(16),
+                        proof: vec!["proof".to_string()],
+                    })
+                    .unwrap(),
                     airdrop_contract: Addr::unchecked("uair2_airdrop_contract"),
-                    cw20_contract: Addr::unchecked("uair2_cw20_contract")
                 })
                 .unwrap(),
                 funds: vec![]
@@ -2618,24 +2581,181 @@ mod tests {
         let pool_12 = POOL_REGISTRY
             .load(deps.as_mut().storage, U64Key::new(12))
             .unwrap();
-        let expected_pool12_pointers = vec![
-            DecCoin::new(Decimal::from_ratio(15_u128, 100_u128), "uair1"),
-            DecCoin::new(Decimal::from_ratio(14_u128, 280_u128), "uair2"),
-        ];
         assert!(check_equal_deccoin_vector(
             &pool_12.airdrops_pointer,
-            &expected_pool12_pointers
+            &pool_12_initial.airdrops_pointer
         ));
         let pool_27 = POOL_REGISTRY
             .load(deps.as_mut().storage, U64Key::new(27))
             .unwrap();
-        let expected_pool27_pointers = vec![
-            DecCoin::new(Decimal::from_ratio(16_u128, 640_u128), "uair1"),
-            DecCoin::new(Decimal::from_ratio(80_u128, 640_u128), "uair2"),
-        ];
         assert!(check_equal_deccoin_vector(
             &pool_27.airdrops_pointer,
-            &expected_pool27_pointers
+            &pool_27_initial.airdrops_pointer
+        ));
+    }
+
+    #[test]
+    fn test_update_airdrop_pointers() {
+        let valid1 = Addr::unchecked("valid0001");
+        let valid2 = Addr::unchecked("valid0002");
+        let valid3 = Addr::unchecked("valid0003");
+        let mut deps = mock_dependencies_for_validator_querier(&[]);
+        let info = mock_info("creator", &[]);
+        let env = mock_env();
+
+        deps.querier
+            .update_staking("test", &*get_validators(), &*get_delegations());
+
+        let instantiate_msg = InstantiateMsg {
+            delegator_contract: Addr::unchecked("delegator_addr").to_string(),
+            scc_contract: Addr::unchecked("scc_addr").to_string(),
+            unbonding_period: None,
+            unbonding_buffer: None,
+            min_deposit: Uint128::new(1000),
+            max_deposit: Uint128::new(1_000_000_000_000),
+        };
+
+        instantiate(deps.as_mut(), env.clone(), info.clone(), instantiate_msg).unwrap();
+
+        let execute_msg = ExecuteMsg::ClaimAirdrops { rates: vec![] };
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("any", &[Coin::new(228, "uluna")]),
+            execute_msg.clone(),
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::Unauthorized {}));
+
+        AIRDROP_REGISTRY
+            .save(
+                deps.as_mut().storage,
+                "uair1".to_string(),
+                &AirdropRegistryInfo {
+                    airdrop_contract: Addr::unchecked("uair1_airdrop_contract"),
+                    cw20_contract: Addr::unchecked("uair1_cw20_contract"),
+                },
+            )
+            .unwrap();
+
+        AIRDROP_REGISTRY
+            .save(
+                deps.as_mut().storage,
+                "uair2".to_string(),
+                &AirdropRegistryInfo {
+                    airdrop_contract: Addr::unchecked("uair2_airdrop_contract"),
+                    cw20_contract: Addr::unchecked("uair2_cw20_contract"),
+                },
+            )
+            .unwrap();
+
+        let pool_12_initial = PoolRegistryInfo {
+            name: "RandomName".to_string(),
+            active: true,
+            validator_contract: Addr::unchecked("pool_12_validator_addr"),
+            reward_contract: Addr::unchecked("pool_12_reward_addr"),
+            protocol_fee_contract: Addr::unchecked("pool_27_protocol_addr"),
+            protocol_fee_percent: Default::default(),
+            validators: vec![valid1.clone(), valid2.clone(), valid3.clone()],
+            staked: Uint128::new(280),
+            rewards_pointer: Decimal::zero(),
+            airdrops_pointer: vec![DecCoin::new(
+                Decimal::from_ratio(28_u128, 280_u128),
+                "uair1",
+            )],
+            slashing_pointer: Default::default(),
+            current_undelegation_batch_id: 9,
+            last_reconciled_batch_id: 5,
+        };
+        POOL_REGISTRY
+            .save(deps.as_mut().storage, U64Key::new(12), &pool_12_initial)
+            .unwrap();
+        let pool_27_initial = PoolRegistryInfo {
+            name: "RandomName".to_string(),
+            validator_contract: Addr::unchecked("pool_27_validator_addr"),
+            reward_contract: Addr::unchecked("pool_27_reward_addr"),
+            protocol_fee_contract: Addr::unchecked("pool_27_protocol_addr"),
+            active: true,
+            validators: vec![valid1.clone(), valid2.clone(), valid3.clone()],
+            staked: Uint128::new(640),
+            rewards_pointer: Decimal::zero(),
+            airdrops_pointer: vec![DecCoin::new(
+                Decimal::from_ratio(64_u128, 640_u128),
+                "uair2",
+            )],
+            slashing_pointer: Default::default(),
+            current_undelegation_batch_id: 9,
+            last_reconciled_batch_id: 5,
+            protocol_fee_percent: Default::default(),
+        };
+        POOL_REGISTRY
+            .save(deps.as_mut().storage, U64Key::new(27), &pool_27_initial)
+            .unwrap();
+
+        let execute_msg = ExecuteMsg::UpdateAirdropPointers {
+            transfers: vec![
+                AirdropTransferRequest {
+                    pool_id: 12,
+                    denom: "uair1".to_string(),
+                },
+                AirdropTransferRequest {
+                    pool_id: 27,
+                    denom: "uair2".to_string(),
+                },
+            ],
+        };
+
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            execute_msg.clone(),
+        )
+        .unwrap();
+        assert_eq!(res.messages.len(), 2);
+        assert_eq!(
+            res.messages[0],
+            SubMsg::new(WasmMsg::Execute {
+                contract_addr: "pool_12_validator_addr".to_string(),
+                msg: to_binary(&ValidatorMsg::TransferAirdrop {
+                    amount: Uint128::new(20),
+                    cw20_contract: Addr::unchecked("uair1_cw20_contract"),
+                })
+                .unwrap(),
+                funds: vec![]
+            })
+        );
+        assert_eq!(
+            res.messages[1],
+            SubMsg::new(WasmMsg::Execute {
+                contract_addr: "pool_27_validator_addr".to_string(),
+                msg: to_binary(&ValidatorMsg::TransferAirdrop {
+                    amount: Uint128::new(20),
+                    cw20_contract: Addr::unchecked("uair2_cw20_contract"),
+                })
+                .unwrap(),
+                funds: vec![]
+            })
+        );
+        let pool_12 = POOL_REGISTRY
+            .load(deps.as_mut().storage, U64Key::new(12))
+            .unwrap();
+        assert!(check_equal_deccoin_vector(
+            &pool_12.airdrops_pointer,
+            &vec![DecCoin::new(
+                Decimal::from_ratio(48_u128, 280_u128),
+                "uair1"
+            )]
+        ));
+        let pool_27 = POOL_REGISTRY
+            .load(deps.as_mut().storage, U64Key::new(27))
+            .unwrap();
+        assert!(check_equal_deccoin_vector(
+            &pool_27.airdrops_pointer,
+            &vec![DecCoin::new(
+                Decimal::from_ratio(84_u128, 640_u128),
+                "uair2"
+            )]
         ));
     }
 
@@ -2868,7 +2988,7 @@ mod tests {
             &Addr::unchecked("other").to_string(),
             &[Coin::new(1200, "uluna")],
         );
-        let denom = "abc".to_string();
+        let denom = "ABC".to_string();
         let airdrop_contract = Addr::unchecked("def".to_string());
         let token_contract = Addr::unchecked("efg".to_string());
 
@@ -2904,6 +3024,11 @@ mod tests {
         assert!(res.messages.is_empty());
         let airdrop_registry_info = AIRDROP_REGISTRY
             .may_load(deps.as_mut().storage, denom.clone())
+            .unwrap();
+        assert!(airdrop_registry_info.is_none());
+
+        let airdrop_registry_info = AIRDROP_REGISTRY
+            .may_load(deps.as_mut().storage, denom.to_lowercase().clone())
             .unwrap();
         assert!(airdrop_registry_info.is_some());
 

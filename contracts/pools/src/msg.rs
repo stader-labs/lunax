@@ -1,6 +1,6 @@
 use crate::state::{
-    AirdropRate, AirdropRegistryInfo, BatchUndelegationRecord, Config, ConfigUpdateRequest,
-    PoolConfigUpdateRequest, PoolRegistryInfo, State, VMeta,
+    AirdropRate, AirdropRegistryInfo, AirdropTransferRequest, BatchUndelegationRecord, Config,
+    ConfigUpdateRequest, PoolConfigUpdateRequest, PoolRegistryInfo, State, VMeta,
 };
 use cosmwasm_std::{Addr, Decimal, Uint128};
 use schemars::JsonSchema;
@@ -76,12 +76,25 @@ pub enum ExecuteMsg {
     ClaimAirdrops {
         rates: Vec<AirdropRate>,
     },
+    UpdateAirdropPointers {
+        transfers: Vec<AirdropTransferRequest>,
+    },
     UpdateConfig {
         config_request: ConfigUpdateRequest,
     },
     UpdatePoolMetadata {
         pool_id: u64,
         pool_config_update_request: PoolConfigUpdateRequest,
+    },
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum MerkleAirdropMsg {
+    Claim {
+        stage: u8,
+        amount: Uint128,
+        proof: Vec<String>,
     },
 }
 
@@ -95,6 +108,7 @@ pub enum QueryMsg {
     BatchUndelegation { pool_id: u64, batch_id: u64 },
     GetUserComputedInfo { pool_id: u64, user_addr: Addr },
     GetValMeta { pool_id: u64, val_addr: Addr },
+    GetAirdropRegistry { denom: String },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

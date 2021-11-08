@@ -606,7 +606,7 @@ mod tests {
     }
 
     #[test]
-    fn test_redeem_airdrop() {
+    fn test_claim_airdrop() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
@@ -617,6 +617,91 @@ mod tests {
 
         let anc_airdrop_contract = Addr::unchecked("anc_airdrop_contract".to_string());
         let mir_airdrop_contract = Addr::unchecked("mir_airdrop_contract".to_string());
+        /*
+           Test - 1. Only manager can update airdrops
+        */
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]), // Only pools-contract can call this.
+            ExecuteMsg::ClaimAirdrop {
+                amount: Uint128::new(2000_u128),
+                claim_msg: get_airdrop_claim_msg(),
+                airdrop_contract: Addr::unchecked(""),
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::Unauthorized {}));
+
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("pools_addr", &[]), // Only pools-contract can call this.
+            ExecuteMsg::ClaimAirdrop {
+                amount: Uint128::new(0_u128),
+                claim_msg: get_airdrop_claim_msg(),
+                airdrop_contract: Addr::unchecked(""),
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::ZeroAmount {}));
+
+        /*
+           Test - 2. First airdrops claim
+        */
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("pools_addr", &[]),
+            ExecuteMsg::ClaimAirdrop {
+                amount: Uint128::new(2000_u128),
+                claim_msg: get_airdrop_claim_msg(),
+                airdrop_contract: anc_airdrop_contract.clone(),
+            },
+        )
+        .unwrap();
+        assert_eq!(res.messages.len(), 1);
+        assert_eq!(
+            res.messages[0],
+            SubMsg::new(WasmMsg::Execute {
+                contract_addr: anc_airdrop_contract.clone().to_string(),
+                msg: get_airdrop_claim_msg(),
+                funds: vec![]
+            })
+        );
+
+        /*
+            Test - 3. MIR claim with ANC in pool
+        */
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("pools_addr", &[]),
+            ExecuteMsg::ClaimAirdrop {
+                amount: Uint128::new(1000_u128),
+                claim_msg: get_airdrop_claim_msg(),
+                airdrop_contract: mir_airdrop_contract.clone(),
+            },
+        )
+        .unwrap();
+        assert_eq!(res.messages.len(), 1);
+        assert_eq!(
+            res.messages[0],
+            SubMsg::new(WasmMsg::Execute {
+                contract_addr: mir_airdrop_contract.clone().to_string(),
+                msg: get_airdrop_claim_msg(),
+                funds: vec![]
+            })
+        );
+    }
+
+    #[test]
+    fn test_transfer_airdrop() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &[]);
+        let env = mock_env();
+        instantiate_contract(&mut deps, &info, &env, None);
+
         let anc_token_contract = Addr::unchecked("anc_token_contract".to_string());
         let mir_token_contract = Addr::unchecked("mir_token_contract".to_string());
         /*
@@ -626,15 +711,25 @@ mod tests {
             deps.as_mut(),
             env.clone(),
             mock_info("creator", &[]), // Only pools-contract can call this.
-            ExecuteMsg::RedeemAirdropAndTransfer {
+            ExecuteMsg::TransferAirdrop {
                 amount: Uint128::new(2000_u128),
-                claim_msg: get_airdrop_claim_msg(),
-                airdrop_contract: Addr::unchecked(""),
                 cw20_contract: Addr::unchecked(""),
             },
         )
         .unwrap_err();
         assert!(matches!(err, ContractError::Unauthorized {}));
+
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("pools_addr", &[]), // Only pools-contract can call this.
+            ExecuteMsg::TransferAirdrop {
+                amount: Uint128::new(0_u128),
+                cw20_contract: anc_token_contract.clone(),
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::ZeroAmount {}));
 
         /*
            Test - 2. First airdrops claim
@@ -643,25 +738,15 @@ mod tests {
             deps.as_mut(),
             env.clone(),
             mock_info("pools_addr", &[]),
-            ExecuteMsg::RedeemAirdropAndTransfer {
+            ExecuteMsg::TransferAirdrop {
                 amount: Uint128::new(2000_u128),
-                claim_msg: get_airdrop_claim_msg(),
-                airdrop_contract: anc_airdrop_contract.clone(),
                 cw20_contract: anc_token_contract.clone(),
             },
         )
         .unwrap();
-        assert_eq!(res.messages.len(), 2);
+        assert_eq!(res.messages.len(), 1);
         assert_eq!(
             res.messages[0],
-            SubMsg::new(WasmMsg::Execute {
-                contract_addr: anc_airdrop_contract.clone().to_string(),
-                msg: get_airdrop_claim_msg(),
-                funds: vec![]
-            })
-        );
-        assert_eq!(
-            res.messages[1],
             SubMsg::new(WasmMsg::Execute {
                 contract_addr: anc_token_contract.clone().to_string(),
                 msg: to_binary(&Cw20ExecuteMsg::Transfer {
@@ -680,25 +765,15 @@ mod tests {
             deps.as_mut(),
             env.clone(),
             mock_info("pools_addr", &[]),
-            ExecuteMsg::RedeemAirdropAndTransfer {
+            ExecuteMsg::TransferAirdrop {
                 amount: Uint128::new(1000_u128),
-                claim_msg: get_airdrop_claim_msg(),
-                airdrop_contract: mir_airdrop_contract.clone(),
                 cw20_contract: mir_token_contract.clone(),
             },
         )
         .unwrap();
-        assert_eq!(res.messages.len(), 2);
+        assert_eq!(res.messages.len(), 1);
         assert_eq!(
             res.messages[0],
-            SubMsg::new(WasmMsg::Execute {
-                contract_addr: mir_airdrop_contract.clone().to_string(),
-                msg: get_airdrop_claim_msg(),
-                funds: vec![]
-            })
-        );
-        assert_eq!(
-            res.messages[1],
             SubMsg::new(WasmMsg::Execute {
                 contract_addr: mir_token_contract.clone().to_string(),
                 msg: to_binary(&Cw20ExecuteMsg::Transfer {

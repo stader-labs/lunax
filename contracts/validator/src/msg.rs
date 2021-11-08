@@ -42,13 +42,15 @@ pub enum ExecuteMsg {
         val_addr: Addr,
         amount: Uint128,
     },
-    RedeemAirdropAndTransfer {
+    ClaimAirdrop {
         amount: Uint128,
         claim_msg: Binary,
         airdrop_contract: Addr,
-        cw20_contract: Addr, // Send message to this addr to move airdrops.
     },
-
+    TransferAirdrop {
+        amount: Uint128,
+        cw20_contract: Addr,
+    },
     TransferReconciledFunds {
         amount: Uint128,
     },

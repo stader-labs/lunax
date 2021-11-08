@@ -89,6 +89,8 @@ pub enum ContractError {
 
     #[error("Pools-Contract: Validator to redelegate should be different from source validator")]
     ValidatorsCannotBeSame {},
-    // Add any other custom errors you like here.
-    // Look at https://docs.rs/thiserror/1.0.21/thiserror/ for details.
+
+    #[error("Pools-Contract: Token string cannot be empty")]
+    TokenEmpty {}, // Add any other custom errors you like here.
+                   // Look at https://docs.rs/thiserror/1.0.21/thiserror/ for details.
 }

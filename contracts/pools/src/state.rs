@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Addr, Binary, Decimal, Timestamp, Uint128};
+use cosmwasm_std::{Addr, Decimal, Timestamp, Uint128};
 use cw_storage_plus::{Item, Map, U64Key};
 use stader_utils::coin_utils::DecCoin;
 
@@ -101,7 +101,14 @@ pub struct AirdropRate {
     pub pool_id: u64,
     pub denom: String,
     pub amount: Uint128, // uAirdrop per 10^6 uBase
-    pub claim_msg: Binary,
+    pub stage: u8,
+    pub proof: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct AirdropTransferRequest {
+    pub pool_id: u64,
+    pub denom: String,
 }
 
 // Map of airdrop token to the token contract

@@ -14,5 +14,4 @@ pub struct Config {
 }
 
 pub const VALIDATOR_REGISTRY: Map<&Addr, bool> = Map::new("validator_registry");
-
 pub const CONFIG: Item<Config> = Item::new("config");

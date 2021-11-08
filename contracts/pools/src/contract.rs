@@ -1,5 +1,5 @@
 use crate::msg::{
-    ExecuteMsg, GetAirdropMetaResponse, GetValMetaResponse, InstantiateMsg,
+    ExecuteMsg, GetAirdropMetaResponse, GetValMetaResponse, InstantiateMsg, MerkleAirdropMsg,
     QueryBatchUndelegationResponse, QueryConfigResponse, QueryMsg, QueryPoolResponse,
     QueryStateResponse,
 };
@@ -8,9 +8,10 @@ use crate::request_validation::{
     get_validator_for_deposit, get_verified_pool, validate, Verify,
 };
 use crate::state::{
-    AirdropRate, AirdropRegistryInfo, Config, ConfigUpdateRequest, PoolConfigUpdateRequest,
-    PoolRegistryInfo, State, VMeta, AIRDROP_REGISTRY, BATCH_UNDELEGATION_REGISTRY, CONFIG,
-    POOL_REGISTRY, REWARD_CONTRACTS, STATE, VALIDATOR_CONTRACTS, VALIDATOR_META,
+    AirdropRate, AirdropRegistryInfo, AirdropTransferRequest, Config, ConfigUpdateRequest,
+    PoolConfigUpdateRequest, PoolRegistryInfo, State, VMeta, AIRDROP_REGISTRY,
+    BATCH_UNDELEGATION_REGISTRY, CONFIG, POOL_REGISTRY, REWARD_CONTRACTS, STATE,
+    VALIDATOR_CONTRACTS, VALIDATOR_META,
 };
 use crate::ContractError;
 #[cfg(not(feature = "library"))]
@@ -19,6 +20,7 @@ use cosmwasm_std::{
     to_binary, Addr, Binary, Coin, Decimal, Deps, DepsMut, Env, MessageInfo, QueryRequest,
     Response, StdResult, Uint128, WasmMsg, WasmQuery,
 };
+use cw20::{BalanceResponse as Cw20BalanceResponse, Cw20QueryMsg};
 use cw_storage_plus::U64Key;
 use delegator::msg::QueryMsg as DelegatorQueryMsg;
 use delegator::msg::{ExecuteMsg as DelegatorExecuteMsg, UserPoolResponse};
@@ -128,6 +130,9 @@ pub fn execute(
             cw20_contract,
         ),
         ExecuteMsg::ClaimAirdrops { rates } => claim_airdrops(deps, info, env, rates),
+        ExecuteMsg::UpdateAirdropPointers { transfers } => {
+            update_airdrop_pointers(deps, info, env, transfers)
+        }
         ExecuteMsg::UpdateConfig { config_request } => {
             update_config(deps, info, env, config_request)
         }
@@ -888,13 +893,18 @@ pub fn update_airdrop_registry(
     deps: DepsMut,
     info: MessageInfo,
     env: Env,
-    airdrop_token: String,
+    airdrop_token_str: String,
     airdrop_contract_str: String,
     cw20_contract_str: String,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let config = CONFIG.load(deps.storage)?;
     validate(&config, &info, &env, vec![Verify::SenderManager])?;
 
+    if airdrop_token_str.is_empty() {
+        return Err(ContractError::TokenEmpty {});
+    }
+
+    let airdrop_token = airdrop_token_str.to_lowercase();
     let airdrop_contract = deps.api.addr_validate(airdrop_contract_str.as_str())?;
     let cw20_contract = deps.api.addr_validate(cw20_contract_str.as_str())?;
     AIRDROP_REGISTRY.save(
@@ -928,20 +938,65 @@ pub fn claim_airdrops(
 
         let AirdropRegistryInfo {
             airdrop_contract,
-            cw20_contract,
+            cw20_contract: _,
         } = airdrop_info_opt.unwrap();
         let pool_meta_opt = POOL_REGISTRY.may_load(deps.storage, U64Key::new(rate.pool_id))?;
         if pool_meta_opt.is_none() {
             failed_pools.push(rate.pool_id.to_string());
             continue;
         }
-        let mut pool_meta = pool_meta_opt.unwrap();
+        let pool_meta = pool_meta_opt.unwrap();
+        msgs.push(WasmMsg::Execute {
+            contract_addr: pool_meta.validator_contract.to_string(),
+            msg: to_binary(&ValidatorExecuteMsg::ClaimAirdrop {
+                amount: rate.amount,
+                claim_msg: to_binary(&MerkleAirdropMsg::Claim {
+                    stage: rate.stage,
+                    amount: rate.amount,
+                    proof: rate.proof,
+                })?,
+                airdrop_contract,
+            })
+            .unwrap(),
+            funds: vec![],
+        });
+    }
+
+    Ok(Response::new().add_messages(msgs))
+}
+
+// Don't need authentication.
+pub fn update_airdrop_pointers(
+    deps: DepsMut,
+    _info: MessageInfo,
+    _env: Env,
+    transfers: Vec<AirdropTransferRequest>,
+) -> Result<Response<TerraMsgWrapper>, ContractError> {
+    let mut msgs = vec![];
+    for transfer in transfers {
+        let airdrop_info_opt = AIRDROP_REGISTRY.may_load(deps.storage, transfer.denom.clone())?;
+        if airdrop_info_opt.is_none() {
+            return Err(ContractError::AirdropNotRegistered {});
+        }
+
+        let airdrop_meta = airdrop_info_opt.unwrap();
+        let mut pool_meta = get_verified_pool(deps.storage, transfer.pool_id, false)?;
+
+        let res: Cw20BalanceResponse =
+            deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+                contract_addr: airdrop_meta.cw20_contract.to_string(),
+                msg: to_binary(&Cw20QueryMsg::Balance {
+                    address: pool_meta.validator_contract.to_string(),
+                })?,
+            }))?;
+        let balance = res.balance;
+
         pool_meta.airdrops_pointer = merge_dec_coin_vector(
             &pool_meta.airdrops_pointer,
             DecCoinVecOp {
                 fund: vec![DecCoin::new(
-                    Decimal::from_ratio(rate.amount, pool_meta.staked),
-                    rate.denom,
+                    Decimal::from_ratio(balance, pool_meta.staked),
+                    transfer.denom,
                 )],
                 operation: Operation::Add,
             },
@@ -949,16 +1004,14 @@ pub fn claim_airdrops(
 
         msgs.push(WasmMsg::Execute {
             contract_addr: pool_meta.validator_contract.to_string(),
-            msg: to_binary(&ValidatorExecuteMsg::RedeemAirdropAndTransfer {
-                amount: rate.amount,
-                claim_msg: rate.claim_msg,
-                airdrop_contract,
-                cw20_contract,
+            msg: to_binary(&ValidatorExecuteMsg::TransferAirdrop {
+                amount: balance,
+                cw20_contract: airdrop_meta.cw20_contract,
             })
             .unwrap(),
             funds: vec![],
         });
-        POOL_REGISTRY.save(deps.storage, U64Key::new(rate.pool_id), &pool_meta)?;
+        POOL_REGISTRY.save(deps.storage, U64Key::new(transfer.pool_id), &pool_meta)?;
     }
 
     Ok(Response::new().add_messages(msgs))
@@ -1047,6 +1100,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::GetValMeta { pool_id, val_addr } => {
             to_binary(&query_val_meta(deps, pool_id, val_addr)?)
         }
+        QueryMsg::GetAirdropRegistry { denom } => {
+            to_binary(&query_airdrop_registry(deps, denom)?)
+        }
     }
 }
 
@@ -1075,8 +1131,8 @@ pub fn query_batch_undelegate(
     Ok(QueryBatchUndelegationResponse { batch: batch_meta })
 }
 
-pub fn query_airdrop_meta(deps: Deps, token: String) -> StdResult<GetAirdropMetaResponse> {
-    let airdrop_meta_opt = AIRDROP_REGISTRY.may_load(deps.storage, token)?;
+pub fn query_airdrop_registry(deps: Deps, token: String) -> StdResult<GetAirdropMetaResponse> {
+    let airdrop_meta_opt = AIRDROP_REGISTRY.may_load(deps.storage, token.to_lowercase())?;
     Ok(GetAirdropMetaResponse {
         airdrop_meta: airdrop_meta_opt,
     })

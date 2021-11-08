@@ -35,7 +35,6 @@ pub fn instantiate(
     };
 
     CONFIG.save(deps.storage, &config)?;
-
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     Ok(Response::default())
@@ -74,20 +73,15 @@ pub fn execute(
         ExecuteMsg::Undelegate { val_addr, amount } => {
             undelegate(deps, info, env, val_addr, amount)
         }
-        ExecuteMsg::RedeemAirdropAndTransfer {
+        ExecuteMsg::ClaimAirdrop {
             amount,
             claim_msg,
             airdrop_contract,
-            cw20_contract,
-        } => redeem_airdrop_and_transfer(
-            deps,
-            env,
-            info,
+        } => claim_airdrops(deps, env, info, amount, claim_msg, airdrop_contract),
+        ExecuteMsg::TransferAirdrop {
             amount,
-            claim_msg,
-            airdrop_contract,
             cw20_contract,
-        ),
+        } => transfer_airdrops(deps, env, info, amount, cw20_contract),
 
         ExecuteMsg::TransferReconciledFunds { amount } => {
             transfer_reconciled_funds(deps, info, env, amount)
@@ -337,13 +331,35 @@ pub fn undelegate(
     }))
 }
 
-pub fn redeem_airdrop_and_transfer(
+pub fn claim_airdrops(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
     amount: Uint128,
-    claim_msg: Binary,
+    claim_msg: Binary, // Constructed by pools contract
     airdrop_contract: Addr,
+) -> Result<Response<TerraMsgWrapper>, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    validate(&config, &info, &env, vec![Verify::SenderPoolsContract])?;
+
+    if amount.eq(&Uint128::zero()) {
+        return Err(ContractError::ZeroAmount {});
+    }
+
+    let messages: Vec<WasmMsg> = vec![WasmMsg::Execute {
+        contract_addr: airdrop_contract.to_string(),
+        msg: claim_msg,
+        funds: vec![],
+    }];
+
+    Ok(Response::new().add_messages(messages))
+}
+
+pub fn transfer_airdrops(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    amount: Uint128,
     cw20_contract: Addr,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let config = CONFIG.load(deps.storage)?;
@@ -353,22 +369,15 @@ pub fn redeem_airdrop_and_transfer(
         return Err(ContractError::ZeroAmount {});
     }
 
-    let messages: Vec<WasmMsg> = vec![
-        WasmMsg::Execute {
-            contract_addr: airdrop_contract.to_string(),
-            msg: claim_msg,
-            funds: vec![],
-        },
-        WasmMsg::Execute {
-            contract_addr: cw20_contract.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                recipient: String::from(config.airdrop_withdraw_contract),
-                amount,
-            })
-            .unwrap(),
-            funds: vec![],
-        },
-    ];
+    let messages: Vec<WasmMsg> = vec![WasmMsg::Execute {
+        contract_addr: cw20_contract.to_string(),
+        msg: to_binary(&Cw20ExecuteMsg::Transfer {
+            recipient: String::from(config.airdrop_withdraw_contract),
+            amount,
+        })
+        .unwrap(),
+        funds: vec![],
+    }];
 
     Ok(Response::new().add_messages(messages))
 }
