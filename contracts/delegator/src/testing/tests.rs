@@ -10,28 +10,32 @@ mod tests {
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
     };
     use cosmwasm_std::{
-        attr, from_binary, Addr, BankMsg, Coin, Decimal, Env, MessageInfo, OwnedDeps, Response,
+        attr, from_binary, Addr, BankMsg, Coin, Decimal, Env, MessageInfo, OwnedDeps, StdResult,
         SubMsg, Uint128,
     };
     use cw_storage_plus::U64Key;
     use stader_utils::coin_utils::{check_equal_coin_vector, check_equal_deccoin_vector, DecCoin};
-    use terra_cosmwasm::TerraMsgWrapper;
 
     pub fn instantiate_contract(
         deps: &mut OwnedDeps<MockStorage, MockApi, MockQuerier>,
         info: &MessageInfo,
         env: &Env,
         vault_denom: Option<String>,
-    ) -> Response<TerraMsgWrapper> {
+    ) {
         let instantiate_msg = InstantiateMsg {
             undelegations_max_limit: None,
-            pools_contract: "pools_addr".to_string(),
-            scc_contract: "scc_addr".to_string(),
             protocol_fee: Decimal::from_ratio(1_u128, 1000_u128), // 0.1%
             protocol_fee_contract: "protocol_fee_addr".to_string(),
         };
 
-        return instantiate(deps.as_mut(), env.clone(), info.clone(), instantiate_msg).unwrap();
+        instantiate(deps.as_mut(), env.clone(), info.clone(), instantiate_msg).unwrap();
+        CONFIG
+            .update(deps.as_mut().storage, |mut config| -> StdResult<_> {
+                config.scc_contract = Addr::unchecked("scc_addr");
+                config.pools_contract = Addr::unchecked("pools_addr");
+                Ok(config)
+            })
+            .unwrap();
     }
 
     #[test]
@@ -41,8 +45,6 @@ mod tests {
 
         let msg = InstantiateMsg {
             undelegations_max_limit: None,
-            pools_contract: "pools_addr".to_string(),
-            scc_contract: "scc_addr".to_string(),
             protocol_fee: Decimal::from_ratio(1001_u128, 1000_u128), // 0.1%
             protocol_fee_contract: "protocol_fee_addr".to_string(),
         };
@@ -51,8 +53,6 @@ mod tests {
 
         let msg = InstantiateMsg {
             undelegations_max_limit: None,
-            pools_contract: "pools_address".to_string(),
-            scc_contract: "scc_addr".to_string(),
             protocol_fee: Decimal::from_ratio(1_u128, 1000_u128), // 0.1%
             protocol_fee_contract: "protocol_fee_addr".to_string(),
         };
@@ -60,8 +60,8 @@ mod tests {
             manager: Addr::unchecked("creator"),
             vault_denom: "uluna".to_string(),
             undelegations_max_limit: 20_u32,
-            pools_contract: Addr::unchecked("pools_address"),
-            scc_contract: Addr::unchecked("scc_addr"),
+            pools_contract: Addr::unchecked("0"),
+            scc_contract: Addr::unchecked("0"),
             protocol_fee: Decimal::from_ratio(1_u128, 1000_u128),
             protocol_fee_contract: Addr::unchecked("protocol_fee_addr"),
         };
@@ -815,7 +815,13 @@ mod tests {
         let info = mock_info("creator", &[]);
         let env = mock_env();
 
-        instantiate_contract(&mut deps, &info, &env, None);
+        let instantiate_msg = InstantiateMsg {
+            undelegations_max_limit: None,
+            protocol_fee: Decimal::from_ratio(1_u128, 1000_u128), // 0.1%
+            protocol_fee_contract: "protocol_fee_addr".to_string(),
+        };
+
+        instantiate(deps.as_mut(), env.clone(), info.clone(), instantiate_msg).unwrap();
 
         let initial_msg = ExecuteMsg::UpdateConfig {
             undelegation_max_limit: None,
@@ -841,12 +847,12 @@ mod tests {
         .unwrap_err();
         assert!(matches!(err, ContractError::FundsNotExpected {}));
 
-        let mut expected_config = Config {
+        let expected_config = Config {
             manager: Addr::unchecked("creator"),
             vault_denom: "uluna".to_string(),
             undelegations_max_limit: 20,
-            pools_contract: Addr::unchecked("pools_addr"),
-            scc_contract: Addr::unchecked("scc_addr"),
+            pools_contract: Addr::unchecked("0"),
+            scc_contract: Addr::unchecked("0"),
             protocol_fee: Decimal::from_ratio(1_u128, 1000_u128),
             protocol_fee_contract: Addr::unchecked("protocol_fee_addr"),
         };
@@ -864,16 +870,42 @@ mod tests {
         let config = CONFIG.load(deps.as_mut().storage).unwrap();
         assert_eq!(config, expected_config);
 
+        let mut expected_config = Config {
+            manager: Addr::unchecked("creator"),
+            vault_denom: "uluna".to_string(),
+            undelegations_max_limit: 20,
+            pools_contract: Addr::unchecked("pools_addr"),
+            scc_contract: Addr::unchecked("scc_addr"),
+            protocol_fee: Decimal::from_ratio(1_u128, 1000_u128),
+            protocol_fee_contract: Addr::unchecked("protocol_fee_addr"),
+        };
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::UpdateConfig {
+                undelegation_max_limit: None,
+                pools_contract: Some("pools_addr".to_string()),
+                scc_contract: Some("scc_addr".to_string()),
+                protocol_fee: None,
+                protocol_fee_contract: None,
+            },
+        )
+        .unwrap();
+        assert!(res.messages.is_empty());
+        let config = CONFIG.load(deps.as_mut().storage).unwrap();
+        assert_eq!(config, expected_config);
+
         let err = execute(
             deps.as_mut(),
             env.clone(),
             mock_info("creator", &[]),
             ExecuteMsg::UpdateConfig {
                 undelegation_max_limit: Some(25_u32),
-                pools_contract: Some(Addr::unchecked("new_pools_addr")),
-                scc_contract: Some(Addr::unchecked("new_scc_addr")),
+                pools_contract: Some("new_pools_addr".to_string()),
+                scc_contract: Some("new_scc_addr".to_string()),
                 protocol_fee: Some(Decimal::from_ratio(1001_u128, 1000_u128)),
-                protocol_fee_contract: Some(Addr::unchecked("new_protocol_fee_addr")),
+                protocol_fee_contract: Some("new_protocol_fee_addr".to_string()),
             }
             .clone(),
         )
@@ -884,7 +916,7 @@ mod tests {
             manager: Addr::unchecked("creator"),
             vault_denom: "uluna".to_string(),
             undelegations_max_limit: 25,
-            pools_contract: Addr::unchecked("new_pools_addr"),
+            pools_contract: Addr::unchecked("pools_addr"), // Pools can be updated only once. So no update here.
             scc_contract: Addr::unchecked("new_scc_addr"),
             protocol_fee: Decimal::from_ratio(2_u128, 1000_u128),
             protocol_fee_contract: Addr::unchecked("new_protocol_fee_addr"),
@@ -896,10 +928,10 @@ mod tests {
             mock_info("creator", &[]),
             ExecuteMsg::UpdateConfig {
                 undelegation_max_limit: Some(25_u32),
-                pools_contract: Some(Addr::unchecked("new_pools_addr")),
-                scc_contract: Some(Addr::unchecked("new_scc_addr")),
+                pools_contract: Some("new_pools_addr".to_string()),
+                scc_contract: Some("new_scc_addr".to_string()),
                 protocol_fee: Some(Decimal::from_ratio(2_u128, 1000_u128)),
-                protocol_fee_contract: Some(Addr::unchecked("new_protocol_fee_addr")),
+                protocol_fee_contract: Some("new_protocol_fee_addr".to_string()),
             }
             .clone(),
         )

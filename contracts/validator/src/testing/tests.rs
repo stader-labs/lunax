@@ -10,11 +10,10 @@ mod tests {
     };
     use cosmwasm_std::{
         from_binary, to_binary, Addr, Attribute, BankMsg, Binary, Coin, Decimal, DistributionMsg,
-        Env, FullDelegation, MessageInfo, OwnedDeps, Response, StakingMsg, SubMsg, Uint128,
+        Env, FullDelegation, MessageInfo, OwnedDeps, StakingMsg, StdResult, SubMsg, Uint128,
         Validator, WasmMsg,
     };
     use cw20::Cw20ExecuteMsg;
-    use terra_cosmwasm::TerraMsgWrapper;
 
     fn get_validators() -> Vec<Validator> {
         vec![
@@ -70,15 +69,22 @@ mod tests {
         info: &MessageInfo,
         env: &Env,
         vault_denom: Option<String>,
-    ) -> Response<TerraMsgWrapper> {
+    ) {
         let instantiate_msg = InstantiateMsg {
-            pools_contract: Addr::unchecked("pools_addr"),
-            scc_contract: Addr::unchecked("scc_addr"),
-            delegator_contract: Addr::unchecked("delegator_addr"),
-            airdrop_withdraw_contract: Addr::unchecked("airdrop_withdraw_addr"),
+            // pools_contract: Addr::unchecked("pools_addr"),
+            // delegator_contract: Addr::unchecked("delegator_addr"),
+            // airdrop_withdraw_contract: Addr::unchecked("airdrop_withdraw_addr"),
         };
 
-        return instantiate(deps.as_mut(), env.clone(), info.clone(), instantiate_msg).unwrap();
+        instantiate(deps.as_mut(), env.clone(), info.clone(), instantiate_msg).unwrap();
+        CONFIG
+            .update(deps.as_mut().storage, |mut config| -> StdResult<_> {
+                config.pools_contract = Addr::unchecked("pools_addr");
+                config.delegator_contract = Addr::unchecked("delegator_addr");
+                config.airdrop_withdraw_contract = Addr::unchecked("airdrop_withdraw_addr");
+                Ok(config)
+            })
+            .unwrap();
     }
 
     #[test]
@@ -86,17 +92,16 @@ mod tests {
         let mut deps = mock_dependencies(&[]);
 
         let msg = InstantiateMsg {
-            pools_contract: Addr::unchecked("pools_address"),
-            scc_contract: Addr::unchecked("scc_addr"),
-            delegator_contract: Addr::unchecked("delegator_addr"),
-            airdrop_withdraw_contract: Addr::unchecked("airdrop_withdraw_addr"),
+            // pools_contract: Addr::unchecked("pools_address"),
+            // delegator_contract: Addr::unchecked("delegator_addr"),
+            // airdrop_withdraw_contract: Addr::unchecked("airdrop_withdraw_addr"),
         };
         let expected_config = Config {
             manager: Addr::unchecked("creator"),
             vault_denom: "uluna".to_string(),
-            pools_contract: Addr::unchecked("pools_address"),
-            delegator_contract: Addr::unchecked("delegator_addr"),
-            airdrop_withdraw_contract: Addr::unchecked("airdrop_withdraw_addr"),
+            pools_contract: Addr::unchecked("0"),
+            delegator_contract: Addr::unchecked("0"),
+            airdrop_withdraw_contract: Addr::unchecked("0"),
         };
         let info = mock_info("creator", &[]);
 
@@ -955,7 +960,7 @@ mod tests {
         let info = mock_info("creator", &[]);
         let env = mock_env();
 
-        instantiate_contract(&mut deps, &info, &env, None);
+        instantiate(deps.as_mut(), env.clone(), info.clone(), InstantiateMsg {}).unwrap();
 
         let initial_msg = ExecuteMsg::UpdateConfig {
             pools_contract: None,
@@ -979,12 +984,12 @@ mod tests {
         .unwrap_err();
         assert!(matches!(err, ContractError::FundsNotExpected {}));
 
-        let mut expected_config = Config {
+        let expected_config = Config {
             manager: Addr::unchecked("creator"),
             vault_denom: "uluna".to_string(),
-            pools_contract: Addr::unchecked("pools_addr"),
-            delegator_contract: Addr::unchecked("delegator_addr"),
-            airdrop_withdraw_contract: Addr::unchecked("airdrop_withdraw_addr"),
+            pools_contract: Addr::unchecked("0"),
+            delegator_contract: Addr::unchecked("0"),
+            airdrop_withdraw_contract: Addr::unchecked("0"),
         };
         let config = CONFIG.load(deps.as_mut().storage).unwrap();
         assert_eq!(config, expected_config);
@@ -1000,10 +1005,32 @@ mod tests {
         let config = CONFIG.load(deps.as_mut().storage).unwrap();
         assert_eq!(config, expected_config);
 
+        let mut expected_config = Config {
+            manager: Addr::unchecked("creator"),
+            vault_denom: "uluna".to_string(),
+            pools_contract: Addr::unchecked("pools_addr"),
+            delegator_contract: Addr::unchecked("delegator_addr"),
+            airdrop_withdraw_contract: Addr::unchecked("airdrop_withdraw_addr"),
+        };
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::UpdateConfig {
+                pools_contract: Some(Addr::unchecked("pools_addr")),
+                delegator_contract: Some(Addr::unchecked("delegator_addr")),
+                airdrop_withdraw_contract: Some(Addr::unchecked("airdrop_withdraw_addr")),
+            },
+        )
+        .unwrap();
+        assert!(res.messages.is_empty());
+        let config = CONFIG.load(deps.as_mut().storage).unwrap();
+        assert_eq!(config, expected_config);
+
         expected_config = Config {
             manager: Addr::unchecked("creator"),
             vault_denom: "uluna".to_string(),
-            pools_contract: Addr::unchecked("new_pools_addr"),
+            pools_contract: Addr::unchecked("pools_addr"), // Pools address can only be updated once.
             delegator_contract: Addr::unchecked("new_delegator_addr"),
             airdrop_withdraw_contract: Addr::unchecked("new_airdrop_withdraw_addr"),
         };

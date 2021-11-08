@@ -46,13 +46,14 @@ pub fn instantiate(
     let config = Config {
         manager: info.sender.clone(),
         vault_denom: "uluna".to_string(),
-        delegator_contract: deps.api.addr_validate(msg.delegator_contract.as_str())?,
-        scc_contract: deps.api.addr_validate(msg.scc_contract.as_str())?,
-        unbonding_period: msg.unbonding_period.unwrap_or(21 * 24 * 3600),
-        unbonding_buffer: msg.unbonding_buffer.unwrap_or(3600),
+        delegator_contract: Addr::unchecked("0"),
+        scc_contract: Addr::unchecked("0"),
+        unbonding_period: msg.unbonding_period.unwrap_or(21 * 24 * 3600), // default 21 days
 
         min_deposit: msg.min_deposit,
         max_deposit: msg.max_deposit,
+
+        undelegation_cooldown: msg.undelegation_cooldown.unwrap_or(3 * 24 * 3600), // default 3 days
     };
     let state = State {
         next_pool_id: 0_u64,
@@ -199,6 +200,7 @@ pub fn add_pool(
         slashing_pointer: Decimal::one(),
         current_undelegation_batch_id: 0_u64,
         last_reconciled_batch_id: 0_u64,
+        last_undelegation_time: env.block.time,
     };
     let pool_key = U64Key::new(pool_id);
     POOL_REGISTRY.save(deps.storage, pool_key, &pool_meta)?;
@@ -702,10 +704,17 @@ pub fn undelegate_from_pool(
     pool_id: u64,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let config = CONFIG.load(deps.storage)?;
-    validate(&config, &info, &env, vec![Verify::SenderManager])?;
 
     check_slashing(&mut deps, env.clone(), pool_id)?;
     let mut pool_meta = get_verified_pool(deps.storage, pool_id, false)?;
+
+    if info.sender.ne(&config.manager)
+        && env.block.time.lt(&pool_meta
+            .last_undelegation_time
+            .plus_seconds(config.undelegation_cooldown))
+    {
+        return Err(ContractError::UndelegationInCooldown {});
+    }
 
     // This is because a new batch wuold be created before this message is called, so -1.
     let undelegate_batch_id = pool_meta.current_undelegation_batch_id;
@@ -776,6 +785,7 @@ pub fn undelegate_from_pool(
         return Err(ContractError::InSufficientFunds {});
     }
 
+    pool_meta.last_undelegation_time = env.block.time;
     pool_meta.staked = pool_meta.staked.checked_sub(undel_amount).unwrap();
     create_new_undelegation_batch(deps.storage, env, pool_id, &mut pool_meta)?;
 
@@ -789,13 +799,10 @@ pub fn undelegate_from_pool(
 // we are now checking if there was slashing in these 21 days for these funds.
 pub fn reconcile_funds(
     deps: DepsMut,
-    info: MessageInfo,
+    _info: MessageInfo,
     env: Env,
     pool_id: u64,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
-    validate(&config, &info, &env, vec![Verify::SenderManager])?;
-
     let mut pool_meta = get_verified_pool(deps.storage, pool_id, false)?;
     let mut total_amount = Uint128::zero();
     let mut last_reconciled_id = pool_meta.last_reconciled_batch_id;
@@ -817,7 +824,6 @@ pub fn reconcile_funds(
         last_reconciled_id = batch_id;
     }
 
-    // TODO - GM. This can be just a bank balance query.
     // QUERY the base funds in validator contract and check how much can be reconciled
     let unaccounted_base_funds: Coin =
         deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
@@ -943,7 +949,8 @@ pub fn claim_airdrops(
     let mut msgs = vec![];
     let mut failed_pools = vec![];
     for rate in airdrop_rates {
-        let airdrop_info_opt = AIRDROP_REGISTRY.may_load(deps.storage, rate.denom.to_lowercase())?;
+        let airdrop_info_opt =
+            AIRDROP_REGISTRY.may_load(deps.storage, rate.denom.to_lowercase())?;
         if airdrop_info_opt.is_none() {
             return Err(ContractError::AirdropNotRegistered {});
         }
@@ -1119,7 +1126,7 @@ pub fn update_config(
     env: Env,
     update_config: ConfigUpdateRequest,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
+    let mut config = CONFIG.load(deps.storage)?;
     validate(
         &config,
         &info,
@@ -1127,21 +1134,29 @@ pub fn update_config(
         vec![Verify::SenderManager, Verify::NoFunds],
     )?;
 
-    CONFIG.update(deps.storage, |mut config| -> StdResult<_> {
-        config.delegator_contract = update_config
-            .delegator_contract
-            .unwrap_or(config.delegator_contract);
-        config.scc_contract = update_config.scc_contract.unwrap_or(config.scc_contract);
-        config.unbonding_period = update_config
-            .unbonding_period
-            .unwrap_or(config.unbonding_period);
-        config.unbonding_buffer = update_config
-            .unbonding_buffer
-            .unwrap_or(config.unbonding_buffer);
-        config.min_deposit = update_config.min_deposit.unwrap_or(config.min_deposit);
-        config.max_deposit = update_config.max_deposit.unwrap_or(config.max_deposit);
-        Ok(config)
-    })?;
+    if update_config.delegator_contract.is_some() {
+        if config.delegator_contract.eq(&Addr::unchecked("0")) {
+            config.delegator_contract = deps
+                .api
+                .addr_validate(update_config.delegator_contract.unwrap().as_str())?;
+        }
+    }
+    if update_config.scc_contract.is_some() {
+        config.scc_contract = deps
+            .api
+            .addr_validate(update_config.scc_contract.unwrap().as_str())?;
+    }
+
+    config.unbonding_period = update_config
+        .unbonding_period
+        .unwrap_or(config.unbonding_period);
+    config.undelegation_cooldown = update_config
+        .undelegation_cooldown
+        .unwrap_or(config.undelegation_cooldown);
+    config.min_deposit = update_config.min_deposit.unwrap_or(config.min_deposit);
+    config.max_deposit = update_config.max_deposit.unwrap_or(config.max_deposit);
+
+    CONFIG.save(deps.storage, &config)?;
 
     Ok(Response::default())
 }
@@ -1161,9 +1176,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::GetValMeta { pool_id, val_addr } => {
             to_binary(&query_val_meta(deps, pool_id, val_addr)?)
         }
-        QueryMsg::GetAirdropRegistry { denom } => {
-            to_binary(&query_airdrop_registry(deps, denom)?)
-        }
+        QueryMsg::GetAirdropRegistry { denom } => to_binary(&query_airdrop_registry(deps, denom)?),
     }
 }
 

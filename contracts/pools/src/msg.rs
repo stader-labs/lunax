@@ -8,12 +8,10 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
-    pub delegator_contract: String,
-    pub scc_contract: String,
     pub unbonding_period: Option<u64>,
-    pub unbonding_buffer: Option<u64>,
     pub min_deposit: Uint128,
     pub max_deposit: Uint128,
+    pub undelegation_cooldown: Option<u64>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

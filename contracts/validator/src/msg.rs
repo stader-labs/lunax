@@ -4,12 +4,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct InstantiateMsg {
-    pub pools_contract: Addr,
-    pub scc_contract: Addr, // DON'T NEED THIS.
-    pub delegator_contract: Addr,
-    pub airdrop_withdraw_contract: Addr,
-}
+pub struct InstantiateMsg {}
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct MigrateMsg {}

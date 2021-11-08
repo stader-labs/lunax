@@ -12,9 +12,9 @@ pub struct Config {
     pub delegator_contract: Addr,
     pub scc_contract: Addr, // Contract to send generated rewards so as to be put into strategies. Usually assigned the SCC contract.
     pub unbonding_period: u64,
-    pub unbonding_buffer: u64,
     pub min_deposit: Uint128,
     pub max_deposit: Uint128,
+    pub undelegation_cooldown: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -45,6 +45,7 @@ pub struct PoolRegistryInfo {
     pub slashing_pointer: Decimal, // Value starts at 1 and keeps going down with slashing events and never up.
     pub current_undelegation_batch_id: u64,
     pub last_reconciled_batch_id: u64,
+    pub last_undelegation_time: Timestamp,
 }
 
 // Validator address and pool Id as key.
@@ -73,12 +74,12 @@ pub struct BatchUndelegationRecord {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigUpdateRequest {
-    pub(crate) delegator_contract: Option<Addr>,
-    pub(crate) scc_contract: Option<Addr>,
+    pub(crate) delegator_contract: Option<String>,
+    pub(crate) scc_contract: Option<String>,
     pub(crate) min_deposit: Option<Uint128>,
     pub(crate) max_deposit: Option<Uint128>,
     pub(crate) unbonding_period: Option<u64>,
-    pub(crate) unbonding_buffer: Option<u64>,
+    pub(crate) undelegation_cooldown: Option<u64>,
 }
 
 pub const POOL_REGISTRY: Map<U64Key, PoolRegistryInfo> = Map::new("pool_registry");

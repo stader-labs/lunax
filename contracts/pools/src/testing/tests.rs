@@ -21,14 +21,13 @@ mod tests {
     };
     use cosmwasm_std::{
         attr, from_binary, to_binary, Addr, Coin, Decimal, Env, FullDelegation, MessageInfo,
-        OwnedDeps, Response, SubMsg, Uint128, Validator, WasmMsg,
+        OwnedDeps, StdResult, SubMsg, Uint128, Validator, WasmMsg,
     };
     use cw_storage_plus::U64Key;
     use delegator::msg::ExecuteMsg as DelegatorMsg;
     use delegator::state::PoolPointerInfo;
     use reward::msg::ExecuteMsg as RewardExecuteMsg;
     use stader_utils::coin_utils::{check_equal_deccoin_vector, DecCoin};
-    use terra_cosmwasm::TerraMsgWrapper;
     use validator::msg::ExecuteMsg as ValidatorMsg;
 
     fn get_validators() -> Vec<Validator> {
@@ -85,17 +84,22 @@ mod tests {
         info: &MessageInfo,
         env: &Env,
         vault_denom: Option<String>,
-    ) -> Response<TerraMsgWrapper> {
+    ) {
         let instantiate_msg = InstantiateMsg {
-            delegator_contract: Addr::unchecked("delegator_addr").to_string(),
-            scc_contract: Addr::unchecked("scc_addr").to_string(),
             unbonding_period: None,
-            unbonding_buffer: None,
+            undelegation_cooldown: Some(10),
             min_deposit: Uint128::new(1000),
             max_deposit: Uint128::new(1_000_000_000_000),
         };
 
-        return instantiate(deps.as_mut(), env.clone(), info.clone(), instantiate_msg).unwrap();
+        instantiate(deps.as_mut(), env.clone(), info.clone(), instantiate_msg).unwrap();
+        CONFIG
+            .update(deps.as_mut().storage, |mut config| -> StdResult<_> {
+                config.delegator_contract = Addr::unchecked("delegator_addr");
+                config.scc_contract = Addr::unchecked("scc_addr");
+                Ok(config)
+            })
+            .unwrap();
     }
 
     #[test]
@@ -103,20 +107,18 @@ mod tests {
         let mut deps = mock_dependencies(&[]);
 
         let msg = InstantiateMsg {
-            delegator_contract: Addr::unchecked("delegator_addr").to_string(),
-            scc_contract: Addr::unchecked("scc_addr").to_string(),
             unbonding_period: None,
-            unbonding_buffer: None,
+            undelegation_cooldown: Some(10),
             min_deposit: Uint128::new(1000),
             max_deposit: Uint128::new(1_000_000_000_000),
         };
         let expected_config = Config {
             manager: Addr::unchecked("creator"),
             vault_denom: "uluna".to_string(),
-            delegator_contract: Addr::unchecked("delegator_addr"),
-            scc_contract: Addr::unchecked("scc_addr"),
+            delegator_contract: Addr::unchecked("0"),
+            scc_contract: Addr::unchecked("0"),
             unbonding_period: 3600 * 24 * 21,
-            unbonding_buffer: 3600,
+            undelegation_cooldown: 10,
             min_deposit: Uint128::new(1000),
             max_deposit: Uint128::new(1_000_000_000_000),
         };
@@ -228,6 +230,7 @@ mod tests {
             current_undelegation_batch_id: 1,
             last_reconciled_batch_id: 0,
             protocol_fee: Decimal::from_ratio(1_u128, 1000_u128),
+            last_undelegation_time: env.block.time,
         };
         assert_eq!(pool_meta, expected_pool_info);
 
@@ -335,6 +338,7 @@ mod tests {
                     slashing_pointer: Decimal::one(),
                     current_undelegation_batch_id: 0,
                     last_reconciled_batch_id: 0,
+                    last_undelegation_time: env.block.time.minus_seconds(10),
                 },
             )
             .unwrap();
@@ -394,6 +398,7 @@ mod tests {
             current_undelegation_batch_id: 0,
             last_reconciled_batch_id: 0,
             protocol_fee: Default::default(),
+            last_undelegation_time: env.block.time.minus_seconds(10),
         };
         assert!(pool_meta.eq(&expected_pool_info));
 
@@ -483,6 +488,7 @@ mod tests {
             slashing_pointer: Decimal::one(),
             current_undelegation_batch_id: 1,
             last_reconciled_batch_id: 0,
+            last_undelegation_time: env.block.time.minus_seconds(10),
         };
         POOL_REGISTRY
             .save(deps.as_mut().storage, U64Key::new(12), &pool_info)
@@ -582,6 +588,7 @@ mod tests {
             slashing_pointer: Decimal::one(),
             current_undelegation_batch_id: 1,
             last_reconciled_batch_id: 0,
+            last_undelegation_time: env.block.time.minus_seconds(10),
         };
         POOL_REGISTRY
             .save(deps.as_mut().storage, U64Key::new(12), &pool_info)
@@ -709,6 +716,7 @@ mod tests {
             current_undelegation_batch_id: 1,
             last_reconciled_batch_id: 0,
             protocol_fee: Default::default(),
+            last_undelegation_time: env.block.time.minus_seconds(10),
         };
         assert_eq!(pool_meta, expected_pool_info);
 
@@ -812,6 +820,7 @@ mod tests {
             slashing_pointer: Decimal::one(),
             current_undelegation_batch_id: 1,
             last_reconciled_batch_id: 0,
+            last_undelegation_time: env.block.time.minus_seconds(10),
         };
         POOL_REGISTRY
             .save(deps.as_mut().storage, U64Key::new(12), &pool_info)
@@ -915,6 +924,7 @@ mod tests {
             slashing_pointer: Decimal::one(),
             current_undelegation_batch_id: 1,
             last_reconciled_batch_id: 0,
+            last_undelegation_time: env.block.time.minus_seconds(10),
         };
         POOL_REGISTRY
             .save(deps.as_mut().storage, U64Key::new(12), &pool_info)
@@ -1009,6 +1019,7 @@ mod tests {
             current_undelegation_batch_id: 1,
             last_reconciled_batch_id: 0,
             protocol_fee: Default::default(),
+            last_undelegation_time: env.block.time.minus_seconds(10),
         };
         assert_eq!(pool_meta, expected_pool_info);
 
@@ -1120,6 +1131,7 @@ mod tests {
             slashing_pointer: Decimal::one(),
             current_undelegation_batch_id: 1,
             last_reconciled_batch_id: 0,
+            last_undelegation_time: env.block.time.minus_seconds(10),
         };
         POOL_REGISTRY
             .save(deps.as_mut().storage, U64Key::new(12), &pool_info)
@@ -1491,6 +1503,7 @@ mod tests {
                     slashing_pointer: Default::default(),
                     current_undelegation_batch_id: 1,
                     last_reconciled_batch_id: 0,
+                    last_undelegation_time: env.block.time.minus_seconds(10),
                 },
             )
             .unwrap();
@@ -1578,6 +1591,7 @@ mod tests {
                     slashing_pointer: Default::default(),
                     current_undelegation_batch_id: 1,
                     last_reconciled_batch_id: 0,
+                    last_undelegation_time: env.block.time.minus_seconds(10),
                 },
             )
             .unwrap();
@@ -1646,6 +1660,7 @@ mod tests {
                     slashing_pointer: Default::default(),
                     current_undelegation_batch_id: 1,
                     last_reconciled_batch_id: 0,
+                    last_undelegation_time: env.block.time.minus_seconds(10),
                 },
             )
             .unwrap();
@@ -1777,6 +1792,7 @@ mod tests {
                     slashing_pointer: Decimal::one(),
                     current_undelegation_batch_id: 1,
                     last_reconciled_batch_id: 0,
+                    last_undelegation_time: env.block.time.minus_seconds(10),
                 },
             )
             .unwrap();
@@ -1915,47 +1931,12 @@ mod tests {
             .unwrap();
 
         instantiate_contract(&mut deps, &info, &env, None);
-        let err = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info("other", &[]),
-            ExecuteMsg::Undelegate { pool_id: 12 },
-        )
-        .unwrap_err();
-        assert!(matches!(err, ContractError::Unauthorized {}));
 
         assert!(BATCH_UNDELEGATION_REGISTRY
             .may_load(deps.as_mut().storage, (U64Key::new(12), U64Key::new(2)))
             .unwrap()
             .is_none());
 
-        // Val 4 will never be undelegated from because they are jailed.
-        POOL_REGISTRY
-            .save(
-                deps.as_mut().storage,
-                U64Key::new(12),
-                &PoolRegistryInfo {
-                    name: "RandomName".to_string(),
-                    active: false,
-                    validator_contract: Addr::unchecked("pool_12_validator_addr"),
-                    reward_contract: Addr::unchecked("pool_12_reward_addr"),
-                    protocol_fee_contract: Addr::unchecked("pool_12_protocol_addr"),
-                    protocol_fee: Decimal::from_ratio(1_u128, 1000_u128),
-                    validators: vec![
-                        valid1.clone(),
-                        valid2.clone(),
-                        valid3.clone(),
-                        valid4.clone(),
-                    ],
-                    staked: Uint128::new(1450),
-                    rewards_pointer: Decimal::zero(),
-                    airdrops_pointer: vec![],
-                    slashing_pointer: Decimal::one(),
-                    current_undelegation_batch_id: 1,
-                    last_reconciled_batch_id: 0,
-                },
-            )
-            .unwrap();
         BATCH_UNDELEGATION_REGISTRY
             .save(
                 deps.as_mut().storage,
@@ -1971,6 +1952,48 @@ mod tests {
                 },
             )
             .unwrap();
+
+        let mut pool_12_initial = PoolRegistryInfo {
+            name: "RandomName".to_string(),
+            active: false,
+            validator_contract: Addr::unchecked("pool_12_validator_addr"),
+            reward_contract: Addr::unchecked("pool_12_reward_addr"),
+            protocol_fee_contract: Addr::unchecked("pool_12_protocol_addr"),
+            protocol_fee: Decimal::from_ratio(1_u128, 1000_u128),
+            validators: vec![
+                valid1.clone(),
+                valid2.clone(),
+                valid3.clone(),
+                valid4.clone(),
+            ],
+            staked: Uint128::new(1450),
+            rewards_pointer: Decimal::zero(),
+            airdrops_pointer: vec![],
+            slashing_pointer: Decimal::one(),
+            current_undelegation_batch_id: 1,
+            last_reconciled_batch_id: 0,
+            last_undelegation_time: env.block.time.minus_seconds(5), // This will error out for non-manager users.
+        };
+
+        // Val 4 will never be undelegated from because they are jailed.
+        POOL_REGISTRY
+            .save(deps.as_mut().storage, U64Key::new(12), &pool_12_initial)
+            .unwrap();
+
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("other", &[]),
+            ExecuteMsg::Undelegate { pool_id: 12 },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::UndelegationInCooldown {}));
+
+        pool_12_initial.last_undelegation_time = env.block.time.minus_seconds(10); // Enables anyone to run this message.
+        POOL_REGISTRY
+            .save(deps.as_mut().storage, U64Key::new(12), &pool_12_initial)
+            .unwrap();
+
         let err = execute(
             deps.as_mut(),
             env.clone(),
@@ -1978,6 +2001,9 @@ mod tests {
             ExecuteMsg::Undelegate { pool_id: 12 },
         )
         .unwrap_err();
+        // Proof that undelegation cooldown does not apply for manager.
+        // Bypasses undelegation cooldown and errors out at undelegation amount is zero.
+
         assert!(matches!(err, ContractError::NoOp {}));
 
         BATCH_UNDELEGATION_REGISTRY
@@ -1998,7 +2024,7 @@ mod tests {
         let res = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info("creator", &[]),
+            mock_info("other", &[]), // doesn't matter who runs this call.
             ExecuteMsg::Undelegate { pool_id: 12 },
         )
         .unwrap();
@@ -2023,6 +2049,7 @@ mod tests {
         assert_eq!(pool_meta.staked, Uint128::new(1410)); // Staked amount is deducted on actual undelegation
         assert_eq!(pool_meta.current_undelegation_batch_id, 2);
         assert_eq!(pool_meta.last_reconciled_batch_id, 0);
+        assert_eq!(pool_meta.last_undelegation_time, env.block.time);
 
         let batch_und = BATCH_UNDELEGATION_REGISTRY
             .load(deps.as_mut().storage, (U64Key::new(12), U64Key::new(1)))
@@ -2133,27 +2160,23 @@ mod tests {
             .update_staking("test", &*get_validators(), &*get_delegations());
 
         let instantiate_msg = InstantiateMsg {
-            delegator_contract: Addr::unchecked("delegator_addr").to_string(),
-            scc_contract: Addr::unchecked("scc_addr").to_string(),
             unbonding_period: None,
-            unbonding_buffer: None,
+            undelegation_cooldown: None,
             min_deposit: Uint128::new(1000),
             max_deposit: Uint128::new(1_000_000_000_000),
         };
 
         instantiate(deps.as_mut(), env.clone(), info.clone(), instantiate_msg).unwrap();
+        CONFIG
+            .update(deps.as_mut().storage, |mut config| -> StdResult<_> {
+                config.delegator_contract = Addr::unchecked("delegator_addr");
+                config.scc_contract = Addr::unchecked("scc_addr");
+                Ok(config)
+            })
+            .unwrap();
 
         let timestamp_now = env.block.time;
         // let timestamp_before = env.block.time.minus_seconds(21 * 24 * 3600);
-
-        let err = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info("other", &[]),
-            ExecuteMsg::ReconcileFunds { pool_id: 12 },
-        )
-        .unwrap_err();
-        assert!(matches!(err, ContractError::Unauthorized {}));
 
         POOL_REGISTRY
             .save(
@@ -2173,6 +2196,7 @@ mod tests {
                     slashing_pointer: Decimal::one(),
                     current_undelegation_batch_id: 9,
                     last_reconciled_batch_id: 5,
+                    last_undelegation_time: env.block.time.minus_seconds(10),
                 },
             )
             .unwrap();
@@ -2255,7 +2279,7 @@ mod tests {
         let res = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info("creator", &[]),
+            mock_info("other", &[]), // anyone can run this call.
             ExecuteMsg::ReconcileFunds { pool_id: 12 },
         )
         .unwrap();
@@ -2304,15 +2328,20 @@ mod tests {
             .update_staking("test", &*get_validators(), &*get_delegations());
 
         let instantiate_msg = InstantiateMsg {
-            delegator_contract: Addr::unchecked("delegator_addr").to_string(),
-            scc_contract: Addr::unchecked("scc_addr").to_string(),
             unbonding_period: None,
-            unbonding_buffer: None,
+            undelegation_cooldown: None,
             min_deposit: Uint128::new(1000),
             max_deposit: Uint128::new(1_000_000_000_000),
         };
 
         instantiate(deps.as_mut(), env.clone(), info.clone(), instantiate_msg).unwrap();
+        CONFIG
+            .update(deps.as_mut().storage, |mut config| -> StdResult<_> {
+                config.delegator_contract = Addr::unchecked("delegator_addr");
+                config.scc_contract = Addr::unchecked("scc_addr");
+                Ok(config)
+            })
+            .unwrap();
 
         let err = execute(
             deps.as_mut(),
@@ -2470,6 +2499,7 @@ mod tests {
                     current_undelegation_batch_id: 9,
                     last_reconciled_batch_id: 5,
                     protocol_fee: Default::default(),
+                    last_undelegation_time: env.block.time.minus_seconds(10),
                 },
             )
             .unwrap();
@@ -2494,6 +2524,7 @@ mod tests {
                     current_undelegation_batch_id: 9,
                     last_reconciled_batch_id: 5,
                     protocol_fee: Default::default(),
+                    last_undelegation_time: env.block.time.minus_seconds(10),
                 },
             )
             .unwrap();
@@ -2537,13 +2568,10 @@ mod tests {
             slashing_pointer: Default::default(),
             current_undelegation_batch_id: 9,
             last_reconciled_batch_id: 5,
+            last_undelegation_time: env.block.time.minus_seconds(10),
         };
         POOL_REGISTRY
-            .save(
-                deps.as_mut().storage,
-                U64Key::new(12),
-                &pool_12_initial,
-            )
+            .save(deps.as_mut().storage, U64Key::new(12), &pool_12_initial)
             .unwrap();
         let pool_27_initial = PoolRegistryInfo {
             name: "RandomName".to_string(),
@@ -2562,13 +2590,10 @@ mod tests {
             current_undelegation_batch_id: 9,
             last_reconciled_batch_id: 5,
             protocol_fee: Default::default(),
+            last_undelegation_time: env.block.time.minus_seconds(10),
         };
         POOL_REGISTRY
-            .save(
-                deps.as_mut().storage,
-                U64Key::new(27),
-                &pool_27_initial
-            )
+            .save(deps.as_mut().storage, U64Key::new(27), &pool_27_initial)
             .unwrap();
 
         let execute_msg = ExecuteMsg::ClaimAirdrops {
@@ -2714,15 +2739,20 @@ mod tests {
             .update_staking("test", &*get_validators(), &*get_delegations());
 
         let instantiate_msg = InstantiateMsg {
-            delegator_contract: Addr::unchecked("delegator_addr").to_string(),
-            scc_contract: Addr::unchecked("scc_addr").to_string(),
             unbonding_period: None,
-            unbonding_buffer: None,
+            undelegation_cooldown: None,
             min_deposit: Uint128::new(1000),
             max_deposit: Uint128::new(1_000_000_000_000),
         };
 
         instantiate(deps.as_mut(), env.clone(), info.clone(), instantiate_msg).unwrap();
+        CONFIG
+            .update(deps.as_mut().storage, |mut config| -> StdResult<_> {
+                config.delegator_contract = Addr::unchecked("delegator_addr");
+                config.scc_contract = Addr::unchecked("scc_addr");
+                Ok(config)
+            })
+            .unwrap();
 
         let execute_msg = ExecuteMsg::ClaimAirdrops { rates: vec![] };
         let err = execute(
@@ -2773,6 +2803,7 @@ mod tests {
             slashing_pointer: Default::default(),
             current_undelegation_batch_id: 9,
             last_reconciled_batch_id: 5,
+            last_undelegation_time: env.block.time.minus_seconds(10),
         };
         POOL_REGISTRY
             .save(deps.as_mut().storage, U64Key::new(12), &pool_12_initial)
@@ -2794,6 +2825,7 @@ mod tests {
             current_undelegation_batch_id: 9,
             last_reconciled_batch_id: 5,
             protocol_fee: Default::default(),
+            last_undelegation_time: env.block.time.minus_seconds(10),
         };
         POOL_REGISTRY
             .save(deps.as_mut().storage, U64Key::new(27), &pool_27_initial)
@@ -2926,6 +2958,7 @@ mod tests {
             slashing_pointer: Decimal::from_ratio(1_u128, 1000_u128),
             current_undelegation_batch_id: 1,
             last_reconciled_batch_id: 0,
+            last_undelegation_time: env.block.time.minus_seconds(10),
         };
 
         POOL_REGISTRY
@@ -2985,6 +3018,7 @@ mod tests {
             slashing_pointer: Decimal::from_ratio(1_u128, 1000_u128),
             current_undelegation_batch_id: 1,
             last_reconciled_batch_id: 0,
+            last_undelegation_time: env.block.time.minus_seconds(10),
         };
 
         let res = execute(
@@ -3027,7 +3061,14 @@ mod tests {
         let info = mock_info("creator", &[]);
         let env = mock_env();
 
-        instantiate_contract(&mut deps, &info, &env, None);
+        let instantiate_msg = InstantiateMsg {
+            unbonding_period: None,
+            undelegation_cooldown: Some(10),
+            min_deposit: Uint128::new(1000),
+            max_deposit: Uint128::new(1_000_000_000_000),
+        };
+
+        instantiate(deps.as_mut(), env.clone(), info.clone(), instantiate_msg).unwrap();
 
         let initial_msg = ExecuteMsg::UpdateConfig {
             config_request: ConfigUpdateRequest {
@@ -3036,7 +3077,7 @@ mod tests {
                 min_deposit: None,
                 max_deposit: None,
                 unbonding_period: None,
-                unbonding_buffer: None,
+                undelegation_cooldown: None,
             },
         };
         let err = execute(
@@ -3056,13 +3097,13 @@ mod tests {
         .unwrap_err();
         assert!(matches!(err, ContractError::FundsNotExpected {}));
 
-        let mut expected_config = Config {
+        let expected_config = Config {
             manager: Addr::unchecked("creator"),
             vault_denom: "uluna".to_string(),
-            delegator_contract: Addr::unchecked("delegator_addr"),
-            scc_contract: Addr::unchecked("scc_addr"),
+            delegator_contract: Addr::unchecked("0"),
+            scc_contract: Addr::unchecked("0"),
             unbonding_period: 1814400,
-            unbonding_buffer: 3600,
+            undelegation_cooldown: 10,
             min_deposit: Uint128::new(1000),
             max_deposit: Uint128::new(1_000_000_000_000),
         };
@@ -3080,13 +3121,43 @@ mod tests {
         let config = CONFIG.load(deps.as_mut().storage).unwrap();
         assert_eq!(config, expected_config);
 
+        let mut expected_config = Config {
+            manager: Addr::unchecked("creator"),
+            vault_denom: "uluna".to_string(),
+            delegator_contract: Addr::unchecked("delegator_addr"),
+            scc_contract: Addr::unchecked("scc_addr"),
+            unbonding_period: 1814400,
+            undelegation_cooldown: 10,
+            min_deposit: Uint128::new(1000),
+            max_deposit: Uint128::new(1_000_000_000_000),
+        };
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::UpdateConfig {
+                config_request: ConfigUpdateRequest {
+                    delegator_contract: Some("delegator_addr".to_string()),
+                    scc_contract: Some("scc_addr".to_string()),
+                    min_deposit: None,
+                    max_deposit: None,
+                    unbonding_period: None,
+                    undelegation_cooldown: None,
+                },
+            },
+        )
+        .unwrap();
+        assert!(res.messages.is_empty());
+        let config = CONFIG.load(deps.as_mut().storage).unwrap();
+        assert_eq!(config, expected_config);
+
         expected_config = Config {
             manager: Addr::unchecked("creator"),
             vault_denom: "uluna".to_string(),
-            delegator_contract: Addr::unchecked("new_delegator_addr"),
+            delegator_contract: Addr::unchecked("delegator_addr"), // delegator addr can only be changed once.
             scc_contract: Addr::unchecked("new_scc_addr"),
             unbonding_period: 1814401,
-            unbonding_buffer: 3601,
+            undelegation_cooldown: 3601,
             min_deposit: Uint128::new(1001),
             max_deposit: Uint128::new(1_000_000_000_001),
         };
@@ -3097,12 +3168,12 @@ mod tests {
             mock_info("creator", &[]),
             ExecuteMsg::UpdateConfig {
                 config_request: ConfigUpdateRequest {
-                    delegator_contract: Some(Addr::unchecked("new_delegator_addr")),
-                    scc_contract: Some(Addr::unchecked("new_scc_addr")),
+                    delegator_contract: Some("new_delegator_addr".to_string()),
+                    scc_contract: Some("new_scc_addr".to_string()),
                     min_deposit: Some(Uint128::new(1001)),
                     max_deposit: Some(Uint128::new(1_000_000_000_001)),
                     unbonding_period: Some(1814401),
-                    unbonding_buffer: Some(3601),
+                    undelegation_cooldown: Some(3601),
                 },
             }
             .clone(),
@@ -3211,6 +3282,7 @@ mod tests {
             slashing_pointer: Decimal::from_ratio(9_u128, 10_u128),
             current_undelegation_batch_id: 3,
             last_reconciled_batch_id: 2,
+            last_undelegation_time: env.block.time.minus_seconds(10),
         };
         POOL_REGISTRY
             .save(deps.as_mut().storage, U64Key::new(0), &initial_pool_info_0)
@@ -3233,6 +3305,7 @@ mod tests {
             slashing_pointer: Decimal::from_ratio(91_u128, 100_u128),
             current_undelegation_batch_id: 3,
             last_reconciled_batch_id: 2,
+            last_undelegation_time: env.block.time.minus_seconds(10),
         };
         POOL_REGISTRY
             .save(deps.as_mut().storage, U64Key::new(1), &initial_pool_info_1)
@@ -3347,6 +3420,7 @@ mod tests {
             slashing_pointer: Decimal::from_ratio(9_u128, 10_u128),
             current_undelegation_batch_id: 3,
             last_reconciled_batch_id: 2,
+            last_undelegation_time: env.block.time.minus_seconds(10),
         };
         POOL_REGISTRY
             .save(deps.as_mut().storage, U64Key::new(12), &initial_pool_info)

@@ -24,14 +24,14 @@ pub fn instantiate(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    msg: InstantiateMsg,
+    _msg: InstantiateMsg,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let config = Config {
         manager: info.sender,
         vault_denom: "uluna".to_string(),
-        pools_contract: msg.pools_contract,
-        delegator_contract: msg.delegator_contract,
-        airdrop_withdraw_contract: msg.airdrop_withdraw_contract,
+        pools_contract: Addr::unchecked("0"),
+        delegator_contract: Addr::unchecked("0"),
+        airdrop_withdraw_contract: Addr::unchecked("0"),
     };
 
     CONFIG.save(deps.storage, &config)?;
@@ -102,7 +102,6 @@ pub fn execute(
     }
 }
 
-// TODO - GM. Add tests
 pub fn set_reward_withdraw_address(
     deps: DepsMut,
     info: MessageInfo,
@@ -437,7 +436,7 @@ pub fn update_config(
     delegator_contract: Option<Addr>,
     airdrop_withdraw_contract: Option<Addr>,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
+    let mut config = CONFIG.load(deps.storage)?;
     validate(
         &config,
         &info,
@@ -445,13 +444,25 @@ pub fn update_config(
         vec![Verify::SenderManager, Verify::NoFunds],
     )?;
 
-    CONFIG.update(deps.storage, |mut config| -> StdResult<_> {
-        config.pools_contract = pools_contract.unwrap_or(config.pools_contract);
-        config.airdrop_withdraw_contract =
-            airdrop_withdraw_contract.unwrap_or(config.airdrop_withdraw_contract);
-        config.delegator_contract = delegator_contract.unwrap_or(config.delegator_contract);
-        Ok(config)
-    })?;
+    if pools_contract.is_some() {
+        if config.pools_contract.eq(&Addr::unchecked("0")) {
+            config.pools_contract = deps.api.addr_validate(&pools_contract.unwrap().as_str())?;
+        }
+    }
+
+    if airdrop_withdraw_contract.is_some() {
+        config.airdrop_withdraw_contract = deps
+            .api
+            .addr_validate(&airdrop_withdraw_contract.unwrap().as_str())?;
+    }
+
+    if delegator_contract.is_some() {
+        config.delegator_contract = deps
+            .api
+            .addr_validate(&delegator_contract.unwrap().as_str())?;
+    }
+
+    CONFIG.save(deps.storage, &config)?;
 
     Ok(Response::default())
 }

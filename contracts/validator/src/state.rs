@@ -10,7 +10,7 @@ pub struct Config {
     pub vault_denom: String,
     pub pools_contract: Addr,
     pub delegator_contract: Addr,
-    pub airdrop_withdraw_contract: Addr,
+    pub airdrop_withdraw_contract: Addr, // SCC
 }
 
 pub const VALIDATOR_REGISTRY: Map<&Addr, bool> = Map::new("validator_registry");

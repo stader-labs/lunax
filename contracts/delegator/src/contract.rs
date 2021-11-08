@@ -37,8 +37,8 @@ pub fn instantiate(
         manager: info.sender.clone(),
         vault_denom: "uluna".to_string(),
         undelegations_max_limit: msg.undelegations_max_limit.unwrap_or(20_u32),
-        pools_contract: deps.api.addr_validate(msg.pools_contract.as_str())?,
-        scc_contract: deps.api.addr_validate(msg.scc_contract.as_str())?,
+        pools_contract: Addr::unchecked("0"),
+        scc_contract: Addr::unchecked("0"),
         protocol_fee: msg.protocol_fee,
         protocol_fee_contract: deps.api.addr_validate(msg.protocol_fee_contract.as_str())?,
     };
@@ -480,9 +480,9 @@ pub fn update_config(
     info: MessageInfo,
     env: Env,
     undelegation_max_limit: Option<u32>,
-    pools_contract: Option<Addr>,
-    scc_contract: Option<Addr>,
-    protocol_fee_contract: Option<Addr>,
+    pools_contract: Option<String>,
+    scc_contract: Option<String>,
+    protocol_fee_contract: Option<String>,
     protocol_fee: Option<Decimal>,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let mut config = CONFIG.load(deps.storage)?;
@@ -495,10 +495,21 @@ pub fn update_config(
 
     config.undelegations_max_limit =
         undelegation_max_limit.unwrap_or(config.undelegations_max_limit.clone());
-    config.pools_contract = pools_contract.unwrap_or(config.pools_contract.clone());
-    config.scc_contract = scc_contract.unwrap_or(config.scc_contract.clone());
-    config.protocol_fee_contract =
-        protocol_fee_contract.unwrap_or(config.protocol_fee_contract.clone());
+
+    if pools_contract.is_some() {
+        if config.pools_contract.eq(&Addr::unchecked("0")) {
+            // Allow update pools contract only once.
+            config.pools_contract = deps.api.addr_validate(pools_contract.unwrap().as_str())?;
+        }
+    }
+    if scc_contract.is_some() {
+        config.scc_contract = deps.api.addr_validate(scc_contract.unwrap().as_str())?;
+    }
+    if protocol_fee_contract.is_some() {
+        config.protocol_fee_contract = deps
+            .api
+            .addr_validate(protocol_fee_contract.unwrap().as_str())?;
+    }
 
     config.protocol_fee = protocol_fee.unwrap_or(config.protocol_fee);
     if config.protocol_fee.gt(&Decimal::one()) {
