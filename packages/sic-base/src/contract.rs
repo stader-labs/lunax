@@ -1,12 +1,15 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, Addr, BankMsg, Binary, Coin, Deps, DepsMut, Env, MessageInfo, Response, StdResult,
+    to_binary, BankMsg, Binary, Coin, Deps, DepsMut, Env, MessageInfo, Response, StdResult,
     Uint128, WasmMsg,
 };
 
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, GetFulfillableUndelegatedFundsResponse, GetStateResponse, GetTotalTokensResponse, InstantiateMsg, MerkleAirdropMsg, QueryMsg};
+use crate::msg::{
+    ExecuteMsg, GetFulfillableUndelegatedFundsResponse, GetStateResponse, GetTotalTokensResponse,
+    InstantiateMsg, MerkleAirdropMsg, QueryMsg,
+};
 use crate::state::{State, STATE};
 use std::cmp::min;
 
@@ -46,59 +49,44 @@ pub fn execute(
         }
         ExecuteMsg::ClaimAirdrops {
             airdrop_token_contract,
-            cw20_token_contract,
             airdrop_token,
             amount,
             stage,
-            proof
+            proof,
         } => claim_airdrops(
             deps,
             _env,
             info,
             airdrop_token_contract,
-            cw20_token_contract,
             airdrop_token,
             amount,
             stage,
-            proof
+            proof,
         ),
+        ExecuteMsg::TransferAirdropsToScc {
+            cw20_token_contract,
+            airdrop_token,
+            amount,
+        } => transfer_airdrops_to_scc(deps, _env, info, cw20_token_contract, airdrop_token, amount),
     }
 }
 
-// Note: Avoid erroring out in SIC too much. This can break the entire tx in SCC side.
-// Only error for authorization related stuff for now
-#[allow(clippy::too_many_arguments)]
-pub fn claim_airdrops(
+pub fn transfer_airdrops_to_scc(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    airdrop_token_contract: Addr,
-    cw20_token_contract: Addr,
+    cw20_token_contract: String,
     _airdrop_token: String,
     amount: Uint128,
-    stage: u8,
-    proof: Vec<String>
 ) -> Result<Response, ContractError> {
     let state = STATE.load(deps.storage).unwrap();
     if info.sender != state.scc_address {
         return Err(ContractError::Unauthorized {});
     }
 
-    // this wasm-msg will transfer the airdrops from the merkle airdrop cw20 token contract to the
-    // SIC contract
-    let mut messages: Vec<WasmMsg> = vec![WasmMsg::Execute {
-        contract_addr: airdrop_token_contract.to_string(),
-        msg: to_binary(&MerkleAirdropMsg::Claim {
-            stage,
-            amount,
-            proof
-        })?,
-        funds: vec![],
-    }];
+    let cw20_token_contract = deps.api.addr_validate(cw20_token_contract.as_str())?;
 
-    // this wasm message will transfer the ownership from SIC to SCC.
-    // in the current SCC/SIC design, we are allowing
-    messages.push(WasmMsg::Execute {
+    Ok(Response::new().add_message(WasmMsg::Execute {
         contract_addr: cw20_token_contract.to_string(),
         msg: to_binary(&cw20::Cw20ExecuteMsg::Transfer {
             recipient: state.scc_address.to_string(),
@@ -106,9 +94,37 @@ pub fn claim_airdrops(
         })
         .unwrap(),
         funds: vec![],
-    });
+    }))
+}
 
-    Ok(Response::new().add_messages(messages))
+#[allow(clippy::too_many_arguments)]
+pub fn claim_airdrops(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    airdrop_token_contract: String,
+    _airdrop_token: String,
+    amount: Uint128,
+    stage: u8,
+    proof: Vec<String>,
+) -> Result<Response, ContractError> {
+    let state = STATE.load(deps.storage).unwrap();
+    if info.sender != state.scc_address {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    let airdrop_token_contract = deps.api.addr_validate(airdrop_token_contract.as_str())?;
+    // this wasm-msg will transfer the airdrops from the merkle airdrop cw20 token contract to the
+    // SIC contract
+    Ok(Response::new().add_message(WasmMsg::Execute {
+        contract_addr: airdrop_token_contract.to_string(),
+        msg: to_binary(&MerkleAirdropMsg::Claim {
+            stage,
+            amount,
+            proof,
+        })?,
+        funds: vec![],
+    }))
 }
 
 pub fn transfer_rewards(
@@ -124,17 +140,17 @@ pub fn transfer_rewards(
     }
 
     if info.funds.is_empty() {
-        return Ok(Response::new().add_attribute("empty_funds", "1"));
+        return Err(ContractError::NoFundsSent {});
     }
 
     if info.funds.len() > 1 {
-        return Ok(Response::new().add_attribute("multiple_coins_sent", "1"));
+        return Err(ContractError::MultipleCoinsSent {});
     }
 
     let coin_sent = info.funds.get(0).unwrap();
 
     if coin_sent.denom.ne(&state.strategy_denom) {
-        return Ok(Response::new().add_attribute("wrong_denom_sent", "1"));
+        return Err(ContractError::WrongDenom(coin_sent.denom.clone()));
     }
 
     STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {

@@ -15,6 +15,7 @@ use stader_utils::coin_utils::{
     uint128_from_decimal,
 };
 use std::collections::HashMap;
+
 // TODO: bchain99 - we can probably make these generic
 pub fn get_sic_total_tokens(
     querier: QuerierWrapper,

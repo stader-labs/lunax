@@ -89,7 +89,6 @@ pub fn execute(
         ExecuteMsg::Swap {} => swap(deps, _env, info),
         ExecuteMsg::ClaimAirdrops {
             airdrop_token_contract,
-            cw20_token_contract,
             airdrop_token,
             amount,
             stage,
@@ -99,12 +98,16 @@ pub fn execute(
             _env,
             info,
             airdrop_token_contract,
-            cw20_token_contract,
             airdrop_token,
             amount,
             stage,
             proof,
         ),
+        ExecuteMsg::TransferAirdropsToScc {
+            cw20_token_contract,
+            airdrop_token,
+            amount,
+        } => transfer_airdrops_to_scc(deps, _env, info, cw20_token_contract, airdrop_token, amount),
         ExecuteMsg::TransferUndelegatedRewards { amount } => {
             transfer_undelegated_rewards(deps, _env, info, amount)
         }
@@ -143,7 +146,7 @@ pub fn set_reward_withdraw_address(
 
     Ok(
         Response::new().add_message(DistributionMsg::SetWithdrawAddress {
-            address: reward_contract.to_string(),
+            address: reward_contract,
         }),
     )
 }
@@ -349,13 +352,37 @@ pub fn add_validator(
     Ok(Response::default())
 }
 
+pub fn transfer_airdrops_to_scc(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    cw20_token_contract: String,
+    _airdrop_token: String,
+    amount: Uint128,
+) -> Result<Response<TerraMsgWrapper>, ContractError> {
+    let state = STATE.load(deps.storage)?;
+    if info.sender != state.scc_address {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    let cw20_token_contract = deps.api.addr_validate(cw20_token_contract.as_str())?;
+
+    Ok(Response::new().add_message(WasmMsg::Execute {
+        contract_addr: cw20_token_contract.to_string(),
+        msg: to_binary(&cw20::Cw20ExecuteMsg::Transfer {
+            recipient: state.scc_address.to_string(),
+            amount,
+        })?,
+        funds: vec![],
+    }))
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn claim_airdrops(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
     airdrop_token_contract: String,
-    cw20_token_contract: String,
     _airdrop_token: String,
     amount: Uint128,
     stage: u8,
@@ -367,10 +394,9 @@ pub fn claim_airdrops(
     }
 
     let airdrop_token_contract = deps.api.addr_validate(airdrop_token_contract.as_str())?;
-    let cw20_token_contract = deps.api.addr_validate(cw20_token_contract.as_str())?;
     // this wasm-msg will transfer the airdrops from the airdrop cw20 token contract to the
     // SIC contract
-    let mut messages: Vec<WasmMsg> = vec![WasmMsg::Execute {
+    Ok(Response::new().add_message(WasmMsg::Execute {
         contract_addr: airdrop_token_contract.to_string(),
         msg: to_binary(&MerkleAirdropMsg::Claim {
             stage,
@@ -378,19 +404,7 @@ pub fn claim_airdrops(
             proof,
         })?,
         funds: vec![],
-    }];
-
-    // this wasm message will transfer the ownership from SIC to SCC
-    messages.push(WasmMsg::Execute {
-        contract_addr: cw20_token_contract.to_string(),
-        msg: to_binary(&cw20::Cw20ExecuteMsg::Transfer {
-            recipient: state.scc_address.to_string(),
-            amount,
-        })?,
-        funds: vec![],
-    });
-
-    Ok(Response::new().add_messages(messages))
+    }))
 }
 
 pub fn swap(

@@ -44,17 +44,24 @@ pub enum ExecuteMsg {
     },
     // Called by the SCC to claim airdrops from different protocols for the strategy (if airdrop applies)
     // Airdrop token contract is fed from SCC.
-    // The airdrops are claimed by the SIC contract and then the ownership of the airdrops are transferred back to the SCC.
+    // The airdrops are claimed by the SIC contract. SCC sends a separate message to SIC to claim the
+    // airdrops claimed by the SIC. We send a separate message to make sure we are accurately updating the airdrop
+    // pointers in SCC.
     // In the current SIC/SCC design, airdrops are completely handled by SCC. SIC's are currently only responsible
     // for sending the airdrops back to the SCC.
     ClaimAirdrops {
-        airdrop_token_contract: Addr,
-        // used to transfer ownership from SIC to SCC
-        cw20_token_contract: Addr,
+        airdrop_token_contract: String,
         airdrop_token: String,
         amount: Uint128,
         stage: u8,
-        proof: Vec<String>
+        proof: Vec<String>,
+    },
+    // Called by the SCC to transfer "amount" airdrop tokens back to the SCC. The SCC checks for the balance
+    // of the token for the SIC and claims the tokens back and updates the airdrop pointers.
+    TransferAirdropsToScc {
+        cw20_token_contract: String,
+        airdrop_token: String,
+        amount: Uint128,
     },
 }
 

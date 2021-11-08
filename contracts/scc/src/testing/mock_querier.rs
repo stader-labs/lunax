@@ -8,6 +8,7 @@ use cosmwasm_std::{
 use std::collections::HashMap;
 
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage};
+use cw20::BalanceResponse;
 use sic_base::msg::{GetFulfillableUndelegatedFundsResponse, GetTotalTokensResponse, QueryMsg};
 use stader_utils::coin_utils::{decimal_multiplication_in_256, u128_from_decimal};
 use std::cmp::min;
@@ -149,32 +150,44 @@ impl WasmMockQuerier {
                 panic!("WASMQUERY::RAW not implemented!")
             }
             QueryRequest::Wasm(WasmQuery::Smart { contract_addr, msg }) => {
-                match from_binary(msg).unwrap() {
-                    QueryMsg::GetTotalTokens { .. } => {
-                        let contract_tokens = *self
-                            .stader_querier
-                            .contract_to_tokens
-                            .get(&Addr::unchecked(contract_addr))
-                            .unwrap();
-                        let res = GetTotalTokensResponse {
-                            total_tokens: Some(contract_tokens),
-                        };
-                        SystemResult::Ok(ContractResult::from(to_binary(&res)))
-                    }
-                    QueryMsg::GetState { .. } => {
-                        let out = Binary::default();
-                        SystemResult::Ok(ContractResult::from(to_binary(&out)))
-                    }
-                    QueryMsg::GetFulfillableUndelegatedFunds { amount } => {
-                        let fulfillable_amount = *self
-                            .stader_querier
-                            .contract_to_fulfillable_undelegations
-                            .get(&Addr::unchecked(contract_addr))
-                            .unwrap();
-                        let res = GetFulfillableUndelegatedFundsResponse {
-                            undelegated_funds: Some(min(amount, fulfillable_amount)),
-                        };
-                        SystemResult::Ok(ContractResult::from(to_binary(&res)))
+                if contract_addr.starts_with("air") {
+                    let contract_tokens = *self
+                        .stader_querier
+                        .contract_to_tokens
+                        .get(&Addr::unchecked(contract_addr))
+                        .unwrap();
+                    let res = BalanceResponse {
+                        balance: contract_tokens,
+                    };
+                    SystemResult::Ok(ContractResult::from(to_binary(&res)))
+                } else {
+                    match from_binary(msg).unwrap() {
+                        QueryMsg::GetTotalTokens { .. } => {
+                            let contract_tokens = *self
+                                .stader_querier
+                                .contract_to_tokens
+                                .get(&Addr::unchecked(contract_addr))
+                                .unwrap();
+                            let res = GetTotalTokensResponse {
+                                total_tokens: Some(contract_tokens),
+                            };
+                            SystemResult::Ok(ContractResult::from(to_binary(&res)))
+                        }
+                        QueryMsg::GetState { .. } => {
+                            let out = Binary::default();
+                            SystemResult::Ok(ContractResult::from(to_binary(&out)))
+                        }
+                        QueryMsg::GetFulfillableUndelegatedFunds { amount } => {
+                            let fulfillable_amount = *self
+                                .stader_querier
+                                .contract_to_fulfillable_undelegations
+                                .get(&Addr::unchecked(contract_addr))
+                                .unwrap();
+                            let res = GetFulfillableUndelegatedFundsResponse {
+                                undelegated_funds: Some(min(amount, fulfillable_amount)),
+                            };
+                            SystemResult::Ok(ContractResult::from(to_binary(&res)))
+                        }
                     }
                 }
             }

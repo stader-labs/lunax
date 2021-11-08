@@ -1,5 +1,5 @@
 use crate::state::State;
-use cosmwasm_std::{Addr, Binary, Uint128};
+use cosmwasm_std::{Addr, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -36,16 +36,22 @@ pub enum ExecuteMsg {
     },
     RedeemRewards {},
     // Called by the manager to claim airdrops from different protocols. Airdrop token contract fed from SCC.
-    // The ownership of the airdrops is transferred back to the SCC.
+    // This message claims the airdrops from airdrop contract which transfers the airdrop ownership
+    // to the SIC
     ClaimAirdrops {
         airdrop_token_contract: String,
-        // used to transfer ownership from SIC to SCC
-        cw20_token_contract: String,
         // this is just for the SIC's reference.
         airdrop_token: String,
         amount: Uint128,
         stage: u8,
         proof: Vec<String>,
+    },
+    // this transfers "amount" airdrops back to the SCC.
+    // SCC needs to check whether "amount" tokens are available in the cw20_token contract
+    TransferAirdropsToScc {
+        cw20_token_contract: String,
+        airdrop_token: String,
+        amount: Uint128,
     },
     // Called by manager to add a validator to the current pool
     AddValidator {

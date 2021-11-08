@@ -2,15 +2,15 @@
 mod tests {
     use crate::contract::{execute, instantiate, query};
     use crate::error::ContractError;
-    use crate::msg::{ExecuteMsg, GetStateResponse, InstantiateMsg, QueryMsg};
+    use crate::msg::{ExecuteMsg, GetStateResponse, InstantiateMsg, MerkleAirdropMsg, QueryMsg};
     use crate::state::{State, STATE};
     use crate::test_helpers::check_equal_vec;
     use cosmwasm_std::testing::{
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
     };
     use cosmwasm_std::{
-        coin, from_binary, to_binary, Addr, Attribute, BankMsg, Binary, Coin, Empty, Env,
-        MessageInfo, OwnedDeps, Response, SubMsg, Uint128, WasmMsg,
+        coin, from_binary, to_binary, Addr, BankMsg, Coin, Empty, Env, MessageInfo, OwnedDeps,
+        Response, SubMsg, Uint128, WasmMsg,
     };
 
     pub fn instantiate_contract(
@@ -77,23 +77,16 @@ mod tests {
         .unwrap_err();
         assert!(matches!(err, ContractError::Unauthorized {}));
 
-        let res = execute(
+        let err = execute(
             deps.as_mut(),
             env.clone(),
             mock_info(&*get_scc_contract_address(), &[]),
             ExecuteMsg::TransferRewards {},
         )
-        .unwrap();
-        assert_eq!(res.attributes.len(), 1);
-        assert!(check_equal_vec(
-            res.attributes,
-            vec![Attribute {
-                key: "empty_funds".to_string(),
-                value: "1".to_string()
-            }]
-        ));
+        .unwrap_err();
+        assert!(matches!(err, ContractError::NoFundsSent {}));
 
-        let res = execute(
+        let err = execute(
             deps.as_mut(),
             env.clone(),
             mock_info(
@@ -105,17 +98,10 @@ mod tests {
             ),
             ExecuteMsg::TransferRewards {},
         )
-        .unwrap();
-        assert_eq!(res.attributes.len(), 1);
-        assert!(check_equal_vec(
-            res.attributes,
-            vec![Attribute {
-                key: "multiple_coins_sent".to_string(),
-                value: "1".to_string()
-            }]
-        ));
+        .unwrap_err();
+        assert!(matches!(err, ContractError::MultipleCoinsSent {}));
 
-        let res = execute(
+        let err = execute(
             deps.as_mut(),
             env.clone(),
             mock_info(
@@ -124,15 +110,8 @@ mod tests {
             ),
             ExecuteMsg::TransferRewards {},
         )
-        .unwrap();
-        assert_eq!(res.attributes.len(), 1);
-        assert!(check_equal_vec(
-            res.attributes,
-            vec![Attribute {
-                key: "wrong_denom_sent".to_string(),
-                value: "1".to_string()
-            }]
-        ));
+        .unwrap_err();
+        assert!(matches!(err, ContractError::WrongDenom(String { .. })));
     }
 
     #[test]
@@ -175,21 +154,17 @@ mod tests {
         assert_eq!(0, res.messages.len());
 
         let airdrop_token_contract = Addr::unchecked("airdrop_token_contract");
-        let cw20_token_contract = Addr::unchecked("cw20_token_contract");
-        fn get_airdrop_claim_msg() -> Binary {
-            Binary::from(vec![01, 02, 03, 04, 05, 06, 07, 08])
-        }
 
         let err = execute(
             deps.as_mut(),
             env.clone(),
             mock_info("not-scc", &[]),
             ExecuteMsg::ClaimAirdrops {
-                airdrop_token_contract,
-                cw20_token_contract,
+                airdrop_token_contract: airdrop_token_contract.to_string(),
                 airdrop_token: "abc".to_string(),
                 amount: Uint128::new(1000_u128),
-                claim_msg: get_airdrop_claim_msg(),
+                stage: 0,
+                proof: vec![],
             },
         )
         .unwrap_err();
@@ -207,88 +182,141 @@ mod tests {
         assert_eq!(0, res.messages.len());
 
         let airdrop_token_contract = Addr::unchecked("airdrop_token_contract");
-        let cw20_token_contract = Addr::unchecked("cw20_token_contract");
-        let scc_address: Addr = Addr::unchecked("scc-address");
-
-        fn get_airdrop_claim_msg() -> Binary {
-            Binary::from(vec![01, 02, 03, 04, 05, 06, 07, 08])
-        }
 
         let res = execute(
             deps.as_mut(),
             env.clone(),
             mock_info(&*get_scc_contract_address(), &[]),
             ExecuteMsg::ClaimAirdrops {
-                airdrop_token_contract: airdrop_token_contract.clone(),
-                cw20_token_contract: cw20_token_contract.clone(),
+                airdrop_token_contract: airdrop_token_contract.to_string(),
                 airdrop_token: "abc".to_string(),
                 amount: Uint128::new(1000_u128),
-                claim_msg: get_airdrop_claim_msg(),
+                stage: 3,
+                proof: vec![
+                    "proof1".to_string(),
+                    "proof2".to_string(),
+                    "proof3".to_string(),
+                ],
             },
         )
         .unwrap();
-        assert_eq!(res.messages.len(), 2);
+        assert_eq!(res.messages.len(), 1);
         assert!(check_equal_vec(
             res.messages,
-            vec![
-                SubMsg::new(WasmMsg::Execute {
-                    contract_addr: airdrop_token_contract.to_string(),
-                    msg: get_airdrop_claim_msg(),
-                    funds: vec![],
-                }),
-                SubMsg::new(WasmMsg::Execute {
-                    contract_addr: cw20_token_contract.to_string(),
-                    msg: to_binary(&cw20::Cw20ExecuteMsg::Transfer {
-                        recipient: scc_address.to_string(),
-                        amount: Uint128::new(1000_u128)
-                    })
-                    .unwrap(),
-                    funds: vec![]
+            vec![SubMsg::new(WasmMsg::Execute {
+                contract_addr: airdrop_token_contract.to_string(),
+                msg: to_binary(&MerkleAirdropMsg::Claim {
+                    stage: 3,
+                    amount: Uint128::new(1000_u128),
+                    proof: vec![
+                        "proof1".to_string(),
+                        "proof2".to_string(),
+                        "proof3".to_string()
+                    ]
                 })
-            ]
+                .unwrap(),
+                funds: vec![],
+            }),]
         ));
-        let state_response: GetStateResponse =
-            from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::GetState {}).unwrap())
-                .unwrap();
-        assert_ne!(state_response.state, None);
 
         let res = execute(
             deps.as_mut(),
             env.clone(),
             mock_info(&*get_scc_contract_address(), &[]),
             ExecuteMsg::ClaimAirdrops {
-                airdrop_token_contract: airdrop_token_contract.clone(),
-                cw20_token_contract: cw20_token_contract.clone(),
+                airdrop_token_contract: airdrop_token_contract.to_string(),
                 airdrop_token: "abc".to_string(),
                 amount: Uint128::new(1000_u128),
-                claim_msg: get_airdrop_claim_msg(),
+                stage: 4,
+                proof: vec![
+                    "proof1".to_string(),
+                    "proof2".to_string(),
+                    "proof3".to_string(),
+                ],
             },
         )
         .unwrap();
-        assert_eq!(res.messages.len(), 2);
+        assert_eq!(res.messages.len(), 1);
         assert!(check_equal_vec(
             res.messages,
-            vec![
-                SubMsg::new(WasmMsg::Execute {
-                    contract_addr: airdrop_token_contract.to_string(),
-                    msg: get_airdrop_claim_msg(),
-                    funds: vec![],
-                }),
-                SubMsg::new(WasmMsg::Execute {
-                    contract_addr: cw20_token_contract.to_string(),
-                    msg: to_binary(&cw20::Cw20ExecuteMsg::Transfer {
-                        recipient: scc_address.to_string(),
-                        amount: Uint128::new(1000_u128)
-                    })
-                    .unwrap(),
-                    funds: vec![]
+            vec![SubMsg::new(WasmMsg::Execute {
+                contract_addr: airdrop_token_contract.to_string(),
+                msg: to_binary(&MerkleAirdropMsg::Claim {
+                    stage: 4,
+                    amount: Uint128::new(1000_u128),
+                    proof: vec![
+                        "proof1".to_string(),
+                        "proof2".to_string(),
+                        "proof3".to_string()
+                    ]
                 })
-            ]
+                .unwrap(),
+                funds: vec![],
+            }),]
         ));
-        let state_response: GetStateResponse =
-            from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::GetState {}).unwrap())
-                .unwrap();
-        assert_ne!(state_response.state, None);
+    }
+
+    #[test]
+    fn test_transfer_airdrops_to_scc_fail() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &[]);
+        let env = mock_env();
+
+        // we can just call .unwrap() to assert this was a success
+        let res = instantiate_contract(&mut deps, &info, &env, None);
+        assert_eq!(0, res.messages.len());
+
+        let cw20_token_contract = Addr::unchecked("airdrop_token_contract");
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("not-scc", &[]),
+            ExecuteMsg::TransferAirdropsToScc {
+                cw20_token_contract: cw20_token_contract.to_string(),
+                airdrop_token: "anc".to_string(),
+                amount: Uint128::new(100),
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::Unauthorized {}));
+    }
+
+    #[test]
+    fn test_transfer_airdrops_to_scc_success() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &[]);
+        let env = mock_env();
+
+        // we can just call .unwrap() to assert this was a success
+        let res = instantiate_contract(&mut deps, &info, &env, None);
+        assert_eq!(0, res.messages.len());
+
+        let cw20_token_contract = Addr::unchecked("airdrop_token_contract");
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("scc-address", &[]),
+            ExecuteMsg::TransferAirdropsToScc {
+                cw20_token_contract: cw20_token_contract.to_string(),
+                airdrop_token: "anc".to_string(),
+                amount: Uint128::new(100),
+            },
+        )
+        .unwrap();
+        let state = STATE.load(deps.as_mut().storage).unwrap();
+        assert_eq!(res.messages.len(), 1);
+        assert!(check_equal_vec(
+            res.messages,
+            vec![SubMsg::new(WasmMsg::Execute {
+                contract_addr: cw20_token_contract.to_string(),
+                msg: to_binary(&cw20::Cw20ExecuteMsg::Transfer {
+                    recipient: state.scc_address.to_string(),
+                    amount: Uint128::new(100)
+                })
+                .unwrap(),
+                funds: vec![]
+            })]
+        ));
     }
 
     #[test]

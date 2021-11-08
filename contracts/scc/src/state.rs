@@ -11,6 +11,7 @@ pub struct Config {
     // this is the strategy we will fallback to, if the strategy
     // in the user portfolio doesn't exist or is deactivated.
     pub fallback_strategy: u64,
+    pub max_undelegation_limit: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -36,7 +37,7 @@ pub struct StrategyInfo {
     // address of the SIC for the strategy
     pub sic_contract_address: Addr,
     // the actual unbonding period for the strategy.
-    // eg: unbonding_period for the auto compounding strat
+    // eg: unbonding_period for the auto compounding strategy
     pub unbonding_period: u64,
     // adds buffer for the bots to execute
     pub unbonding_buffer: u64,
@@ -55,9 +56,14 @@ pub struct StrategyInfo {
     pub global_airdrop_pointer: Vec<DecCoin>,
     // total airdrop accumulated in the strategy since inception
     pub total_airdrops_accumulated: Vec<Coin>,
-    // the latest shares_per_token ratio value used by the strategy
-    // the shares_per_token ratio is computed on demand
-    pub shares_per_token_ratio: Decimal,
+    // the last undelegation run in seconds
+    pub last_undelegated_time: Timestamp,
+    // the frequency with which we undelegate from this strategy.
+    // eg: on terra, we have a constraint where we can run undelegation only 7 times every 21 days
+    // if we have a strategy where we would have to abide by the above constraint, the undelegation
+    // cooldown period would be 3 days. We would ideally want to run the undelegate batch once every 3 days
+    // we can add in some buffer
+    pub undelegation_cooldown: u64,
 }
 
 impl StrategyInfo {
@@ -66,6 +72,7 @@ impl StrategyInfo {
         sic_contract_address: Addr,
         unbonding_period: u64,
         unbonding_buffer: u64,
+        undelegation_frequency: u64,
     ) -> Self {
         StrategyInfo {
             name: strategy_name,
@@ -79,7 +86,8 @@ impl StrategyInfo {
             current_undelegated_shares: Decimal::zero(),
             global_airdrop_pointer: vec![],
             total_airdrops_accumulated: vec![],
-            shares_per_token_ratio: get_default_s_t_ratio(),
+            last_undelegated_time: Timestamp::from_seconds(0),
+            undelegation_cooldown: undelegation_frequency,
         }
     }
 
@@ -96,7 +104,8 @@ impl StrategyInfo {
             current_undelegated_shares: Decimal::zero(),
             global_airdrop_pointer: vec![],
             total_airdrops_accumulated: vec![],
-            shares_per_token_ratio: get_default_s_t_ratio(),
+            last_undelegated_time: Timestamp::from_seconds(0),
+            undelegation_cooldown: 0,
         }
     }
 }
@@ -219,7 +228,7 @@ pub fn get_default_s_t_ratio() -> Decimal {
 }
 
 pub fn get_default_sic_address() -> Addr {
-    Addr::unchecked("default_sic_addr")
+    Addr::unchecked("")
 }
 
 pub const STATE: Item<State> = Item::new("state");

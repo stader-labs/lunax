@@ -32,7 +32,7 @@ use stader_utils::coin_utils::{
     decimal_summation_in_256, get_decimal_from_uint128, merge_coin_vector, merge_dec_coin_vector,
     uint128_from_decimal, CoinVecOp, DecCoin, DecCoinVecOp, Operation,
 };
-use stader_utils::helpers::send_funds_msg;
+use stader_utils::helpers::{query_cw20_token_balance, send_funds_msg};
 use std::collections::HashMap;
 
 const CONTRACT_NAME: &str = "scc";
@@ -57,18 +57,18 @@ pub fn instantiate(
     };
     STATE.save(deps.storage, &state)?;
 
-    // create strategy_id 0 which is "RETAIN_REWARDS". It's a special strategy where rewards
+    // create strategy_id 0 which is "retain_rewards". It's a special strategy where rewards
     // of the user just sit in SCC
-    // TODO: bchain99 - lowercase all the names
     STRATEGY_MAP.save(
         deps.storage,
         U64Key::new(0),
-        &StrategyInfo::default("RETAIN_REWARDS".to_string()),
+        &StrategyInfo::default("retain_rewards".to_string()),
     )?;
 
     let config = Config {
         default_user_portfolio: vec![],
         fallback_strategy: 0,
+        max_undelegation_limit: msg.max_undelegation_limit.unwrap_or(20),
     };
     CONFIG.save(deps.storage, &config)?;
 
@@ -97,6 +97,7 @@ pub fn execute(
             unbonding_period,
             unbonding_buffer,
             sic_contract_address,
+            undelegation_frequency,
         } => register_strategy(
             deps,
             _env,
@@ -105,12 +106,14 @@ pub fn execute(
             sic_contract_address,
             unbonding_period,
             unbonding_buffer,
+            undelegation_frequency,
         ),
         ExecuteMsg::UpdateStrategy {
             strategy_id,
             unbonding_period,
             unbonding_buffer,
             sic_contract_address,
+            undelegation_frequency,
             is_active,
         } => update_strategy(
             deps,
@@ -120,6 +123,7 @@ pub fn execute(
             unbonding_period,
             unbonding_buffer,
             sic_contract_address,
+            undelegation_frequency,
             is_active,
         ),
         ExecuteMsg::UpdateUserPortfolio { user_portfolio } => {
@@ -138,10 +142,14 @@ pub fn execute(
         ExecuteMsg::ClaimAirdrops {
             strategy_id,
             amount,
-            denom,
+            airdrop_token: denom,
             stage,
             proof,
         } => claim_airdrops(deps, _env, info, strategy_id, denom, amount, stage, proof),
+        ExecuteMsg::UpdateAirdropPointers {
+            strategy_id,
+            airdrop_token,
+        } => update_airdrop_pointers(deps, _env, info, strategy_id, airdrop_token),
         ExecuteMsg::WithdrawRewards {
             undelegation_id,
             strategy_id,
@@ -170,6 +178,7 @@ pub fn execute(
             delegator_contract,
             default_user_portfolio,
             fallback_strategy,
+            max_undelegation_limit,
         } => update_config(
             deps,
             _env,
@@ -177,6 +186,7 @@ pub fn execute(
             delegator_contract,
             default_user_portfolio,
             fallback_strategy,
+            max_undelegation_limit,
         ),
     }
 }
@@ -188,6 +198,7 @@ pub fn update_config(
     delegator_contract: Option<String>,
     default_user_portfolio: Option<Vec<UserStrategyPortfolio>>,
     fallback_strategy: Option<u64>,
+    max_undelegation_limit: Option<u64>,
 ) -> Result<Response, ContractError> {
     let mut state = STATE.load(deps.storage)?;
     let mut config = CONFIG.load(deps.storage)?;
@@ -219,6 +230,10 @@ pub fn update_config(
         config.default_user_portfolio = dup;
     }
 
+    if let Some(mul) = max_undelegation_limit {
+        config.max_undelegation_limit = mul;
+    }
+
     STATE.save(deps.storage, &state)?;
     CONFIG.save(deps.storage, &config)?;
 
@@ -234,6 +249,7 @@ pub fn update_strategy(
     unbonding_period: Option<u64>,
     unbonding_buffer: Option<u64>,
     sic_contract_address: Option<String>,
+    undelegation_frequency: Option<u64>,
     is_active: Option<bool>,
 ) -> Result<Response, ContractError> {
     let state = STATE.load(deps.storage)?;
@@ -251,6 +267,8 @@ pub fn update_strategy(
 
     strategy_info.unbonding_period = unbonding_period.unwrap_or(strategy_info.unbonding_period);
     strategy_info.unbonding_buffer = unbonding_buffer.unwrap_or(strategy_info.unbonding_buffer);
+    strategy_info.undelegation_cooldown =
+        undelegation_frequency.unwrap_or(strategy_info.undelegation_cooldown);
     strategy_info.is_active = is_active.unwrap_or(strategy_info.is_active);
     strategy_info.sic_contract_address = if let Some(sic) = sic_contract_address {
         deps.api.addr_validate(sic.as_str())?
@@ -266,15 +284,10 @@ pub fn update_strategy(
 pub fn fetch_undelegated_rewards_from_strategy(
     deps: DepsMut,
     env: Env,
-    info: MessageInfo,
+    _info: MessageInfo,
     strategy_id: u64,
     pagination_count: Option<u64>,
 ) -> Result<Response, ContractError> {
-    let state = STATE.load(deps.storage)?;
-    if info.sender != state.manager {
-        return Err(ContractError::Unauthorized {});
-    }
-
     let mut messages: Vec<WasmMsg> = vec![];
     let mut failed_undelegation_batches: Vec<String> = vec![];
     let mut undelegation_batches_released: Vec<String> = vec![];
@@ -328,7 +341,7 @@ pub fn fetch_undelegated_rewards_from_strategy(
         }
 
         // undelegation batch is still in unbonding period
-        // break out when we encounter a batch still in undelegation. we need to wait for it and not pass by it
+        // error out when we encounter a batch still in undelegation. we need to wait for it and not pass by it
         if undelegation_batch.est_release_time.is_none()
             || undelegation_batch
                 .est_release_time
@@ -404,15 +417,10 @@ pub fn fetch_undelegated_rewards_from_strategy(
 
 pub fn undelegate_from_strategies(
     deps: DepsMut,
-    _env: Env,
-    info: MessageInfo,
+    env: Env,
+    _info: MessageInfo,
     strategy_id: u64,
 ) -> Result<Response, ContractError> {
-    let state = STATE.load(deps.storage)?;
-    if info.sender != state.manager {
-        return Err(ContractError::Unauthorized {});
-    }
-
     let mut messages: Vec<WasmMsg> = vec![];
     let mut strategy_info = if let Some(strategy_info) =
         STRATEGY_MAP.may_load(deps.storage, U64Key::new(strategy_id))?
@@ -427,13 +435,22 @@ pub fn undelegate_from_strategies(
         return Err(ContractError::NoPendingUndelegations {});
     }
 
-    let strategy_s_t_ratio: Decimal;
-    match get_strategy_shares_per_token_ratio(deps.querier, &strategy_info) {
-        Ok(result) => {
-            strategy_s_t_ratio = result;
-        }
-        Err(_) => return Err(ContractError::SICFailedToReturnResult {}),
+    // check the cooldown period
+    if env
+        .block
+        .time
+        .minus_seconds(strategy_info.last_undelegated_time.seconds())
+        .seconds()
+        .lt(&strategy_info.undelegation_cooldown)
+    {
+        return Err(ContractError::UndelegationInCooldown {});
     }
+
+    let strategy_s_t_ratio = match get_strategy_shares_per_token_ratio(deps.querier, &strategy_info)
+    {
+        Ok(result) => result,
+        Err(_) => return Err(ContractError::SICFailedToReturnResult {}),
+    };
 
     let undelegation_amount = uint128_from_decimal(decimal_division_in_256(
         strategy_undelegation_shares,
@@ -461,9 +478,9 @@ pub fn undelegate_from_strategies(
             batch.shares = strategy_undelegation_shares;
             batch.undelegation_s_t_ratio = strategy_s_t_ratio;
             batch.est_release_time =
-                Some(_env.block.time.plus_seconds(strategy_info.unbonding_period));
+                Some(env.block.time.plus_seconds(strategy_info.unbonding_period));
             batch.withdrawal_time = Some(
-                _env.block
+                env.block
                     .time
                     .plus_seconds(strategy_info.unbonding_period + strategy_info.unbonding_buffer),
             );
@@ -478,6 +495,7 @@ pub fn undelegate_from_strategies(
     );
     strategy_info.current_undelegated_shares = Decimal::zero();
     strategy_info.next_undelegation_batch_id = current_undelegation_batch_id + 1;
+    strategy_info.last_undelegated_time = env.block.time;
 
     messages.push(WasmMsg::Execute {
         contract_addr: String::from(strategy_info.sic_contract_address.clone()),
@@ -601,6 +619,15 @@ pub fn undelegate_user_rewards(
         return Err(ContractError::UserNotInStrategy {});
     };
 
+    let config = CONFIG.load(deps.storage)?;
+    if user_reward_info
+        .undelegation_records
+        .len()
+        .ge(&(config.max_undelegation_limit as usize))
+    {
+        return Err(ContractError::UserUndelegationRecordLimitExceeded {});
+    }
+
     // create the undelegation batch if it doesn't exist and keep it in pending status
     UNDELEGATION_BATCH_MAP.update(
         deps.storage,
@@ -653,7 +680,6 @@ pub fn undelegate_user_rewards(
             }
         };
 
-    strategy_info.shares_per_token_ratio = strategy_shares_per_token_ratio;
     let user_total_shares = user_strategy_info.shares;
     let user_undelegated_shares = decimal_multiplication_in_256(
         strategy_shares_per_token_ratio,
@@ -693,6 +719,80 @@ pub fn undelegate_user_rewards(
     Ok(Response::default())
 }
 
+pub fn update_airdrop_pointers(
+    deps: DepsMut,
+    _env: Env,
+    _info: MessageInfo,
+    strategy_id: u64,
+    airdrop_token: String,
+) -> Result<Response, ContractError> {
+    let cw20_token_contracts = if let Some(cw20_token_contracts) =
+        CW20_TOKEN_CONTRACTS_REGISTRY.may_load(deps.storage, airdrop_token.to_lowercase())?
+    {
+        cw20_token_contracts
+    } else {
+        return Err(ContractError::AirdropNotRegistered {});
+    };
+
+    let mut strategy_info = if let Some(strategy_info) =
+        STRATEGY_MAP.may_load(deps.storage, U64Key::new(strategy_id))?
+    {
+        strategy_info
+    } else {
+        return Err(ContractError::StrategyInfoDoesNotExist {});
+    };
+    let sic_address = strategy_info.sic_contract_address.clone();
+
+    let sic_airdrop_balance = query_cw20_token_balance(
+        deps.querier,
+        cw20_token_contracts.cw20_token_contract.clone(),
+        sic_address.to_string(),
+    )?;
+    if sic_airdrop_balance.is_zero() {
+        return Err(ContractError::ZeroAmount {});
+    }
+
+    let effective_shares = decimal_subtraction_in_256(
+        strategy_info.total_shares,
+        strategy_info.current_undelegated_shares,
+    );
+    let airdrop_coin = Coin::new(sic_airdrop_balance.u128(), airdrop_token.clone());
+
+    strategy_info.total_airdrops_accumulated = merge_coin_vector(
+        &strategy_info.total_airdrops_accumulated,
+        CoinVecOp {
+            fund: vec![airdrop_coin],
+            operation: Operation::Add,
+        },
+    );
+
+    strategy_info.global_airdrop_pointer = merge_dec_coin_vector(
+        &strategy_info.global_airdrop_pointer,
+        DecCoinVecOp {
+            fund: vec![DecCoin {
+                amount: decimal_division_in_256(
+                    Decimal::from_ratio(sic_airdrop_balance, 1_u128),
+                    effective_shares,
+                ),
+                denom: airdrop_token.clone(),
+            }],
+            operation: Operation::Add,
+        },
+    );
+
+    STRATEGY_MAP.save(deps.storage, U64Key::new(strategy_id), &strategy_info)?;
+
+    Ok(Response::new().add_message(WasmMsg::Execute {
+        contract_addr: strategy_info.sic_contract_address.to_string(),
+        msg: to_binary(&sic_execute_msg::TransferAirdropsToScc {
+            cw20_token_contract: cw20_token_contracts.cw20_token_contract.to_string(),
+            airdrop_token,
+            amount: sic_airdrop_balance,
+        })?,
+        funds: vec![],
+    }))
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn claim_airdrops(
     deps: DepsMut,
@@ -716,50 +816,19 @@ pub fn claim_airdrops(
         return Err(ContractError::AirdropNotRegistered {});
     };
 
-    let mut strategy_info = if let Some(strategy_info) =
+    let strategy_info = if let Some(strategy_info) =
         STRATEGY_MAP.may_load(deps.storage, U64Key::new(strategy_id))?
     {
         strategy_info
     } else {
         return Err(ContractError::StrategyInfoDoesNotExist {});
     };
-
-    let effective_shares = decimal_subtraction_in_256(
-        strategy_info.total_shares,
-        strategy_info.current_undelegated_shares,
-    );
-    let sic_address = strategy_info.sic_contract_address.clone();
-    let airdrop_coin = Coin::new(amount.u128(), denom.clone());
-
-    strategy_info.total_airdrops_accumulated = merge_coin_vector(
-        &strategy_info.total_airdrops_accumulated,
-        CoinVecOp {
-            fund: vec![airdrop_coin],
-            operation: Operation::Add,
-        },
-    );
-
-    strategy_info.global_airdrop_pointer = merge_dec_coin_vector(
-        &strategy_info.global_airdrop_pointer,
-        DecCoinVecOp {
-            fund: vec![DecCoin {
-                amount: decimal_division_in_256(
-                    Decimal::from_ratio(amount, 1_u128),
-                    effective_shares,
-                ),
-                denom: denom.clone(),
-            }],
-            operation: Operation::Add,
-        },
-    );
-
-    STRATEGY_MAP.save(deps.storage, U64Key::new(strategy_id), &strategy_info)?;
+    let sic_address = strategy_info.sic_contract_address;
 
     Ok(Response::new().add_message(WasmMsg::Execute {
         contract_addr: String::from(sic_address),
         msg: to_binary(&sic_execute_msg::ClaimAirdrops {
-            airdrop_token_contract: cw20_token_contracts.airdrop_contract,
-            cw20_token_contract: cw20_token_contracts.cw20_token_contract,
+            airdrop_token_contract: cw20_token_contracts.airdrop_contract.to_string(),
             airdrop_token: denom,
             amount,
             stage,
@@ -917,6 +986,7 @@ pub fn register_strategy(
     sic_contract_address: String,
     unbonding_period: u64,
     unbonding_buffer: u64,
+    undelegation_frequency: u64,
 ) -> Result<Response, ContractError> {
     let state = STATE.load(deps.storage)?;
     if info.sender != state.manager {
@@ -930,10 +1000,11 @@ pub fn register_strategy(
         deps.storage,
         U64Key::new(strategy_id),
         &StrategyInfo::new(
-            strategy_name,
+            strategy_name.to_lowercase(),
             sic_contract_address,
             unbonding_period,
             unbonding_buffer,
+            undelegation_frequency,
         ),
     )?;
 
@@ -1108,7 +1179,6 @@ fn try_deposit_funds_to_strategies(
                     }
                     Err(_) => return Err(ContractError::SICFailedToReturnResult {}),
                 }
-                strategy_info.shares_per_token_ratio = current_strategy_shares_per_token_ratio;
                 strategy_to_s_t_ratio.insert(strategy_id, current_strategy_shares_per_token_ratio);
             } else {
                 current_strategy_shares_per_token_ratio =
@@ -1271,7 +1341,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 fn query_s_t_ratio(deps: Deps, strategy_id: u64) -> StdResult<GetSharesPerTokenRatioResponse> {
     if strategy_id.eq(&0) {
         return Err(StdError::GenericErr {
-            msg: "RETAIN_REWARDS has no shares per token ratio".to_string(),
+            msg: "retain_rewards has no shares per token ratio".to_string(),
         });
     }
 
@@ -1400,7 +1470,7 @@ fn query_get_all_strategies(
         if i.eq(&0) {
             all_strategies_info.push(StrategyInfoQuery {
                 strategy_id: 0,
-                strategy_name: "RETAIN_REWARDS".to_string(),
+                strategy_name: strategy_info.name,
                 total_rewards: state.rewards_in_scc,
                 rewards_in_undelegation: Uint128::zero(),
                 is_active: true,
@@ -1408,7 +1478,8 @@ fn query_get_all_strategies(
                 unbonding_period: 0,
                 unbonding_buffer: 0,
                 // special case
-                sic_contract_address: Addr::unchecked(""),
+                sic_contract_address: strategy_info.sic_contract_address,
+                undelegation_frequency: strategy_info.undelegation_cooldown,
             });
             continue;
         }
@@ -1438,6 +1509,7 @@ fn query_get_all_strategies(
             unbonding_period: strategy_info.unbonding_period,
             unbonding_buffer: strategy_info.unbonding_buffer,
             sic_contract_address: strategy_info.sic_contract_address,
+            undelegation_frequency: strategy_info.undelegation_cooldown,
         });
     }
 

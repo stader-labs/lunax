@@ -5,11 +5,9 @@ use cosmwasm_std::{
 };
 use std::collections::HashMap;
 
-use crate::msg::{GetFulfillableUndelegatedFundsResponse, GetTotalTokensResponse, QueryMsg};
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage};
 use reward::msg::{QueryMsg as reward_query, SwappedAmountResponse};
 use stader_utils::coin_utils::{decimal_multiplication_in_256, u128_from_decimal};
-use std::cmp::min;
 use terra_cosmwasm::{
     SwapResponse, TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute,
 };
@@ -147,20 +145,21 @@ impl WasmMockQuerier {
             }) => {
                 panic!("WASMQUERY::RAW not implemented!")
             }
-            QueryRequest::Wasm(WasmQuery::Smart { contract_addr, msg }) => {
-                match from_binary(msg).unwrap() {
-                    reward_query::SwappedAmount {} => {
-                        let res = SwappedAmountResponse {
-                            amount: self.stader_querier.total_reward_tokens,
-                        };
-                        SystemResult::Ok(ContractResult::from(to_binary(&res)))
-                    }
-                    reward_query::Config {} => {
-                        let out = Binary::default();
-                        SystemResult::Ok(ContractResult::from(to_binary(&out)))
-                    }
+            QueryRequest::Wasm(WasmQuery::Smart {
+                contract_addr: _,
+                msg,
+            }) => match from_binary(msg).unwrap() {
+                reward_query::SwappedAmount {} => {
+                    let res = SwappedAmountResponse {
+                        amount: self.stader_querier.total_reward_tokens,
+                    };
+                    SystemResult::Ok(ContractResult::from(to_binary(&res)))
                 }
-            }
+                reward_query::Config {} => {
+                    let out = Binary::default();
+                    SystemResult::Ok(ContractResult::from(to_binary(&out)))
+                }
+            },
             _ => self.base.handle_query(request),
         }
     }

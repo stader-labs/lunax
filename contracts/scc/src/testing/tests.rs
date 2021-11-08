@@ -25,8 +25,8 @@ mod tests {
     use crate::ContractError;
     use cosmwasm_std::testing::{mock_env, mock_info, MockApi, MockStorage};
     use cosmwasm_std::{
-        coins, from_binary, to_binary, Addr, Attribute, BankMsg, Binary, Coin, Decimal, Empty, Env,
-        MessageInfo, OwnedDeps, Response, StdResult, SubMsg, Timestamp, Uint128, WasmMsg,
+        coins, from_binary, to_binary, Addr, Attribute, BankMsg, Coin, Decimal, Empty, Env,
+        MessageInfo, OwnedDeps, Response, SubMsg, Timestamp, Uint128, WasmMsg,
     };
     use cw_storage_plus::U64Key;
     use sic_base::msg::ExecuteMsg as sic_execute_msg;
@@ -37,12 +37,13 @@ mod tests {
         deps: &mut OwnedDeps<MockStorage, MockApi, WasmMockQuerier>,
         info: &MessageInfo,
         env: &Env,
-        strategy_denom: Option<String>,
+        _strategy_denom: Option<String>,
         delegator_contract: Option<String>,
-        default_user_portfolio: Option<Vec<UserStrategyPortfolio>>,
+        _default_user_portfolio: Option<Vec<UserStrategyPortfolio>>,
     ) -> Response<Empty> {
         let msg = InstantiateMsg {
             delegator_contract: delegator_contract.unwrap_or("delegator_contract".to_string()),
+            max_undelegation_limit: None,
         };
 
         return instantiate(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
@@ -104,11 +105,12 @@ mod tests {
             config,
             Config {
                 default_user_portfolio: vec![],
-                fallback_strategy: 0
+                fallback_strategy: 0,
+                max_undelegation_limit: 20
             }
         );
 
-        // check whether RETAIN_REWARDS strategy has been created
+        // check whether retain_rewards strategy has been created
         let retain_rewards_strategy_opt = STRATEGY_MAP
             .may_load(deps.as_mut().storage, U64Key::new(0))
             .unwrap();
@@ -116,7 +118,7 @@ mod tests {
         let retain_rewards_strategy = retain_rewards_strategy_opt.unwrap();
         assert_eq!(
             retain_rewards_strategy,
-            StrategyInfo::default("RETAIN_REWARDS".to_string())
+            StrategyInfo::default("retain_rewards".to_string())
         );
     }
 
@@ -212,7 +214,8 @@ mod tests {
                         Coin::new(20_u128, "anc".to_string()),
                         Coin::new(30_u128, "mir".to_string()),
                     ],
-                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    last_undelegated_time: Timestamp::from_seconds(0),
+                    undelegation_cooldown: 0,
                 },
             )
             .unwrap();
@@ -238,7 +241,8 @@ mod tests {
                         Coin::new(20_u128, "anc".to_string()),
                         Coin::new(30_u128, "mir".to_string()),
                     ],
-                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    last_undelegated_time: Timestamp::from_seconds(0),
+                    undelegation_cooldown: 0,
                 },
             )
             .unwrap();
@@ -264,7 +268,8 @@ mod tests {
                         Coin::new(20_u128, "anc".to_string()),
                         Coin::new(30_u128, "mir".to_string()),
                     ],
-                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    last_undelegated_time: Timestamp::from_seconds(0),
+                    undelegation_cooldown: 0,
                 },
             )
             .unwrap();
@@ -467,7 +472,8 @@ mod tests {
                         Coin::new(1000_u128, "anc".to_string()),
                         Coin::new(500_u128, "mir".to_string()),
                     ],
-                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    last_undelegated_time: Timestamp::from_seconds(0),
+                    undelegation_cooldown: 0,
                 },
             )
             .unwrap();
@@ -493,7 +499,8 @@ mod tests {
                         Coin::new(500_u128, "anc".to_string()),
                         Coin::new(700_u128, "mir".to_string()),
                     ],
-                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    last_undelegated_time: Timestamp::from_seconds(0),
+                    undelegation_cooldown: 0,
                 },
             )
             .unwrap();
@@ -519,7 +526,8 @@ mod tests {
                         Coin::new(100_u128, "anc".to_string()),
                         Coin::new(50_u128, "mir".to_string()),
                     ],
-                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    last_undelegated_time: Timestamp::from_seconds(0),
+                    undelegation_cooldown: 0,
                 },
             )
             .unwrap();
@@ -544,14 +552,15 @@ mod tests {
             vec![
                 StrategyInfoQuery {
                     strategy_id: 0,
-                    strategy_name: "RETAIN_REWARDS".to_string(),
+                    strategy_name: "retain_rewards".to_string(),
                     total_rewards: Uint128::new(1000_u128),
                     rewards_in_undelegation: Uint128::zero(),
                     is_active: true,
                     total_airdrops_accumulated: vec![],
                     unbonding_period: 0,
                     unbonding_buffer: 0,
-                    sic_contract_address: Addr::unchecked("")
+                    sic_contract_address: Addr::unchecked(""),
+                    undelegation_frequency: 0
                 },
                 StrategyInfoQuery {
                     strategy_id: 1,
@@ -565,7 +574,8 @@ mod tests {
                     ],
                     unbonding_period: 3600,
                     unbonding_buffer: 3600,
-                    sic_contract_address: sic1_address.clone()
+                    sic_contract_address: sic1_address.clone(),
+                    undelegation_frequency: 0
                 },
                 StrategyInfoQuery {
                     strategy_id: 2,
@@ -579,7 +589,8 @@ mod tests {
                     ],
                     unbonding_period: 7200,
                     unbonding_buffer: 7200,
-                    sic_contract_address: sic2_address.clone()
+                    sic_contract_address: sic2_address.clone(),
+                    undelegation_frequency: 0
                 },
                 StrategyInfoQuery {
                     strategy_id: 3,
@@ -593,7 +604,8 @@ mod tests {
                     ],
                     unbonding_period: 14400,
                     unbonding_buffer: 14400,
-                    sic_contract_address: sic3_address.clone()
+                    sic_contract_address: sic3_address.clone(),
+                    undelegation_frequency: 0
                 }
             ]
         ));
@@ -637,7 +649,8 @@ mod tests {
                         Coin::new(1000_u128, "anc".to_string()),
                         Coin::new(500_u128, "mir".to_string()),
                     ],
-                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    last_undelegated_time: Timestamp::from_seconds(0),
+                    undelegation_cooldown: 0,
                 },
             )
             .unwrap();
@@ -663,7 +676,8 @@ mod tests {
                         Coin::new(500_u128, "anc".to_string()),
                         Coin::new(700_u128, "mir".to_string()),
                     ],
-                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    last_undelegated_time: Timestamp::from_seconds(0),
+                    undelegation_cooldown: 0,
                 },
             )
             .unwrap();
@@ -689,7 +703,8 @@ mod tests {
                         Coin::new(100_u128, "anc".to_string()),
                         Coin::new(50_u128, "mir".to_string()),
                     ],
-                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    last_undelegated_time: Timestamp::from_seconds(0),
+                    undelegation_cooldown: 0,
                 },
             )
             .unwrap();
@@ -723,7 +738,8 @@ mod tests {
                 ],
                 unbonding_period: 7200,
                 unbonding_buffer: 7200,
-                sic_contract_address: sic2_address.clone()
+                sic_contract_address: sic2_address.clone(),
+                undelegation_frequency: 0
             },]
         ));
 
@@ -766,7 +782,8 @@ mod tests {
                         Coin::new(1000_u128, "anc".to_string()),
                         Coin::new(500_u128, "mir".to_string()),
                     ],
-                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    last_undelegated_time: Timestamp::from_seconds(0),
+                    undelegation_cooldown: 0,
                 },
             )
             .unwrap();
@@ -792,7 +809,8 @@ mod tests {
                         Coin::new(500_u128, "anc".to_string()),
                         Coin::new(700_u128, "mir".to_string()),
                     ],
-                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    last_undelegated_time: Timestamp::from_seconds(0),
+                    undelegation_cooldown: 0,
                 },
             )
             .unwrap();
@@ -818,7 +836,8 @@ mod tests {
                         Coin::new(100_u128, "anc".to_string()),
                         Coin::new(50_u128, "mir".to_string()),
                     ],
-                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    last_undelegated_time: Timestamp::from_seconds(0),
+                    undelegation_cooldown: 0,
                 },
             )
             .unwrap();
@@ -852,7 +871,8 @@ mod tests {
                 ],
                 unbonding_period: 14400,
                 unbonding_buffer: 14400,
-                sic_contract_address: sic3_address.clone()
+                sic_contract_address: sic3_address.clone(),
+                undelegation_frequency: 0
             }]
         ));
     }
@@ -892,7 +912,7 @@ mod tests {
         assert_eq!(strategies_list.len(), 1);
         assert!(check_equal_vec(
             strategies_list,
-            vec!["RETAIN_REWARDS".to_string()]
+            vec!["retain_rewards".to_string()]
         ));
 
         /*
@@ -960,7 +980,7 @@ mod tests {
         let strategies_list = strategies_list_response.strategies_list.unwrap();
         assert_eq!(
             strategies_list,
-            vec!["RETAIN_REWARDS", "sid1", "sid2", "sid3", "sid4", "sid5"]
+            vec!["retain_rewards", "sid1", "sid2", "sid3", "sid4", "sid5"]
         );
 
         /*
@@ -1120,6 +1140,7 @@ mod tests {
                 delegator_contract: None,
                 default_user_portfolio: None,
                 fallback_strategy: None,
+                max_undelegation_limit: None,
             },
         )
         .unwrap_err();
@@ -1136,6 +1157,7 @@ mod tests {
                 delegator_contract: None,
                 default_user_portfolio: None,
                 fallback_strategy: Some(1),
+                max_undelegation_limit: None,
             },
         )
         .unwrap_err();
@@ -1161,6 +1183,7 @@ mod tests {
                     },
                 ]),
                 fallback_strategy: None,
+                max_undelegation_limit: None,
             },
         )
         .unwrap_err();
@@ -1201,6 +1224,7 @@ mod tests {
                     },
                 ]),
                 fallback_strategy: None,
+                max_undelegation_limit: None,
             },
         )
         .unwrap_err();
@@ -1279,6 +1303,7 @@ mod tests {
                     },
                 ]),
                 fallback_strategy: Some(1),
+                max_undelegation_limit: Some(15),
             },
         )
         .unwrap();
@@ -1308,6 +1333,7 @@ mod tests {
                 },
             ]
         ));
+        assert_eq!(config.max_undelegation_limit, 15);
     }
 
     #[test]
@@ -1466,7 +1492,8 @@ mod tests {
                         Coin::new(200_u128, "anc".to_string()),
                         Coin::new(300_u128, "mir".to_string()),
                     ],
-                    shares_per_token_ratio: Decimal::zero(),
+                    last_undelegated_time: Timestamp::from_seconds(0),
+                    undelegation_cooldown: 0,
                 },
             )
             .unwrap();
@@ -1560,7 +1587,8 @@ mod tests {
                         Coin::new(200_u128, "anc".to_string()),
                         Coin::new(300_u128, "mir".to_string()),
                     ],
-                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    last_undelegated_time: Timestamp::from_seconds(0),
+                    undelegation_cooldown: 0,
                 },
             )
             .unwrap();
@@ -1586,7 +1614,8 @@ mod tests {
                         Coin::new(200_u128, "anc".to_string()),
                         Coin::new(300_u128, "mir".to_string()),
                     ],
-                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    last_undelegated_time: Timestamp::from_seconds(0),
+                    undelegation_cooldown: 0,
                 },
             )
             .unwrap();
@@ -1612,7 +1641,8 @@ mod tests {
                         Coin::new(200_u128, "anc".to_string()),
                         Coin::new(300_u128, "mir".to_string()),
                     ],
-                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    last_undelegated_time: Timestamp::from_seconds(0),
+                    undelegation_cooldown: 0,
                 },
             )
             .unwrap();
@@ -1840,6 +1870,7 @@ mod tests {
                 unbonding_period: Some(0),
                 unbonding_buffer: Some(0),
                 sic_contract_address: None,
+                undelegation_frequency: None,
                 is_active: Some(false),
             },
         )
@@ -1858,6 +1889,7 @@ mod tests {
                 unbonding_period: None,
                 unbonding_buffer: None,
                 sic_contract_address: None,
+                undelegation_frequency: None,
                 is_active: None,
             },
         )
@@ -1896,7 +1928,8 @@ mod tests {
                     current_undelegated_shares: Default::default(),
                     global_airdrop_pointer: vec![],
                     total_airdrops_accumulated: vec![],
-                    shares_per_token_ratio: Default::default(),
+                    last_undelegated_time: Timestamp::from_seconds(0),
+                    undelegation_cooldown: 0,
                 },
             )
             .unwrap();
@@ -1910,6 +1943,7 @@ mod tests {
                 unbonding_period: Some(10000),
                 unbonding_buffer: Some(15000),
                 sic_contract_address: Some("test".to_string()),
+                undelegation_frequency: Some(1000),
                 is_active: Some(true),
             },
         )
@@ -1927,6 +1961,7 @@ mod tests {
             Addr::unchecked("test")
         );
         assert!(sid1_strategy_info.is_active);
+        assert_eq!(sid1_strategy_info.undelegation_cooldown, 1000);
     }
 
     #[test]
@@ -2013,21 +2048,6 @@ mod tests {
         );
 
         /*
-            Test - 1. Unauthorized
-        */
-        let err = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info("not-creator", &[]),
-            ExecuteMsg::FetchUndelegatedRewardsFromStrategy {
-                strategy_id: 1,
-                pagination_count: None,
-            },
-        )
-        .unwrap_err();
-        assert!(matches!(err, ContractError::Unauthorized {}));
-
-        /*
            Test - 3. Failed strategies
         */
         let err = execute(
@@ -2061,7 +2081,8 @@ mod tests {
                     current_undelegated_shares: Decimal::zero(),
                     global_airdrop_pointer: vec![],
                     total_airdrops_accumulated: vec![],
-                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    last_undelegated_time: Timestamp::from_seconds(0),
+                    undelegation_cooldown: 0,
                 },
             )
             .unwrap();
@@ -2113,7 +2134,8 @@ mod tests {
                     current_undelegated_shares: Decimal::zero(),
                     global_airdrop_pointer: vec![],
                     total_airdrops_accumulated: vec![],
-                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    last_undelegated_time: Timestamp::from_seconds(0),
+                    undelegation_cooldown: 0,
                 },
             )
             .unwrap();
@@ -2168,7 +2190,8 @@ mod tests {
                     current_undelegated_shares: Decimal::zero(),
                     global_airdrop_pointer: vec![],
                     total_airdrops_accumulated: vec![],
-                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    last_undelegated_time: Timestamp::from_seconds(0),
+                    undelegation_cooldown: 0,
                 },
             )
             .unwrap();
@@ -2260,7 +2283,8 @@ mod tests {
                     current_undelegated_shares: Decimal::zero(),
                     global_airdrop_pointer: vec![],
                     total_airdrops_accumulated: vec![],
-                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    last_undelegated_time: Timestamp::from_seconds(0),
+                    undelegation_cooldown: 0,
                 },
             )
             .unwrap();
@@ -2349,7 +2373,8 @@ mod tests {
                     current_undelegated_shares: Decimal::zero(),
                     global_airdrop_pointer: vec![],
                     total_airdrops_accumulated: vec![],
-                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    last_undelegated_time: Timestamp::from_seconds(0),
+                    undelegation_cooldown: 0,
                 },
             )
             .unwrap();
@@ -2438,7 +2463,8 @@ mod tests {
                     current_undelegated_shares: Decimal::zero(),
                     global_airdrop_pointer: vec![],
                     total_airdrops_accumulated: vec![],
-                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    last_undelegated_time: Timestamp::from_seconds(0),
+                    undelegation_cooldown: 0,
                 },
             )
             .unwrap();
@@ -2526,7 +2552,8 @@ mod tests {
                     current_undelegated_shares: Decimal::zero(),
                     global_airdrop_pointer: vec![],
                     total_airdrops_accumulated: vec![],
-                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    last_undelegated_time: Timestamp::from_seconds(0),
+                    undelegation_cooldown: 0,
                 },
             )
             .unwrap();
@@ -2666,18 +2693,6 @@ mod tests {
         );
 
         /*
-           Test - 1. Unauthorized
-        */
-        let err = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info("non-creator", &[]),
-            ExecuteMsg::UndelegateFromStrategy { strategy_id: 1 },
-        )
-        .unwrap_err();
-        assert!(matches!(err, ContractError::Unauthorized {}));
-
-        /*
             Test - 2. Strategy does not exist
         */
         let err = execute(
@@ -2708,7 +2723,8 @@ mod tests {
                     current_undelegated_shares: Decimal::zero(),
                     global_airdrop_pointer: vec![],
                     total_airdrops_accumulated: vec![],
-                    shares_per_token_ratio: Default::default(),
+                    last_undelegated_time: Timestamp::from_seconds(0),
+                    undelegation_cooldown: 0,
                 },
             )
             .unwrap();
@@ -2720,6 +2736,39 @@ mod tests {
         )
         .unwrap_err();
         assert!(matches!(err, ContractError::NoPendingUndelegations {}));
+
+        /*
+            Test - 4. Previous undelegation still ongoing
+        */
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::from(1),
+                &StrategyInfo {
+                    name: "sid1".to_string(),
+                    sic_contract_address: Addr::unchecked("test_addr"),
+                    unbonding_period: 0,
+                    unbonding_buffer: 0,
+                    next_undelegation_batch_id: 0,
+                    next_reconciliation_batch_id: 0,
+                    is_active: false,
+                    total_shares: Decimal::from_ratio(10000_u128, 1_u128),
+                    current_undelegated_shares: Decimal::from_ratio(5000_u128, 1_u128),
+                    global_airdrop_pointer: vec![],
+                    total_airdrops_accumulated: vec![],
+                    last_undelegated_time: env.block.time.minus_seconds(1000),
+                    undelegation_cooldown: 5000,
+                },
+            )
+            .unwrap();
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::UndelegateFromStrategy { strategy_id: 1 },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::UndelegationInCooldown {}));
     }
 
     #[test]
@@ -2767,7 +2816,8 @@ mod tests {
                     current_undelegated_shares: Decimal::from_ratio(1000_u128, 1_u128),
                     global_airdrop_pointer: vec![],
                     total_airdrops_accumulated: vec![],
-                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    last_undelegated_time: env.block.time.minus_seconds(5000),
+                    undelegation_cooldown: 1000,
                 },
             )
             .unwrap();
@@ -2820,6 +2870,7 @@ mod tests {
             sid1_strategy_info.total_shares,
             Decimal::from_ratio(4000_u128, 1_u128)
         );
+        assert_eq!(sid1_strategy_info.last_undelegated_time, env.block.time);
 
         let undelegation_batch_sid1_opt = UNDELEGATION_BATCH_MAP
             .may_load(deps.as_mut().storage, (U64Key::new(4), U64Key::new(1)))
@@ -3132,7 +3183,7 @@ mod tests {
             .save(
                 deps.as_mut().storage,
                 U64Key::new(1),
-                &StrategyInfo::new("sid1".to_string(), sic1_address.clone(), 10, 10),
+                &StrategyInfo::new("sid1".to_string(), sic1_address.clone(), 10, 10, 100),
             )
             .unwrap();
         USER_REWARD_INFO_MAP
@@ -3209,7 +3260,7 @@ mod tests {
             .save(
                 deps.as_mut().storage,
                 U64Key::new(1),
-                &StrategyInfo::new("sid1".to_string(), sic1_address.clone(), 10, 10),
+                &StrategyInfo::new("sid1".to_string(), sic1_address.clone(), 10, 10, 100),
             )
             .unwrap();
         USER_REWARD_INFO_MAP
@@ -3425,7 +3476,8 @@ mod tests {
                     current_undelegated_shares: Default::default(),
                     global_airdrop_pointer: vec![],
                     total_airdrops_accumulated: vec![],
-                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    last_undelegated_time: Timestamp::from_seconds(0),
+                    undelegation_cooldown: 0,
                 },
             )
             .unwrap();
@@ -3549,6 +3601,73 @@ mod tests {
             err,
             ContractError::UserDoesNotHaveEnoughRewards {}
         ));
+
+        /*
+            Test - 9. User has exceeded undelegation record limit
+        */
+        CONFIG
+            .update(
+                deps.as_mut().storage,
+                |mut config| -> Result<_, ContractError> {
+                    config.max_undelegation_limit = 3;
+                    Ok(config)
+                },
+            )
+            .unwrap();
+        USER_REWARD_INFO_MAP
+            .save(
+                deps.as_mut().storage,
+                &user1,
+                &UserRewardInfo {
+                    user_portfolio: vec![],
+                    strategies: vec![UserStrategyInfo {
+                        strategy_id: 1,
+                        shares: Decimal::from_ratio(5000_u128, 1_u128),
+                        airdrop_pointer: vec![],
+                    }],
+                    pending_airdrops: vec![],
+                    undelegation_records: vec![
+                        UserUndelegationRecord {
+                            id: 0,
+                            amount: Default::default(),
+                            shares: Default::default(),
+                            strategy_id: 0,
+                            undelegation_batch_id: 0,
+                        },
+                        UserUndelegationRecord {
+                            id: 0,
+                            amount: Default::default(),
+                            shares: Default::default(),
+                            strategy_id: 0,
+                            undelegation_batch_id: 0,
+                        },
+                        UserUndelegationRecord {
+                            id: 0,
+                            amount: Default::default(),
+                            shares: Default::default(),
+                            strategy_id: 0,
+                            undelegation_batch_id: 0,
+                        },
+                    ],
+                    pending_rewards: Uint128::zero(),
+                },
+            )
+            .unwrap();
+
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info(user1.as_str(), &[]),
+            ExecuteMsg::UndelegateRewards {
+                amount: Uint128::new(400_u128),
+                strategy_id: 1,
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(
+            err,
+            ContractError::UserUndelegationRecordLimitExceeded {}
+        ));
     }
 
     #[test]
@@ -3597,7 +3716,8 @@ mod tests {
                         DecCoin::new(Decimal::from_ratio(400_u128, 5000_u128), "mir".to_string()),
                     ],
                     total_airdrops_accumulated: vec![],
-                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    last_undelegated_time: Timestamp::from_seconds(0),
+                    undelegation_cooldown: 0,
                 },
             )
             .unwrap();
@@ -3737,7 +3857,8 @@ mod tests {
                         DecCoin::new(Decimal::from_ratio(400_u128, 5000_u128), "mir".to_string()),
                     ],
                     total_airdrops_accumulated: vec![],
-                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    last_undelegated_time: Timestamp::from_seconds(0),
+                    undelegation_cooldown: 0,
                 },
             )
             .unwrap();
@@ -4052,7 +4173,7 @@ mod tests {
             ExecuteMsg::ClaimAirdrops {
                 strategy_id: 1,
                 amount: Uint128::new(100_u128),
-                denom: "anc".to_string(),
+                airdrop_token: "anc".to_string(),
                 stage: 5,
                 proof: vec!["proof1".to_string(), "proof2".to_string()],
             },
@@ -4081,7 +4202,7 @@ mod tests {
             ExecuteMsg::ClaimAirdrops {
                 strategy_id: 1,
                 amount: Uint128::new(100_u128),
-                denom: "anc".to_string(),
+                airdrop_token: "anc".to_string(),
                 stage: 5,
                 proof: vec!["proof1".to_string(), "proof2".to_string()],
             },
@@ -4099,7 +4220,7 @@ mod tests {
             ExecuteMsg::ClaimAirdrops {
                 strategy_id: 1,
                 amount: Uint128::zero(),
-                denom: "anc".to_string(),
+                airdrop_token: "anc".to_string(),
                 stage: 5,
                 proof: vec!["proof1".to_string(), "proof2".to_string()],
             },
@@ -4154,8 +4275,8 @@ mod tests {
         /*
            Test - 1. Claiming airdrops from the sic for the first time
         */
-        let mut strategy_info = StrategyInfo::new("sid1".to_string(), sic_contract.clone(), 10, 10);
-        strategy_info.total_shares = Decimal::from_ratio(100_000_000_u128, 1_u128);
+        let strategy_info =
+            StrategyInfo::new("sid1".to_string(), sic_contract.clone(), 10, 10, 100);
         STRATEGY_MAP
             .save(deps.as_mut().storage, U64Key::new(1), &strategy_info)
             .unwrap();
@@ -4167,7 +4288,7 @@ mod tests {
             ExecuteMsg::ClaimAirdrops {
                 strategy_id: 1,
                 amount: Uint128::new(100_u128),
-                denom: "anc".to_string(),
+                airdrop_token: "anc".to_string(),
                 stage: 2,
                 proof: vec!["proof1".to_string(), "proof2".to_string()],
             },
@@ -4180,8 +4301,7 @@ mod tests {
             vec![SubMsg::new(WasmMsg::Execute {
                 contract_addr: String::from(sic_contract.clone()),
                 msg: to_binary(&sic_execute_msg::ClaimAirdrops {
-                    airdrop_token_contract: anc_airdrop_contract.clone(),
-                    cw20_token_contract: anc_cw20_contract.clone(),
+                    airdrop_token_contract: anc_airdrop_contract.to_string(),
                     airdrop_token: "anc".to_string(),
                     amount: Uint128::new(100_u128),
                     stage: 2,
@@ -4192,34 +4312,11 @@ mod tests {
             })]
         );
 
-        let strategy_info_opt = STRATEGY_MAP
-            .may_load(deps.as_mut().storage, U64Key::new(1))
-            .unwrap();
-        assert_ne!(strategy_info_opt, None);
-        let strategy_info = strategy_info_opt.unwrap();
-        assert_eq!(
-            strategy_info.total_airdrops_accumulated,
-            vec![Coin::new(100_u128, "anc".to_string())]
-        );
-        assert_eq!(
-            strategy_info.global_airdrop_pointer,
-            vec![DecCoin::new(
-                Decimal::from_ratio(100_u128, 100_000_000_u128),
-                "anc".to_string()
-            )]
-        );
-
         /*
             Test - 2. Claiming airdrops a mir airdrop with anc airdrop
         */
-        let mut strategy_info = StrategyInfo::new("sid1".to_string(), sic_contract.clone(), 10, 10);
-        strategy_info.total_shares = Decimal::from_ratio(100_000_000_u128, 1_u128);
-        strategy_info.global_airdrop_pointer = vec![DecCoin::new(
-            Decimal::from_ratio(100_u128, 100_000_000_u128),
-            "anc".to_string(),
-        )];
-        strategy_info.total_airdrops_accumulated = vec![Coin::new(100_u128, "anc".to_string())];
-
+        let strategy_info =
+            StrategyInfo::new("sid1".to_string(), sic_contract.clone(), 10, 10, 100);
         STRATEGY_MAP
             .save(deps.as_mut().storage, U64Key::new(1), &strategy_info)
             .unwrap();
@@ -4231,7 +4328,7 @@ mod tests {
             ExecuteMsg::ClaimAirdrops {
                 strategy_id: 1,
                 amount: Uint128::new(100_u128),
-                denom: "mir".to_string(),
+                airdrop_token: "mir".to_string(),
                 stage: 3,
                 proof: vec!["proof1".to_string(), "proof2".to_string()],
             },
@@ -4244,8 +4341,7 @@ mod tests {
             vec![SubMsg::new(WasmMsg::Execute {
                 contract_addr: String::from(sic_contract.clone()),
                 msg: to_binary(&sic_execute_msg::ClaimAirdrops {
-                    airdrop_token_contract: mir_airdrop_contract.clone(),
-                    cw20_token_contract: mir_cw20_contract.clone(),
+                    airdrop_token_contract: mir_airdrop_contract.to_string(),
                     airdrop_token: "mir".to_string(),
                     amount: Uint128::new(100_u128),
                     stage: 3,
@@ -4256,44 +4352,11 @@ mod tests {
             })]
         );
 
-        let strategy_info_opt = STRATEGY_MAP
-            .may_load(deps.as_mut().storage, U64Key::new(1))
-            .unwrap();
-        assert_ne!(strategy_info_opt, None);
-        let strategy_info = strategy_info_opt.unwrap();
-        assert!(check_equal_vec(
-            strategy_info.total_airdrops_accumulated,
-            vec![
-                Coin::new(100_u128, "anc".to_string()),
-                Coin::new(100_u128, "mir".to_string())
-            ]
-        ));
-        assert!(check_equal_vec(
-            strategy_info.global_airdrop_pointer,
-            vec![
-                DecCoin::new(
-                    Decimal::from_ratio(100_u128, 100_000_000_u128),
-                    "anc".to_string()
-                ),
-                DecCoin::new(
-                    Decimal::from_ratio(100_u128, 100_000_000_u128),
-                    "mir".to_string()
-                )
-            ]
-        ));
-
         /*
             Test - 3. Claiming airdrops a mir airdrop with anc airdrop with some undelegated shares
         */
-        let mut strategy_info = StrategyInfo::new("sid1".to_string(), sic_contract.clone(), 10, 10);
-        strategy_info.total_shares = Decimal::from_ratio(100_000_000_u128, 1_u128);
-        strategy_info.global_airdrop_pointer = vec![DecCoin::new(
-            Decimal::from_ratio(100_u128, 100_000_000_u128),
-            "anc".to_string(),
-        )];
-        strategy_info.total_airdrops_accumulated = vec![Coin::new(100_u128, "anc".to_string())];
-        strategy_info.current_undelegated_shares = Decimal::from_ratio(50_000_000_u128, 1_u128);
-
+        let strategy_info =
+            StrategyInfo::new("sid1".to_string(), sic_contract.clone(), 10, 10, 100);
         STRATEGY_MAP
             .save(deps.as_mut().storage, U64Key::new(1), &strategy_info)
             .unwrap();
@@ -4305,7 +4368,7 @@ mod tests {
             ExecuteMsg::ClaimAirdrops {
                 strategy_id: 1,
                 amount: Uint128::new(100_u128),
-                denom: "mir".to_string(),
+                airdrop_token: "mir".to_string(),
                 stage: 4,
                 proof: vec!["proof1".to_string(), "proof2".to_string()],
             },
@@ -4318,8 +4381,7 @@ mod tests {
             vec![SubMsg::new(WasmMsg::Execute {
                 contract_addr: String::from(sic_contract.clone()),
                 msg: to_binary(&sic_execute_msg::ClaimAirdrops {
-                    airdrop_token_contract: mir_airdrop_contract.clone(),
-                    cw20_token_contract: mir_cw20_contract.clone(),
+                    airdrop_token_contract: mir_airdrop_contract.to_string(),
                     airdrop_token: "mir".to_string(),
                     amount: Uint128::new(100_u128),
                     stage: 4,
@@ -4329,29 +4391,201 @@ mod tests {
                 funds: vec![]
             })]
         );
+    }
 
-        let strategy_info_opt = STRATEGY_MAP
-            .may_load(deps.as_mut().storage, U64Key::new(1))
+    #[test]
+    fn test_update_airdrop_pointers_fail() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &coins(1000, "earth"));
+        let env = mock_env();
+
+        let _res = instantiate_contract(
+            &mut deps,
+            &info,
+            &env,
+            Some(String::from("uluna")),
+            Some(String::from("delegator_contract")),
+            None,
+        );
+
+        let air1_cw20_contract: Addr = Addr::unchecked("air1-cw20-contract");
+        let air2_cw20_contract: Addr = Addr::unchecked("air2-cw20-contract");
+        let air1_airdrop_contract: Addr = Addr::unchecked("air1-airdrop-contract");
+        let air2_airdrop_contract: Addr = Addr::unchecked("air2-airdrop-contract");
+
+        let sic_contract: Addr = Addr::unchecked("sic-contract");
+
+        CW20_TOKEN_CONTRACTS_REGISTRY
+            .save(
+                deps.as_mut().storage,
+                "air1".to_string(),
+                &Cw20TokenContractsInfo {
+                    airdrop_contract: air1_airdrop_contract.clone(),
+                    cw20_token_contract: air1_cw20_contract.clone(),
+                },
+            )
             .unwrap();
-        assert_ne!(strategy_info_opt, None);
-        let strategy_info = strategy_info_opt.unwrap();
+        CW20_TOKEN_CONTRACTS_REGISTRY
+            .save(
+                deps.as_mut().storage,
+                "air2".to_string(),
+                &Cw20TokenContractsInfo {
+                    airdrop_contract: air2_airdrop_contract.clone(),
+                    cw20_token_contract: air2_cw20_contract.clone(),
+                },
+            )
+            .unwrap();
+
+        /*
+            Test - 1. airdrop not registered
+        */
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::UpdateAirdropPointers {
+                strategy_id: 0,
+                airdrop_token: "ABC".to_string(),
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::AirdropNotRegistered {}));
+
+        /*
+            Test - 2. Strategy does not exist
+        */
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::UpdateAirdropPointers {
+                strategy_id: 1,
+                airdrop_token: "air1".to_string(),
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::StrategyInfoDoesNotExist {}));
+
+        /*
+            Test - 3. SIC balance is 0
+        */
+        let mut contracts_to_token: HashMap<Addr, Uint128> = HashMap::new();
+        contracts_to_token.insert(air1_cw20_contract.clone(), Uint128::new(0_u128));
+        deps.querier
+            .update_stader_balances(Some(contracts_to_token), None);
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::from(1),
+                &StrategyInfo::new("sid1".to_string(), sic_contract, 10, 10, 100),
+            )
+            .unwrap();
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::UpdateAirdropPointers {
+                strategy_id: 1,
+                airdrop_token: "air1".to_string(),
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::ZeroAmount {}));
+    }
+
+    #[test]
+    fn test_update_airdrop_pointers_success() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &coins(1000, "earth"));
+        let env = mock_env();
+
+        let _res = instantiate_contract(
+            &mut deps,
+            &info,
+            &env,
+            Some(String::from("uluna")),
+            Some(String::from("delegator_contract")),
+            None,
+        );
+
+        let air1_cw20_contract: Addr = Addr::unchecked("air1-cw20-contract");
+        let air1_airdrop_contract: Addr = Addr::unchecked("air1-airdrop-contract");
+
+        let sic_contract: Addr = Addr::unchecked("sic-contract");
+
+        CW20_TOKEN_CONTRACTS_REGISTRY
+            .save(
+                deps.as_mut().storage,
+                "air1".to_string(),
+                &Cw20TokenContractsInfo {
+                    airdrop_contract: air1_airdrop_contract.clone(),
+                    cw20_token_contract: air1_cw20_contract.clone(),
+                },
+            )
+            .unwrap();
+
+        let mut contracts_to_token: HashMap<Addr, Uint128> = HashMap::new();
+        contracts_to_token.insert(air1_cw20_contract.clone(), Uint128::new(1000_u128));
+        deps.querier
+            .update_stader_balances(Some(contracts_to_token), None);
+        let mut strategy_info =
+            StrategyInfo::new("sid1".to_string(), sic_contract.clone(), 10, 10, 100);
+        strategy_info.total_shares = Decimal::from_ratio(100_000_000_u128, 1_u128);
+        strategy_info.global_airdrop_pointer = vec![DecCoin::new(
+            Decimal::from_ratio(100_u128, 100_000_000_u128),
+            "anc".to_string(),
+        )];
+        strategy_info.total_airdrops_accumulated = vec![Coin::new(100_u128, "anc".to_string())];
+        strategy_info.current_undelegated_shares = Decimal::from_ratio(50_000_000_u128, 1_u128);
+        STRATEGY_MAP
+            .save(deps.as_mut().storage, U64Key::from(1), &strategy_info)
+            .unwrap();
+
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::UpdateAirdropPointers {
+                strategy_id: 1,
+                airdrop_token: "air1".to_string(),
+            },
+        )
+        .unwrap();
+        assert_eq!(res.messages.len(), 1);
+        assert!(check_equal_vec(
+            res.messages,
+            vec![SubMsg::new(WasmMsg::Execute {
+                contract_addr: sic_contract.to_string(),
+                msg: to_binary(&sic_execute_msg::TransferAirdropsToScc {
+                    cw20_token_contract: air1_cw20_contract.to_string(),
+                    airdrop_token: "air1".to_string(),
+                    amount: Uint128::new(1000_u128)
+                })
+                .unwrap(),
+                funds: vec![]
+            })]
+        ));
+
+        let strategy_info = STRATEGY_MAP
+            .load(deps.as_mut().storage, U64Key::from(1))
+            .unwrap();
         assert!(check_equal_vec(
             strategy_info.total_airdrops_accumulated,
             vec![
                 Coin::new(100_u128, "anc".to_string()),
-                Coin::new(100_u128, "mir".to_string())
+                Coin::new(1000_u128, "air1".to_string())
             ]
         ));
         assert!(check_equal_vec(
             strategy_info.global_airdrop_pointer,
             vec![
                 DecCoin::new(
-                    Decimal::from_ratio(100_u128, 100_000_000_u128),
-                    "anc".to_string()
+                    Decimal::from_ratio(1000_u128, 50_000_000_u128),
+                    "air1".to_string()
                 ),
                 DecCoin::new(
-                    Decimal::from_ratio(100_u128, 50_000_000_u128),
-                    "mir".to_string()
+                    Decimal::from_ratio(100_u128, 100_000_000_u128),
+                    "anc".to_string(),
                 )
             ]
         ));
@@ -4453,7 +4687,8 @@ mod tests {
                         Coin::new(500_u128, "anc".to_string()),
                         Coin::new(200_u128, "mir".to_string()),
                     ],
-                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    last_undelegated_time: Timestamp::from_seconds(0),
+                    undelegation_cooldown: 0,
                 },
             )
             .unwrap();
@@ -4570,7 +4805,8 @@ mod tests {
                         Coin::new(200_u128, "mir".to_string()),
                         Coin::new(400_u128, "pyl".to_string()),
                     ],
-                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    last_undelegated_time: Timestamp::from_seconds(0),
+                    undelegation_cooldown: 0,
                 },
             )
             .unwrap();
@@ -4998,7 +5234,8 @@ mod tests {
                     current_undelegated_shares: Default::default(),
                     global_airdrop_pointer: vec![],
                     total_airdrops_accumulated: vec![],
-                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    last_undelegated_time: Timestamp::from_seconds(0),
+                    undelegation_cooldown: 0,
                 },
             )
             .unwrap();
@@ -5032,10 +5269,6 @@ mod tests {
         assert_eq!(
             sid1_strategy.total_shares,
             Decimal::from_ratio(2000_u128, 1_u128)
-        );
-        assert_eq!(
-            sid1_strategy.shares_per_token_ratio,
-            Decimal::from_ratio(10_u128, 1_u128)
         );
         let user1_reward_info_opt = USER_REWARD_INFO_MAP
             .may_load(deps.as_mut().storage, &user1)
@@ -5099,7 +5332,8 @@ mod tests {
                         Coin::new(500_u128, "anc".to_string()),
                         Coin::new(200_u128, "mir".to_string()),
                     ],
-                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    last_undelegated_time: Timestamp::from_seconds(0),
+                    undelegation_cooldown: 0,
                 },
             )
             .unwrap();
@@ -5119,7 +5353,8 @@ mod tests {
                     current_undelegated_shares: Default::default(),
                     global_airdrop_pointer: vec![],
                     total_airdrops_accumulated: vec![],
-                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    last_undelegated_time: Timestamp::from_seconds(0),
+                    undelegation_cooldown: 0,
                 },
             )
             .unwrap();
@@ -5142,7 +5377,8 @@ mod tests {
                         DecCoin::new(Decimal::from_ratio(600_u128, 3000_u128), "mir".to_string()),
                     ],
                     total_airdrops_accumulated: vec![],
-                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    last_undelegated_time: Timestamp::from_seconds(0),
+                    undelegation_cooldown: 0,
                 },
             )
             .unwrap();
@@ -5221,10 +5457,6 @@ mod tests {
         assert_eq!(
             sid3_strategy.total_shares,
             Decimal::from_ratio(8000_u128, 1_u128)
-        );
-        assert_eq!(
-            sid3_strategy.shares_per_token_ratio,
-            Decimal::from_ratio(10_u128, 1_u128)
         );
         let user1_reward_info_opt = USER_REWARD_INFO_MAP
             .may_load(deps.as_mut().storage, &user1)
@@ -5327,7 +5559,8 @@ mod tests {
                         Coin::new(500_u128, "anc".to_string()),
                         Coin::new(200_u128, "mir".to_string()),
                     ],
-                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    last_undelegated_time: Timestamp::from_seconds(0),
+                    undelegation_cooldown: 0,
                 },
             )
             .unwrap();
@@ -5347,7 +5580,8 @@ mod tests {
                     current_undelegated_shares: Default::default(),
                     global_airdrop_pointer: vec![],
                     total_airdrops_accumulated: vec![],
-                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    last_undelegated_time: Timestamp::from_seconds(0),
+                    undelegation_cooldown: 0,
                 },
             )
             .unwrap();
@@ -5370,7 +5604,8 @@ mod tests {
                         DecCoin::new(Decimal::from_ratio(600_u128, 3000_u128), "mir".to_string()),
                     ],
                     total_airdrops_accumulated: vec![],
-                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    last_undelegated_time: Timestamp::from_seconds(0),
+                    undelegation_cooldown: 0,
                 },
             )
             .unwrap();
@@ -5449,10 +5684,6 @@ mod tests {
         assert_eq!(
             sid3_strategy.total_shares,
             Decimal::from_ratio(18000_u128, 1_u128)
-        );
-        assert_eq!(
-            sid3_strategy.shares_per_token_ratio,
-            Decimal::from_ratio(30_u128, 1_u128)
         );
         let user1_reward_info_opt = USER_REWARD_INFO_MAP
             .may_load(deps.as_mut().storage, &user1)
@@ -5555,7 +5786,8 @@ mod tests {
                         Coin::new(200_u128, "anc".to_string()),
                         Coin::new(400_u128, "mir".to_string()),
                     ],
-                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    last_undelegated_time: Timestamp::from_seconds(0),
+                    undelegation_cooldown: 0,
                 },
             )
             .unwrap();
@@ -5581,7 +5813,8 @@ mod tests {
                         Coin::new(100_u128, "anc".to_string()),
                         Coin::new(100_u128, "mir".to_string()),
                     ],
-                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    last_undelegated_time: Timestamp::from_seconds(0),
+                    undelegation_cooldown: 0,
                 },
             )
             .unwrap();
@@ -5645,10 +5878,6 @@ mod tests {
             sid1_strategy.total_shares,
             Decimal::from_ratio(1250_u128, 1_u128)
         );
-        assert_eq!(
-            sid1_strategy.shares_per_token_ratio,
-            Decimal::from_ratio(10_u128, 1_u128)
-        );
         let sid2_strategy_opt = STRATEGY_MAP
             .may_load(deps.as_mut().storage, U64Key::new(2))
             .unwrap();
@@ -5657,10 +5886,6 @@ mod tests {
         assert_eq!(
             sid2_strategy.total_shares,
             Decimal::from_ratio(1500_u128, 1_u128)
-        );
-        assert_eq!(
-            sid2_strategy.shares_per_token_ratio,
-            Decimal::from_ratio(10_u128, 1_u128)
         );
         let user1_reward_info_opt = USER_REWARD_INFO_MAP
             .may_load(deps.as_mut().storage, &user1)
@@ -5744,7 +5969,8 @@ mod tests {
                         Coin::new(200_u128, "anc".to_string()),
                         Coin::new(400_u128, "mir".to_string()),
                     ],
-                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    last_undelegated_time: Timestamp::from_seconds(0),
+                    undelegation_cooldown: 0,
                 },
             )
             .unwrap();
@@ -5770,7 +5996,8 @@ mod tests {
                         Coin::new(100_u128, "anc".to_string()),
                         Coin::new(100_u128, "mir".to_string()),
                     ],
-                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    last_undelegated_time: Timestamp::from_seconds(0),
+                    undelegation_cooldown: 0,
                 },
             )
             .unwrap();
@@ -5810,10 +6037,6 @@ mod tests {
             sid1_strategy.total_shares,
             Decimal::from_ratio(1000_u128, 1_u128)
         );
-        assert_eq!(
-            sid1_strategy.shares_per_token_ratio,
-            Decimal::from_ratio(10_u128, 1_u128)
-        );
         let sid2_strategy_opt = STRATEGY_MAP
             .may_load(deps.as_mut().storage, U64Key::new(2))
             .unwrap();
@@ -5822,10 +6045,6 @@ mod tests {
         assert_eq!(
             sid2_strategy.total_shares,
             Decimal::from_ratio(1000_u128, 1_u128)
-        );
-        assert_eq!(
-            sid2_strategy.shares_per_token_ratio,
-            Decimal::from_ratio(10_u128, 1_u128)
         );
         let user1_reward_info_opt = USER_REWARD_INFO_MAP
             .may_load(deps.as_mut().storage, &user1)
@@ -5875,7 +6094,8 @@ mod tests {
                     current_undelegated_shares: Default::default(),
                     global_airdrop_pointer: vec![],
                     total_airdrops_accumulated: vec![],
-                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    last_undelegated_time: Timestamp::from_seconds(0),
+                    undelegation_cooldown: 0,
                 },
             )
             .unwrap();
@@ -5895,7 +6115,8 @@ mod tests {
                     current_undelegated_shares: Default::default(),
                     global_airdrop_pointer: vec![],
                     total_airdrops_accumulated: vec![],
-                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    last_undelegated_time: Timestamp::from_seconds(0),
+                    undelegation_cooldown: 0,
                 },
             )
             .unwrap();
@@ -5936,10 +6157,6 @@ mod tests {
             sid1_strategy.total_shares,
             Decimal::from_ratio(1000_u128, 1_u128)
         );
-        assert_eq!(
-            sid1_strategy.shares_per_token_ratio,
-            Decimal::from_ratio(10_u128, 1_u128)
-        );
         let sid2_strategy_opt = STRATEGY_MAP
             .may_load(deps.as_mut().storage, U64Key::new(2))
             .unwrap();
@@ -5948,10 +6165,6 @@ mod tests {
         assert_eq!(
             sid2_strategy.total_shares,
             Decimal::from_ratio(1000_u128, 1_u128)
-        );
-        assert_eq!(
-            sid2_strategy.shares_per_token_ratio,
-            Decimal::from_ratio(10_u128, 1_u128)
         );
         let user1_reward_info_opt = USER_REWARD_INFO_MAP
             .may_load(deps.as_mut().storage, &user1)
@@ -6009,7 +6222,8 @@ mod tests {
                         Coin::new(100_u128, "anc".to_string()),
                         Coin::new(300_u128, "mir".to_string()),
                     ],
-                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    last_undelegated_time: Timestamp::from_seconds(0),
+                    undelegation_cooldown: 0,
                 },
             )
             .unwrap();
@@ -6035,7 +6249,8 @@ mod tests {
                         Coin::new(200_u128, "anc".to_string()),
                         Coin::new(400_u128, "mir".to_string()),
                     ],
-                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    last_undelegated_time: Timestamp::from_seconds(0),
+                    undelegation_cooldown: 0,
                 },
             )
             .unwrap();
@@ -6110,10 +6325,6 @@ mod tests {
             sid1_strategy.total_shares,
             Decimal::from_ratio(1125_u128, 1_u128)
         );
-        assert_eq!(
-            sid1_strategy.shares_per_token_ratio,
-            Decimal::from_ratio(5_u128, 1_u128)
-        );
         let sid2_strategy_opt = STRATEGY_MAP
             .may_load(deps.as_mut().storage, U64Key::new(2))
             .unwrap();
@@ -6122,10 +6333,6 @@ mod tests {
         assert_eq!(
             sid2_strategy.total_shares,
             Decimal::from_ratio(1500_u128, 1_u128)
-        );
-        assert_eq!(
-            sid2_strategy.shares_per_token_ratio,
-            Decimal::from_ratio(10_u128, 1_u128)
         );
         let user1_reward_info_opt = USER_REWARD_INFO_MAP
             .may_load(deps.as_mut().storage, &user1)
@@ -6210,7 +6417,8 @@ mod tests {
                         Coin::new(100_u128, "anc".to_string()),
                         Coin::new(300_u128, "mir".to_string()),
                     ],
-                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    last_undelegated_time: Timestamp::from_seconds(0),
+                    undelegation_cooldown: 0,
                 },
             )
             .unwrap();
@@ -6236,7 +6444,8 @@ mod tests {
                         Coin::new(200_u128, "anc".to_string()),
                         Coin::new(400_u128, "mir".to_string()),
                     ],
-                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    last_undelegated_time: Timestamp::from_seconds(0),
+                    undelegation_cooldown: 0,
                 },
             )
             .unwrap();
@@ -6262,7 +6471,8 @@ mod tests {
                         Coin::new(300_u128, "anc".to_string()),
                         Coin::new(500_u128, "mir".to_string()),
                     ],
-                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    last_undelegated_time: Timestamp::from_seconds(0),
+                    undelegation_cooldown: 0,
                 },
             )
             .unwrap();
@@ -6433,10 +6643,6 @@ mod tests {
             sid1_strategy.total_shares,
             Decimal::from_ratio(13250_u128, 1_u128)
         );
-        assert_eq!(
-            sid1_strategy.shares_per_token_ratio,
-            Decimal::from_ratio(10_u128, 1_u128)
-        );
         let sid2_strategy_opt = STRATEGY_MAP
             .may_load(deps.as_mut().storage, U64Key::new(2))
             .unwrap();
@@ -6446,10 +6652,6 @@ mod tests {
             sid2_strategy.total_shares,
             Decimal::from_ratio(10000_u128, 1_u128)
         );
-        assert_eq!(
-            sid2_strategy.shares_per_token_ratio,
-            Decimal::from_ratio(10_u128, 1_u128)
-        );
         let sid3_strategy_opt = STRATEGY_MAP
             .may_load(deps.as_mut().storage, U64Key::new(3))
             .unwrap();
@@ -6458,10 +6660,6 @@ mod tests {
         assert_eq!(
             sid3_strategy.total_shares,
             Decimal::from_ratio(6980_u128, 1_u128)
-        );
-        assert_eq!(
-            sid3_strategy.shares_per_token_ratio,
-            Decimal::from_ratio(10_u128, 1_u128)
         );
         let user1_reward_info_opt = USER_REWARD_INFO_MAP
             .may_load(deps.as_mut().storage, &user1)
@@ -6616,6 +6814,7 @@ mod tests {
                 sic_contract_address: "abc".to_string(),
                 unbonding_buffer: 10,
                 unbonding_period: 10,
+                undelegation_frequency: 0,
             },
         )
         .unwrap_err();
@@ -6646,6 +6845,7 @@ mod tests {
                 sic_contract_address: "abc".to_string(),
                 unbonding_buffer: 100u64,
                 unbonding_period: 100u64,
+                undelegation_frequency: 1000u64,
             },
         )
         .unwrap();
@@ -6669,7 +6869,8 @@ mod tests {
                 current_undelegated_shares: Default::default(),
                 global_airdrop_pointer: vec![],
                 total_airdrops_accumulated: vec![],
-                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                last_undelegated_time: Timestamp::from_seconds(0),
+                undelegation_cooldown: 1000u64
             }
         );
 
@@ -6682,6 +6883,7 @@ mod tests {
                 sic_contract_address: "abc".to_string(),
                 unbonding_buffer: 100u64,
                 unbonding_period: 100u64,
+                undelegation_frequency: 1000u64,
             },
         )
         .unwrap();
@@ -6705,7 +6907,8 @@ mod tests {
                 current_undelegated_shares: Default::default(),
                 global_airdrop_pointer: vec![],
                 total_airdrops_accumulated: vec![],
-                shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                last_undelegated_time: Timestamp::from_seconds(0),
+                undelegation_cooldown: 1000u64
             }
         );
     }
@@ -7091,7 +7294,8 @@ mod tests {
                     current_undelegated_shares: Default::default(),
                     global_airdrop_pointer: vec![],
                     total_airdrops_accumulated: vec![],
-                    shares_per_token_ratio: Default::default(),
+                    last_undelegated_time: Timestamp::from_seconds(0),
+                    undelegation_cooldown: 0,
                 },
             )
             .unwrap();
@@ -7117,7 +7321,8 @@ mod tests {
                     current_undelegated_shares: Default::default(),
                     global_airdrop_pointer: vec![],
                     total_airdrops_accumulated: vec![],
-                    shares_per_token_ratio: Default::default(),
+                    last_undelegated_time: Timestamp::from_seconds(0),
+                    undelegation_cooldown: 0,
                 },
             )
             .unwrap();
@@ -7176,7 +7381,8 @@ mod tests {
                     current_undelegated_shares: Default::default(),
                     global_airdrop_pointer: vec![],
                     total_airdrops_accumulated: vec![],
-                    shares_per_token_ratio: Default::default(),
+                    last_undelegated_time: Timestamp::from_seconds(0),
+                    undelegation_cooldown: 0,
                 },
             )
             .unwrap();
@@ -7212,7 +7418,8 @@ mod tests {
                     current_undelegated_shares: Default::default(),
                     global_airdrop_pointer: vec![],
                     total_airdrops_accumulated: vec![],
-                    shares_per_token_ratio: Default::default(),
+                    last_undelegated_time: Timestamp::from_seconds(0),
+                    undelegation_cooldown: 0,
                 },
             )
             .unwrap();
@@ -7232,7 +7439,8 @@ mod tests {
                     current_undelegated_shares: Default::default(),
                     global_airdrop_pointer: vec![],
                     total_airdrops_accumulated: vec![],
-                    shares_per_token_ratio: Default::default(),
+                    last_undelegated_time: Timestamp::from_seconds(0),
+                    undelegation_cooldown: 0,
                 },
             )
             .unwrap();
@@ -7252,7 +7460,8 @@ mod tests {
                     current_undelegated_shares: Default::default(),
                     global_airdrop_pointer: vec![],
                     total_airdrops_accumulated: vec![],
-                    shares_per_token_ratio: Default::default(),
+                    last_undelegated_time: Timestamp::from_seconds(0),
+                    undelegation_cooldown: 0,
                 },
             )
             .unwrap();
@@ -7307,7 +7516,8 @@ mod tests {
                     current_undelegated_shares: Default::default(),
                     global_airdrop_pointer: vec![],
                     total_airdrops_accumulated: vec![],
-                    shares_per_token_ratio: Default::default(),
+                    last_undelegated_time: Timestamp::from_seconds(0),
+                    undelegation_cooldown: 0,
                 },
             )
             .unwrap();
@@ -7327,7 +7537,8 @@ mod tests {
                     current_undelegated_shares: Default::default(),
                     global_airdrop_pointer: vec![],
                     total_airdrops_accumulated: vec![],
-                    shares_per_token_ratio: Default::default(),
+                    last_undelegated_time: Timestamp::from_seconds(0),
+                    undelegation_cooldown: 0,
                 },
             )
             .unwrap();
@@ -7347,7 +7558,8 @@ mod tests {
                     current_undelegated_shares: Default::default(),
                     global_airdrop_pointer: vec![],
                     total_airdrops_accumulated: vec![],
-                    shares_per_token_ratio: Default::default(),
+                    last_undelegated_time: Timestamp::from_seconds(0),
+                    undelegation_cooldown: 0,
                 },
             )
             .unwrap();
@@ -7411,7 +7623,8 @@ mod tests {
                     current_undelegated_shares: Default::default(),
                     global_airdrop_pointer: vec![],
                     total_airdrops_accumulated: vec![],
-                    shares_per_token_ratio: Default::default(),
+                    last_undelegated_time: Timestamp::from_seconds(0),
+                    undelegation_cooldown: 0,
                 },
             )
             .unwrap();
@@ -7431,7 +7644,8 @@ mod tests {
                     current_undelegated_shares: Default::default(),
                     global_airdrop_pointer: vec![],
                     total_airdrops_accumulated: vec![],
-                    shares_per_token_ratio: Default::default(),
+                    last_undelegated_time: Timestamp::from_seconds(0),
+                    undelegation_cooldown: 0,
                 },
             )
             .unwrap();
@@ -7451,7 +7665,8 @@ mod tests {
                     current_undelegated_shares: Default::default(),
                     global_airdrop_pointer: vec![],
                     total_airdrops_accumulated: vec![],
-                    shares_per_token_ratio: Default::default(),
+                    last_undelegated_time: Timestamp::from_seconds(0),
+                    undelegation_cooldown: 0,
                 },
             )
             .unwrap();
@@ -7521,7 +7736,8 @@ mod tests {
                     current_undelegated_shares: Default::default(),
                     global_airdrop_pointer: vec![],
                     total_airdrops_accumulated: vec![],
-                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    last_undelegated_time: Timestamp::from_seconds(0),
+                    undelegation_cooldown: 0,
                 },
             )
             .unwrap();
@@ -7559,7 +7775,8 @@ mod tests {
                     current_undelegated_shares: Default::default(),
                     global_airdrop_pointer: vec![],
                     total_airdrops_accumulated: vec![],
-                    shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    last_undelegated_time: Timestamp::from_seconds(0),
+                    undelegation_cooldown: 0,
                 },
             )
             .unwrap();
@@ -7572,5 +7789,83 @@ mod tests {
             get_strategy_shares_per_token_ratio(deps.as_ref().querier, &strategy_info).unwrap();
 
         assert_eq!(s_t_ratio, Decimal::from_ratio(20_u128, 1_u128));
+
+        /*
+            Test - 3. total tokens at sic is 0
+        */
+        let mut contracts_to_tokens: HashMap<Addr, Uint128> = HashMap::new();
+        contracts_to_tokens.insert(sic1_address.clone(), Uint128::new(0_u128));
+        deps.querier
+            .update_stader_balances(Some(contracts_to_tokens), None);
+
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(1),
+                &StrategyInfo {
+                    name: "sid1".to_string(),
+                    sic_contract_address: sic1_address.clone(),
+                    unbonding_period: 3600,
+                    unbonding_buffer: 3600,
+                    next_undelegation_batch_id: 0,
+                    next_reconciliation_batch_id: 0,
+                    is_active: false,
+                    total_shares: Decimal::from_ratio(1000_u128, 1_u128),
+                    current_undelegated_shares: Default::default(),
+                    global_airdrop_pointer: vec![],
+                    total_airdrops_accumulated: vec![],
+                    last_undelegated_time: Timestamp::from_seconds(0),
+                    undelegation_cooldown: 0,
+                },
+            )
+            .unwrap();
+
+        let strategy_info = STRATEGY_MAP
+            .may_load(deps.as_mut().storage, U64Key::new(1))
+            .unwrap()
+            .unwrap();
+        let s_t_ratio =
+            get_strategy_shares_per_token_ratio(deps.as_ref().querier, &strategy_info).unwrap();
+
+        assert_eq!(s_t_ratio, Decimal::from_ratio(10_u128, 1_u128));
+
+        /*
+            Test - 4. total shares of strategy is 0
+        */
+        let mut contracts_to_tokens: HashMap<Addr, Uint128> = HashMap::new();
+        contracts_to_tokens.insert(sic1_address.clone(), Uint128::new(0_u128));
+        deps.querier
+            .update_stader_balances(Some(contracts_to_tokens), None);
+
+        STRATEGY_MAP
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(1),
+                &StrategyInfo {
+                    name: "sid1".to_string(),
+                    sic_contract_address: sic1_address.clone(),
+                    unbonding_period: 3600,
+                    unbonding_buffer: 3600,
+                    next_undelegation_batch_id: 0,
+                    next_reconciliation_batch_id: 0,
+                    is_active: false,
+                    total_shares: Decimal::zero(),
+                    current_undelegated_shares: Default::default(),
+                    global_airdrop_pointer: vec![],
+                    total_airdrops_accumulated: vec![],
+                    last_undelegated_time: Timestamp::from_seconds(0),
+                    undelegation_cooldown: 0,
+                },
+            )
+            .unwrap();
+
+        let strategy_info = STRATEGY_MAP
+            .may_load(deps.as_mut().storage, U64Key::new(1))
+            .unwrap()
+            .unwrap();
+        let s_t_ratio =
+            get_strategy_shares_per_token_ratio(deps.as_ref().querier, &strategy_info).unwrap();
+
+        assert_eq!(s_t_ratio, Decimal::from_ratio(10_u128, 1_u128));
     }
 }

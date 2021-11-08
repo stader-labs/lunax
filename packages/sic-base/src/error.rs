@@ -22,6 +22,6 @@ pub enum ContractError {
     #[error("sic-base: Cannot withdraw zero amount of money")]
     ZeroWithdrawal {},
 
-    #[error("sic-base: The coin denom does not match the strategy denom")]
-    DenomDoesNotMatchStrategyDenom {},
+    #[error("sic-base: Wrong denom has been sent `{0}`")]
+    WrongDenom(String),
 }

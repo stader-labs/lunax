@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
     pub delegator_contract: String,
+    pub max_undelegation_limit: Option<u64>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -41,6 +42,7 @@ pub struct StrategyInfoQuery {
     pub unbonding_period: u64,
     pub unbonding_buffer: u64,
     pub sic_contract_address: Addr,
+    pub undelegation_frequency: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -75,6 +77,7 @@ pub enum ExecuteMsg {
         sic_contract_address: String,
         unbonding_buffer: u64,
         unbonding_period: u64,
+        undelegation_frequency: u64,
     },
     // update strategy variables. This will be mostly used to activate a strategy
     UpdateStrategy {
@@ -82,6 +85,7 @@ pub enum ExecuteMsg {
         unbonding_period: Option<u64>,
         unbonding_buffer: Option<u64>,
         sic_contract_address: Option<String>,
+        undelegation_frequency: Option<u64>,
         is_active: Option<bool>,
     },
     // register the airdrop and its contracts.
@@ -105,10 +109,14 @@ pub enum ExecuteMsg {
     // called by scc manager to periodically claim airdrops for a particular strategy if it supported
     ClaimAirdrops {
         amount: Uint128,
-        denom: String,
+        airdrop_token: String,
         stage: u8,
         proof: Vec<String>,
         strategy_id: u64,
+    },
+    UpdateAirdropPointers {
+        strategy_id: u64,
+        airdrop_token: String,
     },
     /*
        Pools contract messages
@@ -129,6 +137,7 @@ pub enum ExecuteMsg {
         delegator_contract: Option<String>,
         default_user_portfolio: Option<Vec<UserStrategyPortfolio>>,
         fallback_strategy: Option<u64>,
+        max_undelegation_limit: Option<u64>,
     },
     /*
        User messages

@@ -2,7 +2,7 @@
 
 use crate::error::ContractError;
 use crate::state::State;
-use cosmwasm_std::{Addr, Coin, MessageInfo, QuerierWrapper, Response, StdResult, Uint128};
+use cosmwasm_std::{Addr, Coin, MessageInfo, QuerierWrapper, StdResult, Uint128};
 use reward::msg::{QueryMsg as reward_query, SwappedAmountResponse};
 use std::collections::HashMap;
 

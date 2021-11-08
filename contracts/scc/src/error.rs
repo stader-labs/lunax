@@ -52,6 +52,9 @@ pub enum ContractError {
     #[error("scc: User reward info does not exist")]
     UserRewardInfoDoesNotExist {},
 
+    #[error("scc: User undelegations record limit exceeded")]
+    UserUndelegationRecordLimitExceeded {},
+
     #[error("scc: User portfolio fraction is greater than one")]
     InvalidPortfolioDepositFraction {},
 
@@ -72,4 +75,7 @@ pub enum ContractError {
 
     #[error("scc: Zero amount sent")]
     ZeroAmount {},
+
+    #[error("scc: Previous undelegation is in cooldown")]
+    UndelegationInCooldown {},
 }
