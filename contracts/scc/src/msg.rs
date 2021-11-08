@@ -2,16 +2,13 @@ use crate::state::{
     BatchUndelegationRecord, Config, State, StrategyInfo, UserRewardInfo, UserStrategyPortfolio,
     UserUndelegationRecord,
 };
-use cosmwasm_std::{Addr, Binary, Coin, Uint128};
+use cosmwasm_std::{Addr, Coin, Decimal, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
     pub delegator_contract: String,
-
-    pub default_user_portfolio: Option<Vec<UserStrategyPortfolio>>,
-    pub default_fallback_strategy: Option<u64>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -95,19 +92,22 @@ pub enum ExecuteMsg {
     },
     // undelegate all the queued up undelegation from all strategies. This takes into account
     // a cooling period for the strategy. Certain strategies cannot be undelegated from like "RETAIN_REWARDS"
-    UndelegateFromStrategies {
-        strategies: Vec<u64>,
+    UndelegateFromStrategy {
+        strategy_id: u64,
     },
     // this message goes to the SICs and fetches the undelegated rewards which are
     // sitting in the SIC.
-    FetchUndelegatedRewardsFromStrategies {
-        strategies: Vec<u64>,
+    FetchUndelegatedRewardsFromStrategy {
+        strategy_id: u64,
+        // limit of the total number of batches to check for
+        pagination_count: Option<u64>,
     },
     // called by scc manager to periodically claim airdrops for a particular strategy if it supported
     ClaimAirdrops {
         amount: Uint128,
         denom: String,
-        claim_msg: Binary,
+        stage: u8,
+        proof: Vec<String>,
         strategy_id: u64,
     },
     /*
@@ -184,6 +184,9 @@ pub enum QueryMsg {
     GetUser {
         user: String,
     },
+    GetSharesPerTokenRatio {
+        strategy_id: u64,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -224,4 +227,9 @@ pub struct GetAllStrategiesResponse {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct GetUserResponse {
     pub user: Option<UserRewardInfoQuery>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct GetSharesPerTokenRatioResponse {
+    pub shares_per_token_ratio: Option<Decimal>,
 }

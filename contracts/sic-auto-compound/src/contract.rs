@@ -7,7 +7,8 @@ use cosmwasm_std::{
 
 use crate::error::ContractError;
 use crate::helpers::{
-    get_pool_stake_info, get_reward_tokens, get_unaccounted_funds, get_validator_for_deposit,
+    get_pool_stake_info, get_reward_tokens, get_unaccounted_funds, get_validated_coin,
+    get_validator_for_deposit,
 };
 use crate::msg::{
     ExecuteMsg, GetFulfillableUndelegatedFundsResponse, GetStateResponse, GetTotalTokensResponse,
@@ -16,6 +17,7 @@ use crate::msg::{
 use crate::state::{State, STATE};
 use cw2::set_contract_version;
 use reward::msg::ExecuteMsg as reward_execute;
+use stader_utils::constants::MerkleAirdropMsg;
 use stader_utils::helpers::send_funds_msg;
 use std::cmp::min;
 use terra_cosmwasm::TerraMsgWrapper;
@@ -45,6 +47,12 @@ pub fn instantiate(
     };
 
     STATE.save(deps.storage, &state)?;
+
+    // asset whether manager seed funds have been sent
+    let manager_coin = get_validated_coin(&info, "uluna".to_string())?;
+    if manager_coin.amount.ne(&msg.manager_seed_funds) {
+        return Err(ContractError::NotEnoughManagerFundsSent {});
+    }
 
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
@@ -84,7 +92,8 @@ pub fn execute(
             cw20_token_contract,
             airdrop_token,
             amount,
-            claim_msg,
+            stage,
+            proof,
         } => claim_airdrops(
             deps,
             _env,
@@ -93,7 +102,8 @@ pub fn execute(
             cw20_token_contract,
             airdrop_token,
             amount,
-            claim_msg,
+            stage,
+            proof,
         ),
         ExecuteMsg::TransferUndelegatedRewards { amount } => {
             transfer_undelegated_rewards(deps, _env, info, amount)
@@ -214,12 +224,17 @@ pub fn remove_validator(
         .collect::<Vec<Addr>>();
     let mut redelegation_messages: Vec<StakingMsg> = vec![];
     if let Some(validator_delegation) = validator_delegation_opt {
-        let validator_staked_coin = validator_delegation.amount;
+        if validator_delegation
+            .can_redelegate
+            .ne(&validator_delegation.amount)
+        {
+            return Err(ContractError::RedelegationInProgress {});
+        }
 
         redelegation_messages.push(StakingMsg::Redelegate {
             src_validator: removed_val.to_string(),
             dst_validator: redelegate_val.to_string(),
-            amount: validator_staked_coin,
+            amount: validator_delegation.amount,
         });
     }
 
@@ -254,10 +269,6 @@ pub fn replace_validator(
         return Err(ContractError::ValidatorNotInPool {});
     }
 
-    if state.validator_pool.contains(&dst_validator) {
-        return Err(ContractError::ValidatorAlreadyExistsInPool {});
-    }
-
     // check if validator is present in the blockchain
     if deps
         .querier
@@ -275,11 +286,18 @@ pub fn replace_validator(
 
     let mut redelegation_msgs: Vec<StakingMsg> = vec![];
     if let Some(src_validator_delegation) = src_validator_delegation_opt {
+        if src_validator_delegation
+            .amount
+            .ne(&src_validator_delegation.can_redelegate)
+        {
+            return Err(ContractError::RedelegationInProgress {});
+        }
+
         // send redelegation message only if src_validator has a redelegation
         redelegation_msgs.push(StakingMsg::Redelegate {
             src_validator: src_validator.to_string(),
             dst_validator: dst_validator.to_string(),
-            amount: src_validator_delegation.can_redelegate,
+            amount: src_validator_delegation.amount,
         });
     }
 
@@ -340,7 +358,8 @@ pub fn claim_airdrops(
     cw20_token_contract: String,
     _airdrop_token: String,
     amount: Uint128,
-    claim_msg: Binary,
+    stage: u8,
+    proof: Vec<String>,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let state = STATE.load(deps.storage)?;
     if info.sender != state.scc_address {
@@ -353,7 +372,11 @@ pub fn claim_airdrops(
     // SIC contract
     let mut messages: Vec<WasmMsg> = vec![WasmMsg::Execute {
         contract_addr: airdrop_token_contract.to_string(),
-        msg: claim_msg,
+        msg: to_binary(&MerkleAirdropMsg::Claim {
+            stage,
+            amount,
+            proof,
+        })?,
         funds: vec![],
     }];
 
@@ -363,8 +386,7 @@ pub fn claim_airdrops(
         msg: to_binary(&cw20::Cw20ExecuteMsg::Transfer {
             recipient: state.scc_address.to_string(),
             amount,
-        })
-        .unwrap(),
+        })?,
         funds: vec![],
     });
 
@@ -399,20 +421,7 @@ pub fn transfer_rewards(
         return Err(ContractError::Unauthorized {});
     }
 
-    // check if any money is being sent
-    if info.funds.is_empty() {
-        return Ok(Response::new().add_attribute("no_funds_sent", "1"));
-    }
-
-    // accept only one coin
-    if info.funds.len() > 1 {
-        return Ok(Response::new().add_attribute("multiple_coins_passed", "1"));
-    }
-
-    let transferred_coin = info.funds[0].clone();
-    if transferred_coin.denom.ne(&state.strategy_denom) {
-        return Ok(Response::new().add_attribute("transferred_denom_is_wrong", "1"));
-    }
+    let transferred_coin = get_validated_coin(&info, state.strategy_denom)?;
 
     // reinvest the rewards immediately after a transfer. This is because when transfer rewards
     // is called, withdrawable shares are already allocated to the user.
@@ -560,18 +569,9 @@ pub fn reinvest(
     }
 
     // validate the transferred coin
-    let transferred_coin_amount = if !info.funds.is_empty() {
-        if info.funds.len() > 1 {
-            return Err(ContractError::MultipleCoins {});
-        }
-        let transferred_coin = info.funds[0].clone();
-        if transferred_coin.denom.ne(&state.strategy_denom) {
-            // throw an error here because this is an unacceptable situations
-            return Err(ContractError::WrongDenom(transferred_coin.denom));
-        }
-        transferred_coin.amount
-    } else {
-        Uint128::zero()
+    let transferred_coin_amount = match get_validated_coin(&info, state.strategy_denom.clone()) {
+        Ok(res) => res.amount,
+        Err(_) => Uint128::zero(),
     };
 
     rewards_to_invest = rewards_to_invest

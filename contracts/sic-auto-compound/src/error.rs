@@ -54,4 +54,10 @@ pub enum ContractError {
 
     #[error("sic-ac: validator pool size is at minimum. Cannot remove more validators")]
     CannotRemoveMoreValidators {},
+
+    #[error("sic-ac: not enough manager funds have been sent")]
+    NotEnoughManagerFundsSent {},
+
+    #[error("sic-ac: redelegation to validator is still in progress")]
+    RedelegationInProgress {},
 }

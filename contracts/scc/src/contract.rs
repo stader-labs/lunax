@@ -2,7 +2,7 @@
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     to_binary, Addr, BankMsg, Binary, Coin, Decimal, Deps, DepsMut, Env, MessageInfo, Response,
-    StdResult, Uint128, WasmMsg,
+    StdError, StdResult, Uint128, WasmMsg,
 };
 
 use crate::error::ContractError;
@@ -11,15 +11,15 @@ use crate::helpers::{
     get_strategy_split, validate_user_portfolio,
 };
 use crate::msg::{
-    ExecuteMsg, GetAllStrategiesResponse, GetConfigResponse, GetStateResponse,
-    GetStrategiesListResponse, GetStrategyInfoResponse, GetUndelegationBatchInfoResponse,
-    GetUserResponse, GetUserRewardInfo, InstantiateMsg, MigrateMsg, QueryMsg, StrategyInfoQuery,
-    UpdateUserAirdropsRequest, UpdateUserRewardsRequest, UserRewardInfoQuery,
-    UserStrategyQueryInfo,
+    ExecuteMsg, GetAllStrategiesResponse, GetConfigResponse, GetSharesPerTokenRatioResponse,
+    GetStateResponse, GetStrategiesListResponse, GetStrategyInfoResponse,
+    GetUndelegationBatchInfoResponse, GetUserResponse, GetUserRewardInfo, InstantiateMsg,
+    MigrateMsg, QueryMsg, StrategyInfoQuery, UpdateUserAirdropsRequest, UpdateUserRewardsRequest,
+    UserRewardInfoQuery, UserStrategyQueryInfo,
 };
 use crate::state::{
-    BatchUndelegationRecord, Config, Cw20TokenContractsInfo, State, StrategyInfo,
-    UndelegationBatchStatus, UserRewardInfo, UserStrategyInfo, UserStrategyPortfolio,
+    get_default_s_t_ratio, BatchUndelegationRecord, Config, Cw20TokenContractsInfo, State,
+    StrategyInfo, UndelegationBatchStatus, UserRewardInfo, UserStrategyInfo, UserStrategyPortfolio,
     UserUndelegationRecord, CONFIG, CW20_TOKEN_CONTRACTS_REGISTRY, DEFAULT_PAGINATION_LIMIT,
     MAX_PAGINATION_LIMIT, STATE, STRATEGY_MAP, UNDELEGATION_BATCH_MAP, USER_REWARD_INFO_MAP,
 };
@@ -45,11 +45,6 @@ pub fn instantiate(
     info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
-    let config = Config {
-        default_user_portfolio: msg.default_user_portfolio.unwrap_or_default(),
-        fallback_strategy: msg.default_fallback_strategy.unwrap_or_default(),
-    };
-
     let state = State {
         manager: info.sender.clone(),
         delegator_contract: deps.api.addr_validate(msg.delegator_contract.as_str())?,
@@ -59,18 +54,23 @@ pub fn instantiate(
         next_undelegation_id: 0,
         next_strategy_id: 1,
         rewards_in_scc: Uint128::zero(),
-        total_accumulated_airdrops: vec![],
     };
     STATE.save(deps.storage, &state)?;
-    CONFIG.save(deps.storage, &config)?;
 
-    // create strategy_id 0 which is "retain_rewards". It's a special strategy where rewards
+    // create strategy_id 0 which is "RETAIN_REWARDS". It's a special strategy where rewards
     // of the user just sit in SCC
+    // TODO: bchain99 - lowercase all the names
     STRATEGY_MAP.save(
         deps.storage,
         U64Key::new(0),
         &StrategyInfo::default("RETAIN_REWARDS".to_string()),
     )?;
+
+    let config = Config {
+        default_user_portfolio: vec![],
+        fallback_strategy: 0,
+    };
+    CONFIG.save(deps.storage, &config)?;
 
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
@@ -139,8 +139,9 @@ pub fn execute(
             strategy_id,
             amount,
             denom,
-            claim_msg,
-        } => claim_airdrops(deps, _env, info, strategy_id, amount, denom, claim_msg),
+            stage,
+            proof,
+        } => claim_airdrops(deps, _env, info, strategy_id, denom, amount, stage, proof),
         ExecuteMsg::WithdrawRewards {
             undelegation_id,
             strategy_id,
@@ -153,11 +154,14 @@ pub fn execute(
         } => {
             update_cw20_contracts_registry(deps, _env, info, denom, cw20_contract, airdrop_contract)
         }
-        ExecuteMsg::UndelegateFromStrategies { strategies } => {
-            undelegate_from_strategies(deps, _env, info, strategies)
+        ExecuteMsg::UndelegateFromStrategy { strategy_id } => {
+            undelegate_from_strategies(deps, _env, info, strategy_id)
         }
-        ExecuteMsg::FetchUndelegatedRewardsFromStrategies { strategies } => {
-            fetch_undelegated_rewards_from_strategies(deps, _env, info, strategies)
+        ExecuteMsg::FetchUndelegatedRewardsFromStrategy {
+            strategy_id,
+            pagination_count,
+        } => {
+            fetch_undelegated_rewards_from_strategy(deps, _env, info, strategy_id, pagination_count)
         }
         ExecuteMsg::DepositFunds { strategy_override } => {
             deposit_funds(deps, _env, info, strategy_override)
@@ -259,143 +263,138 @@ pub fn update_strategy(
     Ok(Response::default())
 }
 
-pub fn fetch_undelegated_rewards_from_strategies(
+pub fn fetch_undelegated_rewards_from_strategy(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    strategies: Vec<u64>,
+    strategy_id: u64,
+    pagination_count: Option<u64>,
 ) -> Result<Response, ContractError> {
     let state = STATE.load(deps.storage)?;
     if info.sender != state.manager {
         return Err(ContractError::Unauthorized {});
     }
 
-    if strategies.is_empty() {
-        return Ok(Response::new().add_attribute("no_strategies", "1"));
-    }
-
     let mut messages: Vec<WasmMsg> = vec![];
-    // I know, this is a lot of logging.
-    // well, we need to know what went wrong right? :P
-    let mut failed_strategies: Vec<String> = vec![];
     let mut failed_undelegation_batches: Vec<String> = vec![];
-    let mut undelegation_batches_in_unbonding_period: Vec<String> = vec![];
     let mut undelegation_batches_released: Vec<String> = vec![];
-    for strategy_id in strategies {
-        let mut strategy_info = if let Some(strategy_info) =
-            STRATEGY_MAP.may_load(deps.storage, U64Key::new(strategy_id))?
+    let mut total_amount_to_fetch: Uint128 = Uint128::zero();
+    let mut strategy_info = if let Some(strategy_info) =
+        STRATEGY_MAP.may_load(deps.storage, U64Key::new(strategy_id))?
+    {
+        strategy_info
+    } else {
+        return Err(ContractError::StrategyInfoDoesNotExist {});
+    };
+
+    let last_reconciled_batch_id = strategy_info.next_reconciliation_batch_id;
+    let mut current_batch_being_reconciled = last_reconciled_batch_id;
+    let limit = pagination_count
+        .unwrap_or(DEFAULT_PAGINATION_LIMIT as u64)
+        .min(MAX_PAGINATION_LIMIT as u64);
+    let limit = std::cmp::min(
+        last_reconciled_batch_id + limit,
+        strategy_info.next_undelegation_batch_id,
+    );
+    for i in (last_reconciled_batch_id)..limit {
+        let mut undelegation_batch = if let Some(undelegation_batch) = UNDELEGATION_BATCH_MAP
+            .may_load(deps.storage, (U64Key::new(i), U64Key::new(strategy_id)))?
         {
-            strategy_info
+            undelegation_batch
         } else {
-            failed_strategies.push(strategy_id.to_string());
+            // move the pointer if there is no undelegation batch has been found.
+            failed_undelegation_batches.push(format!(
+                "{}:{}",
+                strategy_id.to_string(),
+                i.to_string(),
+            ));
+            current_batch_being_reconciled += 1;
             continue;
         };
 
-        let last_reconciled_batch_id = strategy_info.next_reconciliation_batch_id;
-        let mut current_batch_being_reconciled = last_reconciled_batch_id;
-        for i in (last_reconciled_batch_id)..(strategy_info.next_undelegation_batch_id) {
-            let mut undelegation_batch = if let Some(undelegation_batch) = UNDELEGATION_BATCH_MAP
-                .may_load(deps.storage, (U64Key::new(i), U64Key::new(strategy_id)))?
-            {
-                undelegation_batch
-            } else {
-                // move the pointer if there is no undelegation batch has been found.
-                failed_undelegation_batches.push(format!(
-                    "{}:{}",
-                    strategy_id.to_string(),
-                    i.to_string(),
-                ));
-                current_batch_being_reconciled += 1;
-                continue;
-            };
-
-            // undelegation batch has been checked for slashing. we can move the pointer, if the
-            // batch has been slashed
-            if undelegation_batch.released {
-                undelegation_batches_released.push(format!(
-                    "{}:{}",
-                    strategy_id.to_string(),
-                    i.to_string(),
-                ));
-                current_batch_being_reconciled += 1;
-                continue;
-            }
-
-            // undelegation batch is still in unbonding period
-            // break out when we encounter a batch still in undelegation. we need to wait for it and not pass by it
-            if undelegation_batch.est_release_time.is_none()
-                || undelegation_batch
-                    .est_release_time
-                    .unwrap()
-                    .gt(&env.block.time)
-            {
-                undelegation_batches_in_unbonding_period.push(format!(
-                    "{}:{}",
-                    strategy_id.to_string(),
-                    i.to_string(),
-                ));
-                break;
-            }
-
-            let undelegation_batch_amount = undelegation_batch.amount;
-
-            // query the undelegated funds which we will receive from the SIC on best effort
-            // TODO: bchain99 - this assignment works in the assumption that undelegation slashing is rare.
-            // if we don't get back any response from the SIC, we can assume the full amount.
-            // if there was indeed some slashing, we would have to compensate for it.
-            let mut fulfillable_amount: Uint128 = undelegation_batch_amount;
-            if let Ok(result) = get_sic_fulfillable_undelegated_funds(
-                deps.querier,
-                undelegation_batch_amount,
-                &strategy_info.sic_contract_address,
-            ) {
-                fulfillable_amount = result
-                    .undelegated_funds
-                    .unwrap_or(undelegation_batch_amount)
-            }
-
-            let unbonding_slashing_ratio = if fulfillable_amount.lt(&undelegation_batch_amount) {
-                Decimal::from_ratio(fulfillable_amount, undelegation_batch_amount)
-            } else {
-                Decimal::one()
-            };
-
-            undelegation_batch.unbonding_slashing_ratio = unbonding_slashing_ratio;
-            undelegation_batch.undelegation_batch_status = UndelegationBatchStatus::Done;
-            undelegation_batch.released = true;
-
-            messages.push(WasmMsg::Execute {
-                contract_addr: strategy_info.sic_contract_address.to_string(),
-                msg: to_binary(&sic_execute_msg::TransferUndelegatedRewards {
-                    amount: undelegation_batch_amount,
-                })
-                .unwrap(),
-                funds: vec![],
-            });
-
-            UNDELEGATION_BATCH_MAP.save(
-                deps.storage,
-                (U64Key::new(i), U64Key::new(strategy_id)),
-                &undelegation_batch,
-            )?;
-
+        // undelegation batch has been checked for slashing. we can move the pointer, if the
+        // batch has been slashed
+        if matches!(
+            undelegation_batch.undelegation_batch_status,
+            UndelegationBatchStatus::Done
+        ) {
+            undelegation_batches_released.push(format!(
+                "{}:{}",
+                strategy_id.to_string(),
+                i.to_string(),
+            ));
             current_batch_being_reconciled += 1;
+            continue;
         }
 
-        strategy_info.next_reconciliation_batch_id = current_batch_being_reconciled;
-        STRATEGY_MAP.save(deps.storage, U64Key::new(strategy_id), &strategy_info)?;
+        // undelegation batch is still in unbonding period
+        // break out when we encounter a batch still in undelegation. we need to wait for it and not pass by it
+        if undelegation_batch.est_release_time.is_none()
+            || undelegation_batch
+                .est_release_time
+                .unwrap()
+                .gt(&env.block.time)
+        {
+            return Err(ContractError::UndelegationBatchInUnbondingPeriod(i));
+        }
+
+        let undelegation_batch_amount = undelegation_batch.amount;
+
+        // query the undelegated funds which we will receive from the SIC on best effort
+        // TODO: bchain99 - this assignment works in the assumption that undelegation slashing is rare.
+        // if we don't get back any response from the SIC, we can assume the full amount.
+        // if there was indeed some slashing, we would have to compensate for it.
+        let mut fulfillable_amount: Uint128 = undelegation_batch_amount;
+        if let Ok(result) = get_sic_fulfillable_undelegated_funds(
+            deps.querier,
+            undelegation_batch_amount,
+            &strategy_info.sic_contract_address,
+        ) {
+            fulfillable_amount = result
+                .undelegated_funds
+                .unwrap_or(undelegation_batch_amount)
+        }
+
+        let unbonding_slashing_ratio = if fulfillable_amount.lt(&undelegation_batch_amount) {
+            Decimal::from_ratio(fulfillable_amount, undelegation_batch_amount)
+        } else {
+            Decimal::one()
+        };
+
+        undelegation_batch.unbonding_slashing_ratio = unbonding_slashing_ratio;
+        undelegation_batch.undelegation_batch_status = UndelegationBatchStatus::Done;
+
+        total_amount_to_fetch = total_amount_to_fetch
+            .checked_add(undelegation_batch_amount)
+            .unwrap();
+        UNDELEGATION_BATCH_MAP.save(
+            deps.storage,
+            (U64Key::new(i), U64Key::new(strategy_id)),
+            &undelegation_batch,
+        )?;
+
+        current_batch_being_reconciled += 1;
+    }
+
+    strategy_info.next_reconciliation_batch_id = current_batch_being_reconciled;
+    STRATEGY_MAP.save(deps.storage, U64Key::new(strategy_id), &strategy_info)?;
+
+    if !total_amount_to_fetch.is_zero() {
+        messages.push(WasmMsg::Execute {
+            contract_addr: strategy_info.sic_contract_address.to_string(),
+            msg: to_binary(&sic_execute_msg::TransferUndelegatedRewards {
+                amount: total_amount_to_fetch,
+            })
+            .unwrap(),
+            funds: vec![],
+        });
     }
 
     Ok(Response::new()
         .add_messages(messages)
-        .add_attribute("failed_strategies", failed_strategies.join(","))
         .add_attribute(
             "failed_undelegation_batches",
             failed_undelegation_batches.join(","),
-        )
-        .add_attribute(
-            "undelegation_batches_in_unbonding_period",
-            undelegation_batches_in_unbonding_period.join(","),
         )
         .add_attribute(
             "undelegation_batches_released",
@@ -407,106 +406,91 @@ pub fn undelegate_from_strategies(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    strategies: Vec<u64>,
+    strategy_id: u64,
 ) -> Result<Response, ContractError> {
     let state = STATE.load(deps.storage)?;
     if info.sender != state.manager {
         return Err(ContractError::Unauthorized {});
     }
 
-    if strategies.is_empty() {
-        return Ok(Response::new().add_attribute("no_strategies", "1"));
-    }
-
-    let mut failed_strategies: Vec<String> = vec![];
-    let mut strategies_with_no_undelegations: Vec<String> = vec![];
     let mut messages: Vec<WasmMsg> = vec![];
-    for strategy_id in strategies {
-        let mut strategy_info = if let Some(strategy_info) =
-            STRATEGY_MAP.may_load(deps.storage, U64Key::new(strategy_id))?
-        {
-            strategy_info
-        } else {
-            failed_strategies.push(strategy_id.to_string());
-            continue;
-        };
+    let mut strategy_info = if let Some(strategy_info) =
+        STRATEGY_MAP.may_load(deps.storage, U64Key::new(strategy_id))?
+    {
+        strategy_info
+    } else {
+        return Err(ContractError::StrategyInfoDoesNotExist {});
+    };
 
-        let strategy_undelegation_shares: Decimal = strategy_info.current_undelegated_shares;
-        if strategy_undelegation_shares.is_zero() {
-            strategies_with_no_undelegations.push(strategy_id.to_string());
-            continue;
-        }
-
-        let strategy_s_t_ratio: Decimal;
-        match get_strategy_shares_per_token_ratio(deps.querier, &strategy_info) {
-            Ok(result) => {
-                strategy_s_t_ratio = result;
-            }
-            Err(_) => return Err(ContractError::SICFailedToReturnResult {}),
-        }
-
-        let undelegation_amount = uint128_from_decimal(decimal_division_in_256(
-            strategy_undelegation_shares,
-            strategy_s_t_ratio,
-        ));
-
-        let current_undelegation_batch_id = strategy_info.next_undelegation_batch_id;
-
-        UNDELEGATION_BATCH_MAP.update(
-            deps.storage,
-            (
-                U64Key::new(current_undelegation_batch_id),
-                U64Key::new(strategy_id),
-            ),
-            |batch_opt| -> Result<_, ContractError> {
-                if batch_opt.is_none() {
-                    panic!(
-                        "undelegation batch id {:?} not found",
-                        current_undelegation_batch_id
-                    );
-                }
-
-                let mut batch = batch_opt.unwrap();
-                batch.amount = undelegation_amount;
-                batch.shares = strategy_undelegation_shares;
-                batch.undelegation_s_t_ratio = strategy_s_t_ratio;
-                batch.est_release_time =
-                    Some(_env.block.time.plus_seconds(strategy_info.unbonding_period));
-                batch.withdrawal_time =
-                    Some(_env.block.time.plus_seconds(
-                        strategy_info.unbonding_period + strategy_info.unbonding_buffer,
-                    ));
-                batch.undelegation_batch_status = UndelegationBatchStatus::InProgress;
-                Ok(batch)
-            },
-        )?;
-
-        strategy_info.total_shares = decimal_subtraction_in_256(
-            strategy_info.total_shares,
-            strategy_info.current_undelegated_shares,
-        );
-        strategy_info.current_undelegated_shares = Decimal::zero();
-        strategy_info.next_undelegation_batch_id = current_undelegation_batch_id + 1;
-
-        messages.push(WasmMsg::Execute {
-            contract_addr: String::from(strategy_info.sic_contract_address.clone()),
-            msg: to_binary(&sic_execute_msg::UndelegateRewards {
-                amount: undelegation_amount,
-            })
-            .unwrap(),
-            funds: vec![],
-        });
-
-        STRATEGY_MAP.save(deps.storage, U64Key::new(strategy_id), &strategy_info)?;
+    let strategy_undelegation_shares: Decimal = strategy_info.current_undelegated_shares;
+    if strategy_undelegation_shares.is_zero() {
+        return Err(ContractError::NoPendingUndelegations {});
     }
 
-    Ok(Response::new()
-        .add_attribute("failed_strategies", failed_strategies.join(","))
-        .add_attribute(
-            "strategies_with_no_undelegations",
-            strategies_with_no_undelegations.join(","),
-        )
-        .add_messages(messages))
+    let strategy_s_t_ratio: Decimal;
+    match get_strategy_shares_per_token_ratio(deps.querier, &strategy_info) {
+        Ok(result) => {
+            strategy_s_t_ratio = result;
+        }
+        Err(_) => return Err(ContractError::SICFailedToReturnResult {}),
+    }
+
+    let undelegation_amount = uint128_from_decimal(decimal_division_in_256(
+        strategy_undelegation_shares,
+        strategy_s_t_ratio,
+    ));
+
+    let current_undelegation_batch_id = strategy_info.next_undelegation_batch_id;
+
+    UNDELEGATION_BATCH_MAP.update(
+        deps.storage,
+        (
+            U64Key::new(current_undelegation_batch_id),
+            U64Key::new(strategy_id),
+        ),
+        |batch_opt| -> Result<_, ContractError> {
+            if batch_opt.is_none() {
+                panic!(
+                    "undelegation batch id {:?} not found",
+                    current_undelegation_batch_id
+                );
+            }
+
+            let mut batch = batch_opt.unwrap();
+            batch.amount = undelegation_amount;
+            batch.shares = strategy_undelegation_shares;
+            batch.undelegation_s_t_ratio = strategy_s_t_ratio;
+            batch.est_release_time =
+                Some(_env.block.time.plus_seconds(strategy_info.unbonding_period));
+            batch.withdrawal_time = Some(
+                _env.block
+                    .time
+                    .plus_seconds(strategy_info.unbonding_period + strategy_info.unbonding_buffer),
+            );
+            batch.undelegation_batch_status = UndelegationBatchStatus::InProgress;
+            Ok(batch)
+        },
+    )?;
+
+    strategy_info.total_shares = decimal_subtraction_in_256(
+        strategy_info.total_shares,
+        strategy_info.current_undelegated_shares,
+    );
+    strategy_info.current_undelegated_shares = Decimal::zero();
+    strategy_info.next_undelegation_batch_id = current_undelegation_batch_id + 1;
+
+    messages.push(WasmMsg::Execute {
+        contract_addr: String::from(strategy_info.sic_contract_address.clone()),
+        msg: to_binary(&sic_execute_msg::UndelegateRewards {
+            amount: undelegation_amount,
+        })
+        .unwrap(),
+        funds: vec![],
+    });
+
+    STRATEGY_MAP.save(deps.storage, U64Key::new(strategy_id), &strategy_info)?;
+
+    Ok(Response::new().add_messages(messages))
 }
 
 pub fn update_cw20_contracts_registry(
@@ -524,7 +508,7 @@ pub fn update_cw20_contracts_registry(
 
     CW20_TOKEN_CONTRACTS_REGISTRY.save(
         deps.storage,
-        denom,
+        denom.to_lowercase(),
         &Cw20TokenContractsInfo {
             airdrop_contract: deps.api.addr_validate(airdrop_contract.as_str())?,
             cw20_token_contract: deps.api.addr_validate(cw20_token_contract.as_str())?,
@@ -630,13 +614,12 @@ pub fn undelegate_user_rewards(
                     amount: Uint128::zero(),
                     shares: Decimal::zero(),
                     unbonding_slashing_ratio: Decimal::one(),
-                    undelegation_s_t_ratio: Decimal::from_ratio(10_u128, 1_u128),
+                    undelegation_s_t_ratio: get_default_s_t_ratio(),
                     create_time: None,
                     // est_release_time will be filled up in the undelegate_from_strategies call
                     est_release_time: None,
                     withdrawal_time: None,
                     undelegation_batch_status: UndelegationBatchStatus::Pending,
-                    released: false,
                 });
             }
 
@@ -645,16 +628,14 @@ pub fn undelegate_user_rewards(
     )?;
 
     // update the user airdrop pointer and allocate the user pending airdrops for the strategy
-    let user_airdrops = if let Some(user_airdrops) = get_user_airdrops(
+    let user_airdrops = get_user_airdrops(
         &strategy_info.global_airdrop_pointer,
         &user_strategy_info.airdrop_pointer,
         user_strategy_info.shares,
-    ) {
-        user_strategy_info.airdrop_pointer = strategy_info.global_airdrop_pointer.clone();
-        user_airdrops
-    } else {
-        vec![]
-    };
+    )
+    .unwrap_or_default();
+    user_strategy_info.airdrop_pointer = strategy_info.global_airdrop_pointer.clone();
+
     user_reward_info.pending_airdrops = merge_coin_vector(
         &user_reward_info.pending_airdrops,
         CoinVecOp {
@@ -712,26 +693,23 @@ pub fn undelegate_user_rewards(
     Ok(Response::default())
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn claim_airdrops(
     deps: DepsMut,
     _env: Env,
-    info: MessageInfo,
+    _info: MessageInfo,
     strategy_id: u64,
-    amount: Uint128,
     denom: String,
-    claim_msg: Binary,
+    amount: Uint128,
+    stage: u8,
+    proof: Vec<String>,
 ) -> Result<Response, ContractError> {
-    let state = STATE.load(deps.storage)?;
-    if info.sender != state.manager {
-        return Err(ContractError::Unauthorized {});
-    }
-
     if amount.is_zero() {
         return Err(ContractError::ZeroAmount {});
     }
 
     let cw20_token_contracts = if let Some(cw20_token_contracts) =
-        CW20_TOKEN_CONTRACTS_REGISTRY.may_load(deps.storage, denom.clone())?
+        CW20_TOKEN_CONTRACTS_REGISTRY.may_load(deps.storage, denom.to_lowercase())?
     {
         cw20_token_contracts
     } else {
@@ -756,7 +734,7 @@ pub fn claim_airdrops(
     strategy_info.total_airdrops_accumulated = merge_coin_vector(
         &strategy_info.total_airdrops_accumulated,
         CoinVecOp {
-            fund: vec![airdrop_coin.clone()],
+            fund: vec![airdrop_coin],
             operation: Operation::Add,
         },
     );
@@ -777,17 +755,6 @@ pub fn claim_airdrops(
 
     STRATEGY_MAP.save(deps.storage, U64Key::new(strategy_id), &strategy_info)?;
 
-    STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
-        state.total_accumulated_airdrops = merge_coin_vector(
-            &state.total_accumulated_airdrops,
-            CoinVecOp {
-                fund: vec![airdrop_coin],
-                operation: Operation::Add,
-            },
-        );
-        Ok(state)
-    })?;
-
     Ok(Response::new().add_message(WasmMsg::Execute {
         contract_addr: String::from(sic_address),
         msg: to_binary(&sic_execute_msg::ClaimAirdrops {
@@ -795,7 +762,8 @@ pub fn claim_airdrops(
             cw20_token_contract: cw20_token_contracts.cw20_token_contract,
             airdrop_token: denom,
             amount,
-            claim_msg,
+            stage,
+            proof,
         })
         .unwrap(),
         funds: vec![],
@@ -825,7 +793,7 @@ pub fn withdraw_airdrops(
         .pending_airdrops
         .iter_mut()
         .for_each(|user_airdrop| {
-            let airdrop_denom = &user_airdrop.denom;
+            let airdrop_denom = &user_airdrop.denom.to_lowercase();
             let airdrop_amount = user_airdrop.amount;
 
             let cw20_token_contracts = CW20_TOKEN_CONTRACTS_REGISTRY
@@ -908,7 +876,10 @@ pub fn withdraw_rewards(
     }
 
     // undelegation batch has not been released yet
-    if !undelegation_batch.released {
+    if !matches!(
+        undelegation_batch.undelegation_batch_status,
+        UndelegationBatchStatus::Done
+    ) {
         return Err(ContractError::UndelegationBatchNotReleased {});
     }
 
@@ -1158,16 +1129,13 @@ fn try_deposit_funds_to_strategies(
             };
 
             // update the user airdrop pointer and allocate the user pending airdrops for the strategy
-            let user_airdrops = if let Some(user_airdrops) = get_user_airdrops(
+            let user_airdrops = get_user_airdrops(
                 &strategy_info.global_airdrop_pointer,
                 &user_strategy_info.airdrop_pointer,
                 user_strategy_info.shares,
-            ) {
-                user_strategy_info.airdrop_pointer = strategy_info.global_airdrop_pointer.clone();
-                user_airdrops
-            } else {
-                vec![]
-            };
+            )
+            .unwrap_or_default();
+            user_strategy_info.airdrop_pointer = strategy_info.global_airdrop_pointer.clone();
             user_reward_info.pending_airdrops = merge_coin_vector(
                 &user_reward_info.pending_airdrops,
                 CoinVecOp {
@@ -1247,19 +1215,9 @@ pub fn update_user_airdrops(
     }
 
     // iterate thru update_user_airdrops_request
-    let mut total_scc_airdrops: Vec<Coin> = state.total_accumulated_airdrops;
-    // accumulate the airdrops in the SCC state.
     for user_request in update_user_airdrops_requests {
         let user = user_request.user;
         let user_airdrops = user_request.pool_airdrops;
-
-        total_scc_airdrops = merge_coin_vector(
-            &user_airdrops,
-            CoinVecOp {
-                fund: total_scc_airdrops,
-                operation: Operation::Add,
-            },
-        );
 
         let config = CONFIG.load(deps.storage)?;
         // fetch the user rewards info
@@ -1280,11 +1238,6 @@ pub fn update_user_airdrops(
 
         USER_REWARD_INFO_MAP.save(deps.storage, &user, &user_reward_info)?;
     }
-
-    STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
-        state.total_accumulated_airdrops = total_scc_airdrops;
-        Ok(state)
-    })?;
 
     Ok(Response::default())
 }
@@ -1309,7 +1262,33 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_binary(&query_get_all_strategies(deps, start_after, limit)?)
         }
         QueryMsg::GetUser { user } => to_binary(&query_user(deps, user)?),
+        QueryMsg::GetSharesPerTokenRatio { strategy_id } => {
+            to_binary(&query_s_t_ratio(deps, strategy_id)?)
+        }
     }
+}
+
+fn query_s_t_ratio(deps: Deps, strategy_id: u64) -> StdResult<GetSharesPerTokenRatioResponse> {
+    if strategy_id.eq(&0) {
+        return Err(StdError::GenericErr {
+            msg: "RETAIN_REWARDS has no shares per token ratio".to_string(),
+        });
+    }
+
+    let strategy_info =
+        if let Some(si) = STRATEGY_MAP.may_load(deps.storage, U64Key::from(strategy_id))? {
+            si
+        } else {
+            return Err(StdError::GenericErr {
+                msg: format!("Strategy not found {}", strategy_id),
+            });
+        };
+
+    let shares_per_token_ratio = get_strategy_shares_per_token_ratio(deps.querier, &strategy_info)?;
+
+    Ok(GetSharesPerTokenRatioResponse {
+        shares_per_token_ratio: Some(shares_per_token_ratio),
+    })
 }
 
 fn query_user(deps: Deps, user: String) -> StdResult<GetUserResponse> {
@@ -1360,7 +1339,9 @@ fn query_user(deps: Deps, user: String) -> StdResult<GetUserResponse> {
         {
             strategy_s_t_ratio
         } else {
-            Decimal::from_ratio(10_u128, 1_u128)
+            return Err(StdError::GenericErr {
+                msg: format!("sic failed to return result: {}", strategy_id),
+            });
         };
 
         let user_rewards = get_staked_amount(strategy_s_t_ratio, user_shares);
@@ -1437,7 +1418,9 @@ fn query_get_all_strategies(
         {
             strategy_s_t_ratio
         } else {
-            Decimal::from_ratio(10_u128, 1_u128)
+            return Err(StdError::GenericErr {
+                msg: format!("sic failed to return result: {}", i),
+            });
         };
 
         let total_strategy_tokens =

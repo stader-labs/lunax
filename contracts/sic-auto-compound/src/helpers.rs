@@ -2,7 +2,7 @@
 
 use crate::error::ContractError;
 use crate::state::State;
-use cosmwasm_std::{Addr, QuerierWrapper, StdResult, Uint128};
+use cosmwasm_std::{Addr, Coin, MessageInfo, QuerierWrapper, Response, StdResult, Uint128};
 use reward::msg::{QueryMsg as reward_query, SwappedAmountResponse};
 use std::collections::HashMap;
 
@@ -86,4 +86,26 @@ pub fn get_validator_for_deposit(
     }
     stake_tuples.sort();
     Ok(Addr::unchecked(stake_tuples.first().unwrap().clone().1))
+}
+
+pub fn get_validated_coin(
+    info: &MessageInfo,
+    staking_denom: String,
+) -> Result<Coin, ContractError> {
+    // check if any money is being sent
+    if info.funds.is_empty() {
+        return Err(ContractError::NoFundsSent {});
+    }
+
+    // accept only one coin
+    if info.funds.len() > 1 {
+        return Err(ContractError::MultipleCoins {});
+    }
+
+    let transferred_coin = info.funds[0].clone();
+    if transferred_coin.denom.ne(&staking_denom) {
+        return Err(ContractError::WrongDenom(transferred_coin.denom));
+    }
+
+    Ok(transferred_coin)
 }

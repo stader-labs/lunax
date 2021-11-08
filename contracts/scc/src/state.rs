@@ -27,7 +27,6 @@ pub struct State {
 
     // sum of all the retained rewards in scc
     pub rewards_in_scc: Uint128,
-    pub total_accumulated_airdrops: Vec<Coin>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -80,14 +79,14 @@ impl StrategyInfo {
             current_undelegated_shares: Decimal::zero(),
             global_airdrop_pointer: vec![],
             total_airdrops_accumulated: vec![],
-            shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+            shares_per_token_ratio: get_default_s_t_ratio(),
         }
     }
 
     pub(crate) fn default(strategy_name: String) -> Self {
         StrategyInfo {
             name: strategy_name,
-            sic_contract_address: Addr::unchecked("default-sic"),
+            sic_contract_address: get_default_sic_address(),
             unbonding_period: 21 * 24 * 3600,
             unbonding_buffer: 3600,
             next_undelegation_batch_id: 0,
@@ -97,7 +96,7 @@ impl StrategyInfo {
             current_undelegated_shares: Decimal::zero(),
             global_airdrop_pointer: vec![],
             total_airdrops_accumulated: vec![],
-            shares_per_token_ratio: Decimal::from_ratio(10_u128, 1_u128),
+            shares_per_token_ratio: get_default_s_t_ratio(),
         }
     }
 }
@@ -213,7 +212,14 @@ pub struct BatchUndelegationRecord {
     pub est_release_time: Option<Timestamp>,
     pub withdrawal_time: Option<Timestamp>,
     pub undelegation_batch_status: UndelegationBatchStatus,
-    pub released: bool,
+}
+
+pub fn get_default_s_t_ratio() -> Decimal {
+    Decimal::from_ratio(10_u128, 1_u128)
+}
+
+pub fn get_default_sic_address() -> Addr {
+    Addr::unchecked("default_sic_addr")
 }
 
 pub const STATE: Item<State> = Item::new("state");
@@ -226,5 +232,7 @@ pub const STRATEGY_MAP: Map<U64Key, StrategyInfo> = Map::new("strategy_map");
 pub const USER_REWARD_INFO_MAP: Map<&Addr, UserRewardInfo> = Map::new("user_reward_info_map");
 pub const CW20_TOKEN_CONTRACTS_REGISTRY: Map<String, Cw20TokenContractsInfo> =
     Map::new("cw20_token_contracts_registry");
+
+// (undelegation_batch_id, strategy_id) -> batch_undelegation_record
 pub const UNDELEGATION_BATCH_MAP: Map<(U64Key, U64Key), BatchUndelegationRecord> =
     Map::new("undelegation_batch_map");

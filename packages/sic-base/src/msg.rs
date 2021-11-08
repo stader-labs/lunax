@@ -1,5 +1,5 @@
 use crate::state::State;
-use cosmwasm_std::{Addr, Binary, Uint128};
+use cosmwasm_std::{Addr, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -8,6 +8,16 @@ pub struct InstantiateMsg {
     pub scc_address: Addr,
     // denomination of the staking coin
     pub strategy_denom: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum MerkleAirdropMsg {
+    Claim {
+        stage: u8,
+        amount: Uint128,
+        proof: Vec<String>,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -43,7 +53,8 @@ pub enum ExecuteMsg {
         cw20_token_contract: Addr,
         airdrop_token: String,
         amount: Uint128,
-        claim_msg: Binary,
+        stage: u8,
+        proof: Vec<String>
     },
 }
 

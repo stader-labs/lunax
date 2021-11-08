@@ -1,47 +1,20 @@
 #![allow(dead_code)]
 
-use crate::state::{Config, StrategyInfo, UserRewardInfo, UserStrategyPortfolio, STRATEGY_MAP};
-use crate::ContractError;
-use cosmwasm_std::{
-    Addr, Decimal, Fraction, QuerierWrapper, StdResult, Storage, Timestamp, Uint128,
+use crate::state::{
+    get_default_s_t_ratio, Config, StrategyInfo, UserRewardInfo, UserStrategyPortfolio,
+    STRATEGY_MAP,
 };
+use crate::ContractError;
+use cosmwasm_std::{Addr, Decimal, QuerierWrapper, StdResult, Storage, Uint128};
 use cw_storage_plus::U64Key;
 use sic_base::msg::{
     GetFulfillableUndelegatedFundsResponse, GetTotalTokensResponse, QueryMsg as sic_msg,
 };
 use stader_utils::coin_utils::{
-    decimal_division_in_256, decimal_multiplication_in_256, decimal_subtraction_in_256,
-    get_decimal_from_uint128, uint128_from_decimal,
+    decimal_division_in_256, decimal_multiplication_in_256, get_decimal_from_uint128,
+    uint128_from_decimal,
 };
 use std::collections::HashMap;
-
-pub fn get_strategy_apr(
-    current_shares_per_token_ratio: Decimal,
-    contract_genesis_shares_per_token_ratio: Decimal,
-    contract_genesis_timestamp: Timestamp,
-    current_block_time: Timestamp,
-) -> Decimal {
-    let shares_token_ratio_reduction: Decimal = decimal_subtraction_in_256(
-        contract_genesis_shares_per_token_ratio,
-        current_shares_per_token_ratio,
-    );
-    let shares_token_ratio_reduction_ratio: Decimal = decimal_multiplication_in_256(
-        shares_token_ratio_reduction,
-        contract_genesis_shares_per_token_ratio.inv().unwrap(),
-    );
-    let time_since_genesis = Uint128::new(
-        current_block_time
-            .minus_seconds(contract_genesis_timestamp.seconds())
-            .seconds() as u128,
-    );
-    let year_in_secs = Uint128::new(Timestamp::from_seconds(365 * 24 * 3600).seconds() as u128);
-    let year_extrapolation = Decimal::from_ratio(year_in_secs, time_since_genesis);
-
-    let decimal_apr =
-        decimal_multiplication_in_256(shares_token_ratio_reduction_ratio, year_extrapolation);
-    decimal_multiplication_in_256(decimal_apr, Decimal::from_ratio(100_u128, 1_u128))
-}
-
 // TODO: bchain99 - we can probably make these generic
 pub fn get_sic_total_tokens(
     querier: QuerierWrapper,
@@ -68,18 +41,17 @@ pub fn get_strategy_shares_per_token_ratio(
     strategy_info: &StrategyInfo,
 ) -> StdResult<Decimal> {
     let sic_address = &strategy_info.sic_contract_address;
-    let default_s_t_ratio = Decimal::from_ratio(10_u128, 1_u128);
 
     let total_sic_tokens_res = get_sic_total_tokens(querier, sic_address)?;
     let total_sic_tokens = total_sic_tokens_res
         .total_tokens
         .unwrap_or_else(Uint128::zero);
 
-    if total_sic_tokens.is_zero() {
-        return Ok(default_s_t_ratio);
-    }
-
     let total_strategy_shares = strategy_info.total_shares;
+
+    if total_sic_tokens.is_zero() || total_strategy_shares.is_zero() {
+        return Ok(get_default_s_t_ratio());
+    }
 
     Ok(decimal_division_in_256(
         total_strategy_shares,
@@ -125,7 +97,9 @@ pub fn get_strategy_split(
 ) -> StdResult<HashMap<u64, Uint128>> {
     let mut strategy_to_amount: HashMap<u64, Uint128> = HashMap::new();
     let user_portfolio = &user_reward_info.user_portfolio;
-
+    // if the default strategy has been deactivated then we have no choice but to fall back to retain rewards
+    let fallback_strategy =
+        get_expected_strategy_or_default(storage, config.fallback_strategy, 0u64)?;
     match strategy_override {
         None => {
             let mut surplus_amount = amount;
@@ -138,11 +112,8 @@ pub fn get_strategy_split(
                     get_decimal_from_uint128(amount),
                 ));
 
-                strategy_id = get_expected_strategy_or_default(
-                    storage,
-                    strategy_id,
-                    config.fallback_strategy,
-                )?;
+                strategy_id =
+                    get_expected_strategy_or_default(storage, strategy_id, fallback_strategy)?;
 
                 strategy_to_amount
                     .entry(strategy_id)
@@ -157,9 +128,9 @@ pub fn get_strategy_split(
                 surplus_amount = surplus_amount.checked_sub(deposit_amount).unwrap();
             }
 
-            // add the left out amount to retain rewards strategy.(strategy_id 0)
+            // add the left out amount to the fallback strategy
             strategy_to_amount
-                .entry(0)
+                .entry(fallback_strategy)
                 .and_modify(|x| {
                     *x = x.checked_add(surplus_amount).unwrap();
                 })

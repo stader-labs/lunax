@@ -3,7 +3,7 @@ use crate::state::{UserRewardInfo, STRATEGY_MAP};
 use cosmwasm_std::{Coin, Decimal, Storage};
 use cw_storage_plus::U64Key;
 use stader_utils::coin_utils::{
-    check_equal_deccoin_vector, deccoin_vec_to_coin_vec, merge_coin_vector, merge_dec_coin_vector,
+    deccoin_vec_to_coin_vec, merge_coin_vector, merge_dec_coin_vector,
     multiply_deccoin_vector_with_decimal, CoinVecOp, DecCoin, DecCoinVecOp, Operation,
 };
 
@@ -55,10 +55,6 @@ pub fn get_user_airdrops(
     user_shares: Decimal,
 ) -> Option<Vec<Coin>> {
     if global_airdrop_pointer.is_empty() {
-        return None;
-    }
-
-    if check_equal_deccoin_vector(global_airdrop_pointer, user_airdrop_pointer) {
         return None;
     }
 

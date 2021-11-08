@@ -3,7 +3,7 @@ mod tests {
     use crate::contract::{execute, instantiate, query};
     use crate::error::ContractError;
     use crate::msg::{ExecuteMsg, GetStateResponse, InstantiateMsg, QueryMsg};
-    use crate::state::State;
+    use crate::state::{State, STATE};
     use crate::test_helpers::check_equal_vec;
     use cosmwasm_std::testing::{
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
@@ -74,7 +74,7 @@ mod tests {
             mock_info("not-scc", &[]),
             ExecuteMsg::TransferRewards {},
         )
-            .unwrap_err();
+        .unwrap_err();
         assert!(matches!(err, ContractError::Unauthorized {}));
 
         let res = execute(
@@ -83,7 +83,7 @@ mod tests {
             mock_info(&*get_scc_contract_address(), &[]),
             ExecuteMsg::TransferRewards {},
         )
-            .unwrap();
+        .unwrap();
         assert_eq!(res.attributes.len(), 1);
         assert!(check_equal_vec(
             res.attributes,
@@ -105,7 +105,7 @@ mod tests {
             ),
             ExecuteMsg::TransferRewards {},
         )
-            .unwrap();
+        .unwrap();
         assert_eq!(res.attributes.len(), 1);
         assert!(check_equal_vec(
             res.attributes,
@@ -124,7 +124,7 @@ mod tests {
             ),
             ExecuteMsg::TransferRewards {},
         )
-            .unwrap();
+        .unwrap();
         assert_eq!(res.attributes.len(), 1);
         assert!(check_equal_vec(
             res.attributes,
@@ -154,7 +154,7 @@ mod tests {
             ),
             ExecuteMsg::TransferRewards {},
         )
-            .unwrap();
+        .unwrap();
 
         let state_response: GetStateResponse =
             from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::GetState {}).unwrap())
@@ -192,7 +192,7 @@ mod tests {
                 claim_msg: get_airdrop_claim_msg(),
             },
         )
-            .unwrap_err();
+        .unwrap_err();
         assert!(matches!(err, ContractError::Unauthorized {}));
     }
 
@@ -226,7 +226,7 @@ mod tests {
                 claim_msg: get_airdrop_claim_msg(),
             },
         )
-            .unwrap();
+        .unwrap();
         assert_eq!(res.messages.len(), 2);
         assert!(check_equal_vec(
             res.messages,
@@ -242,7 +242,7 @@ mod tests {
                         recipient: scc_address.to_string(),
                         amount: Uint128::new(1000_u128)
                     })
-                        .unwrap(),
+                    .unwrap(),
                     funds: vec![]
                 })
             ]
@@ -264,7 +264,7 @@ mod tests {
                 claim_msg: get_airdrop_claim_msg(),
             },
         )
-            .unwrap();
+        .unwrap();
         assert_eq!(res.messages.len(), 2);
         assert!(check_equal_vec(
             res.messages,
@@ -280,7 +280,7 @@ mod tests {
                         recipient: scc_address.to_string(),
                         amount: Uint128::new(1000_u128)
                     })
-                        .unwrap(),
+                    .unwrap(),
                     funds: vec![]
                 })
             ]
@@ -309,10 +309,10 @@ mod tests {
                 amount: Uint128::new(100_u128),
             },
         )
-            .unwrap_err();
+        .unwrap_err();
         assert!(matches!(err, ContractError::Unauthorized {}));
 
-        let res = execute(
+        let err = execute(
             deps.as_mut(),
             env.clone(),
             mock_info(&*get_scc_contract_address(), &[]),
@@ -320,15 +320,28 @@ mod tests {
                 amount: Uint128::zero(),
             },
         )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::ZeroWithdrawal {}));
+
+        STATE
+            .update(
+                deps.as_mut().storage,
+                |mut state| -> Result<_, ContractError> {
+                    state.total_rewards_accumulated = Uint128::new(100_u128);
+                    Ok(state)
+                },
+            )
             .unwrap();
-        assert_eq!(res.attributes.len(), 1);
-        assert!(check_equal_vec(
-            res.attributes,
-            vec![Attribute {
-                key: "transferring_zero_rewards".to_string(),
-                value: "1".to_string()
-            }]
-        ));
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info(&*get_scc_contract_address(), &[]),
+            ExecuteMsg::TransferUndelegatedRewards {
+                amount: Uint128::new(150_u128),
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::InSufficientFunds {}));
     }
 
     #[test]
@@ -341,6 +354,15 @@ mod tests {
         let res = instantiate_contract(&mut deps, &info, &env, None);
         assert_eq!(0, res.messages.len());
 
+        STATE
+            .update(
+                deps.as_mut().storage,
+                |mut state| -> Result<_, ContractError> {
+                    state.total_rewards_accumulated = Uint128::new(200_u128);
+                    Ok(state)
+                },
+            )
+            .unwrap();
         let res = execute(
             deps.as_mut(),
             env.clone(),
@@ -349,7 +371,7 @@ mod tests {
                 amount: Uint128::new(100_u128),
             },
         )
-            .unwrap();
+        .unwrap();
         assert_eq!(res.messages.len(), 1);
         assert!(check_equal_vec(
             res.messages,
@@ -357,6 +379,8 @@ mod tests {
                 to_address: get_scc_contract_address(),
                 amount: vec![coin(100_u128, "uluna".to_string())]
             })]
-        ))
+        ));
+        let state = STATE.load(deps.as_mut().storage).unwrap();
+        assert_eq!(state.total_rewards_accumulated, Uint128::new(100_u128));
     }
 }

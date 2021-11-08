@@ -44,7 +44,8 @@ pub enum ExecuteMsg {
         // this is just for the SIC's reference.
         airdrop_token: String,
         amount: Uint128,
-        claim_msg: Binary,
+        stage: u8,
+        proof: Vec<String>,
     },
     // Called by manager to add a validator to the current pool
     AddValidator {

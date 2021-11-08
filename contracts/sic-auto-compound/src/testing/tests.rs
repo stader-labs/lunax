@@ -2,7 +2,7 @@
 mod tests {
     use crate::contract::{execute, instantiate, query};
     use crate::error::ContractError;
-    use crate::helpers::{get_pool_stake_info, get_validator_for_deposit};
+    use crate::helpers::{get_pool_stake_info, get_validated_coin, get_validator_for_deposit};
     use crate::msg::{ExecuteMsg, GetStateResponse, InstantiateMsg, QueryMsg};
     use crate::state::{State, STATE};
     use crate::testing::mock_querier::{
@@ -16,6 +16,7 @@ mod tests {
         SubMsg, Uint128, Validator, WasmMsg,
     };
     use reward::msg::ExecuteMsg as reward_execute;
+    use stader_utils::constants::MerkleAirdropMsg;
     use terra_cosmwasm::create_swap_msg;
 
     fn get_validators() -> Vec<Validator> {
@@ -97,9 +98,20 @@ mod tests {
     }
 
     #[test]
+    #[should_panic]
+    fn proper_initialization_fail() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &[Coin::new(100_u128, "uluna".to_string())]);
+        let env = mock_env();
+
+        // we can just call .unwrap() to assert this was a success
+        let res = instantiate_contract(&mut deps, &info, &env, None, None);
+    }
+
+    #[test]
     fn proper_initialization() {
         let mut deps = mock_dependencies(&[]);
-        let info = mock_info("creator", &[]);
+        let info = mock_info("creator", &[Coin::new(1000_u128, "uluna".to_string())]);
         let env = mock_env();
 
         let default_validator1: Addr = Addr::unchecked("valid0001");
@@ -138,9 +150,46 @@ mod tests {
     }
 
     #[test]
+    fn test_get_validated_coin() {
+        /*
+           Test - 1. No funds sent
+        */
+        let info = mock_info("creator", &[]);
+        let err = get_validated_coin(&info, "uluna".to_string()).unwrap_err();
+        assert!(matches!(err, ContractError::NoFundsSent {}));
+
+        /*
+           Test - 2. Multiple coins sent
+        */
+        let info = mock_info(
+            "creator",
+            &[
+                Coin::new(100_u128, "uluna".to_string()),
+                Coin::new(100_u128, "uusd".to_string()),
+            ],
+        );
+        let err = get_validated_coin(&info, "uluna".to_string()).unwrap_err();
+        assert!(matches!(err, ContractError::MultipleCoins {}));
+
+        /*
+           Test - 3. Wrong denom sent
+        */
+        let info = mock_info("creator", &[Coin::new(100_u128, "uusd".to_string())]);
+        let err = get_validated_coin(&info, "uluna".to_string()).unwrap_err();
+        assert!(matches!(err, ContractError::WrongDenom(String { .. })));
+
+        /*
+           Test - 4. Success
+        */
+        let info = mock_info("creator", &[Coin::new(100_u128, "uluna".to_string())]);
+        let coin = get_validated_coin(&info, "uluna".to_string()).unwrap();
+        assert_eq!(coin, Coin::new(100_u128, "uluna".to_string()));
+    }
+
+    #[test]
     fn test_set_reward_withdraw_address() {
         let mut deps = mock_dependencies(&[]);
-        let info = mock_info("creator", &[]);
+        let info = mock_info("creator", &[Coin::new(1000_u128, "uluna".to_string())]);
         let env = mock_env();
 
         let _res = instantiate_contract(
@@ -162,7 +211,7 @@ mod tests {
         let err = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info("not-creator", &[]),
+            mock_info("not-creator", &[Coin::new(1000_u128, "uluna".to_string())]),
             ExecuteMsg::SetRewardWithdrawAddress {
                 reward_contract: "".to_string(),
             },
@@ -177,7 +226,7 @@ mod tests {
         let res = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info("creator", &[]),
+            mock_info("creator", &[Coin::new(1000_u128, "uluna".to_string())]),
             ExecuteMsg::SetRewardWithdrawAddress {
                 reward_contract: new_reward_contract_addr.to_string(),
             },
@@ -197,7 +246,7 @@ mod tests {
     #[test]
     fn test_get_validator_for_deposit_fail() {
         let mut deps = mock_dependencies(&[]);
-        let info = mock_info("creator", &[]);
+        let info = mock_info("creator", &[Coin::new(1000_u128, "uluna".to_string())]);
         let env = mock_env();
 
         let _res = instantiate_contract(
@@ -240,7 +289,7 @@ mod tests {
     #[test]
     fn test_get_validator_for_deposit_success() {
         let mut deps = mock_dependencies(&[]);
-        let info = mock_info("creator", &[]);
+        let info = mock_info("creator", &[Coin::new(1000_u128, "uluna".to_string())]);
         let env = mock_env();
 
         let _res = instantiate_contract(
@@ -404,7 +453,7 @@ mod tests {
     #[test]
     fn test_get_pool_stake_info() {
         let mut deps = mock_dependencies(&[]);
-        let info = mock_info("creator", &[]);
+        let info = mock_info("creator", &[Coin::new(1000_u128, "uluna".to_string())]);
         let env = mock_env();
 
         let _res = instantiate_contract(
@@ -501,7 +550,7 @@ mod tests {
     #[test]
     fn test_swap_fail() {
         let mut deps = mock_dependencies(&[]);
-        let info = mock_info("creator", &[]);
+        let info = mock_info("creator", &[Coin::new(1000_u128, "uluna".to_string())]);
         let env = mock_env();
 
         let _res = instantiate_contract(
@@ -523,7 +572,7 @@ mod tests {
         let err = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info("not-creator", &[]),
+            mock_info("not-creator", &[Coin::new(1000_u128, "uluna".to_string())]),
             ExecuteMsg::Swap {},
         )
         .unwrap_err();
@@ -533,7 +582,7 @@ mod tests {
     #[test]
     fn test_swap_success() {
         let mut deps = mock_dependencies(&[]);
-        let info = mock_info("creator", &[]);
+        let info = mock_info("creator", &[Coin::new(1000_u128, "uluna".to_string())]);
         let env = mock_env();
 
         let _res = instantiate_contract(
@@ -552,7 +601,7 @@ mod tests {
         let res = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info("creator", &[]),
+            mock_info("creator", &[Coin::new(1000_u128, "uluna".to_string())]),
             ExecuteMsg::Swap {},
         )
         .unwrap();
@@ -572,7 +621,7 @@ mod tests {
     #[test]
     fn test_update_config_fail() {
         let mut deps = mock_dependencies(&[]);
-        let info = mock_info("creator", &[]);
+        let info = mock_info("creator", &[Coin::new(1000_u128, "uluna".to_string())]);
         let env = mock_env();
 
         let _res = instantiate_contract(
@@ -594,7 +643,7 @@ mod tests {
         let err = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info("not-creator", &[]),
+            mock_info("not-creator", &[Coin::new(1000_u128, "uluna".to_string())]),
             ExecuteMsg::UpdateConfig {
                 min_validator_pool_size: None,
                 scc_address: None,
@@ -607,7 +656,7 @@ mod tests {
     #[test]
     fn test_update_config_success() {
         let mut deps = mock_dependencies(&[]);
-        let info = mock_info("creator", &[]);
+        let info = mock_info("creator", &[Coin::new(1000_u128, "uluna".to_string())]);
         let env = mock_env();
 
         let _res = instantiate_contract(
@@ -626,7 +675,7 @@ mod tests {
         let _res = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info("creator", &[]),
+            mock_info("creator", &[Coin::new(1000_u128, "uluna".to_string())]),
             ExecuteMsg::UpdateConfig {
                 min_validator_pool_size: Some(5),
                 scc_address: Some("new_scc_address".to_string()),
@@ -645,7 +694,7 @@ mod tests {
     #[test]
     fn test_remove_validator_fail() {
         let mut deps = mock_dependencies(&[]);
-        let info = mock_info("creator", &[]);
+        let info = mock_info("creator", &[Coin::new(1000_u128, "uluna".to_string())]);
         let env = mock_env();
 
         let _res = instantiate_contract(
@@ -667,7 +716,7 @@ mod tests {
         let err = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info("not-creator", &[]),
+            mock_info("not-creator", &[Coin::new(1000_u128, "uluna".to_string())]),
             ExecuteMsg::RemoveValidator {
                 removed_val: "".to_string(),
                 redelegate_val: "".to_string(),
@@ -691,7 +740,7 @@ mod tests {
         let err = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info("creator", &[]),
+            mock_info("creator", &[Coin::new(1000_u128, "uluna".to_string())]),
             ExecuteMsg::RemoveValidator {
                 removed_val: "fsdf".to_string(),
                 redelegate_val: "asd".to_string(),
@@ -716,7 +765,7 @@ mod tests {
         let err = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info("creator", &[]),
+            mock_info("creator", &[Coin::new(1000_u128, "uluna".to_string())]),
             ExecuteMsg::RemoveValidator {
                 removed_val: "abc".to_string(),
                 redelegate_val: "def".to_string(),
@@ -741,7 +790,7 @@ mod tests {
         let err = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info("creator", &[]),
+            mock_info("creator", &[Coin::new(1000_u128, "uluna".to_string())]),
             ExecuteMsg::RemoveValidator {
                 removed_val: "abc".to_string(),
                 redelegate_val: "def".to_string(),
@@ -766,7 +815,7 @@ mod tests {
         let err = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info("creator", &[]),
+            mock_info("creator", &[Coin::new(1000_u128, "uluna".to_string())]),
             ExecuteMsg::RemoveValidator {
                 removed_val: "abc".to_string(),
                 redelegate_val: "def".to_string(),
@@ -774,12 +823,84 @@ mod tests {
         )
         .unwrap_err();
         assert!(matches!(err, ContractError::ValidatorDoesNotExist {}));
+
+        /*
+            Test - 5. Outgoing validator is receiving a redelegation
+        */
+        STATE
+            .update(
+                deps.as_mut().storage,
+                |mut state| -> Result<_, ContractError> {
+                    state.validator_pool = vec![
+                        Addr::unchecked("valid0001"),
+                        Addr::unchecked("valid0002"),
+                        Addr::unchecked("valid0003"),
+                    ];
+                    state.min_validator_pool_size = 1u64;
+                    Ok(state)
+                },
+            )
+            .unwrap();
+        fn get_some_validators() -> Vec<Validator> {
+            vec![
+                Validator {
+                    address: "valid0001".to_string(),
+                    commission: Decimal::zero(),
+                    max_commission: Decimal::zero(),
+                    max_change_rate: Decimal::zero(),
+                },
+                Validator {
+                    address: "valid0002".to_string(),
+                    commission: Decimal::zero(),
+                    max_commission: Decimal::zero(),
+                    max_change_rate: Decimal::zero(),
+                },
+            ]
+        }
+
+        fn get_some_delegations() -> Vec<FullDelegation> {
+            vec![
+                FullDelegation {
+                    delegator: Addr::unchecked(MOCK_CONTRACT_ADDR),
+                    validator: "valid0001".to_string(),
+                    amount: Coin::new(2000, "uluna".to_string()),
+                    can_redelegate: Coin::new(0, "uluna".to_string()),
+                    accumulated_rewards: vec![
+                        Coin::new(20, "uluna".to_string()),
+                        Coin::new(30, "urew1"),
+                    ],
+                },
+                FullDelegation {
+                    delegator: Addr::unchecked(MOCK_CONTRACT_ADDR),
+                    validator: "valid0002".to_string(),
+                    amount: Coin::new(2000, "uluna".to_string()),
+                    can_redelegate: Coin::new(0, "uluna".to_string()),
+                    accumulated_rewards: vec![
+                        Coin::new(40, "uluna".to_string()),
+                        Coin::new(60, "urew1"),
+                    ],
+                },
+            ]
+        }
+        deps.querier
+            .update_staking("uluna", &*get_some_validators(), &*get_some_delegations());
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[Coin::new(1000_u128, "uluna".to_string())]),
+            ExecuteMsg::RemoveValidator {
+                removed_val: "valid0002".to_string(),
+                redelegate_val: "valid0001".to_string(),
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::RedelegationInProgress {}));
     }
 
     #[test]
     fn test_remove_validator_success() {
         let mut deps = mock_dependencies(&[]);
-        let info = mock_info("creator", &[]);
+        let info = mock_info("creator", &[Coin::new(1000_u128, "uluna".to_string())]);
         let env = mock_env();
 
         let _res = instantiate_contract(
@@ -868,7 +989,7 @@ mod tests {
         let res = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info("creator", &[]),
+            mock_info("creator", &[Coin::new(1000_u128, "uluna".to_string())]),
             ExecuteMsg::RemoveValidator {
                 removed_val: "valid0003".to_string(),
                 redelegate_val: "valid0001".to_string(),
@@ -966,7 +1087,7 @@ mod tests {
         let res = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info("creator", &[]),
+            mock_info("creator", &[Coin::new(1000_u128, "uluna".to_string())]),
             ExecuteMsg::RemoveValidator {
                 removed_val: "valid0003".to_string(),
                 redelegate_val: "valid0002".to_string(),
@@ -1043,7 +1164,7 @@ mod tests {
         let res = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info("creator", &[]),
+            mock_info("creator", &[Coin::new(1000_u128, "uluna".to_string())]),
             ExecuteMsg::RemoveValidator {
                 removed_val: "valid0004".to_string(),
                 redelegate_val: "valid0003".to_string(),
@@ -1152,7 +1273,7 @@ mod tests {
         let res = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info("creator", &[]),
+            mock_info("creator", &[Coin::new(1000_u128, "uluna".to_string())]),
             ExecuteMsg::RemoveValidator {
                 removed_val: "valid0003".to_string(),
                 redelegate_val: "valid0004".to_string(),
@@ -1186,7 +1307,7 @@ mod tests {
     #[test]
     fn test_replace_validator_fail() {
         let mut deps = mock_dependencies(&[]);
-        let info = mock_info("creator", &[]);
+        let info = mock_info("creator", &[Coin::new(1000_u128, "uluna".to_string())]);
         let env = mock_env();
 
         let _res = instantiate_contract(
@@ -1208,7 +1329,7 @@ mod tests {
         let err = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info("not-creator", &[]),
+            mock_info("not-creator", &[Coin::new(1000_u128, "uluna".to_string())]),
             ExecuteMsg::ReplaceValidator {
                 src_validator: "abc".to_string(),
                 dst_validator: "def".to_string(),
@@ -1223,7 +1344,7 @@ mod tests {
         let res = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info("creator", &[]),
+            mock_info("creator", &[Coin::new(1000_u128, "uluna".to_string())]),
             ExecuteMsg::ReplaceValidator {
                 src_validator: "abc".to_string(),
                 dst_validator: "abc".to_string(),
@@ -1238,7 +1359,7 @@ mod tests {
         let err = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info("creator", &[]),
+            mock_info("creator", &[Coin::new(1000_u128, "uluna".to_string())]),
             ExecuteMsg::ReplaceValidator {
                 src_validator: "abc".to_string(),
                 dst_validator: "def".to_string(),
@@ -1248,28 +1369,68 @@ mod tests {
         assert!(matches!(err, ContractError::ValidatorNotInPool {}));
 
         /*
-           Test - 4. Validator already exists in pool
+            Test - 5. Outgoing validator is receiving a redelegation
         */
+        fn get_some_validators() -> Vec<Validator> {
+            vec![
+                Validator {
+                    address: "valid0001".to_string(),
+                    commission: Decimal::zero(),
+                    max_commission: Decimal::zero(),
+                    max_change_rate: Decimal::zero(),
+                },
+                Validator {
+                    address: "valid0002".to_string(),
+                    commission: Decimal::zero(),
+                    max_commission: Decimal::zero(),
+                    max_change_rate: Decimal::zero(),
+                },
+            ]
+        }
+
+        fn get_some_delegations() -> Vec<FullDelegation> {
+            vec![
+                FullDelegation {
+                    delegator: Addr::unchecked(MOCK_CONTRACT_ADDR),
+                    validator: "valid0001".to_string(),
+                    amount: Coin::new(2000, "uluna".to_string()),
+                    can_redelegate: Coin::new(0, "uluna".to_string()),
+                    accumulated_rewards: vec![
+                        Coin::new(20, "uluna".to_string()),
+                        Coin::new(30, "urew1"),
+                    ],
+                },
+                FullDelegation {
+                    delegator: Addr::unchecked(MOCK_CONTRACT_ADDR),
+                    validator: "valid0002".to_string(),
+                    amount: Coin::new(2000, "uluna".to_string()),
+                    can_redelegate: Coin::new(0, "uluna".to_string()),
+                    accumulated_rewards: vec![
+                        Coin::new(40, "uluna".to_string()),
+                        Coin::new(60, "urew1"),
+                    ],
+                },
+            ]
+        }
+        deps.querier
+            .update_staking("uluna", &*get_some_validators(), &*get_some_delegations());
         let err = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info("creator", &[]),
+            mock_info("creator", &[Coin::new(1000_u128, "uluna".to_string())]),
             ExecuteMsg::ReplaceValidator {
                 src_validator: "valid0002".to_string(),
                 dst_validator: "valid0001".to_string(),
             },
         )
         .unwrap_err();
-        assert!(matches!(
-            err,
-            ContractError::ValidatorAlreadyExistsInPool {}
-        ));
+        assert!(matches!(err, ContractError::RedelegationInProgress {}));
     }
 
     #[test]
     fn test_replace_validator_success() {
         let mut deps = mock_dependencies(&[]);
-        let info = mock_info("creator", &[]);
+        let info = mock_info("creator", &[Coin::new(1000_u128, "uluna".to_string())]);
         let env = mock_env();
 
         let _res = instantiate_contract(
@@ -1351,7 +1512,7 @@ mod tests {
         let res = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info("creator", &[]),
+            mock_info("creator", &[Coin::new(1000_u128, "uluna".to_string())]),
             ExecuteMsg::ReplaceValidator {
                 src_validator: "valid0001".to_string(),
                 dst_validator: "valid0003".to_string(),
@@ -1444,7 +1605,7 @@ mod tests {
         let res = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info("creator", &[]),
+            mock_info("creator", &[Coin::new(1000_u128, "uluna".to_string())]),
             ExecuteMsg::ReplaceValidator {
                 src_validator: "valid0001".to_string(),
                 dst_validator: "valid0003".to_string(),
@@ -1520,7 +1681,7 @@ mod tests {
         let res = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info("creator", &[]),
+            mock_info("creator", &[Coin::new(1000_u128, "uluna".to_string())]),
             ExecuteMsg::ReplaceValidator {
                 src_validator: "valid0001".to_string(),
                 dst_validator: "valid0004".to_string(),
@@ -1547,7 +1708,7 @@ mod tests {
     #[test]
     fn test_add_validator_fail() {
         let mut deps = mock_dependencies(&[]);
-        let info = mock_info("creator", &[]);
+        let info = mock_info("creator", &[Coin::new(1000_u128, "uluna".to_string())]);
         let env = mock_env();
 
         let _res = instantiate_contract(
@@ -1569,7 +1730,7 @@ mod tests {
         let err = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info("not-creator", &[]),
+            mock_info("not-creator", &[Coin::new(1000_u128, "uluna".to_string())]),
             ExecuteMsg::AddValidator {
                 validator: "abc".to_string(),
             },
@@ -1583,7 +1744,7 @@ mod tests {
         let err = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info("creator", &[]),
+            mock_info("creator", &[Coin::new(1000_u128, "uluna".to_string())]),
             ExecuteMsg::AddValidator {
                 validator: "valid0001".to_string(),
             },
@@ -1600,7 +1761,7 @@ mod tests {
         let err = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info("creator", &[]),
+            mock_info("creator", &[Coin::new(1000_u128, "uluna".to_string())]),
             ExecuteMsg::AddValidator {
                 validator: "valid0003".to_string(),
             },
@@ -1635,7 +1796,7 @@ mod tests {
         }
 
         let mut deps = mock_dependencies(&[]);
-        let info = mock_info("creator", &[]);
+        let info = mock_info("creator", &[Coin::new(1000_u128, "uluna".to_string())]);
         let env = mock_env();
 
         let _res = instantiate_contract(
@@ -1658,7 +1819,7 @@ mod tests {
         let _res = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info("creator", &[]),
+            mock_info("creator", &[Coin::new(1000_u128, "uluna".to_string())]),
             ExecuteMsg::AddValidator {
                 validator: "valid0003".to_string(),
             },
@@ -1683,7 +1844,7 @@ mod tests {
     #[test]
     fn test_transfer_undelegated_rewards_fail() {
         let mut deps = mock_dependencies(&[]);
-        let info = mock_info("creator", &[]);
+        let info = mock_info("creator", &[Coin::new(1000_u128, "uluna".to_string())]);
         let env = mock_env();
 
         let _res = instantiate_contract(
@@ -1702,7 +1863,7 @@ mod tests {
         let err = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info("not-scc", &[]),
+            mock_info("not-scc", &[Coin::new(1000_u128, "uluna".to_string())]),
             ExecuteMsg::TransferUndelegatedRewards {
                 amount: Uint128::new(100_u128),
             },
@@ -1714,7 +1875,7 @@ mod tests {
     #[test]
     fn test_transfer_undelegated_rewards_success() {
         let mut deps = mock_dependencies(&[]);
-        let info = mock_info("creator", &[]);
+        let info = mock_info("creator", &[Coin::new(1000_u128, "uluna".to_string())]);
         let env = mock_env();
 
         let _res = instantiate_contract(
@@ -1754,7 +1915,10 @@ mod tests {
         let res = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info(&*get_scc_contract_address(), &[]),
+            mock_info(
+                &*get_scc_contract_address(),
+                &[Coin::new(1000_u128, "uluna".to_string())],
+            ),
             ExecuteMsg::TransferUndelegatedRewards {
                 amount: Uint128::new(1000_u128),
             },
@@ -1784,7 +1948,10 @@ mod tests {
         let res = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info(&*get_scc_contract_address(), &[]),
+            mock_info(
+                &*get_scc_contract_address(),
+                &[Coin::new(1000_u128, "uluna".to_string())],
+            ),
             ExecuteMsg::TransferUndelegatedRewards {
                 amount: Uint128::new(1500_u128),
             },
@@ -1824,7 +1991,10 @@ mod tests {
         let res = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info(&*get_scc_contract_address(), &[]),
+            mock_info(
+                &*get_scc_contract_address(),
+                &[Coin::new(1000_u128, "uluna".to_string())],
+            ),
             ExecuteMsg::TransferUndelegatedRewards {
                 amount: Uint128::new(700_u128),
             },
@@ -1844,7 +2014,7 @@ mod tests {
     #[test]
     fn test_claim_airdrops_fail() {
         let mut deps = mock_dependencies(&[]);
-        let info = mock_info("creator", &[]);
+        let info = mock_info("creator", &[Coin::new(1000_u128, "uluna".to_string())]);
         let env = mock_env();
 
         let _res = instantiate_contract(
@@ -1862,20 +2032,18 @@ mod tests {
 
         let airdrop_token_contract = Addr::unchecked("airdrop_token_contract");
         let cw20_token_contract = Addr::unchecked("cw20_token_contract");
-        fn get_airdrop_claim_msg() -> Binary {
-            Binary::from(vec![01, 02, 03, 04, 05, 06, 07, 08])
-        }
 
         let err = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info("not-scc", &[]),
+            mock_info("not-scc", &[Coin::new(1000_u128, "uluna".to_string())]),
             ExecuteMsg::ClaimAirdrops {
                 airdrop_token_contract: airdrop_token_contract.to_string(),
                 cw20_token_contract: cw20_token_contract.to_string(),
                 airdrop_token: "abc".to_string(),
                 amount: Uint128::new(1000_u128),
-                claim_msg: get_airdrop_claim_msg(),
+                stage: 0,
+                proof: vec![],
             },
         )
         .unwrap_err();
@@ -1885,7 +2053,7 @@ mod tests {
     #[test]
     fn test_claim_airdrops_success() {
         let mut deps = mock_dependencies(&[]);
-        let info = mock_info("creator", &[]);
+        let info = mock_info("creator", &[Coin::new(1000_u128, "uluna".to_string())]);
         let env = mock_env();
 
         let _res = instantiate_contract(
@@ -1905,20 +2073,20 @@ mod tests {
         let cw20_token_contract = Addr::unchecked("cw20_token_contract");
         let scc_address: Addr = Addr::unchecked("scc-address");
 
-        fn get_airdrop_claim_msg() -> Binary {
-            Binary::from(vec![01, 02, 03, 04, 05, 06, 07, 08])
-        }
-
         let res = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info(&*get_scc_contract_address(), &[]),
+            mock_info(
+                &*get_scc_contract_address(),
+                &[Coin::new(1000_u128, "uluna".to_string())],
+            ),
             ExecuteMsg::ClaimAirdrops {
                 airdrop_token_contract: airdrop_token_contract.to_string(),
                 cw20_token_contract: cw20_token_contract.to_string(),
                 airdrop_token: "abc".to_string(),
                 amount: Uint128::new(1000_u128),
-                claim_msg: get_airdrop_claim_msg(),
+                stage: 1,
+                proof: vec!["abc".to_string(), "def".to_string()],
             },
         )
         .unwrap();
@@ -1928,7 +2096,12 @@ mod tests {
             vec![
                 SubMsg::new(WasmMsg::Execute {
                     contract_addr: airdrop_token_contract.to_string(),
-                    msg: get_airdrop_claim_msg(),
+                    msg: to_binary(&MerkleAirdropMsg::Claim {
+                        stage: 1,
+                        amount: Uint128::new(1000_u128),
+                        proof: vec!["abc".to_string(), "def".to_string()]
+                    })
+                    .unwrap(),
                     funds: vec![],
                 }),
                 SubMsg::new(WasmMsg::Execute {
@@ -1946,13 +2119,17 @@ mod tests {
         let res = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info(&*get_scc_contract_address(), &[]),
+            mock_info(
+                &*get_scc_contract_address(),
+                &[Coin::new(1000_u128, "uluna".to_string())],
+            ),
             ExecuteMsg::ClaimAirdrops {
                 airdrop_token_contract: airdrop_token_contract.to_string(),
                 cw20_token_contract: cw20_token_contract.to_string(),
                 airdrop_token: "abc".to_string(),
                 amount: Uint128::new(1000_u128),
-                claim_msg: get_airdrop_claim_msg(),
+                stage: 34,
+                proof: vec!["proof1".to_string(), "proof2".to_string()],
             },
         )
         .unwrap();
@@ -1962,7 +2139,12 @@ mod tests {
             vec![
                 SubMsg::new(WasmMsg::Execute {
                     contract_addr: airdrop_token_contract.to_string(),
-                    msg: get_airdrop_claim_msg(),
+                    msg: to_binary(&MerkleAirdropMsg::Claim {
+                        stage: 34,
+                        amount: Uint128::new(1000_u128),
+                        proof: vec!["proof1".to_string(), "proof2".to_string()]
+                    })
+                    .unwrap(),
                     funds: vec![],
                 }),
                 SubMsg::new(WasmMsg::Execute {
@@ -1981,7 +2163,7 @@ mod tests {
     #[test]
     fn test_undelegate_rewards_fail() {
         let mut deps = mock_dependencies(&[]);
-        let info = mock_info("creator", &[]);
+        let info = mock_info("creator", &[Coin::new(1000_u128, "uluna".to_string())]);
         let env = mock_env();
 
         let _res = instantiate_contract(
@@ -2000,7 +2182,7 @@ mod tests {
         let err = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info("not-scc", &[]),
+            mock_info("not-scc", &[Coin::new(1000_u128, "uluna".to_string())]),
             ExecuteMsg::UndelegateRewards {
                 amount: Uint128::new(1000_u128),
             },
@@ -2011,7 +2193,10 @@ mod tests {
         let err = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info(&*get_scc_contract_address(), &[]),
+            mock_info(
+                &*get_scc_contract_address(),
+                &[Coin::new(1000_u128, "uluna".to_string())],
+            ),
             ExecuteMsg::UndelegateRewards {
                 amount: Uint128::zero(),
             },
@@ -2025,7 +2210,10 @@ mod tests {
         let err = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info(&*get_scc_contract_address(), &[]),
+            mock_info(
+                &*get_scc_contract_address(),
+                &[Coin::new(1000_u128, "uluna".to_string())],
+            ),
             ExecuteMsg::UndelegateRewards {
                 amount: Uint128::new(2000_u128),
             },
@@ -2037,7 +2225,7 @@ mod tests {
     #[test]
     fn test_undelegate_rewards_success() {
         let mut deps = mock_dependencies(&[]);
-        let info = mock_info("creator", &[]);
+        let info = mock_info("creator", &[Coin::new(1000_u128, "uluna".to_string())]);
         let env = mock_env();
 
         let _res = instantiate_contract(
@@ -2108,7 +2296,10 @@ mod tests {
         let res = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info(&*get_scc_contract_address(), &[]),
+            mock_info(
+                &*get_scc_contract_address(),
+                &[Coin::new(1000_u128, "uluna".to_string())],
+            ),
             ExecuteMsg::UndelegateRewards {
                 amount: Uint128::new(500_u128),
             },
@@ -2178,7 +2369,10 @@ mod tests {
         let res = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info(&*get_scc_contract_address(), &[]),
+            mock_info(
+                &*get_scc_contract_address(),
+                &[Coin::new(1000_u128, "uluna".to_string())],
+            ),
             ExecuteMsg::UndelegateRewards {
                 amount: Uint128::new(1000_u128),
             },
@@ -2254,7 +2448,10 @@ mod tests {
         let res = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info(&*get_scc_contract_address(), &[]),
+            mock_info(
+                &*get_scc_contract_address(),
+                &[Coin::new(1000_u128, "uluna".to_string())],
+            ),
             ExecuteMsg::UndelegateRewards {
                 amount: Uint128::new(600_u128),
             },
@@ -2330,7 +2527,10 @@ mod tests {
         let res = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info(&*get_scc_contract_address(), &[]),
+            mock_info(
+                &*get_scc_contract_address(),
+                &[Coin::new(1000_u128, "uluna".to_string())],
+            ),
             ExecuteMsg::UndelegateRewards {
                 amount: Uint128::new(300_u128),
             },
@@ -2354,7 +2554,7 @@ mod tests {
     #[test]
     fn test_reinvest_fail() {
         let mut deps = mock_dependencies(&[]);
-        let info = mock_info("creator", &[]);
+        let info = mock_info("creator", &[Coin::new(1000_u128, "uluna".to_string())]);
         let env = mock_env();
 
         let _res = instantiate_contract(
@@ -2373,7 +2573,7 @@ mod tests {
         let err = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info("not-creator", &[]),
+            mock_info("not-creator", &[Coin::new(1000_u128, "uluna".to_string())]),
             ExecuteMsg::Reinvest {
                 invest_transferred_rewards: None,
             },
@@ -2403,7 +2603,7 @@ mod tests {
     #[test]
     fn test_reinvest_success() {
         let mut deps = mock_dependencies(&[]);
-        let info = mock_info("creator", &[]);
+        let info = mock_info("creator", &[Coin::new(1000_u128, "uluna".to_string())]);
         let env = mock_env();
 
         let _res = instantiate_contract(
@@ -2677,7 +2877,7 @@ mod tests {
     #[test]
     fn test_transfer_rewards_fail() {
         let mut deps = mock_dependencies(&[]);
-        let info = mock_info("creator", &[]);
+        let info = mock_info("creator", &[Coin::new(1000_u128, "uluna".to_string())]);
         let env = mock_env();
 
         let _res = instantiate_contract(
@@ -2702,24 +2902,16 @@ mod tests {
         .unwrap_err();
         assert!(matches!(err, ContractError::Unauthorized {}));
 
-        let res = execute(
+        let err = execute(
             deps.as_mut(),
             env.clone(),
             mock_info(&*get_scc_contract_address(), &[]),
             ExecuteMsg::TransferRewards {},
         )
-        .unwrap();
-        assert_eq!(res.messages.len(), 0);
-        assert_eq!(res.attributes.len(), 1);
-        assert!(check_equal_vec(
-            res.attributes,
-            vec![Attribute {
-                key: "no_funds_sent".to_string(),
-                value: "1".to_string()
-            }]
-        ));
+        .unwrap_err();
+        assert!(matches!(err, ContractError::NoFundsSent {}));
 
-        let res = execute(
+        let err = execute(
             deps.as_mut(),
             env.clone(),
             mock_info(
@@ -2728,35 +2920,23 @@ mod tests {
             ),
             ExecuteMsg::TransferRewards {},
         )
-        .unwrap();
-        assert!(check_equal_vec(
-            res.attributes,
-            vec![Attribute {
-                key: "multiple_coins_passed".to_string(),
-                value: "1".to_string()
-            }]
-        ));
+        .unwrap_err();
+        assert!(matches!(err, ContractError::MultipleCoins {}));
 
-        let res = execute(
+        let err = execute(
             deps.as_mut(),
             env.clone(),
             mock_info(&*get_scc_contract_address(), &[Coin::new(10_u128, "abc")]),
             ExecuteMsg::TransferRewards {},
         )
-        .unwrap();
-        assert!(check_equal_vec(
-            res.attributes,
-            vec![Attribute {
-                key: "transferred_denom_is_wrong".to_string(),
-                value: "1".to_string()
-            }]
-        ));
+        .unwrap_err();
+        assert!(matches!(err, ContractError::WrongDenom(String { .. })))
     }
 
     #[test]
     fn test_transfer_rewards_success() {
         let mut deps = mock_dependencies(&[]);
-        let info = mock_info("creator", &[]);
+        let info = mock_info("creator", &[Coin::new(1000_u128, "uluna".to_string())]);
         let env = mock_env();
 
         let _res = instantiate_contract(
@@ -2830,7 +3010,7 @@ mod tests {
     #[test]
     fn test_redeem_rewards_fail() {
         let mut deps = mock_dependencies(&[]);
-        let info = mock_info("creator", &[]);
+        let info = mock_info("creator", &[Coin::new(1000_u128, "uluna".to_string())]);
         let env = mock_env();
 
         let _res = instantiate_contract(
@@ -2862,7 +3042,7 @@ mod tests {
     #[test]
     fn test_redeem_rewards_success() {
         let mut deps = mock_dependencies(&[]);
-        let info = mock_info("creator", &[]);
+        let info = mock_info("creator", &[Coin::new(1000_u128, "uluna".to_string())]);
         let env = mock_env();
 
         let _res = instantiate_contract(

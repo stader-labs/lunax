@@ -6,19 +6,22 @@ pub enum ContractError {
     #[error("{0}")]
     Std(#[from] StdError),
 
-    #[error("Unauthorized")]
+    #[error("sic-base: Unauthorized")]
     Unauthorized {},
     // Add any other custom errors you like here.
     // Look at https://docs.rs/thiserror/1.0.21/thiserror/ for details.
-    #[error("No funds have been sent")]
+    #[error("sic-base: No funds have been sent")]
     NoFundsSent {},
 
-    #[error("Multiple coins have been sent")]
+    #[error("sic-base: Insufficient funds in contract")]
+    InSufficientFunds {},
+
+    #[error("sic-base: Multiple coins have been sent")]
     MultipleCoinsSent {},
 
-    #[error("Cannot withdraw zero amount of money")]
+    #[error("sic-base: Cannot withdraw zero amount of money")]
     ZeroWithdrawal {},
 
-    #[error("The coin denom does not match the strategy denom")]
+    #[error("sic-base: The coin denom does not match the strategy denom")]
     DenomDoesNotMatchStrategyDenom {},
 }

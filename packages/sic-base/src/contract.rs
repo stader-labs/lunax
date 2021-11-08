@@ -6,10 +6,7 @@ use cosmwasm_std::{
 };
 
 use crate::error::ContractError;
-use crate::msg::{
-    ExecuteMsg, GetFulfillableUndelegatedFundsResponse, GetStateResponse, GetTotalTokensResponse,
-    InstantiateMsg, QueryMsg,
-};
+use crate::msg::{ExecuteMsg, GetFulfillableUndelegatedFundsResponse, GetStateResponse, GetTotalTokensResponse, InstantiateMsg, MerkleAirdropMsg, QueryMsg};
 use crate::state::{State, STATE};
 use std::cmp::min;
 
@@ -52,7 +49,8 @@ pub fn execute(
             cw20_token_contract,
             airdrop_token,
             amount,
-            claim_msg,
+            stage,
+            proof
         } => claim_airdrops(
             deps,
             _env,
@@ -61,7 +59,8 @@ pub fn execute(
             cw20_token_contract,
             airdrop_token,
             amount,
-            claim_msg,
+            stage,
+            proof
         ),
     }
 }
@@ -77,7 +76,8 @@ pub fn claim_airdrops(
     cw20_token_contract: Addr,
     _airdrop_token: String,
     amount: Uint128,
-    claim_msg: Binary,
+    stage: u8,
+    proof: Vec<String>
 ) -> Result<Response, ContractError> {
     let state = STATE.load(deps.storage).unwrap();
     if info.sender != state.scc_address {
@@ -88,7 +88,11 @@ pub fn claim_airdrops(
     // SIC contract
     let mut messages: Vec<WasmMsg> = vec![WasmMsg::Execute {
         contract_addr: airdrop_token_contract.to_string(),
-        msg: claim_msg,
+        msg: to_binary(&MerkleAirdropMsg::Claim {
+            stage,
+            amount,
+            proof
+        })?,
         funds: vec![],
     }];
 
@@ -100,7 +104,7 @@ pub fn claim_airdrops(
             recipient: state.scc_address.to_string(),
             amount,
         })
-            .unwrap(),
+        .unwrap(),
         funds: vec![],
     });
 
@@ -184,8 +188,18 @@ pub fn transfer_undelegated_rewards(
     }
 
     if amount.is_zero() {
-        return Ok(Response::new().add_attribute("transferring_zero_rewards", "1"));
+        return Err(ContractError::ZeroWithdrawal {});
     }
+
+    if state.total_rewards_accumulated.lt(&amount) {
+        return Err(ContractError::InSufficientFunds {});
+    }
+
+    STATE.update(deps.storage, |mut state| -> Result<_, ContractError> {
+        state.total_rewards_accumulated =
+            state.total_rewards_accumulated.checked_sub(amount).unwrap();
+        Ok(state)
+    })?;
 
     // undelegation_batch_id is ignored here as we are not batching anything up
     Ok(Response::new().add_message(BankMsg::Send {

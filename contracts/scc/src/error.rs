@@ -19,6 +19,9 @@ pub enum ContractError {
     #[error("scc: Strategy does not support airdrops")]
     StrategyDoesNotSupportAirdrop {},
 
+    #[error("scc: Stratey has no pending undelegations")]
+    NoPendingUndelegations {},
+
     #[error("scc: Airdrop not registered")]
     AirdropNotRegistered {},
 
@@ -39,6 +42,9 @@ pub enum ContractError {
 
     #[error("scc: Undelegation in unbonding period")]
     UndelegationInUnbondingPeriod {},
+
+    #[error("scc: Undelegation batch in unbonding period `{0}`")]
+    UndelegationBatchInUnbondingPeriod(u64),
 
     #[error("scc: Undelegation batch has not been released yet")]
     UndelegationBatchNotReleased {},
