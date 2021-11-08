@@ -71,6 +71,12 @@ pub enum ContractError {
 
     #[error("Delegator-Contract: Funds not expected to be sent with this request")]
     FundsNotExpected {},
+
+    #[error("Delegator-Contract: Undelegation limit reached - Please withdraw existing funds before undelegation more funds")]
+    UndelegationLimitExceeded {},
+
+    #[error("Delegator-Contract: Protocol Fee cannot be more than 100%")]
+    ProtocolFeeAboveLimit {},
     // Add any other custom errors you like here.
     // Look at https://docs.rs/thiserror/1.0.21/thiserror/ for details.
 }

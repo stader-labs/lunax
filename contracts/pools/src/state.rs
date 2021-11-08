@@ -33,11 +33,11 @@ pub struct VMeta {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct PoolRegistryInfo {
     pub name: String,
-    pub active: bool,                  // activates by default.
-    pub validator_contract: Addr,      // Actual contract that delegates on behalf of this pool
+    pub active: bool,                // activates by default.
+    pub validator_contract: Addr,    // Actual contract that delegates on behalf of this pool
     pub reward_contract: Addr, // Contract to send redeemed rewards to & later move swapped rewards from.
     pub protocol_fee_contract: Addr, // Contract to send protocol fee funds from generated rewards. Usually assigned as the treasury contract.
-    pub protocol_fee_percent: Decimal, // Decimal - "0.01" is 1%
+    pub protocol_fee: Decimal,       // Decimal - "0.01" is 1%
     pub validators: Vec<Addr>,       // We estimate to have no more than 10 validators per pool.
     pub staked: Uint128,
     pub rewards_pointer: Decimal,
@@ -55,7 +55,7 @@ pub struct PoolConfigUpdateRequest {
     pub(crate) active: Option<bool>,
     pub(crate) reward_contract: Option<String>,
     pub(crate) protocol_fee_contract: Option<String>,
-    pub(crate) protocol_fee_percent: Option<Decimal>,
+    pub(crate) protocol_fee: Option<Decimal>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

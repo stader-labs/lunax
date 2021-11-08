@@ -68,6 +68,9 @@ pub enum ExecuteMsg {
         batch_id: u64,
         undelegate_id: u64,
     },
+    AllocateUserRewards {
+        user_addrs: Vec<Addr>,
+    },
     UpdateAirdropRegistry {
         airdrop_token: String,
         airdrop_contract: String,

@@ -6,10 +6,11 @@ use stader_utils::coin_utils::DecCoin;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
-    pub pools_contract: Addr,
-    pub scc_contract: Addr,
+    pub undelegations_max_limit: Option<u32>,
+    pub pools_contract: String,
+    pub scc_contract: String,
     pub protocol_fee: Decimal,
-    pub protocol_fee_contract: Addr,
+    pub protocol_fee_contract: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -44,6 +45,7 @@ pub enum ExecuteMsg {
         pool_pointers: Vec<PoolPointerInfo>,
     },
     UpdateConfig {
+        undelegation_max_limit: Option<u32>,
         pools_contract: Option<Addr>,
         scc_contract: Option<Addr>,
         protocol_fee: Option<Decimal>,

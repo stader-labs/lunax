@@ -9,6 +9,7 @@ use stader_utils::coin_utils::DecCoin;
 pub struct Config {
     pub manager: Addr,
     pub vault_denom: String,
+    pub undelegations_max_limit: u32,
     pub pools_contract: Addr,
     pub scc_contract: Addr,
     pub protocol_fee: Decimal, // Used as a fee when a delegator withdraws staked funds.

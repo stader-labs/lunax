@@ -25,6 +25,7 @@ mod tests {
     };
     use cw_storage_plus::U64Key;
     use delegator::msg::ExecuteMsg as DelegatorMsg;
+    use delegator::state::PoolPointerInfo;
     use reward::msg::ExecuteMsg as RewardExecuteMsg;
     use stader_utils::coin_utils::{check_equal_deccoin_vector, DecCoin};
     use terra_cosmwasm::TerraMsgWrapper;
@@ -164,6 +165,21 @@ mod tests {
             .unwrap()
             .is_none());
 
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::AddPool {
+                name: "Community Validator".to_string(),
+                validator_contract: "pool0_val_addr".to_string(),
+                reward_contract: "pool0_rew_addr".to_string(),
+                protocol_fee_percent: Decimal::from_ratio(1001_u128, 1000_u128),
+                protocol_fee_contract: "protocol_fee_addr".to_string(),
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::ProtocolFeeAboveLimit {}));
+
         let res = execute(
             deps.as_mut(),
             env.clone(),
@@ -211,7 +227,7 @@ mod tests {
             slashing_pointer: Decimal::one(),
             current_undelegation_batch_id: 1,
             last_reconciled_batch_id: 0,
-            protocol_fee_percent: Decimal::from_ratio(1_u128, 1000_u128),
+            protocol_fee: Decimal::from_ratio(1_u128, 1000_u128),
         };
         assert_eq!(pool_meta, expected_pool_info);
 
@@ -311,7 +327,7 @@ mod tests {
                     validator_contract: Addr::unchecked("pool_12_validator_addr"),
                     reward_contract: Addr::unchecked("reward_12_validator_addr"),
                     protocol_fee_contract: Addr::unchecked("protocol_fee_addr"),
-                    protocol_fee_percent: Default::default(),
+                    protocol_fee: Default::default(),
                     validators: vec![],
                     staked: Default::default(),
                     rewards_pointer: Default::default(),
@@ -377,7 +393,7 @@ mod tests {
             slashing_pointer: Decimal::one(),
             current_undelegation_batch_id: 0,
             last_reconciled_batch_id: 0,
-            protocol_fee_percent: Default::default(),
+            protocol_fee: Default::default(),
         };
         assert!(pool_meta.eq(&expected_pool_info));
 
@@ -459,7 +475,7 @@ mod tests {
             validator_contract: Addr::unchecked("pool_12_validator_addr"),
             reward_contract: Addr::unchecked("reward_12_validator_addr"),
             protocol_fee_contract: Addr::unchecked("protocol_fee_addr"),
-            protocol_fee_percent: Default::default(),
+            protocol_fee: Default::default(),
             validators: vec![],
             staked: Uint128::new(2000),
             rewards_pointer: Default::default(),
@@ -552,14 +568,13 @@ mod tests {
         .unwrap_err();
         assert!(matches!(err, ContractError::ValidatorNotAdded {}));
 
-        // RESET FOR HAPPY PATH ====================================================================
         let pool_info = PoolRegistryInfo {
             name: "Random name".to_string(),
             active: false,
             validator_contract: Addr::unchecked("pool_12_validator_addr"),
             reward_contract: Addr::unchecked("reward_12_validator_addr"),
             protocol_fee_contract: Addr::unchecked("protocol_fee_addr"),
-            protocol_fee_percent: Default::default(),
+            protocol_fee: Default::default(),
             validators: vec![valid1.clone(), valid2.clone()],
             staked: Uint128::new(2000),
             rewards_pointer: Default::default(),
@@ -587,10 +602,10 @@ mod tests {
                 },
             )
             .unwrap();
-
-        POOL_REGISTRY
-            .save(deps.as_mut().storage, U64Key::new(12), &pool_info)
-            .unwrap();
+        //
+        // POOL_REGISTRY
+        //     .save(deps.as_mut().storage, U64Key::new(12), &pool_info)
+        //     .unwrap();
 
         VALIDATOR_META
             .save(
@@ -614,6 +629,41 @@ mod tests {
                 },
             )
             .unwrap();
+
+        // RESET DONE FOR HAPPY PATH ====================================================================
+
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::RemoveValidator {
+                val_addr: valid1.clone(),
+                redel_addr: valid2.clone(),
+                pool_id: 12,
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::RedelegationInProgress {}));
+
+        let all_delegations = vec![
+            FullDelegation {
+                delegator: Addr::unchecked("pool_12_validator_addr"),
+                validator: "valid0001".to_string(),
+                amount: Coin::new(1000, "uluna"),
+                can_redelegate: Coin::new(1000, "uluna"),
+                accumulated_rewards: vec![],
+            },
+            FullDelegation {
+                delegator: Addr::unchecked("pool_12_validator_addr"),
+                validator: "valid0002".to_string(),
+                amount: Coin::new(800, "uluna"),
+                can_redelegate: Coin::new(800, "uluna"),
+                accumulated_rewards: vec![],
+            },
+        ];
+
+        deps.querier
+            .update_staking("test", &*get_validators(), &*all_delegations);
 
         let res = execute(
             deps.as_mut(),
@@ -658,7 +708,7 @@ mod tests {
             slashing_pointer: Decimal::from_ratio(9_u128, 10_u128),
             current_undelegation_batch_id: 1,
             last_reconciled_batch_id: 0,
-            protocol_fee_percent: Default::default(),
+            protocol_fee: Default::default(),
         };
         assert_eq!(pool_meta, expected_pool_info);
 
@@ -754,7 +804,7 @@ mod tests {
             validator_contract: Addr::unchecked("pool_12_validator_addr"),
             reward_contract: Addr::unchecked("reward_12_validator_addr"),
             protocol_fee_contract: Addr::unchecked("protocol_fee_addr"),
-            protocol_fee_percent: Default::default(),
+            protocol_fee: Default::default(),
             validators: vec![],
             staked: Uint128::new(2000),
             rewards_pointer: Default::default(),
@@ -857,7 +907,7 @@ mod tests {
             validator_contract: Addr::unchecked("pool_12_validator_addr"),
             reward_contract: Addr::unchecked("reward_12_validator_addr"),
             protocol_fee_contract: Addr::unchecked("protocol_fee_addr"),
-            protocol_fee_percent: Default::default(),
+            protocol_fee: Default::default(),
             validators: vec![valid1.clone(), valid2.clone()],
             staked: Uint128::new(2000),
             rewards_pointer: Default::default(),
@@ -958,7 +1008,7 @@ mod tests {
             slashing_pointer: Decimal::from_ratio(9_u128, 10_u128),
             current_undelegation_batch_id: 1,
             last_reconciled_batch_id: 0,
-            protocol_fee_percent: Default::default(),
+            protocol_fee: Default::default(),
         };
         assert_eq!(pool_meta, expected_pool_info);
 
@@ -1056,7 +1106,7 @@ mod tests {
             validator_contract: Addr::unchecked("pool_12_validator_addr"),
             reward_contract: Addr::unchecked("reward_12_validator_addr"),
             protocol_fee_contract: Addr::unchecked("protocol_fee_addr"),
-            protocol_fee_percent: Default::default(),
+            protocol_fee: Default::default(),
             validators: vec![
                 valid1.clone(),
                 valid2.clone(),
@@ -1433,7 +1483,7 @@ mod tests {
                     validator_contract: Addr::unchecked("pool_12_validator_addr"),
                     reward_contract: Addr::unchecked("reward_12_validator_addr"),
                     protocol_fee_contract: Addr::unchecked("pool_12_protocol_addr"),
-                    protocol_fee_percent: Default::default(),
+                    protocol_fee: Default::default(),
                     validators: vec![valid1.clone(), valid2.clone(), valid3.clone()],
                     staked: Uint128::new(450),
                     rewards_pointer: Decimal::zero(),
@@ -1520,7 +1570,7 @@ mod tests {
                     validator_contract: Addr::unchecked("pool_12_validator_addr"),
                     reward_contract: Addr::unchecked("pool_12_reward_addr"),
                     protocol_fee_contract: Addr::unchecked("pool_12_protocol_addr"),
-                    protocol_fee_percent: Default::default(),
+                    protocol_fee: Default::default(),
                     validators: vec![valid1.clone(), valid2.clone(), valid3.clone()],
                     staked: Uint128::new(450),
                     rewards_pointer: Decimal::zero(),
@@ -1588,7 +1638,7 @@ mod tests {
                     validator_contract: Addr::unchecked("pool_12_validator_addr"),
                     reward_contract: Addr::unchecked("pool_12_reward_addr"),
                     protocol_fee_contract: Addr::unchecked("pool_12_protocol_addr"),
-                    protocol_fee_percent: Decimal::from_ratio(2_u128, 100_u128), // 2 percent
+                    protocol_fee: Decimal::from_ratio(2_u128, 100_u128), // 2 percent
                     validators: vec![valid1.clone(), valid2.clone(), valid3.clone()],
                     staked: Uint128::new(450),
                     rewards_pointer: Decimal::zero(),
@@ -1719,7 +1769,7 @@ mod tests {
                     validator_contract: Addr::unchecked("pool_12_validator_addr"),
                     reward_contract: Addr::unchecked("pool_12_reward_addr"),
                     protocol_fee_contract: Addr::unchecked("pool_12_protocol_addr"),
-                    protocol_fee_percent: Decimal::from_ratio(1_u128, 1000_u128),
+                    protocol_fee: Decimal::from_ratio(1_u128, 1000_u128),
                     validators: vec![valid1.clone(), valid2.clone(), valid3.clone()],
                     staked: Uint128::new(450),
                     rewards_pointer: Decimal::zero(),
@@ -1890,7 +1940,7 @@ mod tests {
                     validator_contract: Addr::unchecked("pool_12_validator_addr"),
                     reward_contract: Addr::unchecked("pool_12_reward_addr"),
                     protocol_fee_contract: Addr::unchecked("pool_12_protocol_addr"),
-                    protocol_fee_percent: Decimal::from_ratio(1_u128, 1000_u128),
+                    protocol_fee: Decimal::from_ratio(1_u128, 1000_u128),
                     validators: vec![
                         valid1.clone(),
                         valid2.clone(),
@@ -2115,7 +2165,7 @@ mod tests {
                     validator_contract: Addr::unchecked("pool_12_validator_addr"),
                     reward_contract: Addr::unchecked("pool_12_reward_addr"),
                     protocol_fee_contract: Addr::unchecked("pool_12_protocol_addr"),
-                    protocol_fee_percent: Decimal::from_ratio(1_u128, 1000_u128),
+                    protocol_fee: Decimal::from_ratio(1_u128, 1000_u128),
                     validators: vec![valid1.clone(), valid2.clone(), valid3.clone()],
                     staked: Uint128::new(450),
                     rewards_pointer: Decimal::zero(),
@@ -2399,6 +2449,55 @@ mod tests {
         .unwrap_err();
         assert!(matches!(err, ContractError::Unauthorized {}));
 
+        POOL_REGISTRY
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(12),
+                &PoolRegistryInfo {
+                    name: "RandomName".to_string(),
+                    validator_contract: Addr::unchecked("pool_12_validator_addr"),
+                    reward_contract: Addr::unchecked("pool_12_reward_addr"),
+                    protocol_fee_contract: Addr::unchecked("pool_27_protocol_addr"),
+                    active: false,
+                    validators: vec![valid1.clone(), valid2.clone(), valid3.clone()],
+                    staked: Uint128::new(280),
+                    rewards_pointer: Decimal::zero(),
+                    airdrops_pointer: vec![DecCoin::new(
+                        Decimal::from_ratio(28_u128, 280_u128),
+                        "uair1",
+                    )],
+                    slashing_pointer: Default::default(),
+                    current_undelegation_batch_id: 9,
+                    last_reconciled_batch_id: 5,
+                    protocol_fee: Default::default(),
+                },
+            )
+            .unwrap();
+        POOL_REGISTRY
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(27),
+                &PoolRegistryInfo {
+                    name: "RandomName".to_string(),
+                    validator_contract: Addr::unchecked("pool_27_validator_addr"),
+                    reward_contract: Addr::unchecked("pool_27_reward_addr"),
+                    protocol_fee_contract: Addr::unchecked("pool_27_protocol_addr"),
+                    active: false,
+                    validators: vec![valid1.clone(), valid2.clone(), valid3.clone()],
+                    staked: Uint128::new(640),
+                    rewards_pointer: Decimal::zero(),
+                    airdrops_pointer: vec![DecCoin::new(
+                        Decimal::from_ratio(28_u128, 280_u128),
+                        "uair2",
+                    )],
+                    slashing_pointer: Default::default(),
+                    current_undelegation_batch_id: 9,
+                    last_reconciled_batch_id: 5,
+                    protocol_fee: Default::default(),
+                },
+            )
+            .unwrap();
+
         AIRDROP_REGISTRY
             .save(
                 deps.as_mut().storage,
@@ -2427,7 +2526,7 @@ mod tests {
             validator_contract: Addr::unchecked("pool_12_validator_addr"),
             reward_contract: Addr::unchecked("pool_12_reward_addr"),
             protocol_fee_contract: Addr::unchecked("pool_27_protocol_addr"),
-            protocol_fee_percent: Default::default(),
+            protocol_fee: Default::default(),
             validators: vec![valid1.clone(), valid2.clone(), valid3.clone()],
             staked: Uint128::new(280),
             rewards_pointer: Decimal::zero(),
@@ -2440,7 +2539,11 @@ mod tests {
             last_reconciled_batch_id: 5,
         };
         POOL_REGISTRY
-            .save(deps.as_mut().storage, U64Key::new(12), &pool_12_initial)
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(12),
+                &pool_12_initial,
+            )
             .unwrap();
         let pool_27_initial = PoolRegistryInfo {
             name: "RandomName".to_string(),
@@ -2458,10 +2561,14 @@ mod tests {
             slashing_pointer: Default::default(),
             current_undelegation_batch_id: 9,
             last_reconciled_batch_id: 5,
-            protocol_fee_percent: Default::default(),
+            protocol_fee: Default::default(),
         };
         POOL_REGISTRY
-            .save(deps.as_mut().storage, U64Key::new(27), &pool_27_initial)
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(27),
+                &pool_27_initial
+            )
             .unwrap();
 
         let execute_msg = ExecuteMsg::ClaimAirdrops {
@@ -2655,7 +2762,7 @@ mod tests {
             validator_contract: Addr::unchecked("pool_12_validator_addr"),
             reward_contract: Addr::unchecked("pool_12_reward_addr"),
             protocol_fee_contract: Addr::unchecked("pool_27_protocol_addr"),
-            protocol_fee_percent: Default::default(),
+            protocol_fee: Default::default(),
             validators: vec![valid1.clone(), valid2.clone(), valid3.clone()],
             staked: Uint128::new(280),
             rewards_pointer: Decimal::zero(),
@@ -2686,7 +2793,7 @@ mod tests {
             slashing_pointer: Default::default(),
             current_undelegation_batch_id: 9,
             last_reconciled_batch_id: 5,
-            protocol_fee_percent: Default::default(),
+            protocol_fee: Default::default(),
         };
         POOL_REGISTRY
             .save(deps.as_mut().storage, U64Key::new(27), &pool_27_initial)
@@ -2773,7 +2880,7 @@ mod tests {
                 active: None,
                 reward_contract: None,
                 protocol_fee_contract: None,
-                protocol_fee_percent: None,
+                protocol_fee: None,
             },
         };
         let err = execute(
@@ -2808,7 +2915,7 @@ mod tests {
             validator_contract: Addr::unchecked("validator_addr"),
             reward_contract: Addr::unchecked("reward_addr"),
             protocol_fee_contract: Addr::unchecked("protocol_fee_addr"),
-            protocol_fee_percent: Decimal::from_ratio(1_u128, 1000_u128),
+            protocol_fee: Decimal::from_ratio(1_u128, 1000_u128),
             validators: vec![valid1.clone()],
             staked: Uint128::new(240),
             rewards_pointer: Decimal::from_ratio(12_u128, 240_u128),
@@ -2844,13 +2951,30 @@ mod tests {
             .unwrap();
         assert_eq!(pool_info, expected_pool_info);
 
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::UpdatePoolMetadata {
+                pool_id: 12,
+                pool_config_update_request: PoolConfigUpdateRequest {
+                    active: Some(false),
+                    reward_contract: Some("new_reward_addr".to_string()),
+                    protocol_fee_contract: Some("new_protocol_fee_addr".to_string()),
+                    protocol_fee: Some(Decimal::from_ratio(1001_u128, 1000_u128)),
+                },
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::ProtocolFeeAboveLimit {}));
+
         expected_pool_info = PoolRegistryInfo {
             name: "asdf".to_string(),
             active: false,
             validator_contract: Addr::unchecked("validator_addr"),
             reward_contract: Addr::unchecked("new_reward_addr"),
             protocol_fee_contract: Addr::unchecked("new_protocol_fee_addr"),
-            protocol_fee_percent: Decimal::from_ratio(2_u128, 1000_u128),
+            protocol_fee: Decimal::from_ratio(2_u128, 1000_u128),
             validators: vec![valid1.clone()],
             staked: Uint128::new(240),
             rewards_pointer: Decimal::from_ratio(12_u128, 240_u128),
@@ -2873,16 +2997,28 @@ mod tests {
                     active: Some(false),
                     reward_contract: Some("new_reward_addr".to_string()),
                     protocol_fee_contract: Some("new_protocol_fee_addr".to_string()),
-                    protocol_fee_percent: Some(Decimal::from_ratio(2_u128, 1000_u128)),
+                    protocol_fee: Some(Decimal::from_ratio(2_u128, 1000_u128)),
                 },
             },
         )
         .unwrap();
-        assert!(res.messages.is_empty());
         let pool_info = POOL_REGISTRY
             .load(deps.as_mut().storage, U64Key::new(12))
             .unwrap();
         assert_eq!(pool_info, expected_pool_info);
+
+        assert_eq!(res.messages.len(), 1);
+        assert_eq!(
+            res.messages[0],
+            SubMsg::new(WasmMsg::Execute {
+                contract_addr: pool_info.validator_contract.to_string(),
+                msg: to_binary(&ValidatorMsg::SetRewardWithdrawAddress {
+                    reward_contract: pool_info.reward_contract
+                })
+                .unwrap(),
+                funds: vec![]
+            })
+        );
     }
 
     #[test]
@@ -3038,6 +3174,117 @@ mod tests {
     }
 
     #[test]
+    fn test_allocate_user_rewards() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &[]);
+        let env = mock_env();
+        let valid1 = Addr::unchecked("valid0001");
+        let valid2 = Addr::unchecked("valid0002");
+        let valid3 = Addr::unchecked("valid0003");
+
+        instantiate_contract(&mut deps, &info, &env, None);
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("non-creator", &[]),
+            ExecuteMsg::AllocateUserRewards {
+                user_addrs: vec![Addr::unchecked("user001"), Addr::unchecked("user002")],
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::Unauthorized {}));
+
+        let initial_pool_info_0 = PoolRegistryInfo {
+            name: "ASDF".to_string(),
+            active: true,
+            validator_contract: Addr::unchecked("pool_12_validator_addr"),
+            reward_contract: Addr::unchecked("reward_addr"),
+            protocol_fee_contract: Addr::unchecked("protocol_fee_addr"),
+            protocol_fee: Decimal::from_ratio(1_u128, 1000_u128),
+            validators: vec![valid1.clone(), valid2.clone(), valid3.clone()],
+            staked: Uint128::new(270),
+            rewards_pointer: Decimal::from_ratio(12_u128, 240_u128),
+            airdrops_pointer: vec![DecCoin::new(
+                Decimal::from_ratio(10_u128, 240_u128),
+                "uair1",
+            )],
+            slashing_pointer: Decimal::from_ratio(9_u128, 10_u128),
+            current_undelegation_batch_id: 3,
+            last_reconciled_batch_id: 2,
+        };
+        POOL_REGISTRY
+            .save(deps.as_mut().storage, U64Key::new(0), &initial_pool_info_0)
+            .unwrap();
+
+        let initial_pool_info_1 = PoolRegistryInfo {
+            name: "ASDF".to_string(),
+            active: true,
+            validator_contract: Addr::unchecked("pool_12_validator_addr"),
+            reward_contract: Addr::unchecked("reward_addr"),
+            protocol_fee_contract: Addr::unchecked("protocol_fee_addr"),
+            protocol_fee: Decimal::from_ratio(1_u128, 1000_u128),
+            validators: vec![valid1.clone(), valid2.clone(), valid3.clone()],
+            staked: Uint128::new(270),
+            rewards_pointer: Decimal::from_ratio(24_u128, 240_u128),
+            airdrops_pointer: vec![DecCoin::new(
+                Decimal::from_ratio(10_u128, 240_u128),
+                "uair2",
+            )],
+            slashing_pointer: Decimal::from_ratio(91_u128, 100_u128),
+            current_undelegation_batch_id: 3,
+            last_reconciled_batch_id: 2,
+        };
+        POOL_REGISTRY
+            .save(deps.as_mut().storage, U64Key::new(1), &initial_pool_info_1)
+            .unwrap();
+
+        STATE
+            .save(deps.as_mut().storage, &State { next_pool_id: 2 })
+            .unwrap();
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            info.clone(),
+            ExecuteMsg::AllocateUserRewards {
+                user_addrs: vec![Addr::unchecked("user001"), Addr::unchecked("user002")],
+            },
+        )
+        .unwrap();
+        assert_eq!(res.messages.len(), 1);
+        assert_eq!(
+            res.messages[0],
+            SubMsg::new(WasmMsg::Execute {
+                contract_addr: "delegator_addr".to_string(),
+                msg: to_binary(&DelegatorMsg::AllocateRewards {
+                    user_addrs: vec![Addr::unchecked("user001"), Addr::unchecked("user002")],
+                    pool_pointers: vec![
+                        PoolPointerInfo {
+                            pool_id: 0,
+                            airdrops_pointer: vec![DecCoin::new(
+                                Decimal::from_ratio(10_u128, 240_u128),
+                                "uair1",
+                            )],
+                            rewards_pointer: Decimal::from_ratio(12_u128, 240_u128),
+                            slashing_pointer: Decimal::from_ratio(9_u128, 10_u128)
+                        },
+                        PoolPointerInfo {
+                            pool_id: 1,
+                            airdrops_pointer: vec![DecCoin::new(
+                                Decimal::from_ratio(10_u128, 240_u128),
+                                "uair2",
+                            )],
+                            rewards_pointer: Decimal::from_ratio(24_u128, 240_u128),
+                            slashing_pointer: Decimal::from_ratio(91_u128, 100_u128),
+                        }
+                    ]
+                })
+                .unwrap(),
+                funds: vec![]
+            })
+        );
+    }
+
+    #[test]
     fn test_check_slashing() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
@@ -3089,7 +3336,7 @@ mod tests {
             validator_contract: Addr::unchecked("pool_12_validator_addr"),
             reward_contract: Addr::unchecked("reward_addr"),
             protocol_fee_contract: Addr::unchecked("protocol_fee_addr"),
-            protocol_fee_percent: Decimal::from_ratio(1_u128, 1000_u128),
+            protocol_fee: Decimal::from_ratio(1_u128, 1000_u128),
             validators: vec![valid1.clone(), valid2.clone(), valid3.clone()],
             staked: Uint128::new(270),
             rewards_pointer: Decimal::from_ratio(12_u128, 240_u128),

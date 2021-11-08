@@ -117,6 +117,9 @@ pub fn execute(
             batch_id,
             undelegate_id,
         } => withdraw_funds_to_wallet(deps, info, env, pool_id, batch_id, undelegate_id),
+        ExecuteMsg::AllocateUserRewards { user_addrs } => {
+            allocate_user_rewards_and_airdrops(deps, info, env, user_addrs)
+        }
         ExecuteMsg::UpdateAirdropRegistry {
             airdrop_token,
             airdrop_contract,
@@ -154,7 +157,7 @@ pub fn add_pool(
     validator_contract_str: String,
     reward_contract_str: String,
     protocol_fee_contract_str: String,
-    protocol_fee_percent: Decimal,
+    protocol_fee: Decimal,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let config = CONFIG.load(deps.storage)?;
     validate(&config, &info, &env, vec![Verify::SenderManager])?;
@@ -162,6 +165,9 @@ pub fn add_pool(
     let validator_contract = deps.api.addr_validate(validator_contract_str.as_str())?;
     let reward_contract = deps.api.addr_validate(reward_contract_str.as_str())?;
     let protocol_fee_contract = deps.api.addr_validate(protocol_fee_contract_str.as_str())?;
+    if protocol_fee.gt(&Decimal::one()) {
+        return Err(ContractError::ProtocolFeeAboveLimit {});
+    }
 
     if VALIDATOR_CONTRACTS
         .may_load(deps.storage, &validator_contract)?
@@ -185,7 +191,7 @@ pub fn add_pool(
         validator_contract: validator_contract.clone(),
         reward_contract: reward_contract.clone(),
         protocol_fee_contract,
-        protocol_fee_percent,
+        protocol_fee: protocol_fee,
         validators: vec![],
         staked: Uint128::zero(),
         rewards_pointer: Decimal::zero(),
@@ -288,8 +294,14 @@ pub fn remove_validator_from_pool(
     let val_delegation = deps
         .querier
         .query_delegation(pool_meta.validator_contract.clone(), val_addr.clone())?;
+
     if val_delegation.is_some() {
         let full_delegation = val_delegation.unwrap();
+
+        if full_delegation.can_redelegate.ne(&full_delegation.amount) {
+            return Err(ContractError::RedelegationInProgress {});
+        }
+
         VALIDATOR_META.update(
             deps.storage,
             (redel_addr.clone(), U64Key::new(pool_id)),
@@ -589,7 +601,7 @@ pub fn transfer_rewards_to_scc(
 
     let protocol_fee_amount = Uint128::new(multiply_u128_with_decimal(
         balance.amount.u128(),
-        pool_meta.protocol_fee_percent,
+        pool_meta.protocol_fee,
     ));
     let rewards_transfer_amount = balance.amount.checked_sub(protocol_fee_amount).unwrap();
 
@@ -1032,24 +1044,73 @@ pub fn update_pool_metadata(
         vec![Verify::SenderManager, Verify::NoFunds],
     )?;
 
+    let mut messages: Vec<WasmMsg> = vec![];
     let mut pool_meta = get_verified_pool(deps.storage, pool_id, false)?;
     pool_meta.active = update_pool_config.active.unwrap_or(pool_meta.active);
     if update_pool_config.reward_contract.is_some() {
         pool_meta.reward_contract = deps
             .api
             .addr_validate(update_pool_config.reward_contract.unwrap().as_str())?;
+        messages.push(WasmMsg::Execute {
+            contract_addr: pool_meta.validator_contract.to_string(),
+            msg: to_binary(&ValidatorExecuteMsg::SetRewardWithdrawAddress {
+                reward_contract: pool_meta.reward_contract.clone(),
+            })?,
+            funds: vec![],
+        });
     }
     if update_pool_config.protocol_fee_contract.is_some() {
         pool_meta.protocol_fee_contract = deps
             .api
             .addr_validate(update_pool_config.protocol_fee_contract.unwrap().as_str())?;
     }
-    pool_meta.protocol_fee_percent = update_pool_config
-        .protocol_fee_percent
-        .unwrap_or(pool_meta.protocol_fee_percent);
+
+    pool_meta.protocol_fee = update_pool_config
+        .protocol_fee
+        .unwrap_or(pool_meta.protocol_fee);
+
+    if pool_meta.protocol_fee.gt(&Decimal::one()) {
+        return Err(ContractError::ProtocolFeeAboveLimit {});
+    }
 
     POOL_REGISTRY.save(deps.storage, U64Key::new(pool_id), &pool_meta)?;
-    Ok(Response::default())
+    Ok(Response::new().add_messages(messages))
+}
+
+pub fn allocate_user_rewards_and_airdrops(
+    deps: DepsMut,
+    info: MessageInfo,
+    env: Env,
+    user_addrs: Vec<Addr>,
+) -> Result<Response<TerraMsgWrapper>, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    validate(
+        &config,
+        &info,
+        &env,
+        vec![Verify::SenderManager, Verify::NoFunds],
+    )?;
+    let state = STATE.load(deps.storage)?;
+
+    let mut pool_pointers = vec![];
+    for pool_id in 0..state.next_pool_id {
+        let pool_meta = get_verified_pool(deps.storage, pool_id, false)?;
+        pool_pointers.push(PoolPointerInfo {
+            pool_id,
+            airdrops_pointer: pool_meta.airdrops_pointer,
+            rewards_pointer: pool_meta.rewards_pointer,
+            slashing_pointer: pool_meta.slashing_pointer,
+        });
+    }
+
+    Ok(Response::new().add_message(WasmMsg::Execute {
+        contract_addr: config.delegator_contract.to_string(),
+        msg: to_binary(&DelegatorExecuteMsg::AllocateRewards {
+            user_addrs,
+            pool_pointers,
+        })?,
+        funds: vec![],
+    }))
 }
 
 pub fn update_config(

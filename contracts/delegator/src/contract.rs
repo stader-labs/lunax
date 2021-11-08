@@ -30,13 +30,17 @@ pub fn instantiate(
     info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
+    if msg.protocol_fee.gt(&Decimal::one()) {
+        return Err(ContractError::ProtocolFeeAboveLimit {});
+    }
     let config = Config {
         manager: info.sender.clone(),
         vault_denom: "uluna".to_string(),
-        pools_contract: msg.pools_contract,
-        scc_contract: msg.scc_contract,
+        undelegations_max_limit: msg.undelegations_max_limit.unwrap_or(20_u32),
+        pools_contract: deps.api.addr_validate(msg.pools_contract.as_str())?,
+        scc_contract: deps.api.addr_validate(msg.scc_contract.as_str())?,
         protocol_fee: msg.protocol_fee,
-        protocol_fee_contract: msg.protocol_fee_contract,
+        protocol_fee_contract: deps.api.addr_validate(msg.protocol_fee_contract.as_str())?,
     };
     let state = State {
         next_undelegation_id: 1_u64,
@@ -116,6 +120,7 @@ pub fn execute(
         } => allocate_rewards_and_airdrops(deps, info, env, user_addrs, pool_pointers),
 
         ExecuteMsg::UpdateConfig {
+            undelegation_max_limit,
             pools_contract,
             scc_contract,
             protocol_fee,
@@ -124,6 +129,7 @@ pub fn execute(
             deps,
             info,
             env,
+            undelegation_max_limit,
             pools_contract,
             scc_contract,
             protocol_fee_contract,
@@ -225,6 +231,15 @@ pub fn undelegate(
     if user_meta.deposit.staked.lt(&amount) {
         return Err(ContractError::InSufficientFunds {});
     }
+
+    if user_meta
+        .undelegations
+        .len()
+        .ge(&(config.undelegations_max_limit as usize))
+    {
+        return Err(ContractError::UndelegationLimitExceeded {});
+    }
+
     let mut state = STATE.load(deps.storage)?;
 
     update_user_pointers(
@@ -382,7 +397,7 @@ pub fn allocate_rewards_and_airdrops(
         &config,
         &info,
         &env,
-        vec![Verify::SenderManager, Verify::NoFunds],
+        vec![Verify::SenderPoolsContract, Verify::NoFunds],
     )?;
 
     let mut pool_info_map: HashMap<u64, PoolPointerInfo> = HashMap::new();
@@ -464,12 +479,13 @@ pub fn update_config(
     deps: DepsMut,
     info: MessageInfo,
     env: Env,
+    undelegation_max_limit: Option<u32>,
     pools_contract: Option<Addr>,
     scc_contract: Option<Addr>,
     protocol_fee_contract: Option<Addr>,
     protocol_fee: Option<Decimal>,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
+    let mut config = CONFIG.load(deps.storage)?;
     validate(
         &config,
         &info,
@@ -477,14 +493,18 @@ pub fn update_config(
         vec![Verify::SenderManager, Verify::NoFunds],
     )?;
 
-    CONFIG.update(deps.storage, |mut config| -> StdResult<_> {
-        config.pools_contract = pools_contract.unwrap_or_else(|| config.pools_contract.clone());
-        config.scc_contract = scc_contract.unwrap_or_else(|| config.scc_contract.clone());
-        config.protocol_fee_contract =
-            protocol_fee_contract.unwrap_or_else(|| config.protocol_fee_contract.clone());
-        config.protocol_fee = protocol_fee.unwrap_or(config.protocol_fee);
-        Ok(config)
-    })?;
+    config.undelegations_max_limit =
+        undelegation_max_limit.unwrap_or(config.undelegations_max_limit.clone());
+    config.pools_contract = pools_contract.unwrap_or(config.pools_contract.clone());
+    config.scc_contract = scc_contract.unwrap_or(config.scc_contract.clone());
+    config.protocol_fee_contract =
+        protocol_fee_contract.unwrap_or(config.protocol_fee_contract.clone());
+
+    config.protocol_fee = protocol_fee.unwrap_or(config.protocol_fee);
+    if config.protocol_fee.gt(&Decimal::one()) {
+        return Err(ContractError::ProtocolFeeAboveLimit {});
+    }
+    CONFIG.save(deps.storage, &config)?;
 
     Ok(Response::default())
 }

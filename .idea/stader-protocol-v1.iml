@@ -22,6 +22,14 @@
       <sourceFolder url="file://$MODULE_DIR$/contracts/scc/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/contracts/validator/examples" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/contracts/validator/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/contracts/cf-scc/examples" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/contracts/cf-scc/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/contracts/reward/examples" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/contracts/reward/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/contracts/stader-hub/examples" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/contracts/stader-hub/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/packages/sic-base/examples" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/packages/sic-base/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
       <excludeFolder url="file://$MODULE_DIR$/contracts/delegator/target" />
       <excludeFolder url="file://$MODULE_DIR$/contracts/pools/target" />

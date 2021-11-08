@@ -91,6 +91,13 @@ pub enum ContractError {
     ValidatorsCannotBeSame {},
 
     #[error("Pools-Contract: Token string cannot be empty")]
-    TokenEmpty {}, // Add any other custom errors you like here.
-                   // Look at https://docs.rs/thiserror/1.0.21/thiserror/ for details.
+    TokenEmpty {},
+
+    #[error("Pools-Contract: Redelegation in progress. Cannot remove validator")]
+    RedelegationInProgress {},
+
+    #[error("Pools-Contract: Protocol Fee cannot be more than 100%")]
+    ProtocolFeeAboveLimit {},
+    // Add any other custom errors you like here.
+    // Look at https://docs.rs/thiserror/1.0.21/thiserror/ for details.
 }
