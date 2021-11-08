@@ -943,7 +943,7 @@ pub fn claim_airdrops(
     let mut msgs = vec![];
     let mut failed_pools = vec![];
     for rate in airdrop_rates {
-        let airdrop_info_opt = AIRDROP_REGISTRY.may_load(deps.storage, rate.denom.clone())?;
+        let airdrop_info_opt = AIRDROP_REGISTRY.may_load(deps.storage, rate.denom.to_lowercase())?;
         if airdrop_info_opt.is_none() {
             return Err(ContractError::AirdropNotRegistered {});
         }
