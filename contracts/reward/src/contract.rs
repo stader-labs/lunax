@@ -88,28 +88,26 @@ pub fn swap(
     }
 
     let mut messages = vec![];
-    let total_rewards = deps
-        .querier
-        .query_all_balances(env.contract.address)
-        .unwrap();
-    let denoms: Vec<String> = total_rewards
-        .iter()
-        .map(|item| item.denom.clone())
-        .collect();
+    let total_rewards = deps.querier.query_all_balances(env.contract.address).unwrap();
+    let denoms: Vec<String> = total_rewards.iter().map(|item| item.denom.clone()).collect();
 
-    let exchange_rates = query_exchange_rates(&deps, config.reward_denom.clone(), denoms)?;
-    let known_denoms: Vec<String> = exchange_rates
-        .exchange_rates
-        .iter()
-        .map(|item| item.quote_denom.clone())
-        .collect();
+    let mut is_listed = true;
+    if query_exchange_rates(&deps, config.reward_denom.clone(), denoms).is_err() {
+        is_listed = false;
+    }
 
     for coin in total_rewards {
-        if coin.denom == config.reward_denom.clone() || !known_denoms.contains(&coin.denom) {
+        if coin.denom == config.reward_denom.clone() {
             continue;
         }
 
-        messages.push(create_swap_msg(coin, config.reward_denom.to_string()));
+        if is_listed {
+            messages.push(create_swap_msg(coin, config.reward_denom.to_string()));
+        } else if query_exchange_rates(&deps, config.reward_denom.clone(), vec![coin.denom.clone()])
+            .is_ok()
+        {
+            messages.push(create_swap_msg(coin, config.reward_denom.to_string()));
+        }
     }
 
     let res = Response::new()

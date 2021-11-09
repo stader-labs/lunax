@@ -823,6 +823,7 @@ pub fn reconcile_funds(
             .unwrap();
         last_reconciled_id = batch_id;
     }
+    // If total amount is zero, validator contract throws an error.
 
     // QUERY the base funds in validator contract and check how much can be reconciled
     let unaccounted_base_funds: Coin =
