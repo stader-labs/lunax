@@ -69,13 +69,14 @@ pub fn execute(
             protocol_fee,
             protocol_fee_contract,
         ),
-
         ExecuteMsg::UpdateConfig {
             staking_contract: pools_contract,
         } => update_config(deps, info, env, pools_contract),
     }
 }
+
 // Swaps all rewards accrued in this contract to reward denom - luna.
+// TODO - GM. Does swap have a fixed cost or a linear cost? Useful to make this permissionless.
 pub fn swap(
     deps: DepsMut,
     info: MessageInfo,
