@@ -29,12 +29,12 @@ pub struct Config {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct State {
-    pub total_staked: Uint128, // This is total staked luna.
+    pub total_staked: Uint128, // This is total staked luna (TODO: bchain99 - Don't store this)
     pub exchange_rate: Decimal, // shares to token value. 1 share = (ExchangeRate) tokens.
     pub last_reconciled_batch_id: u64,
     pub current_undelegation_batch_id: u64,
     pub last_undelegation_time: Timestamp,
-    pub validators: Vec<Addr>
+    pub validators: Vec<Addr>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -49,7 +49,7 @@ impl VMeta {
         VMeta {
             staked: Uint128::zero(),
             slashed: Uint128::zero(),
-            filled: Uint128::zero()
+            filled: Uint128::zero(),
         }
     }
 }
