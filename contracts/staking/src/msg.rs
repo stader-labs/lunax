@@ -49,9 +49,8 @@ pub enum ExecuteMsg {
     Deposit {},
     RedeemRewards {},
     Swap {},
-    QueueUndelegate {
-        cw20_msg: Cw20ReceiveMsg,
-    },
+    Receive(Cw20ReceiveMsg),
+    Reinvest {},
     Undelegate {},
     ReconcileFunds {},
     WithdrawFundsToWallet {

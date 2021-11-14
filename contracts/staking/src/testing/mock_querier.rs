@@ -5,7 +5,10 @@ use cosmwasm_std::{
 };
 use std::collections::HashMap;
 
+use airdrops_registry::msg::{GetAirdropContractsResponse, QueryMsg as AirdropsQueryMsg};
+use airdrops_registry::state::AirdropRegistryInfo;
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage};
+use cw20::{BalanceResponse, TokenInfoResponse};
 use reward::msg::{QueryMsg as reward_query, SwappedAmountResponse};
 use stader_utils::coin_utils::{decimal_multiplication_in_256, u128_from_decimal};
 use terra_cosmwasm::{
@@ -145,21 +148,58 @@ impl WasmMockQuerier {
             }) => {
                 panic!("WASMQUERY::RAW not implemented!")
             }
-            QueryRequest::Wasm(WasmQuery::Smart {
-                contract_addr: _,
-                msg,
-            }) => match from_binary(msg).unwrap() {
-                reward_query::SwappedAmount {} => {
-                    let res = SwappedAmountResponse {
-                        amount: self.stader_querier.total_reward_tokens,
-                    };
-                    SystemResult::Ok(ContractResult::from(to_binary(&res)))
+            QueryRequest::Wasm(WasmQuery::Smart { contract_addr, msg }) => {
+                if (contract_addr.eq("airdrop_registry_contract")) {
+                    match from_binary(msg).unwrap() {
+                        AirdropsQueryMsg::GetAirdropContracts { token } => {
+                            let res = GetAirdropContractsResponse {
+                                contracts: Some(AirdropRegistryInfo {
+                                    token: token.clone(),
+                                    airdrop_contract: Addr::unchecked(format!(
+                                        "{}_airdrop_contract",
+                                        token.clone()
+                                    )),
+                                    cw20_contract: Addr::unchecked(format!(
+                                        "{}_cw20_contract",
+                                        token.clone()
+                                    )),
+                                }),
+                            };
+                            SystemResult::Ok(ContractResult::from(to_binary(&res)))
+                        }
+                        _ => {
+                            let out = Binary::default();
+                            SystemResult::Ok(ContractResult::from(to_binary(&out)))
+                        }
+                    }
+                } else {
+                    match from_binary(msg).unwrap() {
+                        cw20::Cw20QueryMsg::TokenInfo {} => {
+                            let res = TokenInfoResponse {
+                                name: "goose luna".to_string(),
+                                symbol: "gluna".to_string(),
+                                decimals: 6,
+                                total_supply: self.stader_querier.total_minted_tokens,
+                            };
+                            SystemResult::Ok(ContractResult::from(to_binary(&res)))
+                        }
+                        cw20::Cw20QueryMsg::Balance { address } => {
+                            let res = BalanceResponse {
+                                balance: *self
+                                    .stader_querier
+                                    .user_to_tokens
+                                    .get(&Addr::unchecked(address))
+                                    .unwrap_or(&Uint128::zero()),
+                            };
+                            SystemResult::Ok(ContractResult::from(to_binary(&res)))
+                        }
+                        _ => {
+                            let out = Binary::default();
+                            SystemResult::Ok(ContractResult::from(to_binary(&out)))
+                        }
+                    }
                 }
-                reward_query::Config {} => {
-                    let out = Binary::default();
-                    SystemResult::Ok(ContractResult::from(to_binary(&out)))
-                }
-            },
+            }
             _ => self.base.handle_query(request),
         }
     }
@@ -203,18 +243,24 @@ impl SwapQuerier {
 
 #[derive(Clone, Default)]
 struct StaderQuerier {
-    pub total_reward_tokens: Uint128,
+    pub total_minted_tokens: Uint128,
+    pub user_to_tokens: HashMap<Addr, Uint128>,
 }
 
 impl StaderQuerier {
     fn default() -> Self {
         StaderQuerier {
-            total_reward_tokens: Uint128::zero(),
+            total_minted_tokens: Uint128::zero(),
+            user_to_tokens: HashMap::default(),
         }
     }
-    fn new(total_reward_tokens: Option<Uint128>) -> Self {
+    fn new(
+        total_minted_tokens: Option<Uint128>,
+        user_to_tokens: Option<HashMap<Addr, Uint128>>,
+    ) -> Self {
         StaderQuerier {
-            total_reward_tokens: total_reward_tokens.unwrap_or_default(),
+            total_minted_tokens: total_minted_tokens.unwrap_or_default(),
+            user_to_tokens: user_to_tokens.unwrap_or_default(),
         }
     }
 }
@@ -229,8 +275,12 @@ impl WasmMockQuerier {
         }
     }
 
-    pub fn update_stader_balances(&mut self, total_reward_tokens: Option<Uint128>) {
-        self.stader_querier = StaderQuerier::new(total_reward_tokens);
+    pub fn update_stader_balances(
+        &mut self,
+        total_reward_tokens: Option<Uint128>,
+        user_to_tokens: Option<HashMap<Addr, Uint128>>,
+    ) {
+        self.stader_querier = StaderQuerier::new(total_reward_tokens, user_to_tokens);
     }
 
     pub fn update_swap_rates(&mut self, swap_rates: Option<Vec<SwapRates>>) {

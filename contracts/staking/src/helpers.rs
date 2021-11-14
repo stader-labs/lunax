@@ -2,9 +2,11 @@ use crate::state::{
     BatchUndelegationRecord, Config, VMeta, BATCH_UNDELEGATION_REGISTRY, STATE, VALIDATOR_META,
 };
 use crate::ContractError;
+use airdrops_registry::msg::GetAirdropContractsResponse;
+use airdrops_registry::msg::QueryMsg as AirdropsQueryMsg;
 use cosmwasm_std::{
-    to_binary, Addr, Decimal, DepsMut, Env, MessageInfo, QuerierWrapper, StdResult, Storage,
-    Uint128, WasmMsg,
+    to_binary, Addr, Decimal, DepsMut, Env, MessageInfo, QuerierWrapper, QueryRequest, StdResult,
+    Storage, Uint128, WasmMsg, WasmQuery,
 };
 use cw20::{Cw20ExecuteMsg, Cw20QueryMsg, TokenInfoResponse};
 use cw_storage_plus::U64Key;
@@ -23,6 +25,8 @@ pub enum Verify {
     NoFunds,
 }
 
+// TODO: bchain99 - write unit-tests for validate.
+// Let's not add assertions for these checks in other tests
 pub fn validate(
     config: &Config,
     info: &MessageInfo,
@@ -192,6 +196,17 @@ pub fn calculate_exchange_rate(total_staked: Uint128, total_token_supply: Uint12
         return Decimal::one();
     }
     Decimal::from_ratio(total_staked, total_token_supply)
+}
+
+pub fn get_airdrop_contracts(
+    querier_wrapper: QuerierWrapper,
+    airdrop_registry_contract: Addr,
+    token: String,
+) -> StdResult<GetAirdropContractsResponse> {
+    querier_wrapper.query_wasm_smart(
+        airdrop_registry_contract,
+        &AirdropsQueryMsg::GetAirdropContracts { token },
+    )
 }
 
 pub fn get_total_token_supply(

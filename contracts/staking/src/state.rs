@@ -29,7 +29,7 @@ pub struct Config {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct State {
-    pub total_staked: Uint128, // This is total staked luna (TODO: bchain99 - Don't store this)
+    pub total_staked: Uint128,
     pub exchange_rate: Decimal, // shares to token value. 1 share = (ExchangeRate) tokens.
     pub last_reconciled_batch_id: u64,
     pub current_undelegation_batch_id: u64,
@@ -85,6 +85,7 @@ pub struct ConfigUpdateRequest {
     pub(crate) max_deposit: Option<Uint128>,
 
     pub(crate) cw20_token_contract: Option<String>, // Only upgradeable once.
+    pub(crate) protocol_fee_contract: Option<String>,
     pub(crate) protocol_reward_fee: Option<Decimal>,
     pub(crate) protocol_withdraw_fee: Option<Decimal>,
     pub(crate) protocol_deposit_fee: Option<Decimal>,

@@ -1,7 +1,8 @@
 use crate::helpers::{
     burn_minted_tokens, calculate_exchange_rate, create_mint_message,
     create_new_undelegation_batch, decrease_tracked_stake, get_active_validators_sorted_by_stake,
-    get_total_token_supply, get_validator_for_deposit, increase_tracked_stake, validate, Verify,
+    get_airdrop_contracts, get_total_token_supply, get_validator_for_deposit,
+    increase_tracked_stake, validate, Verify,
 };
 use crate::msg::{
     Cw20HookMsg, ExecuteMsg, GetFundsClaimRecord, GetValMetaResponse, InstantiateMsg,
@@ -118,7 +119,9 @@ pub fn execute(
         ExecuteMsg::Deposit {} => deposit(deps, info, env),
         ExecuteMsg::RedeemRewards {} => redeem_rewards(deps, info, env),
         ExecuteMsg::Swap {} => swap_rewards(deps, info, env),
-        ExecuteMsg::QueueUndelegate { cw20_msg } => receive_cw20(deps, env, info, cw20_msg),
+        ExecuteMsg::Reinvest {} => reinvest(deps, info, env),
+        // TODO: bchain/gm - remove QueueUndelegate from msg list. This works for testing
+        ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
         ExecuteMsg::Undelegate {} => undelegate_stake(deps, info, env),
         ExecuteMsg::ReconcileFunds {} => reconcile_funds(deps, info, env),
         ExecuteMsg::WithdrawFundsToWallet { batch_id } => {
@@ -151,30 +154,31 @@ pub fn update_config(
         }
     }
 
-    //     if update_config.delegator_contract.is_some() {
-    //         if config.delegator_contract.eq(&Addr::unchecked("0")) {
-    //             config.delegator_contract = deps
-    //                 .api
-    //                 .addr_validate(update_config.delegator_contract.unwrap().as_str())?;
-    //         }
-    //     }
-    //     if update_config.scc_contract.is_some() {
-    //         config.scc_contract = deps
-    //             .api
-    //             .addr_validate(update_config.scc_contract.unwrap().as_str())?;
-    //     }
-    //
-    //     config.unbonding_period = update_config
-    //         .unbonding_period
-    //         .unwrap_or(config.unbonding_period);
-    //     config.undelegation_cooldown = update_config
-    //         .undelegation_cooldown
-    //         .unwrap_or(config.undelegation_cooldown);
-    //     config.min_deposit = update_config.min_deposit.unwrap_or(config.min_deposit);
-    //     config.max_deposit = update_config.max_deposit.unwrap_or(config.max_deposit);
-    //
-    //     CONFIG.save(deps.storage, &config)?;
-    //
+    if let Some(pfc) = update_config.protocol_fee_contract {
+        config.protocol_fee_contract = deps.api.addr_validate(pfc.as_str())?;
+    }
+
+    config.min_deposit = update_config.min_deposit.unwrap_or(config.min_deposit);
+    config.max_deposit = update_config.max_deposit.unwrap_or(config.max_deposit);
+    config.active = update_config.active.unwrap_or(config.active);
+    config.protocol_withdraw_fee = update_config
+        .protocol_withdraw_fee
+        .unwrap_or(config.protocol_withdraw_fee);
+    config.protocol_deposit_fee = update_config
+        .protocol_deposit_fee
+        .unwrap_or(config.protocol_deposit_fee);
+    config.protocol_reward_fee = update_config
+        .protocol_reward_fee
+        .unwrap_or(config.protocol_reward_fee);
+    config.undelegation_cooldown = update_config
+        .undelegation_cooldown
+        .unwrap_or(config.undelegation_cooldown);
+    config.unbonding_period = update_config
+        .unbonding_period
+        .unwrap_or(config.unbonding_period);
+
+    CONFIG.save(deps.storage, &config)?;
+
     Ok(Response::default())
 }
 
@@ -216,20 +220,20 @@ pub fn remove_validator_from_pool(
     let config = CONFIG.load(deps.storage)?;
     validate(&config, &info, &env, vec![Verify::SenderManager])?;
 
-    check_slashing(&mut deps, &env)?;
-
     let mut state = STATE.load(deps.storage)?;
 
     // TODO - GM. Should we instead check state.validators and make it source of truth
     // as Validator_meta is intended just tobe trakcing data.
+    if val_addr.eq(&redel_addr) {
+        return Err(ContractError::ValidatorsCannotBeSame {});
+    }
     let src_val = VALIDATOR_META.may_load(deps.storage, &val_addr)?;
     let redel_val = VALIDATOR_META.may_load(deps.storage, &redel_addr)?;
     if src_val.is_none() || redel_val.is_none() {
         return Err(ContractError::ValidatorNotAdded {});
     }
-    if val_addr.eq(&redel_addr) {
-        return Err(ContractError::ValidatorsCannotBeSame {});
-    }
+
+    check_slashing(&mut deps, &env)?;
 
     let new_validator_pool = state
         .validators
@@ -283,7 +287,6 @@ pub fn rebalance_pool(
     validate(&config, &info, &env, vec![Verify::SenderManager])?;
 
     let state = STATE.load(deps.storage)?;
-    check_slashing(&mut deps, &env)?;
     if val_addr.eq(&redel_addr) {
         return Err(ContractError::ValidatorsCannotBeSame {});
     }
@@ -294,18 +297,20 @@ pub fn rebalance_pool(
 
     let src_val_delegation = deps
         .querier
-        .query_delegation(env.contract.address, val_addr.clone())?;
+        .query_delegation(env.contract.address.clone(), val_addr.clone())?;
     if src_val_delegation.is_none() || src_val_delegation.unwrap().amount.amount.lt(&amount) {
         return Err(ContractError::InSufficientFunds {});
     }
+
+    check_slashing(&mut deps, &env)?;
 
     // Update validator tracking amounts
     decrease_tracked_stake(&mut deps, &val_addr, amount)?;
     increase_tracked_stake(&mut deps, &redel_addr, amount)?;
 
     Ok(Response::new().add_message(StakingMsg::Redelegate {
-        src_validator: "val_addr".to_string(),
-        dst_validator: "redel_addr".to_string(),
+        src_validator: val_addr.to_string(),
+        dst_validator: redel_addr.to_string(),
         amount: Coin::new(amount.u128(), config.vault_denom),
     }))
 }
@@ -335,8 +340,8 @@ pub fn check_slashing(deps: &mut DepsMut, env: &Env) -> Result<Response, Contrac
                             .checked_sub(delegation.amount.amount)
                             .unwrap_or(Uint128::zero()),
                     )?;
-                    val_meta.staked = delegation.amount.amount;
                 }
+                val_meta.staked = delegation.amount.amount;
 
                 Ok(val_meta)
             },
@@ -383,6 +388,8 @@ pub fn deposit(mut deps: DepsMut, info: MessageInfo, env: Env) -> Result<Respons
 
     state.total_staked = state.total_staked.checked_add(amount).unwrap();
     increase_tracked_stake(&mut deps, &val_addr, amount)?;
+
+    STATE.save(deps.storage, &state)?;
 
     Ok(Response::new()
         .add_message(StakingMsg::Delegate {
@@ -537,14 +544,11 @@ pub fn queue_undelegation(
 ) -> Result<Response, ContractError> {
     check_slashing(&mut deps, &env)?;
 
-    let mut state = STATE.load(deps.storage)?;
-    let config = CONFIG.load(deps.storage)?;
+    if amount_to_burn.is_zero() {
+        return Err(ContractError::ZeroAmount {});
+    }
 
-    let total_tokens = get_total_token_supply(deps.querier, config.cw20_token_contract)?;
-    let new_token_supply = total_tokens
-        .checked_sub(amount_to_burn)
-        .unwrap_or(Uint128::zero());
-    state.exchange_rate = calculate_exchange_rate(state.total_staked, new_token_supply);
+    let mut state = STATE.load(deps.storage)?;
 
     let batch_key = U64Key::new(state.current_undelegation_batch_id);
     let user_addr = deps.api.addr_validate(user_addr_str.as_str())?;
@@ -785,11 +789,8 @@ pub fn compute_withdrawable_funds(
     if user_undelegated_tokens_opt.is_none() {
         return Err(ContractError::UndelegationEntryNotFound {});
     }
+    // TODO: bchain/gm don't error out if user tokens is 0. We should catch this in queue_undelegation. This undelegation record would stay on the blockchain forever and it would never be removed from the UI
     let user_undelegation = user_undelegated_tokens_opt.unwrap();
-    if user_undelegation.token_amount.is_zero() {
-        return Err(ContractError::ZeroAmount {});
-    }
-
     let user_undelegated_amount = multiply_u128_with_decimal(
         user_undelegation.token_amount.u128(),
         und_batch.undelegation_er,
@@ -822,13 +823,11 @@ pub fn claim_airdrops(
     let airdrop_withdrawal_contract = config.airdrop_withdrawal_contract;
     let airdrops_registry_contract = config.airdrop_registry_contract;
     for rate in airdrop_rates {
-        let contract_response: GetAirdropContractsResponse =
-            deps.querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-                contract_addr: airdrops_registry_contract.clone().to_string(),
-                msg: to_binary(&AirdropsQueryMsg::GetAirdropContracts {
-                    token: rate.denom.to_string(),
-                })?,
-            }))?;
+        let contract_response: GetAirdropContractsResponse = get_airdrop_contracts(
+            deps.querier,
+            airdrops_registry_contract.clone(),
+            rate.denom.clone(),
+        )?;
 
         if contract_response.contracts.is_none() {
             failed_airdrops.push((rate.denom, rate.stage));
