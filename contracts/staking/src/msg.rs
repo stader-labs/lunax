@@ -81,12 +81,12 @@ pub enum QueryMsg {
     BatchUndelegation {
         batch_id: u64,
     },
-    GetUserComputedInfo {
+    GetUserUndelegationRecords {
         user_addr: String,
         start_after: Option<u64>,
         limit: Option<u64>,
     }, // return shares & undelegation list.
-    GetUserUndelegationRecord {
+    GetUserUndelegationInfo {
         user_addr: Addr,
         batch_id: u64,
     },

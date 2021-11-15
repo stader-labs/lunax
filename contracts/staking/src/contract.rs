@@ -853,17 +853,17 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::BatchUndelegation { batch_id } => {
             to_binary(&query_batch_undelegate(deps, batch_id)?)
         }
-        QueryMsg::GetUserComputedInfo {
+        QueryMsg::GetUserUndelegationRecords {
             user_addr,
             start_after,
             limit,
-        } => to_binary(&query_user_computed_info(
+        } => to_binary(&query_user_undelegation_records(
             deps,
             user_addr,
             start_after,
             limit,
         )?),
-        QueryMsg::GetUserUndelegationRecord {
+        QueryMsg::GetUserUndelegationInfo {
             user_addr,
             batch_id,
         } => to_binary(&query_user_undelegation_info(deps, user_addr, batch_id)?),
@@ -890,7 +890,7 @@ pub fn query_batch_undelegate(
 }
 
 // TODO - GM. Test this
-pub fn query_user_computed_info(
+pub fn query_user_undelegation_records(
     deps: Deps,
     user_addr_str: String,
     start_after: Option<u64>,
