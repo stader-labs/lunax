@@ -586,7 +586,6 @@ pub fn undelegate_stake(
     env: Env,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
-    check_slashing(&mut deps, &env)?;
 
     let mut state = STATE.load(deps.storage)?;
 
@@ -597,6 +596,7 @@ pub fn undelegate_stake(
     {
         return Err(ContractError::UndelegationInCooldown {});
     }
+    check_slashing(&mut deps, &env)?;
 
     let mut burn_message: Vec<WasmMsg> = vec![];
     let mut undelegate_message: Vec<StakingMsg> = vec![];
@@ -624,6 +624,7 @@ pub fn undelegate_stake(
                 batch_undel.undelegated_tokens.u128(),
                 state.exchange_rate,
             ));
+            batch_undel.undelegation_er = state.exchange_rate;
             undel_amount = batch_undel.undelegated_stake;
             Ok(batch_undel)
         },
@@ -667,8 +668,8 @@ pub fn undelegate_stake(
     create_new_undelegation_batch(deps.storage, env)?;
 
     Ok(Response::new()
-        .add_messages(burn_message)
         .add_messages(undelegate_message)
+        .add_messages(burn_message)
         .add_attribute("Undelegation_amount", undel_amount.to_string()))
 }
 
@@ -729,6 +730,7 @@ pub fn reconcile_funds(
         {
             break;
         }
+        // bchain - Note: We are splitting the slashing evenly across all batches
         batch_meta.unbonding_slashing_ratio = unbonding_slashing_ratio;
         batch_meta.reconciled = true;
         BATCH_UNDELEGATION_REGISTRY.save(deps.storage, key.clone(), &batch_meta)?;

@@ -1981,4 +1981,579 @@ mod tests {
             .unwrap();
         assert_eq!(user_undel_info, None);
     }
+
+    #[test]
+    fn test_undelegate_stake_fail() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &[]);
+        let env = mock_env();
+
+        let _res = instantiate_contract(&mut deps, &info, &env);
+
+        /*
+           Test - 1. Undelegation in cooldown
+        */
+        CONFIG
+            .update(
+                deps.as_mut().storage,
+                |mut config| -> Result<_, ContractError> {
+                    config.undelegation_cooldown = 1000;
+                    Ok(config)
+                },
+            )
+            .unwrap();
+        STATE
+            .update(
+                deps.as_mut().storage,
+                |mut state| -> Result<_, ContractError> {
+                    state.last_undelegation_time = env.block.time.minus_seconds(100);
+                    Ok(state)
+                },
+            )
+            .unwrap();
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("other", &[]),
+            ExecuteMsg::Undelegate {},
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::UndelegationInCooldown {}));
+
+        let valid1 = Addr::unchecked("valid0001");
+        let valid2 = Addr::unchecked("valid0002");
+        let valid3 = Addr::unchecked("valid0003");
+        /*
+            Test - 2. No-Op
+        */
+        CONFIG
+            .update(
+                deps.as_mut().storage,
+                |mut config| -> Result<_, ContractError> {
+                    config.undelegation_cooldown = 1000;
+                    Ok(config)
+                },
+            )
+            .unwrap();
+        STATE
+            .update(
+                deps.as_mut().storage,
+                |mut state| -> Result<_, ContractError> {
+                    state.last_undelegation_time = env.block.time.minus_seconds(2000);
+                    Ok(state)
+                },
+            )
+            .unwrap();
+        STATE
+            .update(
+                deps.as_mut().storage,
+                |mut state| -> Result<_, ContractError> {
+                    state.validators = vec![valid1.clone(), valid2.clone(), valid3.clone()];
+                    state.current_undelegation_batch_id = 1;
+                    Ok(state)
+                },
+            )
+            .unwrap();
+        deps.querier
+            .update_staking("uluna", &*get_validators(), &*get_delegations());
+        deps.querier
+            .update_stader_balances(Some(Uint128::new(3000_u128)), None);
+        VALIDATOR_META
+            .save(
+                deps.as_mut().storage,
+                &valid2,
+                &VMeta {
+                    staked: Uint128::new(1000_u128),
+                    slashed: Default::default(),
+                    filled: Default::default(),
+                },
+            )
+            .unwrap();
+        VALIDATOR_META
+            .save(
+                deps.as_mut().storage,
+                &valid3,
+                &VMeta {
+                    staked: Uint128::new(1000_u128),
+                    slashed: Default::default(),
+                    filled: Default::default(),
+                },
+            )
+            .unwrap();
+        VALIDATOR_META
+            .save(
+                deps.as_mut().storage,
+                &valid1,
+                &VMeta {
+                    staked: Uint128::new(1000_u128),
+                    slashed: Default::default(),
+                    filled: Default::default(),
+                },
+            )
+            .unwrap();
+        BATCH_UNDELEGATION_REGISTRY
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(1),
+                &BatchUndelegationRecord {
+                    undelegated_tokens: Uint128::zero(),
+                    create_time: Default::default(),
+                    est_release_time: None,
+                    reconciled: false,
+                    undelegation_er: Default::default(),
+                    undelegated_stake: Default::default(),
+                    unbonding_slashing_ratio: Default::default(),
+                },
+            )
+            .unwrap();
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("other", &[]),
+            ExecuteMsg::Undelegate {},
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::NoOp {}));
+
+        /*
+            Test - 3. Validators do not have sufficient funds
+        */
+        CONFIG
+            .update(
+                deps.as_mut().storage,
+                |mut config| -> Result<_, ContractError> {
+                    config.undelegation_cooldown = 1000;
+                    Ok(config)
+                },
+            )
+            .unwrap();
+        STATE
+            .update(
+                deps.as_mut().storage,
+                |mut state| -> Result<_, ContractError> {
+                    state.last_undelegation_time = env.block.time.minus_seconds(2000);
+                    Ok(state)
+                },
+            )
+            .unwrap();
+        STATE
+            .update(
+                deps.as_mut().storage,
+                |mut state| -> Result<_, ContractError> {
+                    state.validators = vec![valid1.clone(), valid2.clone(), valid3.clone()];
+                    state.current_undelegation_batch_id = 1;
+                    Ok(state)
+                },
+            )
+            .unwrap();
+        deps.querier
+            .update_staking("uluna", &*get_validators(), &*get_delegations());
+        deps.querier
+            .update_stader_balances(Some(Uint128::new(3000_u128)), None);
+        VALIDATOR_META
+            .save(
+                deps.as_mut().storage,
+                &valid2,
+                &VMeta {
+                    staked: Uint128::new(1000_u128),
+                    slashed: Default::default(),
+                    filled: Default::default(),
+                },
+            )
+            .unwrap();
+        VALIDATOR_META
+            .save(
+                deps.as_mut().storage,
+                &valid3,
+                &VMeta {
+                    staked: Uint128::new(1000_u128),
+                    slashed: Default::default(),
+                    filled: Default::default(),
+                },
+            )
+            .unwrap();
+        VALIDATOR_META
+            .save(
+                deps.as_mut().storage,
+                &valid1,
+                &VMeta {
+                    staked: Uint128::new(1000_u128),
+                    slashed: Default::default(),
+                    filled: Default::default(),
+                },
+            )
+            .unwrap();
+        BATCH_UNDELEGATION_REGISTRY
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(1),
+                &BatchUndelegationRecord {
+                    undelegated_tokens: Uint128::new(4000_u128),
+                    create_time: Default::default(),
+                    est_release_time: None,
+                    reconciled: false,
+                    undelegation_er: Default::default(),
+                    undelegated_stake: Default::default(),
+                    unbonding_slashing_ratio: Default::default(),
+                },
+            )
+            .unwrap();
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("other", &[]),
+            ExecuteMsg::Undelegate {},
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::InSufficientFunds {}));
+    }
+
+    #[test]
+    fn test_undelegate_stake_success() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &[]);
+        let env = mock_env();
+
+        let _res = instantiate_contract(&mut deps, &info, &env);
+
+        /*
+           Test - 1. Successful run
+        */
+        CONFIG
+            .update(
+                deps.as_mut().storage,
+                |mut config| -> Result<_, ContractError> {
+                    config.undelegation_cooldown = 1000;
+                    Ok(config)
+                },
+            )
+            .unwrap();
+        STATE
+            .update(
+                deps.as_mut().storage,
+                |mut state| -> Result<_, ContractError> {
+                    state.last_undelegation_time = env.block.time.minus_seconds(2000);
+                    Ok(state)
+                },
+            )
+            .unwrap();
+        let valid1 = Addr::unchecked("valid0001");
+        let valid2 = Addr::unchecked("valid0002");
+        let valid3 = Addr::unchecked("valid0003");
+        STATE
+            .update(
+                deps.as_mut().storage,
+                |mut state| -> Result<_, ContractError> {
+                    state.validators = vec![valid1.clone(), valid2.clone(), valid3.clone()];
+                    state.current_undelegation_batch_id = 1;
+                    state.total_staked = Uint128::new(3000_u128);
+                    Ok(state)
+                },
+            )
+            .unwrap();
+        deps.querier
+            .update_staking("uluna", &*get_validators(), &*get_delegations());
+        deps.querier
+            .update_stader_balances(Some(Uint128::new(3000_u128)), None);
+        VALIDATOR_META
+            .save(
+                deps.as_mut().storage,
+                &valid2,
+                &VMeta {
+                    staked: Uint128::new(1000_u128),
+                    slashed: Default::default(),
+                    filled: Default::default(),
+                },
+            )
+            .unwrap();
+        VALIDATOR_META
+            .save(
+                deps.as_mut().storage,
+                &valid3,
+                &VMeta {
+                    staked: Uint128::new(1000_u128),
+                    slashed: Default::default(),
+                    filled: Default::default(),
+                },
+            )
+            .unwrap();
+        VALIDATOR_META
+            .save(
+                deps.as_mut().storage,
+                &valid1,
+                &VMeta {
+                    staked: Uint128::new(1000_u128),
+                    slashed: Default::default(),
+                    filled: Default::default(),
+                },
+            )
+            .unwrap();
+        BATCH_UNDELEGATION_REGISTRY
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(1),
+                &BatchUndelegationRecord {
+                    undelegated_tokens: Uint128::new(2000_u128),
+                    create_time: env.block.time.minus_seconds(10000),
+                    est_release_time: None,
+                    reconciled: false,
+                    undelegation_er: Default::default(),
+                    undelegated_stake: Default::default(),
+                    unbonding_slashing_ratio: Default::default(),
+                },
+            )
+            .unwrap();
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("other", &[]),
+            ExecuteMsg::Undelegate {},
+        )
+        .unwrap();
+        let config = CONFIG.load(deps.as_mut().storage).unwrap();
+        assert_eq!(res.messages.len(), 3);
+        assert!(check_equal_vec(
+            res.messages,
+            vec![
+                SubMsg::new(StakingMsg::Undelegate {
+                    validator: valid3.to_string(),
+                    amount: Coin::new(1000_u128, "uluna".to_string())
+                }),
+                SubMsg::new(StakingMsg::Undelegate {
+                    validator: valid2.to_string(),
+                    amount: Coin::new(1000_u128, "uluna".to_string())
+                }),
+                SubMsg::new(WasmMsg::Execute {
+                    contract_addr: config.cw20_token_contract.to_string(),
+                    msg: to_binary(&cw20::Cw20ExecuteMsg::Burn {
+                        amount: Uint128::new(2000_u128)
+                    })
+                    .unwrap(),
+                    funds: vec![]
+                })
+            ]
+        ));
+        let val3_meta = VALIDATOR_META.load(deps.as_mut().storage, &valid3).unwrap();
+        let val2_meta = VALIDATOR_META.load(deps.as_mut().storage, &valid2).unwrap();
+        assert_eq!(
+            val3_meta,
+            VMeta {
+                staked: Uint128::zero(),
+                slashed: Default::default(),
+                filled: Default::default()
+            }
+        );
+        assert_eq!(
+            val2_meta,
+            VMeta {
+                staked: Uint128::zero(),
+                slashed: Default::default(),
+                filled: Default::default()
+            }
+        );
+        let config = CONFIG.load(deps.as_mut().storage).unwrap();
+        let undel_batch = BATCH_UNDELEGATION_REGISTRY
+            .load(deps.as_mut().storage, U64Key::new(1))
+            .unwrap();
+        assert_eq!(
+            undel_batch,
+            BatchUndelegationRecord {
+                undelegated_tokens: Uint128::new(2000_u128),
+                create_time: env.block.time.minus_seconds(10000),
+                est_release_time: Some(env.block.time.plus_seconds(config.unbonding_period)),
+                reconciled: false,
+                undelegation_er: Decimal::one(),
+                undelegated_stake: Uint128::new(2000_u128),
+                unbonding_slashing_ratio: Default::default()
+            }
+        );
+        let state = STATE.load(deps.as_mut().storage).unwrap();
+        assert_eq!(state.total_staked, Uint128::new(1000_u128));
+        assert_eq!(state.last_undelegation_time, env.block.time);
+        let new_undel_batch = BATCH_UNDELEGATION_REGISTRY
+            .may_load(deps.as_mut().storage, U64Key::new(2))
+            .unwrap();
+        assert_ne!(new_undel_batch, None);
+    }
+
+    #[test]
+    fn test_reconcile_funds() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &[]);
+        let env = mock_env();
+
+        let _res = instantiate_contract(&mut deps, &info, &env);
+
+        /*
+           Test - 1. No undelegation slashing
+        */
+        STATE
+            .update(
+                deps.as_mut().storage,
+                |mut state| -> Result<_, ContractError> {
+                    state.current_undelegation_batch_id = 3;
+                    state.last_reconciled_batch_id = 1;
+                    Ok(state)
+                },
+            )
+            .unwrap();
+        BATCH_UNDELEGATION_REGISTRY
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(2),
+                &BatchUndelegationRecord {
+                    undelegated_tokens: Uint128::new(3000_u128),
+                    create_time: env.block.time.minus_seconds(20000),
+                    est_release_time: Some(env.block.time.minus_seconds(300)),
+                    reconciled: false,
+                    undelegation_er: Decimal::one(),
+                    undelegated_stake: Uint128::new(3000_u128),
+                    unbonding_slashing_ratio: Default::default(),
+                },
+            )
+            .unwrap();
+        BATCH_UNDELEGATION_REGISTRY
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(3),
+                &BatchUndelegationRecord {
+                    undelegated_tokens: Uint128::new(2000_u128),
+                    create_time: env.block.time.minus_seconds(10000),
+                    est_release_time: Some(env.block.time.minus_seconds(100)),
+                    reconciled: false,
+                    undelegation_er: Decimal::one(),
+                    undelegated_stake: Uint128::new(2000_u128),
+                    unbonding_slashing_ratio: Default::default(),
+                },
+            )
+            .unwrap();
+        deps.querier.update_balance(
+            env.contract.address.clone(),
+            vec![Coin::new(5000_u128, "uluna".to_string())],
+        );
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("other", &[]),
+            ExecuteMsg::ReconcileFunds {},
+        )
+        .unwrap();
+        let state = STATE.load(deps.as_mut().storage).unwrap();
+        let batch_2 = BATCH_UNDELEGATION_REGISTRY
+            .load(deps.as_mut().storage, U64Key::new(2))
+            .unwrap();
+        let batch_3 = BATCH_UNDELEGATION_REGISTRY
+            .load(deps.as_mut().storage, U64Key::new(3))
+            .unwrap();
+        assert_eq!(
+            batch_2,
+            BatchUndelegationRecord {
+                undelegated_tokens: Uint128::new(3000_u128),
+                create_time: env.block.time.minus_seconds(20000),
+                est_release_time: Some(env.block.time.minus_seconds(300)),
+                reconciled: true,
+                undelegation_er: Decimal::one(),
+                undelegated_stake: Uint128::new(3000_u128),
+                unbonding_slashing_ratio: Decimal::one()
+            }
+        );
+        assert_eq!(
+            batch_3,
+            BatchUndelegationRecord {
+                undelegated_tokens: Uint128::new(2000_u128),
+                create_time: env.block.time.minus_seconds(10000),
+                est_release_time: Some(env.block.time.minus_seconds(100)),
+                reconciled: true,
+                undelegation_er: Decimal::one(),
+                undelegated_stake: Uint128::new(2000_u128),
+                unbonding_slashing_ratio: Decimal::one()
+            }
+        );
+
+        /*
+           Test - 2. Some undelegation slashing
+        */
+        STATE
+            .update(
+                deps.as_mut().storage,
+                |mut state| -> Result<_, ContractError> {
+                    state.current_undelegation_batch_id = 3;
+                    state.last_reconciled_batch_id = 1;
+                    Ok(state)
+                },
+            )
+            .unwrap();
+        BATCH_UNDELEGATION_REGISTRY
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(2),
+                &BatchUndelegationRecord {
+                    undelegated_tokens: Uint128::new(3000_u128),
+                    create_time: env.block.time.minus_seconds(20000),
+                    est_release_time: Some(env.block.time.minus_seconds(300)),
+                    reconciled: false,
+                    undelegation_er: Decimal::one(),
+                    undelegated_stake: Uint128::new(3000_u128),
+                    unbonding_slashing_ratio: Default::default(),
+                },
+            )
+            .unwrap();
+        BATCH_UNDELEGATION_REGISTRY
+            .save(
+                deps.as_mut().storage,
+                U64Key::new(3),
+                &BatchUndelegationRecord {
+                    undelegated_tokens: Uint128::new(2000_u128),
+                    create_time: env.block.time.minus_seconds(10000),
+                    est_release_time: Some(env.block.time.minus_seconds(100)),
+                    reconciled: false,
+                    undelegation_er: Decimal::one(),
+                    undelegated_stake: Uint128::new(2000_u128),
+                    unbonding_slashing_ratio: Default::default(),
+                },
+            )
+            .unwrap();
+        deps.querier.update_balance(
+            env.contract.address.clone(),
+            vec![Coin::new(4000_u128, "uluna".to_string())],
+        );
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("other", &[]),
+            ExecuteMsg::ReconcileFunds {},
+        )
+        .unwrap();
+        let state = STATE.load(deps.as_mut().storage).unwrap();
+        let batch_2 = BATCH_UNDELEGATION_REGISTRY
+            .load(deps.as_mut().storage, U64Key::new(2))
+            .unwrap();
+        let batch_3 = BATCH_UNDELEGATION_REGISTRY
+            .load(deps.as_mut().storage, U64Key::new(3))
+            .unwrap();
+        assert_eq!(
+            batch_2,
+            BatchUndelegationRecord {
+                undelegated_tokens: Uint128::new(3000_u128),
+                create_time: env.block.time.minus_seconds(20000),
+                est_release_time: Some(env.block.time.minus_seconds(300)),
+                reconciled: true,
+                undelegation_er: Decimal::one(),
+                undelegated_stake: Uint128::new(3000_u128),
+                unbonding_slashing_ratio: Decimal::from_ratio(4_u128, 5_u128)
+            }
+        );
+        assert_eq!(
+            batch_3,
+            BatchUndelegationRecord {
+                undelegated_tokens: Uint128::new(2000_u128),
+                create_time: env.block.time.minus_seconds(10000),
+                est_release_time: Some(env.block.time.minus_seconds(100)),
+                reconciled: true,
+                undelegation_er: Decimal::one(),
+                undelegated_stake: Uint128::new(2000_u128),
+                unbonding_slashing_ratio: Decimal::from_ratio(4_u128, 5_u128)
+            }
+        );
+    }
 }
