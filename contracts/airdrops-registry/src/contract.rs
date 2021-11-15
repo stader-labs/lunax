@@ -4,10 +4,10 @@ use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response,
 
 use crate::error::ContractError;
 use crate::msg::{
-    ExecuteMsg, GetConfigResponse, GetAirdropContractsResponse, InstantiateMsg,
-    MigrateMsg, QueryMsg,
+    ExecuteMsg, GetAirdropContractsResponse, GetConfigResponse, InstantiateMsg, MigrateMsg,
+    QueryMsg,
 };
-use crate::state::{Config, CONFIG, AIRDROP_REGISTRY, AirdropRegistryInfo};
+use crate::state::{AirdropRegistryInfo, Config, AIRDROP_REGISTRY, CONFIG};
 use cw2::set_contract_version;
 
 const CONTRACT_NAME: &str = "airdrops-registry";
@@ -49,10 +49,12 @@ pub fn execute(
         } => update_airdrop_registry(
             deps,
             info,
-            airdrop_token_str, airdrop_contract_str, cw20_contract_str),
+            airdrop_token_str,
+            airdrop_contract_str,
+            cw20_contract_str,
+        ),
     }
 }
-
 
 pub fn update_airdrop_registry(
     deps: DepsMut,
@@ -78,7 +80,7 @@ pub fn update_airdrop_registry(
         deps.storage,
         airdrop_token.clone(),
         &AirdropRegistryInfo {
-            token: airdrop_token.to_string(),
+            token: airdrop_token,
             airdrop_contract,
             cw20_contract,
         },
@@ -91,7 +93,9 @@ pub fn update_airdrop_registry(
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetConfig {} => to_binary(&query_config(deps)?),
-        QueryMsg::GetAirdropContracts { token } => to_binary(&query_airdrop_contracts(deps, token)?),
+        QueryMsg::GetAirdropContracts { token } => {
+            to_binary(&query_airdrop_contracts(deps, token)?)
+        }
     }
 }
 
@@ -101,6 +105,6 @@ fn query_config(deps: Deps) -> StdResult<GetConfigResponse> {
 }
 
 fn query_airdrop_contracts(deps: Deps, token: String) -> StdResult<GetAirdropContractsResponse> {
-    let contracts = AIRDROP_REGISTRY.may_load(deps.storage, token.to_string())?;
+    let contracts = AIRDROP_REGISTRY.may_load(deps.storage, token)?;
     Ok(GetAirdropContractsResponse { contracts })
 }

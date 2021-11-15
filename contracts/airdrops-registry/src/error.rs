@@ -10,5 +10,5 @@ pub enum ContractError {
     Unauthorized {},
 
     #[error("Airdrop token cannot be empty")]
-    TokenEmpty {}
+    TokenEmpty {},
 }
