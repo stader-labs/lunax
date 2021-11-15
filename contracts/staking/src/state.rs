@@ -89,6 +89,7 @@ pub struct ConfigUpdateRequest {
     pub(crate) protocol_reward_fee: Option<Decimal>,
     pub(crate) protocol_withdraw_fee: Option<Decimal>,
     pub(crate) protocol_deposit_fee: Option<Decimal>,
+    pub(crate) airdrop_withdrawal_contract: Option<String>,
 
     pub(crate) unbonding_period: Option<u64>,
     pub(crate) undelegation_cooldown: Option<u64>,

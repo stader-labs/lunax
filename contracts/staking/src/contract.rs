@@ -89,7 +89,6 @@ pub fn instantiate(
     // loads the saved state
     create_new_undelegation_batch(deps.storage, env.clone())?;
 
-    // TODO - GM. Initialize a mint contract
     let msgs = vec![DistributionMsg::SetWithdrawAddress {
         address: config.reward_contract.to_string(),
     }];
@@ -156,6 +155,10 @@ pub fn update_config(
 
     if let Some(pfc) = update_config.protocol_fee_contract {
         config.protocol_fee_contract = deps.api.addr_validate(pfc.as_str())?;
+    }
+
+    if let Some(awc) = update_config.airdrop_withdrawal_contract {
+        config.airdrop_withdrawal_contract = deps.api.addr_validate(awc.as_str())?;
     }
 
     config.min_deposit = update_config.min_deposit.unwrap_or(config.min_deposit);
