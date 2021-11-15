@@ -22,5 +22,4 @@ fn main() {
     export_schema(&schema_for!(QueryBatchUndelegationResponse), &out_dir);
     export_schema(&schema_for!(GetValMetaResponse), &out_dir);
     export_schema(&schema_for!(GetFundsClaimRecord), &out_dir);
-
 }
