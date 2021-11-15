@@ -107,7 +107,6 @@ pub enum ContractError {
 
     #[error("Pools-Contract: Undelegation cannot be performed because of cooldown constraint")]
     UndelegationInCooldown {},
-
     // Add any other custom errors you like here.
     // Look at https://docs.rs/thiserror/1.0.21/thiserror/ for details.
 }

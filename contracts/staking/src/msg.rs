@@ -1,8 +1,11 @@
-use crate::state::{AirdropRate, AirdropTransferRequest, BatchUndelegationRecord, Config, State, VMeta, ConfigUpdateRequest};
+use crate::state::{
+    AirdropRate, AirdropTransferRequest, BatchUndelegationRecord, Config, ConfigUpdateRequest,
+    State, VMeta,
+};
 use cosmwasm_std::{Addr, Decimal, Uint128};
+use cw20::{Cw20Coin, Cw20ReceiveMsg};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use cw20::{Cw20ReceiveMsg, Cw20Coin};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
@@ -20,12 +23,6 @@ pub struct InstantiateMsg {
 
     pub unbonding_period: u64,
     pub undelegation_cooldown: u64,
-
-    // Mint parameters
-    pub name: String,
-    pub symbol: String,
-    pub decimals: u8,
-    pub initial_balances: Vec<Cw20Coin>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -52,9 +49,8 @@ pub enum ExecuteMsg {
     Deposit {},
     RedeemRewards {},
     Swap {},
-    QueueUndelegate {
-        cw20_msg: Cw20ReceiveMsg,
-    },
+    Receive(Cw20ReceiveMsg),
+    Reinvest {},
     Undelegate {},
     ReconcileFunds {},
     WithdrawFundsToWallet {
@@ -83,14 +79,21 @@ pub enum MerkleAirdropMsg {
 pub enum QueryMsg {
     Config {},
     State {},
-    BatchUndelegation { batch_id: u64 },
+    BatchUndelegation {
+        batch_id: u64,
+    },
     GetUserComputedInfo {
         user_addr: String,
         start_after: Option<u64>,
-        limit: Option<u64>
+        limit: Option<u64>,
     }, // return shares & undelegation list.
-    GetUserUndelegationRecord { user_addr: Addr, batch_id: u64 },
-    GetValMeta { val_addr: Addr },
+    GetUserUndelegationRecord {
+        user_addr: Addr,
+        batch_id: u64,
+    },
+    GetValMeta {
+        val_addr: Addr,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -126,5 +129,3 @@ pub struct GetFundsClaimRecord {
 //     pub staked: Uint128,
 //     pub undelegations: Uint128,
 // }
-
-

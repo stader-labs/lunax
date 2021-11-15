@@ -1,10 +1,18 @@
-use crate::state::{BatchUndelegationRecord, Config, BATCH_UNDELEGATION_REGISTRY, VMeta, STATE, VALIDATOR_META};
+use crate::state::{
+    BatchUndelegationRecord, Config, VMeta, BATCH_UNDELEGATION_REGISTRY, STATE, VALIDATOR_META,
+};
 use crate::ContractError;
-use cosmwasm_std::{Addr, Decimal, Env, MessageInfo, QuerierWrapper, Storage, Uint128, DepsMut, StdResult};
+use airdrops_registry::msg::GetAirdropContractsResponse;
+use airdrops_registry::msg::QueryMsg as AirdropsQueryMsg;
+use cosmwasm_std::{
+    to_binary, Addr, Decimal, DepsMut, Env, MessageInfo, QuerierWrapper, QueryRequest, StdResult,
+    Storage, Uint128, WasmMsg, WasmQuery,
+};
+use cw20::{Cw20ExecuteMsg, Cw20QueryMsg, TokenInfoResponse};
 use cw_storage_plus::U64Key;
 use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
 use serde::de::StdError;
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub enum Verify {
@@ -17,6 +25,8 @@ pub enum Verify {
     NoFunds,
 }
 
+// TODO: bchain99 - write unit-tests for validate.
+// Let's not add assertions for these checks in other tests
 pub fn validate(
     config: &Config,
     info: &MessageInfo,
@@ -134,7 +144,7 @@ pub fn create_new_undelegation_batch(
             reconciled: false,
             undelegation_er: state.exchange_rate,
             undelegated_stake: Uint128::zero(),
-            unbonding_slashing_ratio: Decimal::one()
+            unbonding_slashing_ratio: Decimal::one(),
         },
     )?;
     state.current_undelegation_batch_id += 1;
@@ -142,7 +152,11 @@ pub fn create_new_undelegation_batch(
     Ok(())
 }
 
-pub fn increase_tracked_stake(deps: &mut DepsMut, val_addr: &Addr, amount: Uint128) -> Result<(), ContractError> {
+pub fn increase_tracked_stake(
+    deps: &mut DepsMut,
+    val_addr: &Addr,
+    amount: Uint128,
+) -> Result<(), ContractError> {
     VALIDATOR_META.update(deps.storage, val_addr, |x| -> StdResult<_> {
         let mut vmeta = x.unwrap_or(VMeta::new());
         vmeta.staked = vmeta.staked.checked_add(amount).unwrap();
@@ -151,7 +165,11 @@ pub fn increase_tracked_stake(deps: &mut DepsMut, val_addr: &Addr, amount: Uint1
     Ok(())
 }
 
-pub fn decrease_tracked_stake(deps: &mut DepsMut, val_addr: &Addr, amount: Uint128) -> Result<(), ContractError> {
+pub fn decrease_tracked_stake(
+    deps: &mut DepsMut,
+    val_addr: &Addr,
+    amount: Uint128,
+) -> Result<(), ContractError> {
     VALIDATOR_META.update(deps.storage, val_addr, |x| -> StdResult<_> {
         let mut vmeta = x.unwrap_or(VMeta::new());
         vmeta.staked = vmeta.staked.checked_sub(amount).unwrap_or(Uint128::zero());
@@ -160,11 +178,65 @@ pub fn decrease_tracked_stake(deps: &mut DepsMut, val_addr: &Addr, amount: Uint1
     Ok(())
 }
 
-pub fn decrease_tracked_slashing(deps: &mut DepsMut, val_addr: &Addr, amount: Uint128) -> Result<(), ContractError> {
+pub fn decrease_tracked_slashing(
+    deps: &mut DepsMut,
+    val_addr: &Addr,
+    amount: Uint128,
+) -> Result<(), ContractError> {
     VALIDATOR_META.update(deps.storage, val_addr, |x| -> StdResult<_> {
         let mut vmeta = x.unwrap_or(VMeta::new());
         vmeta.slashed = vmeta.slashed.checked_sub(amount).unwrap_or(Uint128::zero());
         Ok(vmeta)
     })?;
     Ok(())
+}
+
+pub fn calculate_exchange_rate(total_staked: Uint128, total_token_supply: Uint128) -> Decimal {
+    if total_staked.is_zero() || total_token_supply.is_zero() {
+        return Decimal::one();
+    }
+    Decimal::from_ratio(total_staked, total_token_supply)
+}
+
+pub fn get_airdrop_contracts(
+    querier_wrapper: QuerierWrapper,
+    airdrop_registry_contract: Addr,
+    token: String,
+) -> StdResult<GetAirdropContractsResponse> {
+    querier_wrapper.query_wasm_smart(
+        airdrop_registry_contract,
+        &AirdropsQueryMsg::GetAirdropContracts { token },
+    )
+}
+
+pub fn get_total_token_supply(
+    querier_wrapper: QuerierWrapper,
+    token_contract_addr: Addr,
+) -> StdResult<Uint128> {
+    let token_info_res: TokenInfoResponse = querier_wrapper
+        .query_wasm_smart(token_contract_addr.to_string(), &Cw20QueryMsg::TokenInfo {})?;
+    Ok(token_info_res.total_supply)
+}
+
+pub fn create_mint_message(
+    token_contract_addr: Addr,
+    amount: Uint128,
+    recipient: Addr,
+) -> StdResult<WasmMsg> {
+    Ok(WasmMsg::Execute {
+        contract_addr: token_contract_addr.to_string(),
+        msg: to_binary(&Cw20ExecuteMsg::Mint {
+            recipient: recipient.to_string(),
+            amount,
+        })?,
+        funds: vec![],
+    })
+}
+
+pub fn burn_minted_tokens(token_contract_addr: Addr, amount: Uint128) -> StdResult<WasmMsg> {
+    Ok(WasmMsg::Execute {
+        contract_addr: token_contract_addr.to_string(),
+        msg: to_binary(&Cw20ExecuteMsg::Burn { amount })?,
+        funds: vec![],
+    })
 }

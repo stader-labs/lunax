@@ -29,12 +29,12 @@ pub struct Config {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct State {
-    pub total_staked: Uint128, // This is total staked luna.
+    pub total_staked: Uint128,
     pub exchange_rate: Decimal, // shares to token value. 1 share = (ExchangeRate) tokens.
     pub last_reconciled_batch_id: u64,
     pub current_undelegation_batch_id: u64,
     pub last_undelegation_time: Timestamp,
-    pub validators: Vec<Addr>
+    pub validators: Vec<Addr>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -49,7 +49,7 @@ impl VMeta {
         VMeta {
             staked: Uint128::zero(),
             slashed: Uint128::zero(),
-            filled: Uint128::zero()
+            filled: Uint128::zero(),
         }
     }
 }
@@ -85,6 +85,7 @@ pub struct ConfigUpdateRequest {
     pub(crate) max_deposit: Option<Uint128>,
 
     pub(crate) cw20_token_contract: Option<String>, // Only upgradeable once.
+    pub(crate) protocol_fee_contract: Option<String>,
     pub(crate) protocol_reward_fee: Option<Decimal>,
     pub(crate) protocol_withdraw_fee: Option<Decimal>,
     pub(crate) protocol_deposit_fee: Option<Decimal>,
