@@ -1796,9 +1796,6 @@ mod tests {
 
         let _res = instantiate_contract(&mut deps, &info, &env);
 
-        /*
-           Test - 1. Zero amount
-        */
         CONFIG
             .update(
                 deps.as_mut().storage,
@@ -1808,21 +1805,9 @@ mod tests {
                 },
             )
             .unwrap();
-        let err = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info("cw20_contract", &[]),
-            ExecuteMsg::Receive(Cw20ReceiveMsg {
-                sender: "user1".to_string(),
-                amount: Uint128::zero(),
-                msg: to_binary(&Cw20HookMsg::QueueUndelegate {}).unwrap(),
-            }),
-        )
-        .unwrap_err();
-        assert!(matches!(err, ContractError::ZeroAmount {}));
 
         /*
-           Test - 2. Successful undelegation
+           Test - 1. Successful undelegation
         */
         // TODO: bchain99 - modularize this code. Let's finish the tests for now tho
         let valid1 = Addr::unchecked("valid0001");

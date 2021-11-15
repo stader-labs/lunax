@@ -544,10 +544,6 @@ pub fn queue_undelegation(
 ) -> Result<Response, ContractError> {
     check_slashing(&mut deps, &env)?;
 
-    if amount_to_burn.is_zero() {
-        return Err(ContractError::ZeroAmount {});
-    }
-
     let mut state = STATE.load(deps.storage)?;
 
     let batch_key = U64Key::new(state.current_undelegation_batch_id);
