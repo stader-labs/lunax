@@ -10,35 +10,25 @@ use crate::msg::{
     QueryStateResponse,
 };
 use crate::state::{
-    AirdropRate, AirdropTransferRequest, BatchUndelegationRecord, Config, ConfigUpdateRequest,
-    State, UndelegationInfo, VMeta, BATCH_UNDELEGATION_REGISTRY, CONFIG, STATE, USERS,
-    VALIDATOR_META,
+    AirdropRate, Config, ConfigUpdateRequest, State, UndelegationInfo, VMeta,
+    BATCH_UNDELEGATION_REGISTRY, CONFIG, STATE, USERS, VALIDATOR_META,
 };
 use crate::ContractError;
+use airdrops_registry::msg::GetAirdropContractsResponse;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     from_binary, to_binary, Addr, BankMsg, Binary, Coin, Decimal, Deps, DepsMut, DistributionMsg,
-    Env, MessageInfo, Order, QueryRequest, Response, StakingMsg, StdResult, Storage, SubMsg,
-    Timestamp, Uint128, WasmMsg, WasmQuery,
+    Env, MessageInfo, Order, Response, StakingMsg, StdResult, Storage, Uint128, WasmMsg,
 };
-// use cw20::{BalanceResponse as Cw20BalanceResponse, Cw20QueryMsg, Cw20ReceiveMsg, Cw20ExecuteMsg};
-use airdrops_registry::msg::{GetAirdropContractsResponse, QueryMsg as AirdropsQueryMsg};
-use airdrops_registry::state::AirdropRegistryInfo;
-use cw20::{Cw20ReceiveMsg, MinterResponse};
-use cw20_base::contract::instantiate as cw20Instantiate;
-use cw20_base::msg::{
-    ExecuteMsg as Cw20ExecuteMsg, InstantiateMsg as Cw20InstantiateMsg, QueryMsg as Cw20QueryMsg,
-};
-use cw20_base::ContractError as Cw20ContractError;
+use cw20::Cw20ReceiveMsg;
+use cw20_base::msg::ExecuteMsg as Cw20ExecuteMsg;
 use cw_storage_plus::{Bound, U64Key};
 use reward::msg::ExecuteMsg as RewardExecuteMsg;
 use stader_utils::coin_utils::{
-    decimal_division_in_256, decimal_multiplication_in_256, decimal_summation_in_256,
-    get_decimal_from_uint128, merge_dec_coin_vector, multiply_u128_with_decimal, u128_from_decimal,
-    uint128_from_decimal, DecCoin, DecCoinVecOp, Operation,
+    decimal_division_in_256, decimal_multiplication_in_256, get_decimal_from_uint128,
+    multiply_u128_with_decimal, u128_from_decimal, uint128_from_decimal,
 };
-use std::borrow::{Borrow, BorrowMut};
 use std::ops::Deref;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -89,7 +79,6 @@ pub fn instantiate(
     // loads the saved state
     create_new_undelegation_batch(deps.storage, env.clone())?;
 
-    // TODO - GM. Initialize a mint contract
     let msgs = vec![DistributionMsg::SetWithdrawAddress {
         address: config.reward_contract.to_string(),
     }];
@@ -158,6 +147,10 @@ pub fn update_config(
         config.protocol_fee_contract = deps.api.addr_validate(pfc.as_str())?;
     }
 
+    if let Some(awc) = update_config.airdrop_withdrawal_contract {
+        config.airdrop_withdrawal_contract = deps.api.addr_validate(awc.as_str())?;
+    }
+
     config.min_deposit = update_config.min_deposit.unwrap_or(config.min_deposit);
     config.max_deposit = update_config.max_deposit.unwrap_or(config.max_deposit);
     config.active = update_config.active.unwrap_or(config.active);
@@ -221,6 +214,7 @@ pub fn remove_validator_from_pool(
     validate(&config, &info, &env, vec![Verify::SenderManager])?;
 
     let mut state = STATE.load(deps.storage)?;
+    check_slashing(&mut deps, &env)?;
 
     // TODO - GM. Should we instead check state.validators and make it source of truth
     // as Validator_meta is intended just tobe trakcing data.
@@ -232,8 +226,6 @@ pub fn remove_validator_from_pool(
     if src_val.is_none() || redel_val.is_none() {
         return Err(ContractError::ValidatorNotAdded {});
     }
-
-    check_slashing(&mut deps, &env)?;
 
     let new_validator_pool = state
         .validators
@@ -286,6 +278,8 @@ pub fn rebalance_pool(
     let config = CONFIG.load(deps.storage)?;
     validate(&config, &info, &env, vec![Verify::SenderManager])?;
 
+    check_slashing(&mut deps, &env)?;
+
     let state = STATE.load(deps.storage)?;
     if val_addr.eq(&redel_addr) {
         return Err(ContractError::ValidatorsCannotBeSame {});
@@ -301,8 +295,6 @@ pub fn rebalance_pool(
     if src_val_delegation.is_none() || src_val_delegation.unwrap().amount.amount.lt(&amount) {
         return Err(ContractError::InSufficientFunds {});
     }
-
-    check_slashing(&mut deps, &env)?;
 
     // Update validator tracking amounts
     decrease_tracked_stake(&mut deps, &val_addr, amount)?;
@@ -363,6 +355,10 @@ pub fn deposit(mut deps: DepsMut, info: MessageInfo, env: Env) -> Result<Respons
     let config = CONFIG.load(deps.storage)?;
     validate(&config, &info, &env, vec![Verify::NonZeroSingleInfoFund])?;
 
+    // Formula wise - we want to recompute user balance because slashing pointer has changed and then
+    // add the money user wants to delegate. Money being added in this message should be considered post slashing.
+    check_slashing(&mut deps, &env)?;
+
     let amount = info.funds.first().unwrap().amount;
     if amount.gt(&config.max_deposit) {
         return Err(ContractError::MaxDeposit {});
@@ -372,10 +368,6 @@ pub fn deposit(mut deps: DepsMut, info: MessageInfo, env: Env) -> Result<Respons
     }
     let sender = info.sender;
     let mut state = STATE.load(deps.storage)?;
-
-    // Formula wise - we want to recompute user balance because slashing pointer has changed and then
-    // add the money user wants to delegate. Money being added in this message should be considered post slashing.
-    check_slashing(&mut deps, &env)?;
 
     // TODO - GM. Math.decimal_division
     let tokens_to_mint = uint128_from_decimal(decimal_division_in_256(
@@ -530,7 +522,7 @@ pub fn receive_cw20(
                 cw20_msg.sender,
             )?)
         }
-        Err(err) => Err(ContractError::NoOp {}),
+        Err(_err) => Err(ContractError::NoOp {}),
     }
 }
 
@@ -544,11 +536,7 @@ pub fn queue_undelegation(
 ) -> Result<Response, ContractError> {
     check_slashing(&mut deps, &env)?;
 
-    if amount_to_burn.is_zero() {
-        return Err(ContractError::ZeroAmount {});
-    }
-
-    let mut state = STATE.load(deps.storage)?;
+    let state = STATE.load(deps.storage)?;
 
     let batch_key = U64Key::new(state.current_undelegation_batch_id);
     let user_addr = deps.api.addr_validate(user_addr_str.as_str())?;
@@ -589,6 +577,7 @@ pub fn undelegate_stake(
 
     let mut state = STATE.load(deps.storage)?;
 
+    check_slashing(&mut deps, &env)?;
     if info.sender.ne(&config.manager)
         && env.block.time.lt(&state
             .last_undelegation_time
@@ -596,7 +585,6 @@ pub fn undelegate_stake(
     {
         return Err(ContractError::UndelegationInCooldown {});
     }
-    check_slashing(&mut deps, &env)?;
 
     let mut burn_message: Vec<WasmMsg> = vec![];
     let mut undelegate_message: Vec<StakingMsg> = vec![];

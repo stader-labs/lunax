@@ -1,9 +1,8 @@
 use crate::state::{
-    AirdropRate, AirdropTransferRequest, BatchUndelegationRecord, Config, ConfigUpdateRequest,
-    State, VMeta,
+    AirdropRate, BatchUndelegationRecord, Config, ConfigUpdateRequest, State, VMeta,
 };
 use cosmwasm_std::{Addr, Decimal, Uint128};
-use cw20::{Cw20Coin, Cw20ReceiveMsg};
+use cw20::Cw20ReceiveMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
