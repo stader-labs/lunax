@@ -10,35 +10,25 @@ use crate::msg::{
     QueryStateResponse,
 };
 use crate::state::{
-    AirdropRate, AirdropTransferRequest, BatchUndelegationRecord, Config, ConfigUpdateRequest,
-    State, UndelegationInfo, VMeta, BATCH_UNDELEGATION_REGISTRY, CONFIG, STATE, USERS,
-    VALIDATOR_META,
+    AirdropRate, Config, ConfigUpdateRequest, State, UndelegationInfo, VMeta,
+    BATCH_UNDELEGATION_REGISTRY, CONFIG, STATE, USERS, VALIDATOR_META,
 };
 use crate::ContractError;
+use airdrops_registry::msg::GetAirdropContractsResponse;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     from_binary, to_binary, Addr, BankMsg, Binary, Coin, Decimal, Deps, DepsMut, DistributionMsg,
-    Env, MessageInfo, Order, QueryRequest, Response, StakingMsg, StdResult, Storage, SubMsg,
-    Timestamp, Uint128, WasmMsg, WasmQuery,
+    Env, MessageInfo, Order, Response, StakingMsg, StdResult, Storage, Uint128, WasmMsg,
 };
-// use cw20::{BalanceResponse as Cw20BalanceResponse, Cw20QueryMsg, Cw20ReceiveMsg, Cw20ExecuteMsg};
-use airdrops_registry::msg::{GetAirdropContractsResponse, QueryMsg as AirdropsQueryMsg};
-use airdrops_registry::state::AirdropRegistryInfo;
-use cw20::{Cw20ReceiveMsg, MinterResponse};
-use cw20_base::contract::instantiate as cw20Instantiate;
-use cw20_base::msg::{
-    ExecuteMsg as Cw20ExecuteMsg, InstantiateMsg as Cw20InstantiateMsg, QueryMsg as Cw20QueryMsg,
-};
-use cw20_base::ContractError as Cw20ContractError;
+use cw20::Cw20ReceiveMsg;
+use cw20_base::msg::ExecuteMsg as Cw20ExecuteMsg;
 use cw_storage_plus::{Bound, U64Key};
 use reward::msg::ExecuteMsg as RewardExecuteMsg;
 use stader_utils::coin_utils::{
-    decimal_division_in_256, decimal_multiplication_in_256, decimal_summation_in_256,
-    get_decimal_from_uint128, merge_dec_coin_vector, multiply_u128_with_decimal, u128_from_decimal,
-    uint128_from_decimal, DecCoin, DecCoinVecOp, Operation,
+    decimal_division_in_256, decimal_multiplication_in_256, get_decimal_from_uint128,
+    multiply_u128_with_decimal, u128_from_decimal, uint128_from_decimal,
 };
-use std::borrow::{Borrow, BorrowMut};
 use std::ops::Deref;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -532,7 +522,7 @@ pub fn receive_cw20(
                 cw20_msg.sender,
             )?)
         }
-        Err(err) => Err(ContractError::NoOp {}),
+        Err(_err) => Err(ContractError::NoOp {}),
     }
 }
 
@@ -546,7 +536,7 @@ pub fn queue_undelegation(
 ) -> Result<Response, ContractError> {
     check_slashing(&mut deps, &env)?;
 
-    let mut state = STATE.load(deps.storage)?;
+    let state = STATE.load(deps.storage)?;
 
     let batch_key = U64Key::new(state.current_undelegation_batch_id);
     let user_addr = deps.api.addr_validate(user_addr_str.as_str())?;

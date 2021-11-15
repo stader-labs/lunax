@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use crate::state::{
     BatchUndelegationRecord, Config, VMeta, BATCH_UNDELEGATION_REGISTRY, STATE, VALIDATOR_META,
 };
@@ -5,13 +7,12 @@ use crate::ContractError;
 use airdrops_registry::msg::GetAirdropContractsResponse;
 use airdrops_registry::msg::QueryMsg as AirdropsQueryMsg;
 use cosmwasm_std::{
-    to_binary, Addr, Decimal, DepsMut, Env, MessageInfo, QuerierWrapper, QueryRequest, StdResult,
-    Storage, Uint128, WasmMsg, WasmQuery,
+    to_binary, Addr, Decimal, DepsMut, Env, MessageInfo, QuerierWrapper, StdResult, Storage,
+    Uint128, WasmMsg,
 };
 use cw20::{Cw20ExecuteMsg, Cw20QueryMsg, TokenInfoResponse};
 use cw_storage_plus::U64Key;
 use schemars::JsonSchema;
-use serde::de::StdError;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
