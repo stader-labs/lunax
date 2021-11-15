@@ -1244,6 +1244,55 @@ mod tests {
         .unwrap_err();
         assert!(matches!(err, ContractError::Unauthorized {}));
 
+        let valid1 = Addr::unchecked("valid0001");
+        let valid2 = Addr::unchecked("valid0002");
+        let valid3 = Addr::unchecked("valid0003");
+        STATE
+            .update(
+                deps.as_mut().storage,
+                |mut state| -> Result<_, ContractError> {
+                    state.validators = vec![valid1.clone(), valid2.clone(), valid3.clone()];
+                    Ok(state)
+                },
+            )
+            .unwrap();
+        VALIDATOR_META
+            .save(
+                deps.as_mut().storage,
+                &valid1,
+                &VMeta {
+                    staked: Uint128::new(1000_u128),
+                    slashed: Default::default(),
+                    filled: Default::default(),
+                },
+            )
+            .unwrap();
+        VALIDATOR_META
+            .save(
+                deps.as_mut().storage,
+                &valid2,
+                &VMeta {
+                    staked: Uint128::new(1000_u128),
+                    slashed: Default::default(),
+                    filled: Default::default(),
+                },
+            )
+            .unwrap();
+        VALIDATOR_META
+            .save(
+                deps.as_mut().storage,
+                &valid3,
+                &VMeta {
+                    staked: Uint128::new(1000_u128),
+                    slashed: Default::default(),
+                    filled: Default::default(),
+                },
+            )
+            .unwrap();
+        deps.querier
+            .update_staking("uluna", &*get_validators(), &*get_delegations());
+        deps.querier
+            .update_stader_balances(Some(Uint128::new(3000_u128)), None);
         /*
             Test - 2. Validators cannot be the same
         */
@@ -1263,8 +1312,6 @@ mod tests {
         /*
             Test - 3. Validator not added
         */
-        let valid1 = Addr::unchecked("valid0001");
-        let valid2 = Addr::unchecked("valid0002");
         STATE
             .update(
                 deps.as_mut().storage,
@@ -1292,8 +1339,6 @@ mod tests {
         /*
             Test - 4. Insufficient funds
         */
-        let valid1 = Addr::unchecked("valid0001");
-        let valid2 = Addr::unchecked("valid0002");
         STATE
             .update(
                 deps.as_mut().storage,
@@ -1426,55 +1471,6 @@ mod tests {
         let env = mock_env();
 
         let _res = instantiate_contract(&mut deps, &info, &env);
-
-        /*
-           Test - 1. Unauthorized
-        */
-        let err = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info("not-creator", &[]),
-            ExecuteMsg::RemoveValidator {
-                val_addr: Addr::unchecked("abcde"),
-                redel_addr: Addr::unchecked("redel_ade"),
-            },
-        )
-        .unwrap_err();
-        assert!(matches!(err, ContractError::Unauthorized {}));
-
-        /*
-           Test - 2. Validator not added
-        */
-        let err = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info("creator", &[]),
-            ExecuteMsg::RemoveValidator {
-                val_addr: Addr::unchecked("abcde"),
-                redel_addr: Addr::unchecked("redel_ade"),
-            },
-        )
-        .unwrap_err();
-        assert!(matches!(err, ContractError::ValidatorNotAdded {}));
-
-        /*
-            Test - 3. Validator addresses should not be the same
-        */
-        let err = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info("creator", &[]),
-            ExecuteMsg::RemoveValidator {
-                val_addr: Addr::unchecked("abcde"),
-                redel_addr: Addr::unchecked("abcde"),
-            },
-        )
-        .unwrap_err();
-        assert!(matches!(err, ContractError::ValidatorsCannotBeSame {}));
-
-        /*
-           Test - 4. Redelegation in progress
-        */
         let valid1 = Addr::unchecked("valid0001");
         let valid2 = Addr::unchecked("valid0002");
         let valid3 = Addr::unchecked("valid0003");
@@ -1524,6 +1520,54 @@ mod tests {
                 },
             )
             .unwrap();
+        /*
+           Test - 1. Unauthorized
+        */
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("not-creator", &[]),
+            ExecuteMsg::RemoveValidator {
+                val_addr: Addr::unchecked("abcde"),
+                redel_addr: Addr::unchecked("redel_ade"),
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::Unauthorized {}));
+
+        /*
+           Test - 2. Validator not added
+        */
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::RemoveValidator {
+                val_addr: Addr::unchecked("abcde"),
+                redel_addr: Addr::unchecked("redel_ade"),
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::ValidatorNotAdded {}));
+
+        /*
+            Test - 3. Validator addresses should not be the same
+        */
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::RemoveValidator {
+                val_addr: Addr::unchecked("abcde"),
+                redel_addr: Addr::unchecked("abcde"),
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::ValidatorsCannotBeSame {}));
+
+        /*
+           Test - 4. Redelegation in progress
+        */
         let err = execute(
             deps.as_mut(),
             env.clone(),
@@ -1643,6 +1687,57 @@ mod tests {
         let env = mock_env();
 
         let _res = instantiate_contract(&mut deps, &info, &env);
+
+        let valid1 = Addr::unchecked("valid0001");
+        let valid2 = Addr::unchecked("valid0002");
+        let valid3 = Addr::unchecked("valid0003");
+
+        STATE
+            .update(
+                deps.as_mut().storage,
+                |mut state| -> Result<_, ContractError> {
+                    state.validators = vec![valid1.clone(), valid2.clone(), valid3.clone()];
+                    Ok(state)
+                },
+            )
+            .unwrap();
+        VALIDATOR_META
+            .save(
+                deps.as_mut().storage,
+                &valid1,
+                &VMeta {
+                    staked: Uint128::new(1000_u128),
+                    slashed: Default::default(),
+                    filled: Default::default(),
+                },
+            )
+            .unwrap();
+        VALIDATOR_META
+            .save(
+                deps.as_mut().storage,
+                &valid2,
+                &VMeta {
+                    staked: Uint128::new(1000_u128),
+                    slashed: Default::default(),
+                    filled: Default::default(),
+                },
+            )
+            .unwrap();
+        VALIDATOR_META
+            .save(
+                deps.as_mut().storage,
+                &valid3,
+                &VMeta {
+                    staked: Uint128::new(1000_u128),
+                    slashed: Default::default(),
+                    filled: Default::default(),
+                },
+            )
+            .unwrap();
+        deps.querier
+            .update_staking("uluna", &*get_validators(), &*get_delegations());
+        deps.querier
+            .update_stader_balances(Some(Uint128::new(3000_u128)), None);
 
         /*
            Test - 1. crossed max deposit
@@ -2277,6 +2372,56 @@ mod tests {
         let env = mock_env();
 
         let _res = instantiate_contract(&mut deps, &info, &env);
+
+        let valid1 = Addr::unchecked("valid0001");
+        let valid2 = Addr::unchecked("valid0002");
+        let valid3 = Addr::unchecked("valid0003");
+        STATE
+            .update(
+                deps.as_mut().storage,
+                |mut state| -> Result<_, ContractError> {
+                    state.validators = vec![valid1.clone(), valid2.clone(), valid3.clone()];
+                    Ok(state)
+                },
+            )
+            .unwrap();
+        VALIDATOR_META
+            .save(
+                deps.as_mut().storage,
+                &valid1,
+                &VMeta {
+                    staked: Uint128::new(1000_u128),
+                    slashed: Default::default(),
+                    filled: Default::default(),
+                },
+            )
+            .unwrap();
+        VALIDATOR_META
+            .save(
+                deps.as_mut().storage,
+                &valid2,
+                &VMeta {
+                    staked: Uint128::new(1000_u128),
+                    slashed: Default::default(),
+                    filled: Default::default(),
+                },
+            )
+            .unwrap();
+        VALIDATOR_META
+            .save(
+                deps.as_mut().storage,
+                &valid3,
+                &VMeta {
+                    staked: Uint128::new(1000_u128),
+                    slashed: Default::default(),
+                    filled: Default::default(),
+                },
+            )
+            .unwrap();
+        deps.querier
+            .update_staking("uluna", &*get_validators(), &*get_delegations());
+        deps.querier
+            .update_stader_balances(Some(Uint128::new(3000_u128)), None);
 
         /*
            Test - 1. Undelegation in cooldown

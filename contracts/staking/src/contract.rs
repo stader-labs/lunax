@@ -221,6 +221,7 @@ pub fn remove_validator_from_pool(
     validate(&config, &info, &env, vec![Verify::SenderManager])?;
 
     let mut state = STATE.load(deps.storage)?;
+    check_slashing(&mut deps, &env)?;
 
     // TODO - GM. Should we instead check state.validators and make it source of truth
     // as Validator_meta is intended just tobe trakcing data.
@@ -232,8 +233,6 @@ pub fn remove_validator_from_pool(
     if src_val.is_none() || redel_val.is_none() {
         return Err(ContractError::ValidatorNotAdded {});
     }
-
-    check_slashing(&mut deps, &env)?;
 
     let new_validator_pool = state
         .validators
@@ -286,6 +285,8 @@ pub fn rebalance_pool(
     let config = CONFIG.load(deps.storage)?;
     validate(&config, &info, &env, vec![Verify::SenderManager])?;
 
+    check_slashing(&mut deps, &env)?;
+
     let state = STATE.load(deps.storage)?;
     if val_addr.eq(&redel_addr) {
         return Err(ContractError::ValidatorsCannotBeSame {});
@@ -301,8 +302,6 @@ pub fn rebalance_pool(
     if src_val_delegation.is_none() || src_val_delegation.unwrap().amount.amount.lt(&amount) {
         return Err(ContractError::InSufficientFunds {});
     }
-
-    check_slashing(&mut deps, &env)?;
 
     // Update validator tracking amounts
     decrease_tracked_stake(&mut deps, &val_addr, amount)?;
@@ -363,6 +362,10 @@ pub fn deposit(mut deps: DepsMut, info: MessageInfo, env: Env) -> Result<Respons
     let config = CONFIG.load(deps.storage)?;
     validate(&config, &info, &env, vec![Verify::NonZeroSingleInfoFund])?;
 
+    // Formula wise - we want to recompute user balance because slashing pointer has changed and then
+    // add the money user wants to delegate. Money being added in this message should be considered post slashing.
+    check_slashing(&mut deps, &env)?;
+
     let amount = info.funds.first().unwrap().amount;
     if amount.gt(&config.max_deposit) {
         return Err(ContractError::MaxDeposit {});
@@ -372,10 +375,6 @@ pub fn deposit(mut deps: DepsMut, info: MessageInfo, env: Env) -> Result<Respons
     }
     let sender = info.sender;
     let mut state = STATE.load(deps.storage)?;
-
-    // Formula wise - we want to recompute user balance because slashing pointer has changed and then
-    // add the money user wants to delegate. Money being added in this message should be considered post slashing.
-    check_slashing(&mut deps, &env)?;
 
     // TODO - GM. Math.decimal_division
     let tokens_to_mint = uint128_from_decimal(decimal_division_in_256(
@@ -585,6 +584,7 @@ pub fn undelegate_stake(
 
     let mut state = STATE.load(deps.storage)?;
 
+    check_slashing(&mut deps, &env)?;
     if info.sender.ne(&config.manager)
         && env.block.time.lt(&state
             .last_undelegation_time
@@ -592,7 +592,6 @@ pub fn undelegate_stake(
     {
         return Err(ContractError::UndelegationInCooldown {});
     }
-    check_slashing(&mut deps, &env)?;
 
     let mut burn_message: Vec<WasmMsg> = vec![];
     let mut undelegate_message: Vec<StakingMsg> = vec![];
