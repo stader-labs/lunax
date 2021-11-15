@@ -29,44 +29,16 @@
     {
       "type": "object",
       "required": [
-        "pool"
-      ],
-      "properties": {
-        "pool": {
-          "type": "object",
-          "required": [
-            "pool_id"
-          ],
-          "properties": {
-            "pool_id": {
-              "type": "integer",
-              "format": "uint64",
-              "minimum": 0.0
-            }
-          }
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "type": "object",
-      "required": [
         "batch_undelegation"
       ],
       "properties": {
         "batch_undelegation": {
           "type": "object",
           "required": [
-            "batch_id",
-            "pool_id"
+            "batch_id"
           ],
           "properties": {
             "batch_id": {
-              "type": "integer",
-              "format": "uint64",
-              "minimum": 0.0
-            },
-            "pool_id": {
               "type": "integer",
               "format": "uint64",
               "minimum": 0.0
@@ -85,11 +57,47 @@
         "get_user_computed_info": {
           "type": "object",
           "required": [
-            "pool_id",
             "user_addr"
           ],
           "properties": {
-            "pool_id": {
+            "limit": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "start_after": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "user_addr": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "get_user_undelegation_record"
+      ],
+      "properties": {
+        "get_user_undelegation_record": {
+          "type": "object",
+          "required": [
+            "batch_id",
+            "user_addr"
+          ],
+          "properties": {
+            "batch_id": {
               "type": "integer",
               "format": "uint64",
               "minimum": 0.0
@@ -111,15 +119,9 @@
         "get_val_meta": {
           "type": "object",
           "required": [
-            "pool_id",
             "val_addr"
           ],
           "properties": {
-            "pool_id": {
-              "type": "integer",
-              "format": "uint64",
-              "minimum": 0.0
-            },
             "val_addr": {
               "$ref": "#/definitions/Addr"
             }
