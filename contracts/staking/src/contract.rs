@@ -319,25 +319,22 @@ pub fn check_slashing(deps: &mut DepsMut, env: &Env) -> Result<Response, Contrac
         total_staked_on_chain = total_staked_on_chain
             .checked_add(delegation.amount.amount)
             .unwrap();
-        VALIDATOR_META.update(
-            deps.storage,
-            &deps.api.addr_validate(delegation.validator.as_str())?,
-            |x| -> StdResult<_> {
-                let mut val_meta = x.unwrap();
+        let val_addr = Addr::unchecked(delegation.validator.clone());
+        VALIDATOR_META.update(deps.storage, &val_addr, |x| -> StdResult<_> {
+            let mut val_meta = x.unwrap();
 
-                if val_meta.staked.gt(&delegation.amount.amount) {
-                    val_meta.slashed = val_meta.slashed.checked_add(
-                        val_meta
-                            .staked
-                            .checked_sub(delegation.amount.amount)
-                            .unwrap_or(Uint128::zero()),
-                    )?;
-                }
-                val_meta.staked = delegation.amount.amount;
+            if val_meta.staked.gt(&delegation.amount.amount) {
+                val_meta.slashed = val_meta.slashed.checked_add(
+                    val_meta
+                        .staked
+                        .checked_sub(delegation.amount.amount)
+                        .unwrap_or(Uint128::zero()),
+                )?;
+            }
+            val_meta.staked = delegation.amount.amount;
 
-                Ok(val_meta)
-            },
-        )?;
+            Ok(val_meta)
+        })?;
     }
 
     let total_tokens = get_total_token_supply(deps.querier, config.cw20_token_contract)?;
