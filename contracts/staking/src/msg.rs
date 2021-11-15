@@ -121,10 +121,3 @@ pub struct GetFundsClaimRecord {
     pub protocol_fee: Uint128,
     pub undelegated_amount: Uint128,
 }
-
-// #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-// pub struct UserComputedInfo {
-//     pub tokens: Uint128,
-//     pub staked: Uint128,
-//     pub undelegations: Uint128,
-// }

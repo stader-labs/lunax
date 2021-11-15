@@ -18,13 +18,9 @@
     "Config": {
       "type": "object",
       "required": [
-        "delegator_contract",
         "manager"
       ],
       "properties": {
-        "delegator_contract": {
-          "$ref": "#/definitions/Addr"
-        },
         "manager": {
           "$ref": "#/definitions/Addr"
         }

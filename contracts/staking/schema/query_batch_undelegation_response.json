@@ -19,11 +19,11 @@
       "type": "object",
       "required": [
         "create_time",
-        "last_updated_slashing_pointer",
-        "prorated_amount",
         "reconciled",
         "unbonding_slashing_ratio",
-        "undelegated_amount"
+        "undelegated_stake",
+        "undelegated_tokens",
+        "undelegation_er"
       ],
       "properties": {
         "create_time": {
@@ -39,20 +39,20 @@
             }
           ]
         },
-        "last_updated_slashing_pointer": {
-          "$ref": "#/definitions/Decimal"
-        },
-        "prorated_amount": {
-          "$ref": "#/definitions/Decimal"
-        },
         "reconciled": {
           "type": "boolean"
         },
         "unbonding_slashing_ratio": {
           "$ref": "#/definitions/Decimal"
         },
-        "undelegated_amount": {
+        "undelegated_stake": {
           "$ref": "#/definitions/Uint128"
+        },
+        "undelegated_tokens": {
+          "$ref": "#/definitions/Uint128"
+        },
+        "undelegation_er": {
+          "$ref": "#/definitions/Decimal"
         }
       }
     },
