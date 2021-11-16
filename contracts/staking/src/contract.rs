@@ -70,7 +70,7 @@ pub fn instantiate(
         total_staked: Uint128::zero(),
         exchange_rate: initial_er,
         last_reconciled_batch_id: 0,
-        current_undelegation_batch_id: 1,
+        current_undelegation_batch_id: 0,
         last_undelegation_time: env.block.time.minus_seconds(msg.undelegation_cooldown), // Gives flexibility for first undelegaion run.
         validators: vec![],
     };
