@@ -162,7 +162,7 @@ mod tests {
                 total_staked: Uint128::zero(),
                 exchange_rate: Decimal::one(),
                 last_reconciled_batch_id: 0,
-                current_undelegation_batch_id: 2,
+                current_undelegation_batch_id: 1,
                 last_undelegation_time: env
                     .block
                     .time
@@ -2217,7 +2217,7 @@ mod tests {
         /*
            Test - 1. Undelegation batch not found
         */
-        let err = compute_withdrawable_funds(deps.as_mut().storage, 1, &user1).unwrap_err();
+        let err = compute_withdrawable_funds(deps.as_mut().storage, 0, &user1).unwrap_err();
         assert!(matches!(err, ContractError::UndelegationBatchNotFound {}));
 
         /*
