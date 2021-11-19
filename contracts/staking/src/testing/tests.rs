@@ -1698,6 +1698,27 @@ mod tests {
         let valid2 = Addr::unchecked("valid0002");
         let valid3 = Addr::unchecked("valid0003");
 
+        /*
+           Protocol inactive
+        */
+        CONFIG
+            .update(
+                deps.as_mut().storage,
+                |mut config| -> Result<_, ContractError> {
+                    config.active = false;
+                    Ok(config)
+                },
+            )
+            .unwrap();
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("other", &[Coin::new(120_u128, "uluna".to_string())]),
+            ExecuteMsg::Deposit {},
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::ProtocolInactive {}));
+
         STATE
             .update(
                 deps.as_mut().storage,
@@ -1752,6 +1773,7 @@ mod tests {
             .update(
                 deps.as_mut().storage,
                 |mut config| -> Result<_, ContractError> {
+                    config.active = true;
                     config.max_deposit = Uint128::new(100_u128);
                     Ok(config)
                 },

@@ -350,6 +350,11 @@ pub fn check_slashing(deps: &mut DepsMut, env: &Env) -> Result<Response, Contrac
 // Any address can call this.
 pub fn deposit(mut deps: DepsMut, info: MessageInfo, env: Env) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
+
+    if !config.active {
+        return Err(ContractError::ProtocolInactive {});
+    }
+
     validate(&config, &info, &env, vec![Verify::NonZeroSingleInfoFund])?;
 
     // Formula wise - we want to recompute user balance because slashing pointer has changed and then
