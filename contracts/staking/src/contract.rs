@@ -1,13 +1,13 @@
 use crate::helpers::{
     burn_minted_tokens, calculate_exchange_rate, create_mint_message,
     create_new_undelegation_batch, decrease_tracked_stake, get_active_validators_sorted_by_stake,
-    get_airdrop_contracts, get_total_token_supply, get_validator_for_deposit,
+    get_airdrop_contracts, get_total_token_supply, get_user_balance, get_validator_for_deposit,
     increase_tracked_stake, validate, Verify,
 };
 use crate::msg::{
     Cw20HookMsg, ExecuteMsg, GetFundsClaimRecord, GetValMetaResponse, InstantiateMsg,
     MerkleAirdropMsg, QueryBatchUndelegationResponse, QueryConfigResponse, QueryMsg,
-    QueryStateResponse,
+    QueryStateResponse, UserInfoResponse, UserQueryInfo,
 };
 use crate::state::{
     AirdropRate, Config, ConfigUpdateRequest, State, UndelegationInfo, VMeta,
@@ -29,7 +29,7 @@ use stader_utils::coin_utils::{
     decimal_division_in_256, decimal_multiplication_in_256, get_decimal_from_uint128,
     multiply_u128_with_decimal, u128_from_decimal, uint128_from_decimal,
 };
-use std::ops::Deref;
+use std::ops::{Deref, Mul};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -868,7 +868,24 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             batch_id,
         } => to_binary(&query_user_undelegation_info(deps, user_addr, batch_id)?),
         QueryMsg::GetValMeta { val_addr } => to_binary(&query_val_meta(deps, val_addr)?),
+        QueryMsg::GetUserInfo { user_addr } => to_binary(&query_user_info(deps, user_addr)?),
     }
+}
+
+pub fn query_user_info(deps: Deps, user_addr: String) -> StdResult<UserInfoResponse> {
+    let user_addr = deps.api.addr_validate(user_addr.as_str())?;
+    let config = CONFIG.load(deps.storage)?;
+    let state = STATE.load(deps.storage)?;
+
+    let user_token_balance = get_user_balance(deps.querier, config.cw20_token_contract, user_addr)?;
+    let user_amount = state.exchange_rate.mul(user_token_balance);
+
+    Ok(UserInfoResponse {
+        user_info: UserQueryInfo {
+            total_tokens: user_token_balance,
+            total_amount: Coin::new(user_amount.u128(), "uluna".to_string()),
+        },
+    })
 }
 
 pub fn query_config(deps: Deps) -> StdResult<QueryConfigResponse> {
@@ -913,9 +930,10 @@ pub fn query_user_undelegation_records(
 
 pub fn query_user_undelegation_info(
     deps: Deps,
-    user_addr: Addr,
+    user_addr: String,
     batch_id: u64,
 ) -> StdResult<GetFundsClaimRecord> {
+    let user_addr = deps.api.addr_validate(user_addr.as_str())?;
     let funds_record = compute_withdrawable_funds(deps.storage, batch_id, &user_addr).unwrap();
     Ok(funds_record)
 }

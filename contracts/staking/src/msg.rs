@@ -1,7 +1,7 @@
 use crate::state::{
     AirdropRate, BatchUndelegationRecord, Config, ConfigUpdateRequest, State, VMeta,
 };
-use cosmwasm_std::{Addr, Decimal, Uint128};
+use cosmwasm_std::{Addr, Coin, Decimal, Uint128};
 use cw20::Cw20ReceiveMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -22,6 +22,12 @@ pub struct InstantiateMsg {
 
     pub unbonding_period: u64,
     pub undelegation_cooldown: u64,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct UserQueryInfo {
+    pub total_tokens: Uint128,
+    pub total_amount: Coin, // value of tokens in luna with the exchange rate at that point
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -87,17 +93,25 @@ pub enum QueryMsg {
         limit: Option<u64>,
     }, // return shares & undelegation list.
     GetUserUndelegationInfo {
-        user_addr: Addr,
+        user_addr: String,
         batch_id: u64,
     },
     GetValMeta {
         val_addr: Addr,
+    },
+    GetUserInfo {
+        user_addr: String,
     },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct QueryConfigResponse {
     pub config: Config,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct UserInfoResponse {
+    pub user_info: UserQueryInfo,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
