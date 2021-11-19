@@ -2,9 +2,7 @@
 use cosmwasm_std::entry_point;
 
 use crate::error::ContractError;
-use crate::msg::{
-    ExecuteMsg, GetConfigResponse, InstantiateMsg, MigrateMsg, QueryMsg, SwappedAmountResponse,
-};
+use crate::msg::{ExecuteMsg, GetConfigResponse, InstantiateMsg, MigrateMsg, QueryMsg};
 
 use crate::state::{Config, CONFIG};
 use cw2::set_contract_version;
@@ -89,8 +87,14 @@ pub fn swap(
     }
 
     let mut messages = vec![];
-    let total_rewards = deps.querier.query_all_balances(env.contract.address).unwrap();
-    let denoms: Vec<String> = total_rewards.iter().map(|item| item.denom.clone()).collect();
+    let total_rewards = deps
+        .querier
+        .query_all_balances(env.contract.address)
+        .unwrap();
+    let denoms: Vec<String> = total_rewards
+        .iter()
+        .map(|item| item.denom.clone())
+        .collect();
 
     let mut is_listed = true;
     if query_exchange_rates(&deps, config.reward_denom.clone(), denoms).is_err() {
@@ -195,24 +199,10 @@ pub fn update_config(
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => to_binary(&query_config(deps)?),
-        QueryMsg::SwappedAmount {} => to_binary(&query_swapped_amount(deps, _env)?),
     }
 }
 
 pub fn query_config(deps: Deps) -> StdResult<GetConfigResponse> {
     let config: Config = CONFIG.load(deps.storage)?;
     Ok(GetConfigResponse { config })
-}
-
-pub fn query_swapped_amount(deps: Deps, env: Env) -> StdResult<SwappedAmountResponse> {
-    let config: Config = CONFIG.load(deps.storage)?;
-    let reward_denom = config.reward_denom;
-
-    let swapped_amount = deps
-        .querier
-        .query_balance(env.contract.address.to_string(), reward_denom)?;
-
-    Ok(SwappedAmountResponse {
-        amount: swapped_amount.amount,
-    })
 }
