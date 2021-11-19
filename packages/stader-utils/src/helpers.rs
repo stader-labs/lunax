@@ -1,5 +1,4 @@
-use cosmwasm_std::{Addr, BankMsg, Coin, QuerierWrapper, StdResult, Uint128};
-use cw20::BalanceResponse;
+use cosmwasm_std::{Addr, BankMsg, Coin};
 
 pub fn send_funds_msg(recipient_addr: &Addr, funds: &[Coin]) -> BankMsg {
     BankMsg::Send {
