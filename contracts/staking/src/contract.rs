@@ -289,12 +289,24 @@ pub fn rebalance_pool(
         return Err(ContractError::ValidatorNotAdded {});
     }
 
-    let src_val_delegation = deps
+    let src_val_delegation_opt = deps
         .querier
         .query_delegation(env.contract.address.clone(), val_addr.clone())?;
-    if src_val_delegation.is_none() || src_val_delegation.unwrap().amount.amount.lt(&amount) {
+    if let Some(src_val_delegation) = src_val_delegation_opt {
+        if src_val_delegation.amount.amount.lt(&amount) {
+            return Err(ContractError::InSufficientFunds {});
+        }
+
+        if src_val_delegation
+            .can_redelegate
+            .amount
+            .ne(&src_val_delegation.amount.amount)
+        {
+            return Err(ContractError::RedelegationInProgress {});
+        }
+    } else {
         return Err(ContractError::InSufficientFunds {});
-    }
+    };
 
     // Update validator tracking amounts
     decrease_tracked_stake(&mut deps, &val_addr, amount)?;
