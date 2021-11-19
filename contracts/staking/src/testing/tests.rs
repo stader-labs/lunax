@@ -1014,18 +1014,6 @@ mod tests {
         let _res = instantiate_contract(&mut deps, &info, &env);
 
         /*
-           Test - 1. Unauthorized
-        */
-        let err = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info("not-creator", &[]),
-            ExecuteMsg::Swap {},
-        )
-        .unwrap_err();
-        assert!(matches!(err, ContractError::Unauthorized {}));
-
-        /*
            Test - 2. Success
         */
         let res = execute(

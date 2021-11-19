@@ -224,13 +224,11 @@ pub fn remove_validator_from_pool(
         return Err(ContractError::ValidatorNotAdded {});
     }
 
-    let new_validator_pool = state
+    state.validators = state
         .validators
         .into_iter()
         .filter(|x| x.ne(&val_addr))
         .collect::<Vec<Addr>>();
-
-    state.validators = new_validator_pool;
 
     // Update validator tracking amounts
     let val_delegation = deps
@@ -284,7 +282,7 @@ pub fn rebalance_pool(
 
     let src_val_delegation_opt = deps
         .querier
-        .query_delegation(env.contract.address.clone(), val_addr.clone())?;
+        .query_delegation(env.contract.address, val_addr.clone())?;
     if let Some(src_val_delegation) = src_val_delegation_opt {
         if src_val_delegation.amount.amount.lt(&amount) {
             return Err(ContractError::InSufficientFunds {});
@@ -451,7 +449,6 @@ pub fn redeem_rewards(
 // Useful to make this permissionless.
 pub fn swap_rewards(deps: DepsMut, info: MessageInfo, env: Env) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
-    validate(&config, &info, &env, vec![Verify::SenderManager])?;
 
     Ok(Response::new().add_message(WasmMsg::Execute {
         contract_addr: config.reward_contract.to_string(),

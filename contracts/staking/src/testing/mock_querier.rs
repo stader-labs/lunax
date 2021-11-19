@@ -9,7 +9,7 @@ use airdrops_registry::msg::{GetAirdropContractsResponse, QueryMsg as AirdropsQu
 use airdrops_registry::state::AirdropRegistryInfo;
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage};
 use cw20::{BalanceResponse, TokenInfoResponse};
-use reward::msg::{QueryMsg as reward_query, SwappedAmountResponse};
+use reward::msg::QueryMsg as reward_query;
 use stader_utils::coin_utils::{decimal_multiplication_in_256, u128_from_decimal};
 use terra_cosmwasm::{
     SwapResponse, TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute,
