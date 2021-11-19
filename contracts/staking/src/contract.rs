@@ -216,14 +216,11 @@ pub fn remove_validator_from_pool(
     let mut state = STATE.load(deps.storage)?;
     check_slashing(&mut deps, &env)?;
 
-    // TODO - GM. Should we instead check state.validators and make it source of truth
-    // as Validator_meta is intended just tobe trakcing data.
     if val_addr.eq(&redel_addr) {
         return Err(ContractError::ValidatorsCannotBeSame {});
     }
-    let src_val = VALIDATOR_META.may_load(deps.storage, &val_addr)?;
-    let redel_val = VALIDATOR_META.may_load(deps.storage, &redel_addr)?;
-    if src_val.is_none() || redel_val.is_none() {
+
+    if !state.validators.contains(&val_addr) || !state.validators.contains(&redel_addr) {
         return Err(ContractError::ValidatorNotAdded {});
     }
 
@@ -246,12 +243,8 @@ pub fn remove_validator_from_pool(
         if full_delegation.can_redelegate.ne(&full_delegation.amount) {
             return Err(ContractError::RedelegationInProgress {});
         }
-        let mut redel_vmeta = redel_val.unwrap();
-        redel_vmeta.staked = redel_vmeta
-            .staked
-            .checked_add(full_delegation.amount.amount)
-            .unwrap();
-        VALIDATOR_META.save(deps.storage, &redel_addr, &redel_vmeta)?;
+
+        increase_tracked_stake(&mut deps, &redel_addr, full_delegation.amount.amount)?;
 
         if !full_delegation.amount.amount.is_zero() {
             msgs.push(StakingMsg::Redelegate {
@@ -333,7 +326,16 @@ pub fn check_slashing(deps: &mut DepsMut, env: &Env) -> Result<Response, Contrac
             .unwrap();
         let val_addr = Addr::unchecked(delegation.validator.clone());
         VALIDATOR_META.update(deps.storage, &val_addr, |x| -> StdResult<_> {
-            let mut val_meta = x.unwrap();
+            // it could be the case there a validator we redelegated from has a very small delegation
+            let mut val_meta = if let Some(val_meta) = x {
+                val_meta
+            } else {
+                return Ok(VMeta {
+                    staked: delegation.amount.amount,
+                    slashed: Uint128::zero(),
+                    filled: Uint128::zero(),
+                });
+            };
 
             if val_meta.staked.gt(&delegation.amount.amount) {
                 val_meta.slashed = val_meta.slashed.checked_add(
