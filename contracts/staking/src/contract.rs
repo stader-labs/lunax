@@ -447,7 +447,11 @@ pub fn redeem_rewards(
 
 // TODO - GM. Does swap have a fixed cost or a linear cost?
 // Useful to make this permissionless.
-pub fn swap_rewards(deps: DepsMut, info: MessageInfo, env: Env) -> Result<Response, ContractError> {
+pub fn swap_rewards(
+    deps: DepsMut,
+    _info: MessageInfo,
+    _env: Env,
+) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
     Ok(Response::new().add_message(WasmMsg::Execute {
