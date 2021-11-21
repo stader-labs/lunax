@@ -16,3 +16,8 @@ artifacts/
 scripts-delegator
 scripts-pools
 scripts-validator
+s-staking
+s-airdrops-registry
+s-reward
+
+.idea/
