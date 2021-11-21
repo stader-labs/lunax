@@ -610,6 +610,15 @@ mod tests {
                 },
             )
             .unwrap();
+        STATE
+            .update(
+                deps.as_mut().storage,
+                |mut state| -> Result<_, ContractError> {
+                    state.validators = vec![valid1.clone(), valid2.clone(), valid3.clone()];
+                    Ok(state)
+                },
+            )
+            .unwrap();
 
         check_slashing(&mut deps.as_mut(), &env).unwrap();
         let val1_meta = VALIDATOR_META.load(deps.as_mut().storage, &valid1).unwrap();
@@ -1181,6 +1190,9 @@ mod tests {
                     filled: Uint128::new(1000_u128),
                 },
             )
+            .unwrap();
+        VALIDATOR_META
+            .save(deps.as_mut().storage, &valid4, &VMeta::new())
             .unwrap();
         let res = execute(
             deps.as_mut(),

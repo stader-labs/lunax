@@ -315,35 +315,38 @@ pub fn check_slashing(deps: &mut DepsMut, env: &Env) -> Result<Response, Contrac
     let config = CONFIG.load(deps.storage)?;
     let mut state = STATE.load(deps.storage)?;
     let mut total_staked_on_chain = Uint128::zero();
-    let delegations = deps
-        .querier
-        .query_all_delegations(env.contract.address.clone())?;
-    for delegation in delegations {
-        total_staked_on_chain = total_staked_on_chain
-            .checked_add(delegation.amount.amount)
-            .unwrap();
-        let val_addr = Addr::unchecked(delegation.validator.clone());
-        VALIDATOR_META.update(deps.storage, &val_addr, |x| -> StdResult<_> {
-            // it could be the case there a validator we redelegated from has a very small delegation
-            let mut val_meta = if let Some(val_meta) = x {
-                val_meta
-            } else {
-                return Ok(VMeta {
-                    staked: delegation.amount.amount,
-                    slashed: Uint128::zero(),
-                    filled: Uint128::zero(),
-                });
-            };
 
-            if val_meta.staked.gt(&delegation.amount.amount) {
-                val_meta.slashed = val_meta.slashed.checked_add(
-                    val_meta
-                        .staked
-                        .checked_sub(delegation.amount.amount)
-                        .unwrap_or(Uint128::zero()),
-                )?;
+    for val_addr in state.validators.iter() {
+        let delegation_amount = if let Some(delegation) = deps
+            .querier
+            .query_delegation(env.contract.address.clone(), val_addr)?
+        {
+            delegation.amount.amount
+        } else {
+            Uint128::zero()
+        };
+
+        total_staked_on_chain = total_staked_on_chain
+            .checked_add(delegation_amount)
+            .unwrap();
+
+        VALIDATOR_META.update(deps.storage, val_addr, |x| -> Result<_, ContractError> {
+            let mut val_meta = x.expect(
+                format!("validator {} has no validator meta found", val_addr.clone()).as_str(),
+            );
+
+            if val_meta.staked.gt(&delegation_amount) {
+                val_meta.slashed = val_meta
+                    .slashed
+                    .checked_add(
+                        val_meta
+                            .staked
+                            .checked_sub(delegation_amount)
+                            .unwrap_or(Uint128::zero()),
+                    )
+                    .unwrap();
             }
-            val_meta.staked = delegation.amount.amount;
+            val_meta.staked = delegation_amount;
 
             Ok(val_meta)
         })?;
