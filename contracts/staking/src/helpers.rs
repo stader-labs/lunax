@@ -10,7 +10,7 @@ use cosmwasm_std::{
     to_binary, Addr, Decimal, DepsMut, Env, MessageInfo, QuerierWrapper, StdResult, Storage,
     Uint128, WasmMsg,
 };
-use cw20::{Cw20ExecuteMsg, Cw20QueryMsg, TokenInfoResponse};
+use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, TokenInfoResponse};
 use cw_storage_plus::U64Key;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -217,6 +217,21 @@ pub fn get_total_token_supply(
     let token_info_res: TokenInfoResponse = querier_wrapper
         .query_wasm_smart(token_contract_addr.to_string(), &Cw20QueryMsg::TokenInfo {})?;
     Ok(token_info_res.total_supply)
+}
+
+pub fn get_user_balance(
+    querier_wrapper: QuerierWrapper,
+    token_contract_addr: Addr,
+    user_addr: Addr,
+) -> StdResult<Uint128> {
+    let balance_res: BalanceResponse = querier_wrapper.query_wasm_smart(
+        token_contract_addr.to_string(),
+        &Cw20QueryMsg::Balance {
+            address: user_addr.to_string(),
+        },
+    )?;
+
+    Ok(balance_res.balance)
 }
 
 pub fn create_mint_message(

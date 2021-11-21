@@ -103,7 +103,7 @@
               "minimum": 0.0
             },
             "user_addr": {
-              "$ref": "#/definitions/Addr"
+              "type": "string"
             }
           }
         }
@@ -124,6 +124,26 @@
           "properties": {
             "val_addr": {
               "$ref": "#/definitions/Addr"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "get_user_info"
+      ],
+      "properties": {
+        "get_user_info": {
+          "type": "object",
+          "required": [
+            "user_addr"
+          ],
+          "properties": {
+            "user_addr": {
+              "type": "string"
             }
           }
         }

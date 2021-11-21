@@ -107,8 +107,3 @@ pub struct AirdropRate {
     pub stage: u8,
     pub proof: Vec<String>,
 }
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct AirdropTransferRequest {
-    pub denom: String,
-}

@@ -1,13 +1,13 @@
 use crate::helpers::{
     burn_minted_tokens, calculate_exchange_rate, create_mint_message,
     create_new_undelegation_batch, decrease_tracked_stake, get_active_validators_sorted_by_stake,
-    get_airdrop_contracts, get_total_token_supply, get_validator_for_deposit,
+    get_airdrop_contracts, get_total_token_supply, get_user_balance, get_validator_for_deposit,
     increase_tracked_stake, validate, Verify,
 };
 use crate::msg::{
     Cw20HookMsg, ExecuteMsg, GetFundsClaimRecord, GetValMetaResponse, InstantiateMsg,
     MerkleAirdropMsg, QueryBatchUndelegationResponse, QueryConfigResponse, QueryMsg,
-    QueryStateResponse,
+    QueryStateResponse, UserInfoResponse, UserQueryInfo,
 };
 use crate::state::{
     AirdropRate, Config, ConfigUpdateRequest, State, UndelegationInfo, VMeta,
@@ -29,7 +29,7 @@ use stader_utils::coin_utils::{
     decimal_division_in_256, decimal_multiplication_in_256, get_decimal_from_uint128,
     multiply_u128_with_decimal, u128_from_decimal, uint128_from_decimal,
 };
-use std::ops::Deref;
+use std::ops::{Deref, Mul};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -216,24 +216,19 @@ pub fn remove_validator_from_pool(
     let mut state = STATE.load(deps.storage)?;
     check_slashing(&mut deps, &env)?;
 
-    // TODO - GM. Should we instead check state.validators and make it source of truth
-    // as Validator_meta is intended just tobe trakcing data.
     if val_addr.eq(&redel_addr) {
         return Err(ContractError::ValidatorsCannotBeSame {});
     }
-    let src_val = VALIDATOR_META.may_load(deps.storage, &val_addr)?;
-    let redel_val = VALIDATOR_META.may_load(deps.storage, &redel_addr)?;
-    if src_val.is_none() || redel_val.is_none() {
+
+    if !state.validators.contains(&val_addr) || !state.validators.contains(&redel_addr) {
         return Err(ContractError::ValidatorNotAdded {});
     }
 
-    let new_validator_pool = state
+    state.validators = state
         .validators
         .into_iter()
         .filter(|x| x.ne(&val_addr))
         .collect::<Vec<Addr>>();
-
-    state.validators = new_validator_pool;
 
     // Update validator tracking amounts
     let val_delegation = deps
@@ -246,12 +241,8 @@ pub fn remove_validator_from_pool(
         if full_delegation.can_redelegate.ne(&full_delegation.amount) {
             return Err(ContractError::RedelegationInProgress {});
         }
-        let mut redel_vmeta = redel_val.unwrap();
-        redel_vmeta.staked = redel_vmeta
-            .staked
-            .checked_add(full_delegation.amount.amount)
-            .unwrap();
-        VALIDATOR_META.save(deps.storage, &redel_addr, &redel_vmeta)?;
+
+        increase_tracked_stake(&mut deps, &redel_addr, full_delegation.amount.amount)?;
 
         if !full_delegation.amount.amount.is_zero() {
             msgs.push(StakingMsg::Redelegate {
@@ -289,12 +280,24 @@ pub fn rebalance_pool(
         return Err(ContractError::ValidatorNotAdded {});
     }
 
-    let src_val_delegation = deps
+    let src_val_delegation_opt = deps
         .querier
-        .query_delegation(env.contract.address.clone(), val_addr.clone())?;
-    if src_val_delegation.is_none() || src_val_delegation.unwrap().amount.amount.lt(&amount) {
+        .query_delegation(env.contract.address, val_addr.clone())?;
+    if let Some(src_val_delegation) = src_val_delegation_opt {
+        if src_val_delegation.amount.amount.lt(&amount) {
+            return Err(ContractError::InSufficientFunds {});
+        }
+
+        if src_val_delegation
+            .can_redelegate
+            .amount
+            .ne(&src_val_delegation.amount.amount)
+        {
+            return Err(ContractError::RedelegationInProgress {});
+        }
+    } else {
         return Err(ContractError::InSufficientFunds {});
-    }
+    };
 
     // Update validator tracking amounts
     decrease_tracked_stake(&mut deps, &val_addr, amount)?;
@@ -321,7 +324,16 @@ pub fn check_slashing(deps: &mut DepsMut, env: &Env) -> Result<Response, Contrac
             .unwrap();
         let val_addr = Addr::unchecked(delegation.validator.clone());
         VALIDATOR_META.update(deps.storage, &val_addr, |x| -> StdResult<_> {
-            let mut val_meta = x.unwrap();
+            // it could be the case there a validator we redelegated from has a very small delegation
+            let mut val_meta = if let Some(val_meta) = x {
+                val_meta
+            } else {
+                return Ok(VMeta {
+                    staked: delegation.amount.amount,
+                    slashed: Uint128::zero(),
+                    filled: Uint128::zero(),
+                });
+            };
 
             if val_meta.staked.gt(&delegation.amount.amount) {
                 val_meta.slashed = val_meta.slashed.checked_add(
@@ -350,6 +362,11 @@ pub fn check_slashing(deps: &mut DepsMut, env: &Env) -> Result<Response, Contrac
 // Any address can call this.
 pub fn deposit(mut deps: DepsMut, info: MessageInfo, env: Env) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
+
+    if !config.active {
+        return Err(ContractError::ProtocolInactive {});
+    }
+
     validate(&config, &info, &env, vec![Verify::NonZeroSingleInfoFund])?;
 
     // Formula wise - we want to recompute user balance because slashing pointer has changed and then
@@ -432,7 +449,6 @@ pub fn redeem_rewards(
 // Useful to make this permissionless.
 pub fn swap_rewards(deps: DepsMut, info: MessageInfo, env: Env) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
-    validate(&config, &info, &env, vec![Verify::SenderManager])?;
 
     Ok(Response::new().add_message(WasmMsg::Execute {
         contract_addr: config.reward_contract.to_string(),
@@ -868,7 +884,24 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             batch_id,
         } => to_binary(&query_user_undelegation_info(deps, user_addr, batch_id)?),
         QueryMsg::GetValMeta { val_addr } => to_binary(&query_val_meta(deps, val_addr)?),
+        QueryMsg::GetUserInfo { user_addr } => to_binary(&query_user_info(deps, user_addr)?),
     }
+}
+
+pub fn query_user_info(deps: Deps, user_addr: String) -> StdResult<UserInfoResponse> {
+    let user_addr = deps.api.addr_validate(user_addr.as_str())?;
+    let config = CONFIG.load(deps.storage)?;
+    let state = STATE.load(deps.storage)?;
+
+    let user_token_balance = get_user_balance(deps.querier, config.cw20_token_contract, user_addr)?;
+    let user_amount = state.exchange_rate.mul(user_token_balance);
+
+    Ok(UserInfoResponse {
+        user_info: UserQueryInfo {
+            total_tokens: user_token_balance,
+            total_amount: Coin::new(user_amount.u128(), "uluna".to_string()),
+        },
+    })
 }
 
 pub fn query_config(deps: Deps) -> StdResult<QueryConfigResponse> {
@@ -913,9 +946,10 @@ pub fn query_user_undelegation_records(
 
 pub fn query_user_undelegation_info(
     deps: Deps,
-    user_addr: Addr,
+    user_addr: String,
     batch_id: u64,
 ) -> StdResult<GetFundsClaimRecord> {
+    let user_addr = deps.api.addr_validate(user_addr.as_str())?;
     let funds_record = compute_withdrawable_funds(deps.storage, batch_id, &user_addr).unwrap();
     Ok(funds_record)
 }

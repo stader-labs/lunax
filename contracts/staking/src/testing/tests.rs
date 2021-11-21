@@ -1014,18 +1014,6 @@ mod tests {
         let _res = instantiate_contract(&mut deps, &info, &env);
 
         /*
-           Test - 1. Unauthorized
-        */
-        let err = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info("not-creator", &[]),
-            ExecuteMsg::Swap {},
-        )
-        .unwrap_err();
-        assert!(matches!(err, ContractError::Unauthorized {}));
-
-        /*
            Test - 2. Success
         */
         let res = execute(
@@ -1368,6 +1356,81 @@ mod tests {
         )
         .unwrap_err();
         assert!(matches!(err, ContractError::InSufficientFunds {}));
+
+        /*
+            Test - 5. Redelegation in progress
+        */
+        fn get_validators_test() -> Vec<Validator> {
+            vec![
+                Validator {
+                    address: "valid0001".to_string(),
+                    commission: Decimal::zero(),
+                    max_commission: Decimal::zero(),
+                    max_change_rate: Decimal::zero(),
+                },
+                Validator {
+                    address: "valid0002".to_string(),
+                    commission: Decimal::zero(),
+                    max_commission: Decimal::zero(),
+                    max_change_rate: Decimal::zero(),
+                },
+                Validator {
+                    address: "valid0003".to_string(),
+                    commission: Decimal::zero(),
+                    max_commission: Decimal::zero(),
+                    max_change_rate: Decimal::zero(),
+                },
+            ]
+        }
+
+        fn get_delegations_test() -> Vec<FullDelegation> {
+            vec![
+                FullDelegation {
+                    delegator: Addr::unchecked(MOCK_CONTRACT_ADDR),
+                    validator: "valid0001".to_string(),
+                    amount: Coin::new(1000, "uluna"),
+                    can_redelegate: Coin::new(0, "uluna"),
+                    accumulated_rewards: vec![Coin::new(20, "uluna"), Coin::new(30, "urew1")],
+                },
+                FullDelegation {
+                    delegator: Addr::unchecked(MOCK_CONTRACT_ADDR),
+                    validator: "valid0002".to_string(),
+                    amount: Coin::new(1000, "uluna"),
+                    can_redelegate: Coin::new(0, "uluna"),
+                    accumulated_rewards: vec![Coin::new(40, "uluna"), Coin::new(60, "urew1")],
+                },
+                FullDelegation {
+                    delegator: Addr::unchecked(MOCK_CONTRACT_ADDR),
+                    validator: "valid0003".to_string(),
+                    amount: Coin::new(1000, "uluna"),
+                    can_redelegate: Coin::new(0, "uluna"),
+                    accumulated_rewards: vec![],
+                },
+            ]
+        }
+        deps.querier
+            .update_staking("uluna", &*get_validators_test(), &*get_delegations_test());
+        STATE
+            .update(
+                deps.as_mut().storage,
+                |mut state| -> Result<_, ContractError> {
+                    state.validators = vec![valid1.clone(), valid2.clone()];
+                    Ok(state)
+                },
+            )
+            .unwrap();
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::RebalancePool {
+                amount: Uint128::new(600_u128),
+                val_addr: valid1.clone(),
+                redel_addr: valid2.clone(),
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::RedelegationInProgress {}));
     }
 
     #[test]
@@ -1698,6 +1761,27 @@ mod tests {
         let valid2 = Addr::unchecked("valid0002");
         let valid3 = Addr::unchecked("valid0003");
 
+        /*
+           Protocol inactive
+        */
+        CONFIG
+            .update(
+                deps.as_mut().storage,
+                |mut config| -> Result<_, ContractError> {
+                    config.active = false;
+                    Ok(config)
+                },
+            )
+            .unwrap();
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("other", &[Coin::new(120_u128, "uluna".to_string())]),
+            ExecuteMsg::Deposit {},
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::ProtocolInactive {}));
+
         STATE
             .update(
                 deps.as_mut().storage,
@@ -1752,6 +1836,7 @@ mod tests {
             .update(
                 deps.as_mut().storage,
                 |mut config| -> Result<_, ContractError> {
+                    config.active = true;
                     config.max_deposit = Uint128::new(100_u128);
                     Ok(config)
                 },
