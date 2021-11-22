@@ -537,6 +537,7 @@ pub fn receive_cw20(
             if contract_addr != config.cw20_token_contract {
                 return Err(ContractError::Unauthorized {});
             }
+            // bchain: Note: Undelegating 0 tokens is not possible because the cw20_send call will fail
             Ok(queue_undelegation(
                 deps,
                 env,
@@ -961,7 +962,7 @@ pub fn query_user_undelegation_info(
     batch_id: u64,
 ) -> StdResult<GetFundsClaimRecord> {
     let user_addr = deps.api.addr_validate(user_addr.as_str())?;
-    let funds_record = compute_withdrawable_funds(deps.storage, batch_id, &user_addr).unwrap();
+    let funds_record = compute_withdrawable_funds(deps.storage, batch_id, &user_addr)?;
     Ok(funds_record)
 }
 
