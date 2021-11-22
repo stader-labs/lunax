@@ -19,7 +19,7 @@ use airdrops_registry::msg::GetAirdropContractsResponse;
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     from_binary, to_binary, Addr, BankMsg, Binary, Coin, Decimal, Deps, DepsMut, DistributionMsg,
-    Env, MessageInfo, Order, Response, StakingMsg, StdResult, Storage, Uint128, WasmMsg,
+    Env, MessageInfo, Order, Response, StakingMsg, StdError, StdResult, Storage, Uint128, WasmMsg,
 };
 use cw20::Cw20ReceiveMsg;
 use cw20_base::msg::ExecuteMsg as Cw20ExecuteMsg;
@@ -962,7 +962,8 @@ pub fn query_user_undelegation_info(
     batch_id: u64,
 ) -> StdResult<GetFundsClaimRecord> {
     let user_addr = deps.api.addr_validate(user_addr.as_str())?;
-    let funds_record = compute_withdrawable_funds(deps.storage, batch_id, &user_addr)?;
+    let funds_record = compute_withdrawable_funds(deps.storage, batch_id, &user_addr)
+        .expect("compute_withdrawable_funds failed");
     Ok(funds_record)
 }
 
