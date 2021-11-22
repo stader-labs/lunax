@@ -66,6 +66,7 @@ pub fn instantiate(
     CONFIG.save(deps.storage, &config)?;
 
     let initial_er = Decimal::one();
+
     let state = State {
         total_staked: Uint128::zero(),
         exchange_rate: initial_er,
@@ -471,6 +472,8 @@ pub fn reinvest(
     env: Env,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
+
+    check_slashing(&mut deps, &env)?;
 
     let mut state = STATE.load(deps.storage)?;
     let balance = deps.querier.query_balance(
