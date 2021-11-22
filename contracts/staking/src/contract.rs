@@ -649,12 +649,12 @@ pub fn undelegate_stake(
     )?;
 
     for index in (0..stake_tuples.len()).rev() {
-        let tuple_val = stake_tuples.get(index).unwrap();
+        let tuple_val = stake_tuples.get(index).unwrap().clone();
         if to_undelegate.is_zero() {
             break;
         }
-        let val_addr = Addr::unchecked(tuple_val.clone().1);
-        let amount = std::cmp::min(to_undelegate, tuple_val.clone().0);
+        let val_addr = Addr::unchecked(tuple_val.1);
+        let amount = std::cmp::min(to_undelegate, tuple_val.0);
         undelegate_message.push(StakingMsg::Undelegate {
             validator: val_addr.to_string(),
             amount: Coin::new(amount.u128(), config.vault_denom.clone()),
@@ -802,7 +802,8 @@ pub fn compute_withdrawable_funds(
     if user_undelegated_tokens_opt.is_none() {
         return Err(ContractError::UndelegationEntryNotFound {});
     }
-    // TODO: bchain/gm don't error out if user tokens is 0. We should catch this in queue_undelegation. This undelegation record would stay on the blockchain forever and it would never be removed from the UI
+    // TODO: bchain/gm don't error out if user tokens is 0. We should catch this in queue_undelegation.
+    // This undelegation record would stay on the blockchain forever and it would never be removed from the UI
     let user_undelegation = user_undelegated_tokens_opt.unwrap();
     let user_undelegated_amount = multiply_u128_with_decimal(
         user_undelegation.token_amount.u128(),
@@ -832,7 +833,6 @@ pub fn claim_airdrops(
     let config = CONFIG.load(deps.storage)?;
 
     let mut msgs = vec![];
-    let mut failed_airdrops = vec![];
     let airdrop_withdrawal_contract = config.airdrop_withdrawal_contract;
     let airdrops_registry_contract = config.airdrop_registry_contract;
     for rate in airdrop_rates {
@@ -842,11 +842,12 @@ pub fn claim_airdrops(
             rate.denom.clone(),
         )?;
 
-        if contract_response.contracts.is_none() {
-            failed_airdrops.push((rate.denom, rate.stage));
-            continue;
-        }
-        let contracts = contract_response.contracts.unwrap();
+        let contracts = if let Some(contracts) = contract_response.contracts {
+            contracts
+        } else {
+            return Err(ContractError::AirdropNotRegistered(rate.denom));
+        };
+
         let claim_msg = to_binary(&MerkleAirdropMsg::Claim {
             stage: rate.stage,
             amount: rate.amount,

@@ -2211,6 +2211,59 @@ mod tests {
     }
 
     #[test]
+    fn test_claim_airdrops_fail() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &[]);
+        let env = mock_env();
+
+        let _res = instantiate_contract(&mut deps, &info, &env);
+
+        /*
+           Test - 1. Airdrop not registered
+        */
+        CONFIG
+            .update(
+                deps.as_mut().storage,
+                |mut config| -> Result<_, ContractError> {
+                    config.airdrop_withdrawal_contract =
+                        Addr::unchecked("airdrop_withdrawal_contract");
+                    config.airdrop_registry_contract = Addr::unchecked("airdrop_registry_contract");
+                    Ok(config)
+                },
+            )
+            .unwrap();
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::ClaimAirdrops {
+                rates: vec![
+                    AirdropRate {
+                        denom: "unreg_token".to_string(), // special name to test for an unregistered token
+                        amount: Uint128::new(1000_u128),
+                        stage: 0,
+                        proof: vec![
+                            "unreg_token_proof1".to_string(),
+                            "unreg_token_proof2".to_string(),
+                        ],
+                    },
+                    AirdropRate {
+                        denom: "anc".to_string(),
+                        amount: Uint128::new(1000_u128),
+                        stage: 0,
+                        proof: vec!["anc_proof1".to_string(), "anc_proof2".to_string()],
+                    },
+                ],
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(
+            err,
+            ContractError::AirdropNotRegistered(String { .. })
+        ));
+    }
+
+    #[test]
     fn test_claim_airdrops_success() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
