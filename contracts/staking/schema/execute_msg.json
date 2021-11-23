@@ -5,6 +5,30 @@
     {
       "type": "object",
       "required": [
+        "induce_slashing"
+      ],
+      "properties": {
+        "induce_slashing": {
+          "type": "object",
+          "required": [
+            "amount",
+            "val_addr"
+          ],
+          "properties": {
+            "amount": {
+              "$ref": "#/definitions/Uint128"
+            },
+            "val_addr": {
+              "$ref": "#/definitions/Addr"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
         "add_validator"
       ],
       "properties": {
