@@ -116,6 +116,13 @@ pub struct GetValMetaResponse {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct UserUndelegationQueryInfo {
+    pub undelegated_tokens: Uint128,
+    pub undelegated_amount: Uint128,
+    pub batch_id: u64,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct GetFundsClaimRecord {
     pub user_withdrawal_amount: Uint128,
     pub protocol_fee: Uint128,

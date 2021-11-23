@@ -7,7 +7,7 @@ use crate::helpers::{
 use crate::msg::{
     Cw20HookMsg, ExecuteMsg, GetFundsClaimRecord, GetValMetaResponse, InstantiateMsg,
     MerkleAirdropMsg, QueryBatchUndelegationResponse, QueryConfigResponse, QueryMsg,
-    QueryStateResponse,
+    QueryStateResponse, UserUndelegationQueryInfo,
 };
 use crate::state::{
     AirdropRate, Config, ConfigUpdateRequest, State, UndelegationInfo, VMeta,
@@ -19,7 +19,7 @@ use airdrops_registry::msg::GetAirdropContractsResponse;
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     from_binary, to_binary, Addr, BankMsg, Binary, Coin, Decimal, Deps, DepsMut, DistributionMsg,
-    Env, MessageInfo, Order, Response, StakingMsg, StdResult, Storage, Uint128, WasmMsg,
+    Env, MessageInfo, Order, Response, StakingMsg, StdError, StdResult, Storage, Uint128, WasmMsg,
 };
 use cw20::Cw20ReceiveMsg;
 use cw20_base::msg::ExecuteMsg as Cw20ExecuteMsg;
@@ -895,18 +895,31 @@ pub fn query_user_undelegation_records(
     user_addr_str: String,
     start_after: Option<u64>,
     limit: Option<u64>,
-) -> StdResult<Vec<UndelegationInfo>> {
+) -> StdResult<Vec<UserUndelegationQueryInfo>> {
+    let state = STATE.load(deps.storage)?;
     let user_addr = deps.api.addr_validate(user_addr_str.as_str())?;
     let limit = limit.unwrap_or(10).min(20) as usize;
     // TODO - GM. Will converting u64 to string for batch id start work?
     let start = start_after.map(|batch_id| Bound::exclusive(batch_id.to_string()));
 
-    let user_undelegations = USERS
+    let user_undelegations: Vec<UserUndelegationQueryInfo> = USERS
         .prefix(&user_addr)
         .range(deps.storage, start, None, Order::Ascending)
         .take(limit)
-        .map(|item| item.unwrap().1)
-        .collect::<Vec<UndelegationInfo>>();
+        .map(|item| {
+            let undelegation_info = item.unwrap().1;
+            let total_amount = decimal_multiplication_in_256(
+                state.exchange_rate,
+                get_decimal_from_uint128(undelegation_info.token_amount),
+            );
+
+            UserUndelegationQueryInfo {
+                undelegated_tokens: undelegation_info.token_amount,
+                undelegated_amount: uint128_from_decimal(total_amount),
+                batch_id: undelegation_info.batch_id,
+            }
+        })
+        .collect::<Vec<UserUndelegationQueryInfo>>();
 
     return Ok(user_undelegations);
 }
