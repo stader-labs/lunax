@@ -523,6 +523,7 @@ mod tests {
                     protocol_withdraw_fee: None,
                     protocol_deposit_fee: None,
                     airdrop_withdrawal_contract: None,
+                    airdrop_registry_contract: None,
                     unbonding_period: None,
                     undelegation_cooldown: None,
                 },
@@ -549,6 +550,7 @@ mod tests {
                     protocol_withdraw_fee: Some(Decimal::from_ratio(2_u128, 100_u128)),
                     protocol_deposit_fee: Some(Decimal::from_ratio(2_u128, 100_u128)),
                     airdrop_withdrawal_contract: Some("airdrop_withdrawal_contract".to_string()),
+                    airdrop_registry_contract: None,
                     unbonding_period: Some(100u64),
                     undelegation_cooldown: Some(10000u64),
                 },
@@ -575,6 +577,7 @@ mod tests {
                     protocol_withdraw_fee: Some(Decimal::from_ratio(2_u128, 1_u128)),
                     protocol_deposit_fee: Some(Decimal::from_ratio(2_u128, 100_u128)),
                     airdrop_withdrawal_contract: Some("airdrop_withdrawal_contract".to_string()),
+                    airdrop_registry_contract: Some("airdrop_registry_contract".to_string()),
                     unbonding_period: Some(100u64),
                     undelegation_cooldown: Some(10000u64),
                 },
@@ -601,6 +604,7 @@ mod tests {
                     protocol_withdraw_fee: Some(Decimal::from_ratio(2_u128, 100_u128)),
                     protocol_deposit_fee: Some(Decimal::from_ratio(2_u128, 1_u128)),
                     airdrop_withdrawal_contract: Some("airdrop_withdrawal_contract".to_string()),
+                    airdrop_registry_contract: None,
                     unbonding_period: Some(100u64),
                     undelegation_cooldown: Some(10000u64),
                 },
@@ -627,6 +631,7 @@ mod tests {
                     protocol_withdraw_fee: Some(Decimal::from_ratio(2_u128, 100_u128)),
                     protocol_deposit_fee: Some(Decimal::from_ratio(2_u128, 100_u128)),
                     airdrop_withdrawal_contract: Some("airdrop_withdrawal_contract".to_string()),
+                    airdrop_registry_contract: Some("airdrop_registry_contract".to_string()),
                     unbonding_period: Some(100u64),
                     undelegation_cooldown: Some(10000u64),
                 },
@@ -645,6 +650,10 @@ mod tests {
         assert_eq!(
             config.airdrop_withdrawal_contract,
             Addr::unchecked("airdrop_withdrawal_contract")
+        );
+        assert_eq!(
+            config.airdrop_registry_contract,
+            Addr::unchecked("airdrop_registry_contract")
         );
         assert_eq!(
             config.protocol_reward_fee,
@@ -1040,14 +1049,12 @@ mod tests {
             Test - 2. Validator already added
         */
         let val_addr = Addr::unchecked("val_addr");
-        VALIDATOR_META
-            .save(
+        STATE
+            .update(
                 deps.as_mut().storage,
-                &val_addr,
-                &VMeta {
-                    staked: Uint128::new(100_u128),
-                    slashed: Uint128::zero(),
-                    filled: Uint128::new(100_u128),
+                |mut state| -> Result<_, ContractError> {
+                    state.validators = vec![val_addr.clone()];
+                    Ok(state)
                 },
             )
             .unwrap();

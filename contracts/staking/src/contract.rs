@@ -161,6 +161,10 @@ pub fn update_config(
         config.airdrop_withdrawal_contract = deps.api.addr_validate(awc.as_str())?;
     }
 
+    if let Some(arc) = update_config.airdrop_registry_contract {
+        config.airdrop_registry_contract = deps.api.addr_validate(arc.as_str())?;
+    }
+
     config.min_deposit = update_config.min_deposit.unwrap_or(config.min_deposit);
     config.max_deposit = update_config.max_deposit.unwrap_or(config.max_deposit);
     config.active = update_config.active.unwrap_or(config.active);
@@ -205,9 +209,15 @@ pub fn add_validator(
     val_addr: Addr,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
-    validate(&config, &info, &env, vec![Verify::SenderManager])?;
+    let state = STATE.load(deps.storage)?;
+    validate(
+        &config,
+        &info,
+        &env,
+        vec![Verify::SenderManager, Verify::NoFunds],
+    )?;
 
-    if VALIDATOR_META.has(deps.storage, &val_addr) {
+    if state.validators.contains(&val_addr) {
         return Err(ContractError::ValidatorAlreadyAdded {});
     }
 
@@ -234,7 +244,12 @@ pub fn remove_validator_from_pool(
     redel_addr: Addr,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
-    validate(&config, &info, &env, vec![Verify::SenderManager])?;
+    validate(
+        &config,
+        &info,
+        &env,
+        vec![Verify::SenderManager, Verify::NoFunds],
+    )?;
 
     let mut state = STATE.load(deps.storage)?;
     check_slashing(&mut deps, &env)?;
@@ -290,7 +305,12 @@ pub fn rebalance_pool(
     redel_addr: Addr,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
-    validate(&config, &info, &env, vec![Verify::SenderManager])?;
+    validate(
+        &config,
+        &info,
+        &env,
+        vec![Verify::SenderManager, Verify::NoFunds],
+    )?;
 
     if amount.is_zero() {
         return Err(ContractError::ZeroAmount {});
