@@ -12,9 +12,9 @@ pub struct MigrateMsg {}
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
     UpdateAirdropRegistry {
-        airdrop_token_str: String,
-        airdrop_contract_str: String,
-        cw20_contract_str: String,
+        airdrop_token: String,
+        airdrop_contract: String,
+        cw20_contract: String,
     },
 }
 

@@ -62,9 +62,9 @@ mod tests {
             env.clone(),
             mock_info("not-creator", &[]),
             ExecuteMsg::UpdateAirdropRegistry {
-                airdrop_token_str: "".to_string(),
-                airdrop_contract_str: "".to_string(),
-                cw20_contract_str: "".to_string(),
+                airdrop_token: "".to_string(),
+                airdrop_contract: "".to_string(),
+                cw20_contract: "".to_string(),
             },
         )
         .unwrap_err();
@@ -78,9 +78,9 @@ mod tests {
             env.clone(),
             mock_info("creator", &[]),
             ExecuteMsg::UpdateAirdropRegistry {
-                airdrop_token_str: "".to_string(),
-                airdrop_contract_str: "".to_string(),
-                cw20_contract_str: "".to_string(),
+                airdrop_token: "".to_string(),
+                airdrop_contract: "".to_string(),
+                cw20_contract: "".to_string(),
             },
         )
         .unwrap_err();
@@ -94,9 +94,9 @@ mod tests {
             env.clone(),
             mock_info("creator", &[]),
             ExecuteMsg::UpdateAirdropRegistry {
-                airdrop_token_str: "anc".to_string(),
-                airdrop_contract_str: "anc_airdrop_contract".to_string(),
-                cw20_contract_str: "anc_cw20_contract".to_string(),
+                airdrop_token: "anc".to_string(),
+                airdrop_contract: "anc_airdrop_contract".to_string(),
+                cw20_contract: "anc_cw20_contract".to_string(),
             },
         )
         .unwrap();

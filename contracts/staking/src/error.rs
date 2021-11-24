@@ -33,8 +33,8 @@ pub enum ContractError {
     #[error("Staking-Contract: No sufficient funds for transfer")]
     InSufficientFunds {},
 
-    #[error("Staking-Contract: Airdrop is not registered")]
-    AirdropNotRegistered {},
+    #[error("Staking-Contract: Airdrop is not registered `{0}`")]
+    AirdropNotRegistered(String),
 
     #[error("Staking-Contract: Amount cannot be zero")]
     ZeroAmount {},

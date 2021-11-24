@@ -1,8 +1,10 @@
 use std::env::current_dir;
 use std::fs::create_dir_all;
 
+use airdrops_registry::msg::{
+    ExecuteMsg, GetAirdropContractsResponse, GetConfigResponse, InstantiateMsg, QueryMsg,
+};
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
-use airdrops_registry::msg::{GetAirdropContractsResponse, GetConfigResponse, QueryMsg, ExecuteMsg, InstantiateMsg};
 
 use airdrops_registry::state::*;
 
@@ -18,6 +20,4 @@ fn main() {
     export_schema(&schema_for!(Config), &out_dir);
     export_schema(&schema_for!(GetConfigResponse), &out_dir);
     export_schema(&schema_for!(GetAirdropContractsResponse), &out_dir);
-
-
 }

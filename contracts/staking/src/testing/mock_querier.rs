@@ -149,22 +149,27 @@ impl WasmMockQuerier {
                 panic!("WASMQUERY::RAW not implemented!")
             }
             QueryRequest::Wasm(WasmQuery::Smart { contract_addr, msg }) => {
-                if (contract_addr.eq("airdrop_registry_contract")) {
+                if contract_addr.eq("airdrop_registry_contract") {
                     match from_binary(msg).unwrap() {
                         AirdropsQueryMsg::GetAirdropContracts { token } => {
-                            let res = GetAirdropContractsResponse {
-                                contracts: Some(AirdropRegistryInfo {
-                                    token: token.clone(),
-                                    airdrop_contract: Addr::unchecked(format!(
-                                        "{}_airdrop_contract",
-                                        token.clone()
-                                    )),
-                                    cw20_contract: Addr::unchecked(format!(
-                                        "{}_cw20_contract",
-                                        token.clone()
-                                    )),
-                                }),
-                            };
+                            let mut res: GetAirdropContractsResponse;
+                            if token.eq(&String::from("unreg_token")) {
+                                res = GetAirdropContractsResponse { contracts: None };
+                            } else {
+                                res = GetAirdropContractsResponse {
+                                    contracts: Some(AirdropRegistryInfo {
+                                        token: token.clone(),
+                                        airdrop_contract: Addr::unchecked(format!(
+                                            "{}_airdrop_contract",
+                                            token.clone()
+                                        )),
+                                        cw20_contract: Addr::unchecked(format!(
+                                            "{}_cw20_contract",
+                                            token.clone()
+                                        )),
+                                    }),
+                                };
+                            }
                             SystemResult::Ok(ContractResult::from(to_binary(&res)))
                         }
                         _ => {
