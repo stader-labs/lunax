@@ -68,7 +68,9 @@ pub fn instantiate(
         protocol_withdraw_fee: msg.protocol_withdraw_fee,
 
         undelegation_cooldown: msg.undelegation_cooldown,
+        swap_cooldown: msg.swap_cooldown,
         unbonding_period: msg.unbonding_period,
+        reinvest_cooldown: msg.reinvest_cooldown,
     };
 
     CONFIG.save(deps.storage, &config)?;
@@ -81,6 +83,8 @@ pub fn instantiate(
         last_reconciled_batch_id: 0,
         current_undelegation_batch_id: 0,
         last_undelegation_time: env.block.time.minus_seconds(msg.undelegation_cooldown), // Gives flexibility for first undelegaion run.
+        last_swap_time: env.block.time.minus_seconds(msg.swap_cooldown),
+        last_reinvest_time: env.block.time.minus_seconds(msg.reinvest_cooldown),
         validators: vec![],
         reconciled_funds_to_withdraw: Uint128::zero(),
     };
@@ -358,7 +362,6 @@ pub fn rebalance_pool(
     }))
 }
 
-// Modifies pool object. So re-fetch after this call is done.
 pub fn check_slashing(deps: &mut DepsMut, env: &Env) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
     let mut state = STATE.load(deps.storage)?;
@@ -379,9 +382,7 @@ pub fn check_slashing(deps: &mut DepsMut, env: &Env) -> Result<Response, Contrac
             .unwrap();
 
         VALIDATOR_META.update(deps.storage, val_addr, |x| -> Result<_, ContractError> {
-            let mut val_meta = x.expect(
-                format!("validator {} has no validator meta found", val_addr.clone()).as_str(),
-            );
+            let mut val_meta = x.unwrap_or(VMeta::new());
 
             if val_meta.staked.gt(&delegation_amount) {
                 val_meta.slashed = val_meta
@@ -402,7 +403,6 @@ pub fn check_slashing(deps: &mut DepsMut, env: &Env) -> Result<Response, Contrac
 
     let total_tokens = get_total_token_supply(deps.querier, config.cw20_token_contract)?;
 
-    // Slashing has occured. Update pointers.
     state.total_staked = total_staked_on_chain;
     state.exchange_rate = calculate_exchange_rate(state.total_staked, total_tokens);
     STATE.save(deps.storage, &state)?;
@@ -498,7 +498,7 @@ pub fn compute_deposit_breakdown(
     }
     let mint_tokens = uint128_from_decimal(decimal_division_in_256(
         get_decimal_from_uint128(amount_to_stake),
-        state.exchange_rate,
+        state.exchange_rate, // exchange rate will never be 0
     ));
     Ok(GetFundsDepositRecord {
         user_deposit_amount: user_amount,
@@ -545,12 +545,18 @@ pub fn redeem_rewards(
 
 // TODO - GM. Does swap have a fixed cost or a linear cost?
 // Useful to make this permissionless.
-pub fn swap_rewards(
-    deps: DepsMut,
-    _info: MessageInfo,
-    _env: Env,
-) -> Result<Response, ContractError> {
+pub fn swap_rewards(deps: DepsMut, info: MessageInfo, env: Env) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
+    let state = STATE.load(deps.storage)?;
+
+    if info.sender.ne(&config.manager)
+        && env
+            .block
+            .time
+            .lt(&state.last_swap_time.plus_seconds(config.swap_cooldown))
+    {
+        return Err(ContractError::SwapInCooldown {});
+    }
 
     Ok(Response::new().add_message(WasmMsg::Execute {
         contract_addr: config.reward_contract.to_string(),
@@ -560,16 +566,20 @@ pub fn swap_rewards(
 }
 
 // Don't need it to be permissioned. 0 transfers are treated as a NO-OP in rewards contract.
-pub fn reinvest(
-    mut deps: DepsMut,
-    _info: MessageInfo,
-    env: Env,
-) -> Result<Response, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
-
+pub fn reinvest(mut deps: DepsMut, info: MessageInfo, env: Env) -> Result<Response, ContractError> {
     check_slashing(&mut deps, &env)?;
 
+    let config = CONFIG.load(deps.storage)?;
     let mut state = STATE.load(deps.storage)?;
+
+    if info.sender.ne(&config.manager)
+        && env.block.time.lt(&state
+            .last_reinvest_time
+            .plus_seconds(config.reinvest_cooldown))
+    {
+        return Err(ContractError::ReinvestInCooldown {});
+    }
+
     let balance = deps.querier.query_balance(
         config.reward_contract.to_string(),
         config.vault_denom.clone(),
@@ -726,10 +736,9 @@ pub fn undelegate_stake(
     info: MessageInfo,
     env: Env,
 ) -> Result<Response, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
-
     check_slashing(&mut deps, &env)?;
 
+    let config = CONFIG.load(deps.storage)?;
     let mut state = STATE.load(deps.storage)?;
 
     if info.sender.ne(&config.manager)
@@ -742,7 +751,7 @@ pub fn undelegate_stake(
 
     let mut burn_message: Vec<WasmMsg> = vec![];
     let mut undelegate_message: Vec<StakingMsg> = vec![];
-    // This is because a new batch wuold be created before this message is called, so -1.
+    // This is because a new batch would be created before this message is called.
     let undelegate_batch_id = state.current_undelegation_batch_id;
     let batch_key = U64Key::new(undelegate_batch_id);
     let mut undel_amount = Uint128::zero(); // Amount to actually undelegate from blockchain

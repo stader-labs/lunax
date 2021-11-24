@@ -24,6 +24,8 @@ pub struct Config {
 
     pub unbonding_period: u64,
     pub undelegation_cooldown: u64,
+    pub swap_cooldown: u64, // cooldown to avoid external users from spamming the swap message
+    pub reinvest_cooldown: u64, // cooldown to avoid external users from spamming the reinvest message
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -33,6 +35,8 @@ pub struct State {
     pub last_reconciled_batch_id: u64,
     pub current_undelegation_batch_id: u64,
     pub last_undelegation_time: Timestamp,
+    pub last_swap_time: Timestamp,
+    pub last_reinvest_time: Timestamp,
     pub validators: Vec<Addr>,
     pub reconciled_funds_to_withdraw: Uint128,
 }

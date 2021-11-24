@@ -108,6 +108,12 @@ pub enum ContractError {
     #[error("Staking-Contract: Undelegation cannot be performed because of cooldown constraint")]
     UndelegationInCooldown {},
 
+    #[error("Staking-Contract: Swap is in cooldown")]
+    SwapInCooldown {},
+
+    #[error("Staking-Contract: Reinvest is in cooldown")]
+    ReinvestInCooldown {},
+
     #[error("Staking-Contract: Protocol is currently inactive. Deposits are not allowed")]
     ProtocolInactive {}, // Add any other custom errors you like here.
                          // Look at https://docs.rs/thiserror/1.0.21/thiserror/ for details.

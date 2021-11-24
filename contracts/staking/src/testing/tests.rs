@@ -89,6 +89,7 @@ mod tests {
         let msg = InstantiateMsg {
             unbonding_period: 3600 * 24 * 21,
             undelegation_cooldown: 10,
+            swap_cooldown: 10,
             min_deposit: Uint128::new(1000),
             max_deposit: Uint128::new(1_000_000_000_000),
             reward_contract: "reward_contract".to_string(),
@@ -98,6 +99,7 @@ mod tests {
             protocol_reward_fee: Decimal::from_ratio(1_u128, 100_u128), // 1%
             protocol_deposit_fee: Decimal::from_ratio(1_u128, 100_u128), // 1%
             protocol_withdraw_fee: Decimal::from_ratio(1_u128, 100_u128), // 1%
+            reinvest_cooldown: 10,
         };
 
         instantiate(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
@@ -112,6 +114,7 @@ mod tests {
         let msg = InstantiateMsg {
             unbonding_period: 3600 * 24 * 21,
             undelegation_cooldown: 10,
+            swap_cooldown: 10,
             min_deposit: Uint128::new(1000),
             max_deposit: Uint128::new(1_000_000_000_000),
             reward_contract: "reward_contract".to_string(),
@@ -121,6 +124,7 @@ mod tests {
             protocol_reward_fee: Decimal::from_ratio(2_u128, 1_u128), // 1%
             protocol_deposit_fee: Decimal::from_ratio(2_u128, 1_u128), // 1%
             protocol_withdraw_fee: Decimal::from_ratio(2_u128, 100_u128), // 1%
+            reinvest_cooldown: 10,
         };
         let info = mock_info("creator", &[]);
 
@@ -137,6 +141,7 @@ mod tests {
         let msg = InstantiateMsg {
             unbonding_period: 3600 * 24 * 21,
             undelegation_cooldown: 10,
+            swap_cooldown: 10,
             min_deposit: Uint128::new(1000),
             max_deposit: Uint128::new(1_000_000_000_000),
             reward_contract: "reward_contract".to_string(),
@@ -146,12 +151,14 @@ mod tests {
             protocol_reward_fee: Decimal::from_ratio(1_u128, 100_u128), // 1%
             protocol_deposit_fee: Decimal::from_ratio(1_u128, 100_u128), // 1%
             protocol_withdraw_fee: Decimal::from_ratio(1_u128, 100_u128), // 1%
+            reinvest_cooldown: 10,
         };
         let expected_config = Config {
             manager: Addr::unchecked("creator"),
             vault_denom: "uluna".to_string(),
             unbonding_period: 3600 * 24 * 21,
             undelegation_cooldown: 10,
+            swap_cooldown: 10,
             min_deposit: Uint128::new(1000),
             max_deposit: Uint128::new(1_000_000_000_000),
             active: true,
@@ -163,6 +170,7 @@ mod tests {
             protocol_reward_fee: Decimal::from_ratio(1_u128, 100_u128), // 1%
             protocol_deposit_fee: Decimal::from_ratio(1_u128, 100_u128), // 1%
             protocol_withdraw_fee: Decimal::from_ratio(1_u128, 100_u128), // 1%
+            reinvest_cooldown: 10,
         };
         let info = mock_info("creator", &[]);
 
@@ -191,7 +199,12 @@ mod tests {
                 last_undelegation_time: env
                     .block
                     .time
-                    .minus_seconds(config.config.undelegation_cooldown), // Gives flexibility for first undelegaion run.
+                    .minus_seconds(config.config.undelegation_cooldown),
+                last_swap_time: env.block.time.minus_seconds(config.config.swap_cooldown),
+                last_reinvest_time: env
+                    .block
+                    .time
+                    .minus_seconds(config.config.reinvest_cooldown),
                 validators: vec![],
                 reconciled_funds_to_withdraw: Uint128::zero()
             }
@@ -1132,6 +1145,27 @@ mod tests {
         let env = mock_env();
 
         let _res = instantiate_contract(&mut deps, &info, &env);
+
+        /*
+            Test - 2. In cooldown period
+        */
+        STATE
+            .update(
+                deps.as_mut().storage,
+                |mut state| -> Result<_, ContractError> {
+                    state.last_swap_time = env.block.time.minus_seconds(3);
+                    Ok(state)
+                },
+            )
+            .unwrap();
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("not-creator", &[]),
+            ExecuteMsg::Swap {},
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::SwapInCooldown {}));
 
         /*
            Test - 2. Success
@@ -2244,6 +2278,24 @@ mod tests {
         let env = mock_env();
 
         let _res = instantiate_contract(&mut deps, &info, &env);
+
+        STATE
+            .update(
+                deps.as_mut().storage,
+                |mut state| -> Result<_, ContractError> {
+                    state.last_reinvest_time = env.block.time.minus_seconds(3);
+                    Ok(state)
+                },
+            )
+            .unwrap();
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("not-creator", &[]),
+            ExecuteMsg::Reinvest {},
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::ReinvestInCooldown {}));
 
         /*
            Test - 1. Successful run
