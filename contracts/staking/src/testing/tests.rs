@@ -507,6 +507,84 @@ mod tests {
         assert!(matches!(err, ContractError::Unauthorized {}));
 
         /*
+            Test - 2.
+        */
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::UpdateConfig {
+                config_request: ConfigUpdateRequest {
+                    active: Some(true),
+                    min_deposit: Some(Uint128::from(1_u128)),
+                    max_deposit: Some(Uint128::from(10000000_u128)),
+                    cw20_token_contract: Some("cw20_token_contract".parse().unwrap()),
+                    protocol_fee_contract: Some("new_pfc".parse().unwrap()),
+                    protocol_reward_fee: Some(Decimal::from_ratio(2_u128, 1_u128)),
+                    protocol_withdraw_fee: Some(Decimal::from_ratio(2_u128, 100_u128)),
+                    protocol_deposit_fee: Some(Decimal::from_ratio(2_u128, 100_u128)),
+                    airdrop_withdrawal_contract: Some("airdrop_withdrawal_contract".to_string()),
+                    unbonding_period: Some(100u64),
+                    undelegation_cooldown: Some(10000u64),
+                },
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::ProtocolFeeAboveLimit {}));
+
+        /*
+            Test - 2.
+        */
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::UpdateConfig {
+                config_request: ConfigUpdateRequest {
+                    active: Some(true),
+                    min_deposit: Some(Uint128::from(1_u128)),
+                    max_deposit: Some(Uint128::from(10000000_u128)),
+                    cw20_token_contract: Some("cw20_token_contract".parse().unwrap()),
+                    protocol_fee_contract: Some("new_pfc".parse().unwrap()),
+                    protocol_reward_fee: Some(Decimal::from_ratio(2_u128, 100_u128)),
+                    protocol_withdraw_fee: Some(Decimal::from_ratio(2_u128, 1_u128)),
+                    protocol_deposit_fee: Some(Decimal::from_ratio(2_u128, 100_u128)),
+                    airdrop_withdrawal_contract: Some("airdrop_withdrawal_contract".to_string()),
+                    unbonding_period: Some(100u64),
+                    undelegation_cooldown: Some(10000u64),
+                },
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::ProtocolFeeAboveLimit {}));
+
+        /*
+            Test - 2.
+        */
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::UpdateConfig {
+                config_request: ConfigUpdateRequest {
+                    active: Some(true),
+                    min_deposit: Some(Uint128::from(1_u128)),
+                    max_deposit: Some(Uint128::from(10000000_u128)),
+                    cw20_token_contract: Some("cw20_token_contract".parse().unwrap()),
+                    protocol_fee_contract: Some("new_pfc".parse().unwrap()),
+                    protocol_reward_fee: Some(Decimal::from_ratio(2_u128, 100_u128)),
+                    protocol_withdraw_fee: Some(Decimal::from_ratio(2_u128, 100_u128)),
+                    protocol_deposit_fee: Some(Decimal::from_ratio(2_u128, 1_u128)),
+                    airdrop_withdrawal_contract: Some("airdrop_withdrawal_contract".to_string()),
+                    unbonding_period: Some(100u64),
+                    undelegation_cooldown: Some(10000u64),
+                },
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::ProtocolFeeAboveLimit {}));
+
+        /*
            Test - 2.
         */
         let res = execute(

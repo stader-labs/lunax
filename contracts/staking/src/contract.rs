@@ -30,7 +30,7 @@ use stader_utils::coin_utils::{
     decimal_division_in_256, decimal_multiplication_in_256, get_decimal_from_uint128,
     multiply_u128_with_decimal, u128_from_decimal, uint128_from_decimal,
 };
-use std::ops::{Deref, Mul, Sub};
+use std::ops::{Deref, Div, Mul, Sub};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -39,6 +39,13 @@ pub fn instantiate(
     info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
+    if msg.protocol_reward_fee.gt(&Decimal::one())
+        || msg.protocol_deposit_fee.gt(&Decimal::one())
+        || msg.protocol_withdraw_fee.gt(&Decimal::one())
+    {
+        return Err(ContractError::ProtocolFeeAboveLimit {});
+    }
+
     let config = Config {
         manager: info.sender.clone(),
         vault_denom: "uluna".to_string(),
@@ -113,7 +120,6 @@ pub fn execute(
         ExecuteMsg::Swap {} => swap_rewards(deps, info, env),
         ExecuteMsg::Reinvest {} => reinvest(deps, info, env),
         ExecuteMsg::ReimburseSlashing { val_addr } => reimburse_slashing(deps, info, env, val_addr),
-        // TODO: bchain/gm - remove QueueUndelegate from msg list. This works for testing
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
         ExecuteMsg::Undelegate {} => undelegate_stake(deps, info, env),
         ExecuteMsg::ReconcileFunds {} => reconcile_funds(deps, info, env),
@@ -158,15 +164,28 @@ pub fn update_config(
     config.min_deposit = update_config.min_deposit.unwrap_or(config.min_deposit);
     config.max_deposit = update_config.max_deposit.unwrap_or(config.max_deposit);
     config.active = update_config.active.unwrap_or(config.active);
-    config.protocol_withdraw_fee = update_config
-        .protocol_withdraw_fee
-        .unwrap_or(config.protocol_withdraw_fee);
-    config.protocol_deposit_fee = update_config
-        .protocol_deposit_fee
-        .unwrap_or(config.protocol_deposit_fee);
-    config.protocol_reward_fee = update_config
-        .protocol_reward_fee
-        .unwrap_or(config.protocol_reward_fee);
+
+    if let Some(pdf) = update_config.protocol_deposit_fee {
+        if pdf.gt(&Decimal::one()) {
+            return Err(ContractError::ProtocolFeeAboveLimit {});
+        }
+        config.protocol_deposit_fee = pdf;
+    }
+
+    if let Some(pwf) = update_config.protocol_withdraw_fee {
+        if pwf.gt(&Decimal::one()) {
+            return Err(ContractError::ProtocolFeeAboveLimit {});
+        }
+        config.protocol_withdraw_fee = pwf;
+    }
+
+    if let Some(prf) = update_config.protocol_reward_fee {
+        if prf.gt(&Decimal::one()) {
+            return Err(ContractError::ProtocolFeeAboveLimit {});
+        }
+        config.protocol_reward_fee = prf;
+    }
+
     config.undelegation_cooldown = update_config
         .undelegation_cooldown
         .unwrap_or(config.undelegation_cooldown);
@@ -376,8 +395,6 @@ pub fn deposit(mut deps: DepsMut, info: MessageInfo, env: Env) -> Result<Respons
 
     validate(&config, &info, &env, vec![Verify::NonZeroSingleInfoFund])?;
 
-    // Formula wise - we want to recompute user balance because slashing pointer has changed and then
-    // add the money user wants to delegate. Money being added in this message should be considered post slashing.
     check_slashing(&mut deps, &env)?;
 
     let amount = info.funds.first().unwrap().amount;
@@ -391,7 +408,7 @@ pub fn deposit(mut deps: DepsMut, info: MessageInfo, env: Env) -> Result<Respons
     let mut state = STATE.load(deps.storage)?;
 
     let mut msgs = vec![];
-    let deposit_breakdown = compute_deposit_breakdown(deps.storage.deref(), amount).unwrap();
+    let deposit_breakdown = compute_deposit_breakdown(deps.storage.deref(), amount)?;
 
     if !deposit_breakdown.protocol_fee.is_zero() {
         msgs.push(SubMsg::new(BankMsg::Send {
@@ -533,10 +550,10 @@ pub fn reinvest(
         config.vault_denom.clone(),
     )?;
 
-    let protocol_fee_amount = Uint128::new(u128_from_decimal(decimal_multiplication_in_256(
+    let protocol_fee_amount = uint128_from_decimal(decimal_multiplication_in_256(
         get_decimal_from_uint128(balance.amount),
         config.protocol_reward_fee,
-    )));
+    ));
     let transfer_amount = balance
         .amount
         .checked_sub(protocol_fee_amount)
@@ -549,12 +566,11 @@ pub fn reinvest(
     )?;
     state.total_staked = state.total_staked.checked_add(transfer_amount).unwrap();
     increase_tracked_stake(&mut deps, &val_addr, transfer_amount)?;
-    state.exchange_rate = Decimal::from_ratio(
+    state.exchange_rate = calculate_exchange_rate(
         state.total_staked,
         get_total_token_supply(deps.querier, config.cw20_token_contract)?,
     );
 
-    // TODO - GM. will the above make the exchange rate +inf if get_total_token_supply returns 0?
     STATE.save(deps.storage, &state)?;
 
     let mut msgs = vec![];
@@ -932,7 +948,7 @@ pub fn compute_withdrawable_funds(
 
     let protocol_fee = multiply_u128_with_decimal(claimable_amount, config.protocol_withdraw_fee);
 
-    let user_withdrawal_amount = claimable_amount - protocol_fee;
+    let user_withdrawal_amount = claimable_amount.checked_sub(protocol_fee).unwrap_or(0_u128);
     Ok(GetFundsClaimRecord {
         user_withdrawal_amount: Uint128::new(user_withdrawal_amount),
         protocol_fee: Uint128::new(protocol_fee),
