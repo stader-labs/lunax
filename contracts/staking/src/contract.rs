@@ -799,7 +799,7 @@ pub fn compute_withdrawable_funds(
     if user_undelegated_tokens_opt.is_none() {
         return Err(ContractError::UndelegationEntryNotFound {});
     }
-    // TODO: bchain/gm don't error out if user tokens is 0. We should catch this in queue_undelegation. This undelegation record would stay on the blockchain forever and it would never be removed from the UI
+
     let user_undelegation = user_undelegated_tokens_opt.unwrap();
     let user_undelegated_amount = multiply_u128_with_decimal(
         user_undelegation.token_amount.u128(),
