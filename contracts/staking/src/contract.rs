@@ -66,6 +66,7 @@ pub fn instantiate(
     CONFIG.save(deps.storage, &config)?;
 
     let initial_er = Decimal::one();
+
     let state = State {
         total_staked: Uint128::zero(),
         exchange_rate: initial_er,
@@ -430,8 +431,7 @@ pub fn redeem_rewards(
             .is_none()
             || deps
                 .querier
-                .query_delegation(env.contract.address.clone(), val_addr.to_string())
-                .unwrap()
+                .query_delegation(env.contract.address.clone(), val_addr.to_string())?
                 .is_none()
         {
             failed_vals.push(val_addr.to_string());
@@ -471,6 +471,8 @@ pub fn reinvest(
     env: Env,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
+
+    check_slashing(&mut deps, &env)?;
 
     let mut state = STATE.load(deps.storage)?;
     let balance = deps.querier.query_balance(
@@ -534,6 +536,7 @@ pub fn receive_cw20(
             if contract_addr != config.cw20_token_contract {
                 return Err(ContractError::Unauthorized {});
             }
+            // bchain: Note: Undelegating 0 tokens is not possible because the cw20_send call will fail
             Ok(queue_undelegation(
                 deps,
                 env,
@@ -646,12 +649,12 @@ pub fn undelegate_stake(
     )?;
 
     for index in (0..stake_tuples.len()).rev() {
-        let tuple_val = stake_tuples.get(index).unwrap();
+        let tuple_val = stake_tuples.get(index).unwrap().clone();
         if to_undelegate.is_zero() {
             break;
         }
-        let val_addr = Addr::unchecked(tuple_val.clone().1);
-        let amount = std::cmp::min(to_undelegate, tuple_val.clone().0);
+        let val_addr = Addr::unchecked(tuple_val.1);
+        let amount = std::cmp::min(to_undelegate, tuple_val.0);
         undelegate_message.push(StakingMsg::Undelegate {
             validator: val_addr.to_string(),
             amount: Coin::new(amount.u128(), config.vault_denom.clone()),
@@ -829,7 +832,6 @@ pub fn claim_airdrops(
     let config = CONFIG.load(deps.storage)?;
 
     let mut msgs = vec![];
-    let mut failed_airdrops = vec![];
     let airdrop_withdrawal_contract = config.airdrop_withdrawal_contract;
     let airdrops_registry_contract = config.airdrop_registry_contract;
     for rate in airdrop_rates {
@@ -839,11 +841,16 @@ pub fn claim_airdrops(
             rate.denom.clone(),
         )?;
 
-        if contract_response.contracts.is_none() {
-            failed_airdrops.push((rate.denom, rate.stage));
+        let contracts = if let Some(contracts) = contract_response.contracts {
+            contracts
+        } else {
+            return Err(ContractError::AirdropNotRegistered(rate.denom));
+        };
+
+        if rate.amount.is_zero() {
             continue;
         }
-        let contracts = contract_response.contracts.unwrap();
+
         let claim_msg = to_binary(&MerkleAirdropMsg::Claim {
             stage: rate.stage,
             amount: rate.amount,
@@ -970,7 +977,8 @@ pub fn query_user_undelegation_info(
     batch_id: u64,
 ) -> StdResult<GetFundsClaimRecord> {
     let user_addr = deps.api.addr_validate(user_addr.as_str())?;
-    let funds_record = compute_withdrawable_funds(deps.storage, batch_id, &user_addr).unwrap();
+    let funds_record = compute_withdrawable_funds(deps.storage, batch_id, &user_addr)
+        .expect("compute_withdrawable_funds failed");
     Ok(funds_record)
 }
 
