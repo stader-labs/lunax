@@ -222,7 +222,7 @@ pub fn add_validator(
     }
 
     // check if the validator exists in the blockchain
-    if deps.querier.query_validator(&val_addr).unwrap().is_none() {
+    if deps.querier.query_validator(&val_addr)?.is_none() {
         return Err(ContractError::ValidatorNotDiscoverable {});
     }
 
@@ -251,8 +251,9 @@ pub fn remove_validator_from_pool(
         vec![Verify::SenderManager, Verify::NoFunds],
     )?;
 
-    let mut state = STATE.load(deps.storage)?;
     check_slashing(&mut deps, &env)?;
+
+    let mut state = STATE.load(deps.storage)?;
 
     if val_addr.eq(&redel_addr) {
         return Err(ContractError::ValidatorsCannotBeSame {});
@@ -727,9 +728,10 @@ pub fn undelegate_stake(
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
+    check_slashing(&mut deps, &env)?;
+
     let mut state = STATE.load(deps.storage)?;
 
-    check_slashing(&mut deps, &env)?;
     if info.sender.ne(&config.manager)
         && env.block.time.lt(&state
             .last_undelegation_time
