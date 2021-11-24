@@ -1354,6 +1354,22 @@ mod tests {
         .unwrap_err();
         assert!(matches!(err, ContractError::Unauthorized {}));
 
+        /*
+            Test - 2. Zero amount
+        */
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::RebalancePool {
+                amount: Uint128::zero(),
+                val_addr: Addr::unchecked("val_addr"),
+                redel_addr: Addr::unchecked("redel_addr"),
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::ZeroAmount {}));
+
         let valid1 = Addr::unchecked("valid0001");
         let valid2 = Addr::unchecked("valid0002");
         let valid3 = Addr::unchecked("valid0003");

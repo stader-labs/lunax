@@ -292,6 +292,10 @@ pub fn rebalance_pool(
     let config = CONFIG.load(deps.storage)?;
     validate(&config, &info, &env, vec![Verify::SenderManager])?;
 
+    if amount.is_zero() {
+        return Err(ContractError::ZeroAmount {});
+    }
+
     check_slashing(&mut deps, &env)?;
 
     let state = STATE.load(deps.storage)?;
@@ -834,7 +838,6 @@ pub fn reconcile_funds(
         .amount
         .checked_sub(state.reconciled_funds_to_withdraw)
         .unwrap_or(Uint128::zero());
-
     if unaccounted_funds.is_zero() {
         return Err(ContractError::ZeroAmount {});
     }
@@ -856,7 +859,7 @@ pub fn reconcile_funds(
 
         batch_meta.unbonding_slashing_ratio = unbonding_slashing_ratio;
         batch_meta.reconciled = true;
-        BATCH_UNDELEGATION_REGISTRY.save(deps.storage, key.clone(), &batch_meta)?;
+        BATCH_UNDELEGATION_REGISTRY.save(deps.storage, key, &batch_meta)?;
     }
 
     state.reconciled_funds_to_withdraw = state
