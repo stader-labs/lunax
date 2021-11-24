@@ -104,6 +104,31 @@ mod tests {
     }
 
     #[test]
+    fn proper_initialization_fail() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &[]);
+        let env = mock_env();
+
+        let msg = InstantiateMsg {
+            unbonding_period: 3600 * 24 * 21,
+            undelegation_cooldown: 10,
+            min_deposit: Uint128::new(1000),
+            max_deposit: Uint128::new(1_000_000_000_000),
+            reward_contract: "reward_contract".to_string(),
+            airdrops_registry_contract: "airdrop_registry_contract".to_string(),
+            airdrop_withdrawal_contract: "airdrop_withdrawal_contract".to_string(),
+            protocol_fee_contract: "protocol_fee_contract".to_string(),
+            protocol_reward_fee: Decimal::from_ratio(2_u128, 1_u128), // 1%
+            protocol_deposit_fee: Decimal::from_ratio(2_u128, 1_u128), // 1%
+            protocol_withdraw_fee: Decimal::from_ratio(2_u128, 100_u128), // 1%
+        };
+        let info = mock_info("creator", &[]);
+
+        let err = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap_err();
+        assert!(matches!(err, ContractError::ProtocolFeeAboveLimit {}));
+    }
+
+    #[test]
     fn proper_initialization() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
