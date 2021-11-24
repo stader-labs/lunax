@@ -849,6 +849,10 @@ pub fn claim_airdrops(
             return Err(ContractError::AirdropNotRegistered(rate.denom));
         };
 
+        if rate.amount.is_zero() {
+            continue;
+        }
+
         let claim_msg = to_binary(&MerkleAirdropMsg::Claim {
             stage: rate.stage,
             amount: rate.amount,
