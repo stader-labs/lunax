@@ -43,9 +43,9 @@ pub fn execute(
 ) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::UpdateAirdropRegistry {
-            airdrop_token_str,
-            airdrop_contract_str,
-            cw20_contract_str,
+            airdrop_token: airdrop_token_str,
+            airdrop_contract: airdrop_contract_str,
+            cw20_contract: cw20_contract_str,
         } => update_airdrop_registry(
             deps,
             info,

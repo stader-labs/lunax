@@ -11,18 +11,18 @@
         "update_airdrop_registry": {
           "type": "object",
           "required": [
-            "airdrop_contract_str",
-            "airdrop_token_str",
-            "cw20_contract_str"
+            "airdrop_contract",
+            "airdrop_token",
+            "cw20_contract"
           ],
           "properties": {
-            "airdrop_contract_str": {
+            "airdrop_contract": {
               "type": "string"
             },
-            "airdrop_token_str": {
+            "airdrop_token": {
               "type": "string"
             },
-            "cw20_contract_str": {
+            "cw20_contract": {
               "type": "string"
             }
           }
