@@ -167,7 +167,8 @@ mod tests {
                     .block
                     .time
                     .minus_seconds(config.config.undelegation_cooldown), // Gives flexibility for first undelegaion run.
-                validators: vec![]
+                validators: vec![],
+                reconciled_funds_to_withdraw: Uint128::zero()
             }
         );
     }
@@ -1954,32 +1955,36 @@ mod tests {
         )
         .unwrap();
         let config = CONFIG.load(deps.as_mut().storage).unwrap();
-        assert_eq!(res.messages.len(), 2);
-        assert!(check_equal_vec(
+        assert_eq!(res.messages.len(), 3);
+        assert_eq!(
             res.messages,
             vec![
+                SubMsg::new(BankMsg::Send {
+                    to_address: "protocol_fee_contract".to_string(),
+                    amount: vec![Coin::new(10_u128, "uluna")]
+                }),
                 SubMsg::new(StakingMsg::Delegate {
                     validator: valid1.to_string(),
-                    amount: Coin::new(1000_u128, "uluna".to_string())
+                    amount: Coin::new(990_u128, "uluna".to_string())
                 }),
                 SubMsg::new(WasmMsg::Execute {
                     contract_addr: config.cw20_token_contract.to_string(),
                     msg: to_binary(&Cw20ExecuteMsg::Mint {
                         recipient: "other".to_string(),
-                        amount: Uint128::new(1000_u128)
+                        amount: Uint128::new(990_u128)
                     })
                     .unwrap(),
                     funds: vec![]
                 })
             ]
-        ));
+        );
         let state = STATE.load(deps.as_mut().storage).unwrap();
-        assert_eq!(state.total_staked, Uint128::new(4000_u128));
+        assert_eq!(state.total_staked, Uint128::new(3990_u128));
         let val1_meta = VALIDATOR_META.load(deps.as_mut().storage, &valid1).unwrap();
         assert_eq!(
             val1_meta,
             VMeta {
-                staked: Uint128::new(2000_u128),
+                staked: Uint128::new(1990_u128),
                 slashed: Uint128::zero(),
                 filled: Default::default()
             }
@@ -2475,6 +2480,12 @@ mod tests {
 
         let user1 = Addr::unchecked("user1");
 
+        STATE
+            .update(deps.as_mut().storage, |mut state| -> StdResult<_> {
+                state.reconciled_funds_to_withdraw = Uint128::new(1200);
+                Ok(state)
+            })
+            .unwrap();
         BATCH_UNDELEGATION_REGISTRY
             .save(
                 deps.as_mut().storage,
@@ -2507,14 +2518,23 @@ mod tests {
             ExecuteMsg::WithdrawFundsToWallet { batch_id: 1 },
         )
         .unwrap();
-        assert_eq!(res.messages.len(), 1);
-        assert!(check_equal_vec(
-            res.messages,
-            vec![SubMsg::new(BankMsg::Send {
+        assert_eq!(res.messages.len(), 2);
+        assert_eq!(
+            res.messages[0],
+            SubMsg::new(BankMsg::Send {
                 to_address: user1.to_string(),
                 amount: vec![Coin::new(743_u128, "uluna".to_string())]
-            })]
-        ));
+            })
+        );
+        assert_eq!(
+            res.messages[1],
+            SubMsg::new(BankMsg::Send {
+                to_address: "protocol_fee_contract".to_string(),
+                amount: vec![Coin::new(7_u128, "uluna".to_string())]
+            })
+        );
+        let state = STATE.load(deps.as_mut().storage).unwrap();
+        assert_eq!(state.reconciled_funds_to_withdraw, Uint128::new(450));
         let user_undel_info = USERS
             .may_load(deps.as_mut().storage, (&user1, U64Key::new(1)))
             .unwrap();
@@ -2982,6 +3002,7 @@ mod tests {
                 |mut state| -> Result<_, ContractError> {
                     state.current_undelegation_batch_id = 3;
                     state.last_reconciled_batch_id = 1;
+                    state.reconciled_funds_to_withdraw = Uint128::new(1800);
                     Ok(state)
                 },
             )
@@ -2997,7 +3018,7 @@ mod tests {
                     reconciled: false,
                     undelegation_er: Decimal::one(),
                     undelegated_stake: Uint128::new(3000_u128),
-                    unbonding_slashing_ratio: Default::default(),
+                    unbonding_slashing_ratio: Decimal::one(),
                 },
             )
             .unwrap();
@@ -3012,13 +3033,13 @@ mod tests {
                     reconciled: false,
                     undelegation_er: Decimal::one(),
                     undelegated_stake: Uint128::new(2000_u128),
-                    unbonding_slashing_ratio: Default::default(),
+                    unbonding_slashing_ratio: Decimal::one(),
                 },
             )
             .unwrap();
         deps.querier.update_balance(
             env.contract.address.clone(),
-            vec![Coin::new(5000_u128, "uluna".to_string())],
+            vec![Coin::new(7000_u128, "uluna".to_string())],
         );
         let res = execute(
             deps.as_mut(),
@@ -3028,6 +3049,7 @@ mod tests {
         )
         .unwrap();
         let state = STATE.load(deps.as_mut().storage).unwrap();
+        assert_eq!(state.reconciled_funds_to_withdraw, Uint128::new(6800));
         let batch_2 = BATCH_UNDELEGATION_REGISTRY
             .load(deps.as_mut().storage, U64Key::new(2))
             .unwrap();
@@ -3068,6 +3090,7 @@ mod tests {
                 |mut state| -> Result<_, ContractError> {
                     state.current_undelegation_batch_id = 3;
                     state.last_reconciled_batch_id = 1;
+                    state.reconciled_funds_to_withdraw = Uint128::new(1800);
                     Ok(state)
                 },
             )
@@ -3104,7 +3127,7 @@ mod tests {
             .unwrap();
         deps.querier.update_balance(
             env.contract.address.clone(),
-            vec![Coin::new(4000_u128, "uluna".to_string())],
+            vec![Coin::new(6000_u128, "uluna".to_string())],
         );
         let res = execute(
             deps.as_mut(),
@@ -3114,6 +3137,7 @@ mod tests {
         )
         .unwrap();
         let state = STATE.load(deps.as_mut().storage).unwrap();
+        assert_eq!(state.reconciled_funds_to_withdraw, Uint128::new(6000));
         let batch_2 = BATCH_UNDELEGATION_REGISTRY
             .load(deps.as_mut().storage, U64Key::new(2))
             .unwrap();
@@ -3129,7 +3153,7 @@ mod tests {
                 reconciled: true,
                 undelegation_er: Decimal::one(),
                 undelegated_stake: Uint128::new(3000_u128),
-                unbonding_slashing_ratio: Decimal::from_ratio(4_u128, 5_u128)
+                unbonding_slashing_ratio: Decimal::from_ratio(42_u128, 50_u128)
             }
         );
         assert_eq!(
@@ -3141,8 +3165,71 @@ mod tests {
                 reconciled: true,
                 undelegation_er: Decimal::one(),
                 undelegated_stake: Uint128::new(2000_u128),
-                unbonding_slashing_ratio: Decimal::from_ratio(4_u128, 5_u128)
+                unbonding_slashing_ratio: Decimal::from_ratio(42_u128, 50_u128)
             }
+        );
+    }
+
+    #[test]
+    fn test_reimburse_slashing() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &[]);
+        let env = mock_env();
+        let valid1 = Addr::unchecked("valid0001");
+
+        let _res = instantiate_contract(&mut deps, &info, &env);
+        STATE
+            .update(deps.as_mut().storage, |mut state| -> StdResult<_> {
+                state.validators = vec![Addr::unchecked("valid0001")];
+                Ok(state)
+            })
+            .unwrap();
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("other", &[Coin::new(25_u128, "uluna")]),
+            ExecuteMsg::ReimburseSlashing {
+                val_addr: valid1.clone(),
+            },
+        )
+        .unwrap();
+
+        assert_eq!(res.messages.len(), 1);
+        assert_eq!(
+            res.messages[0],
+            SubMsg::new(StakingMsg::Delegate {
+                validator: valid1.to_string(),
+                amount: Coin::new(25_u128, "uluna")
+            })
+        );
+
+        let vmeta = VALIDATOR_META.load(deps.as_mut().storage, &valid1).unwrap();
+        assert_eq!(
+            vmeta,
+            VMeta {
+                staked: Default::default(),
+                slashed: Default::default(),
+                filled: Uint128::new(25),
+            }
+        );
+
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("other", &[Coin::new(125_u128, "uluna")]),
+            ExecuteMsg::ReimburseSlashing {
+                val_addr: valid1.clone(),
+            },
+        )
+        .unwrap();
+
+        assert_eq!(res.messages.len(), 1);
+        assert_eq!(
+            res.messages[0],
+            SubMsg::new(StakingMsg::Delegate {
+                validator: valid1.to_string(),
+                amount: Coin::new(125_u128, "uluna")
+            })
         );
     }
 }

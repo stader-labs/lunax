@@ -34,6 +34,7 @@ pub struct State {
     pub current_undelegation_batch_id: u64,
     pub last_undelegation_time: Timestamp,
     pub validators: Vec<Addr>,
+    pub reconciled_funds_to_withdraw: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

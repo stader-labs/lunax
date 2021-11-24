@@ -54,6 +54,9 @@ pub enum ExecuteMsg {
     Deposit {},
     RedeemRewards {},
     Swap {},
+    ReimburseSlashing {
+        val_addr: Addr,
+    },
     Receive(Cw20ReceiveMsg),
     Reinvest {},
     Undelegate {},
@@ -102,6 +105,9 @@ pub enum QueryMsg {
     GetUserInfo {
         user_addr: String,
     },
+    ComputeDepositBreakdown {
+        amount: Uint128,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -127,6 +133,14 @@ pub struct QueryBatchUndelegationResponse {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct GetValMetaResponse {
     pub val_meta: Option<VMeta>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct GetFundsDepositRecord {
+    pub user_deposit_amount: Uint128,
+    pub protocol_fee: Uint128,
+    pub staked_amount: Uint128,
+    pub tokens_to_mint: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

@@ -5,9 +5,9 @@ use crate::helpers::{
     increase_tracked_stake, validate, Verify,
 };
 use crate::msg::{
-    Cw20HookMsg, ExecuteMsg, GetFundsClaimRecord, GetValMetaResponse, InstantiateMsg,
-    MerkleAirdropMsg, QueryBatchUndelegationResponse, QueryConfigResponse, QueryMsg,
-    QueryStateResponse, UserInfoResponse, UserQueryInfo,
+    Cw20HookMsg, ExecuteMsg, GetFundsClaimRecord, GetFundsDepositRecord, GetValMetaResponse,
+    InstantiateMsg, MerkleAirdropMsg, QueryBatchUndelegationResponse, QueryConfigResponse,
+    QueryMsg, QueryStateResponse, UserInfoResponse, UserQueryInfo,
 };
 use crate::state::{
     AirdropRate, Config, ConfigUpdateRequest, State, UndelegationInfo, VMeta,
@@ -19,7 +19,8 @@ use airdrops_registry::msg::GetAirdropContractsResponse;
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     from_binary, to_binary, Addr, BankMsg, Binary, Coin, Decimal, Deps, DepsMut, DistributionMsg,
-    Env, MessageInfo, Order, Response, StakingMsg, StdError, StdResult, Storage, Uint128, WasmMsg,
+    Env, MessageInfo, Order, Response, StakingMsg, StdError, StdResult, Storage, SubMsg, Uint128,
+    WasmMsg,
 };
 use cw20::Cw20ReceiveMsg;
 use cw20_base::msg::ExecuteMsg as Cw20ExecuteMsg;
@@ -29,7 +30,7 @@ use stader_utils::coin_utils::{
     decimal_division_in_256, decimal_multiplication_in_256, get_decimal_from_uint128,
     multiply_u128_with_decimal, u128_from_decimal, uint128_from_decimal,
 };
-use std::ops::{Deref, Mul};
+use std::ops::{Deref, Mul, Sub};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -74,6 +75,7 @@ pub fn instantiate(
         current_undelegation_batch_id: 0,
         last_undelegation_time: env.block.time.minus_seconds(msg.undelegation_cooldown), // Gives flexibility for first undelegaion run.
         validators: vec![],
+        reconciled_funds_to_withdraw: Uint128::zero(),
     };
     STATE.save(deps.storage, &state)?;
 
@@ -110,6 +112,7 @@ pub fn execute(
         ExecuteMsg::RedeemRewards {} => redeem_rewards(deps, info, env),
         ExecuteMsg::Swap {} => swap_rewards(deps, info, env),
         ExecuteMsg::Reinvest {} => reinvest(deps, info, env),
+        ExecuteMsg::ReimburseSlashing { val_addr } => reimburse_slashing(deps, info, env, val_addr),
         // TODO: bchain/gm - remove QueueUndelegate from msg list. This works for testing
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
         ExecuteMsg::Undelegate {} => undelegate_stake(deps, info, env),
@@ -387,30 +390,80 @@ pub fn deposit(mut deps: DepsMut, info: MessageInfo, env: Env) -> Result<Respons
     let sender = info.sender;
     let mut state = STATE.load(deps.storage)?;
 
-    // TODO - GM. Math.decimal_division
-    let tokens_to_mint = uint128_from_decimal(decimal_division_in_256(
-        get_decimal_from_uint128(amount),
-        state.exchange_rate,
-    ));
+    let mut msgs = vec![];
+    let deposit_breakdown = compute_deposit_breakdown(deps.storage.deref(), amount).unwrap();
 
-    let val_addr =
-        get_validator_for_deposit(deps.querier, env.contract.address, state.validators.clone())?;
+    if !deposit_breakdown.protocol_fee.is_zero() {
+        msgs.push(SubMsg::new(BankMsg::Send {
+            to_address: config.protocol_fee_contract.to_string(),
+            amount: vec![Coin::new(
+                deposit_breakdown.protocol_fee.u128(),
+                config.vault_denom.clone(),
+            )],
+        }));
+    }
 
-    state.total_staked = state.total_staked.checked_add(amount).unwrap();
-    increase_tracked_stake(&mut deps, &val_addr, amount)?;
+    if !deposit_breakdown.staked_amount.is_zero() {
+        let val_addr = get_validator_for_deposit(
+            deps.querier,
+            env.contract.address,
+            state.validators.clone(),
+        )?;
+
+        state.total_staked = state
+            .total_staked
+            .checked_add(deposit_breakdown.staked_amount)
+            .unwrap();
+        increase_tracked_stake(&mut deps, &val_addr, deposit_breakdown.staked_amount)?;
+
+        msgs.push(SubMsg::new(StakingMsg::Delegate {
+            validator: val_addr.to_string(),
+            amount: Coin::new(deposit_breakdown.staked_amount.u128(), config.vault_denom),
+        }));
+    }
+
+    let mut mint_messages = vec![];
+    if !deposit_breakdown.tokens_to_mint.is_zero() {
+        mint_messages.push(create_mint_message(
+            config.cw20_token_contract,
+            deposit_breakdown.tokens_to_mint,
+            sender,
+        )?);
+    }
 
     STATE.save(deps.storage, &state)?;
 
     Ok(Response::new()
-        .add_message(StakingMsg::Delegate {
-            validator: val_addr.to_string(),
-            amount: Coin::new(amount.u128(), config.vault_denom),
-        })
-        .add_message(create_mint_message(
-            config.cw20_token_contract,
-            tokens_to_mint,
-            sender,
-        )?))
+        .add_submessages(msgs)
+        .add_messages(mint_messages))
+}
+
+pub fn compute_deposit_breakdown(
+    storage: &dyn Storage,
+    user_amount: Uint128, // funds sent by user.
+) -> Result<GetFundsDepositRecord, ContractError> {
+    let config = CONFIG.load(storage)?;
+    let state = STATE.load(storage)?;
+
+    let mut amount_to_stake = user_amount;
+    let mut protocol_deposit_fee = Uint128::zero();
+
+    if !config.protocol_deposit_fee.is_zero() {
+        protocol_deposit_fee = config.protocol_deposit_fee.mul(user_amount);
+        amount_to_stake = user_amount
+            .checked_sub(protocol_deposit_fee)
+            .unwrap_or(Uint128::zero());
+    }
+    let mint_tokens = uint128_from_decimal(decimal_division_in_256(
+        get_decimal_from_uint128(amount_to_stake),
+        state.exchange_rate,
+    ));
+    Ok(GetFundsDepositRecord {
+        user_deposit_amount: user_amount,
+        protocol_fee: protocol_deposit_fee,
+        staked_amount: amount_to_stake,
+        tokens_to_mint: mint_tokens,
+    })
 }
 
 pub fn redeem_rewards(
@@ -501,11 +554,12 @@ pub fn reinvest(
         get_total_token_supply(deps.querier, config.cw20_token_contract)?,
     );
 
+    // TODO - GM. will the above make the exchange rate +inf if get_total_token_supply returns 0?
     STATE.save(deps.storage, &state)?;
 
-    // Reward contract throws an error if transfer_amount is not available to be sent over.
-    Ok(Response::new()
-        .add_message(WasmMsg::Execute {
+    let mut msgs = vec![];
+    if !transfer_amount.is_zero() {
+        msgs.push(SubMsg::new(WasmMsg::Execute {
             contract_addr: config.reward_contract.to_string(),
             msg: to_binary(&RewardExecuteMsg::Transfer {
                 reward_amount: transfer_amount,
@@ -514,11 +568,47 @@ pub fn reinvest(
                 protocol_fee_contract: config.protocol_fee_contract,
             })?,
             funds: vec![],
-        })
-        .add_message(StakingMsg::Delegate {
+        }));
+    }
+    if !protocol_fee_amount.is_zero() {
+        msgs.push(SubMsg::new(StakingMsg::Delegate {
             validator: val_addr.to_string(),
             amount: Coin::new(transfer_amount.u128(), config.vault_denom),
-        }))
+        }));
+    }
+
+    // Reward contract throws an error if transfer_amount is not available to be sent over.
+    Ok(Response::new().add_submessages(msgs))
+}
+
+// Useful for staking to a validator as a mechanism for filling lost slashing funds.
+// Notice that this message has no side effect, not even in check_slashing.
+// Anyone call this function.
+pub fn reimburse_slashing(
+    deps: DepsMut,
+    info: MessageInfo,
+    env: Env,
+    val_addr: Addr,
+) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    validate(&config, &info, &env, vec![Verify::NonZeroSingleInfoFund])?;
+
+    let reimburse_amount = info.funds[0].amount;
+    let state = STATE.load(deps.storage)?;
+    if !state.validators.contains(&val_addr) {
+        return Err(ContractError::ValidatorNotAdded {});
+    }
+
+    VALIDATOR_META.update(deps.storage, &val_addr, |x| -> StdResult<_> {
+        let mut vmeta = x.unwrap_or(VMeta::new());
+        vmeta.filled = vmeta.filled.checked_add(reimburse_amount).unwrap();
+        Ok(vmeta)
+    })?;
+    // We could update state.total_staked and state.exchange_rate here but we could let next check_slashing take that up.
+    Ok(Response::new().add_message(StakingMsg::Delegate {
+        validator: val_addr.to_string(),
+        amount: Coin::new(reimburse_amount.u128(), config.vault_denom),
+    }))
 }
 
 pub fn receive_cw20(
@@ -720,16 +810,22 @@ pub fn reconcile_funds(
     }
 
     // QUERY the base funds and check how much can be reconciled
-    let balance = deps
+    let contract_balance = deps
         .querier
         .query_balance(env.contract.address.to_string(), config.vault_denom)?;
-    if balance.amount.is_zero() {
+
+    let unaccounted_funds = contract_balance
+        .amount
+        .checked_sub(state.reconciled_funds_to_withdraw)
+        .unwrap_or(Uint128::zero());
+
+    if unaccounted_funds.is_zero() {
         return Err(ContractError::ZeroAmount {});
     }
 
     // Slashing may have occured in the 21 day unbonding period. Capture that.
     let unbonding_slashing_ratio = std::cmp::min(
-        Decimal::from_ratio(balance.amount, total_stake_expected),
+        Decimal::from_ratio(unaccounted_funds, total_stake_expected),
         Decimal::one(),
     );
 
@@ -741,12 +837,16 @@ pub fn reconcile_funds(
         {
             break;
         }
-        // bchain - Note: We are splitting the slashing evenly across all batches
+
         batch_meta.unbonding_slashing_ratio = unbonding_slashing_ratio;
         batch_meta.reconciled = true;
         BATCH_UNDELEGATION_REGISTRY.save(deps.storage, key.clone(), &batch_meta)?;
     }
 
+    state.reconciled_funds_to_withdraw = state
+        .reconciled_funds_to_withdraw
+        .checked_add(std::cmp::min(unaccounted_funds, total_stake_expected))
+        .unwrap();
     state.last_reconciled_batch_id = last_reconciled_id;
     STATE.save(deps.storage, &state)?;
 
@@ -761,20 +861,39 @@ pub fn withdraw_funds_to_wallet(
     batch_id: u64,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
+    let mut state = STATE.load(deps.storage)?;
     let user_addr = deps.api.addr_validate(info.sender.as_str())?;
     let funds_record = compute_withdrawable_funds(deps.storage.deref(), batch_id, &user_addr)?;
     let mut msgs = vec![];
 
     if !funds_record.user_withdrawal_amount.is_zero() {
+        state.reconciled_funds_to_withdraw = state
+            .reconciled_funds_to_withdraw
+            .checked_sub(funds_record.user_withdrawal_amount)
+            .unwrap_or(Uint128::zero());
         msgs.push(BankMsg::Send {
             to_address: user_addr.to_string(),
             amount: vec![Coin::new(
                 funds_record.user_withdrawal_amount.u128(),
+                config.vault_denom.clone(),
+            )],
+        });
+    }
+    if !funds_record.protocol_fee.is_zero() {
+        state.reconciled_funds_to_withdraw = state
+            .reconciled_funds_to_withdraw
+            .checked_sub(funds_record.protocol_fee)
+            .unwrap_or(Uint128::zero());
+        msgs.push(BankMsg::Send {
+            to_address: config.protocol_fee_contract.to_string(),
+            amount: vec![Coin::new(
+                funds_record.protocol_fee.u128(),
                 config.vault_denom,
             )],
         });
     }
 
+    STATE.save(deps.storage, &state)?;
     USERS.remove(deps.storage, (&user_addr, U64Key::new(batch_id)));
     Ok(Response::new().add_messages(msgs))
 }
@@ -802,8 +921,6 @@ pub fn compute_withdrawable_funds(
     if user_undelegated_tokens_opt.is_none() {
         return Err(ContractError::UndelegationEntryNotFound {});
     }
-    // TODO: bchain/gm don't error out if user tokens is 0. We should catch this in queue_undelegation.
-    // This undelegation record would stay on the blockchain forever and it would never be removed from the UI
     let user_undelegation = user_undelegated_tokens_opt.unwrap();
     let user_undelegated_amount = multiply_u128_with_decimal(
         user_undelegation.token_amount.u128(),
@@ -823,7 +940,7 @@ pub fn compute_withdrawable_funds(
     })
 }
 
-// Can be permissionless
+// Can be permissionless and no check_slashing reqd because all airdrops are drained.
 pub fn claim_airdrops(
     deps: DepsMut,
     _info: MessageInfo,
@@ -900,6 +1017,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         } => to_binary(&query_user_undelegation_info(deps, user_addr, batch_id)?),
         QueryMsg::GetValMeta { val_addr } => to_binary(&query_val_meta(deps, val_addr)?),
         QueryMsg::GetUserInfo { user_addr } => to_binary(&query_user_info(deps, user_addr)?),
+        QueryMsg::ComputeDepositBreakdown { amount } => {
+            to_binary(&query_compute_deposit_breakdown(deps, amount)?)
+        }
     }
 }
 
@@ -975,4 +1095,13 @@ pub fn query_val_meta(deps: Deps, val_addr: Addr) -> StdResult<GetValMetaRespons
     Ok(GetValMetaResponse {
         val_meta: val_meta_opt,
     })
+}
+
+pub fn query_compute_deposit_breakdown(
+    deps: Deps,
+    amount: Uint128,
+) -> StdResult<GetFundsDepositRecord> {
+    let deposit_breakdown =
+        compute_deposit_breakdown(deps.storage, amount).expect("Cannot breakdown deposit amount");
+    Ok(deposit_breakdown)
 }
