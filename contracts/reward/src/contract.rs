@@ -106,10 +106,6 @@ pub fn swap(
             continue;
         }
 
-        if coin.amount.is_zero() {
-            continue;
-        }
-
         if is_listed {
             messages.push(create_swap_msg(coin, config.reward_denom.to_string()));
         } else if query_exchange_rates(&deps, config.reward_denom.clone(), vec![coin.denom.clone()])
