@@ -510,9 +510,12 @@ pub fn compute_deposit_breakdown(
 
 pub fn redeem_rewards(
     mut deps: DepsMut,
-    _info: MessageInfo,
+    info: MessageInfo,
     env: Env,
 ) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    // Don't allow funds. it will mess up reconcile funds tracking
+    validate(&config, &info, &env, vec![Verify::NoFunds])?;
     check_slashing(&mut deps, &env)?;
     let state = STATE.load(deps.storage)?;
 
@@ -547,6 +550,8 @@ pub fn redeem_rewards(
 // Useful to make this permissionless.
 pub fn swap_rewards(deps: DepsMut, info: MessageInfo, env: Env) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
+    validate(&config, &info, &env, vec![Verify::NoFunds])?;
+
     let state = STATE.load(deps.storage)?;
 
     if info.sender.ne(&config.manager)
@@ -565,11 +570,12 @@ pub fn swap_rewards(deps: DepsMut, info: MessageInfo, env: Env) -> Result<Respon
     }))
 }
 
-// Don't need it to be permissioned. 0 transfers are treated as a NO-OP in rewards contract.
 pub fn reinvest(mut deps: DepsMut, info: MessageInfo, env: Env) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    validate(&config, &info, &env, vec![Verify::NoFunds])?;
+
     check_slashing(&mut deps, &env)?;
 
-    let config = CONFIG.load(deps.storage)?;
     let mut state = STATE.load(deps.storage)?;
 
     if info.sender.ne(&config.manager)
@@ -736,9 +742,11 @@ pub fn undelegate_stake(
     info: MessageInfo,
     env: Env,
 ) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    validate(&config, &info, &env, vec![Verify::NoFunds])?;
+
     check_slashing(&mut deps, &env)?;
 
-    let config = CONFIG.load(deps.storage)?;
     let mut state = STATE.load(deps.storage)?;
 
     if info.sender.ne(&config.manager)
@@ -828,10 +836,12 @@ pub fn undelegate_stake(
 // we are now checking if there was slashing in these 21 days for these funds.
 pub fn reconcile_funds(
     deps: DepsMut,
-    _info: MessageInfo,
+    info: MessageInfo,
     env: Env,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
+    validate(&config, &info, &env, vec![Verify::NoFunds])?;
+
     let mut state = STATE.load(deps.storage)?;
 
     let mut total_stake_expected = Uint128::zero();
@@ -906,10 +916,12 @@ pub fn reconcile_funds(
 pub fn withdraw_funds_to_wallet(
     deps: DepsMut,
     info: MessageInfo,
-    _env: Env,
+    env: Env,
     batch_id: u64,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
+    validate(&config, &info, &env, vec![Verify::NoFunds])?;
+
     let mut state = STATE.load(deps.storage)?;
     let user_addr = deps.api.addr_validate(info.sender.as_str())?;
     let funds_record = compute_withdrawable_funds(deps.storage.deref(), batch_id, &user_addr)?;
@@ -992,11 +1004,12 @@ pub fn compute_withdrawable_funds(
 // Can be permissionless and no check_slashing reqd because all airdrops are drained.
 pub fn claim_airdrops(
     deps: DepsMut,
-    _info: MessageInfo,
-    _env: Env,
+    info: MessageInfo,
+    env: Env,
     airdrop_rates: Vec<AirdropRate>,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
+    validate(&config, &info, &env, vec![Verify::NoFunds])?;
 
     let mut msgs = vec![];
     let airdrop_withdrawal_contract = config.airdrop_withdrawal_contract;
