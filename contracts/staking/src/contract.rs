@@ -494,7 +494,7 @@ pub fn reinvest(
     )?;
     state.total_staked = state.total_staked.checked_add(transfer_amount).unwrap();
     increase_tracked_stake(&mut deps, &val_addr, transfer_amount)?;
-    state.exchange_rate = Decimal::from_ratio(
+    state.exchange_rate = calculate_exchange_rate(
         state.total_staked,
         get_total_token_supply(deps.querier, config.cw20_token_contract)?,
     );
