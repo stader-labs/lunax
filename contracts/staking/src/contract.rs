@@ -578,19 +578,18 @@ pub fn reinvest(
     STATE.save(deps.storage, &state)?;
 
     let mut msgs = vec![];
+    msgs.push(SubMsg::new(WasmMsg::Execute {
+        contract_addr: config.reward_contract.to_string(),
+        msg: to_binary(&RewardExecuteMsg::Transfer {
+            reward_amount: transfer_amount,
+            reward_withdraw_contract: env.contract.address,
+            protocol_fee_amount,
+            protocol_fee_contract: config.protocol_fee_contract,
+        })?,
+        funds: vec![],
+    }));
+
     if !transfer_amount.is_zero() {
-        msgs.push(SubMsg::new(WasmMsg::Execute {
-            contract_addr: config.reward_contract.to_string(),
-            msg: to_binary(&RewardExecuteMsg::Transfer {
-                reward_amount: transfer_amount,
-                reward_withdraw_contract: env.contract.address,
-                protocol_fee_amount,
-                protocol_fee_contract: config.protocol_fee_contract,
-            })?,
-            funds: vec![],
-        }));
-    }
-    if !protocol_fee_amount.is_zero() {
         msgs.push(SubMsg::new(StakingMsg::Delegate {
             validator: val_addr.to_string(),
             amount: Coin::new(transfer_amount.u128(), config.vault_denom),

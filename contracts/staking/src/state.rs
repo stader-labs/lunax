@@ -69,9 +69,9 @@ pub struct BatchUndelegationRecord {
     pub(crate) create_time: Timestamp,
     pub(crate) est_release_time: Option<Timestamp>,
     pub(crate) reconciled: bool,
-    pub(crate) undelegation_er: Decimal, // pool pointer from every time user action is processed or "most" managerial messages are executed.
+    pub(crate) undelegation_er: Decimal,
     pub(crate) undelegated_stake: Uint128,
-    pub(crate) unbonding_slashing_ratio: Decimal, // If Unbonding happens during the 21 day period.
+    pub(crate) unbonding_slashing_ratio: Decimal, // If Unbonding slashing happens during the 21 day period.
 }
 
 // (undelegation_batch_id) -> BatchUndelegationRecord
