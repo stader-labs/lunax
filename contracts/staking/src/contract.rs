@@ -19,8 +19,7 @@ use airdrops_registry::msg::GetAirdropContractsResponse;
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     from_binary, to_binary, Addr, BankMsg, Binary, Coin, Decimal, Deps, DepsMut, DistributionMsg,
-    Env, MessageInfo, Order, Response, StakingMsg, StdError, StdResult, Storage, SubMsg, Uint128,
-    WasmMsg,
+    Env, MessageInfo, Order, Response, StakingMsg, StdResult, Storage, SubMsg, Uint128, WasmMsg,
 };
 use cw20::Cw20ReceiveMsg;
 use cw20_base::msg::ExecuteMsg as Cw20ExecuteMsg;
@@ -28,9 +27,9 @@ use cw_storage_plus::{Bound, U64Key};
 use reward::msg::ExecuteMsg as RewardExecuteMsg;
 use stader_utils::coin_utils::{
     decimal_division_in_256, decimal_multiplication_in_256, get_decimal_from_uint128,
-    multiply_u128_with_decimal, u128_from_decimal, uint128_from_decimal,
+    multiply_u128_with_decimal, uint128_from_decimal,
 };
-use std::ops::{Deref, Div, Mul, Sub};
+use std::ops::{Deref, Mul};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -477,7 +476,7 @@ pub fn compute_deposit_breakdown(
 
 pub fn redeem_rewards(
     mut deps: DepsMut,
-    info: MessageInfo,
+    _info: MessageInfo,
     env: Env,
 ) -> Result<Response, ContractError> {
     check_slashing(&mut deps, &env)?;
@@ -801,7 +800,7 @@ pub fn undelegate_stake(
 // we are now checking if there was slashing in these 21 days for these funds.
 pub fn reconcile_funds(
     deps: DepsMut,
-    info: MessageInfo,
+    _info: MessageInfo,
     env: Env,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
@@ -880,7 +879,7 @@ pub fn reconcile_funds(
 pub fn withdraw_funds_to_wallet(
     deps: DepsMut,
     info: MessageInfo,
-    env: Env,
+    _env: Env,
     batch_id: u64,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
@@ -967,8 +966,8 @@ pub fn compute_withdrawable_funds(
 // Can be permissionless and no check_slashing reqd because all airdrops are drained.
 pub fn claim_airdrops(
     deps: DepsMut,
-    info: MessageInfo,
-    env: Env,
+    _info: MessageInfo,
+    _env: Env,
     airdrop_rates: Vec<AirdropRate>,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
