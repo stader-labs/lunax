@@ -12,9 +12,9 @@ pub struct Config {
     pub max_deposit: Uint128,
     pub active: bool,
 
-    pub reward_contract: Addr, // Non-changeable
-    pub cw20_token_contract: Addr, // Changeable once
-    pub airdrop_registry_contract: Addr, // Non-changeable
+    pub reward_contract: Addr,             // Non-changeable
+    pub cw20_token_contract: Addr,         // Changeable once
+    pub airdrop_registry_contract: Addr,   // Non-changeable
     pub airdrop_withdrawal_contract: Addr, // Non-changeable
 
     pub protocol_fee_contract: Addr, // Non-changeable

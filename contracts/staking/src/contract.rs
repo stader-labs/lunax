@@ -143,12 +143,7 @@ pub fn update_config(
     update_config: ConfigUpdateRequest,
 ) -> Result<Response, ContractError> {
     let mut config = CONFIG.load(deps.storage)?;
-    validate(
-        &config,
-        &info,
-        &env,
-        vec![Verify::SenderManager, Verify::NoFunds],
-    )?;
+    validate(&config, &info, &env, vec![Verify::SenderManager])?;
 
     if let Some(cw20_contract) = update_config.cw20_token_contract {
         if config.cw20_token_contract == Addr::unchecked("0") {
@@ -205,12 +200,7 @@ pub fn add_validator(
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
     let state = STATE.load(deps.storage)?;
-    validate(
-        &config,
-        &info,
-        &env,
-        vec![Verify::SenderManager, Verify::NoFunds],
-    )?;
+    validate(&config, &info, &env, vec![Verify::SenderManager])?;
 
     if state.validators.contains(&val_addr) {
         return Err(ContractError::ValidatorAlreadyAdded {});
@@ -239,12 +229,7 @@ pub fn remove_validator_from_pool(
     redel_addr: Addr,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
-    validate(
-        &config,
-        &info,
-        &env,
-        vec![Verify::SenderManager, Verify::NoFunds],
-    )?;
+    validate(&config, &info, &env, vec![Verify::SenderManager])?;
 
     check_slashing(&mut deps, &env)?;
 
@@ -301,12 +286,7 @@ pub fn rebalance_pool(
     redel_addr: Addr,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
-    validate(
-        &config,
-        &info,
-        &env,
-        vec![Verify::SenderManager, Verify::NoFunds],
-    )?;
+    validate(&config, &info, &env, vec![Verify::SenderManager])?;
 
     if amount.is_zero() {
         return Err(ContractError::ZeroAmount {});
@@ -376,7 +356,10 @@ pub fn check_slashing(deps: &mut DepsMut, env: &Env) -> Result<Response, Contrac
             let mut val_meta = x.unwrap_or(VMeta::new());
 
             if val_meta.staked.gt(&delegation_amount) {
-                let slashed_amount = val_meta.staked.checked_sub(delegation_amount).unwrap_or(Uint128::zero());
+                let slashed_amount = val_meta
+                    .staked
+                    .checked_sub(delegation_amount)
+                    .unwrap_or(Uint128::zero());
                 val_meta.slashed = val_meta.slashed.checked_add(slashed_amount).unwrap();
             }
             val_meta.staked = delegation_amount;
@@ -497,9 +480,6 @@ pub fn redeem_rewards(
     info: MessageInfo,
     env: Env,
 ) -> Result<Response, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
-    // Don't allow funds. it will mess up reconcile funds tracking
-    validate(&config, &info, &env, vec![Verify::NoFunds])?;
     check_slashing(&mut deps, &env)?;
     let state = STATE.load(deps.storage)?;
 
@@ -534,8 +514,6 @@ pub fn redeem_rewards(
 // Useful to make this permissionless.
 pub fn swap_rewards(deps: DepsMut, info: MessageInfo, env: Env) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
-    validate(&config, &info, &env, vec![Verify::NoFunds])?;
-
     let mut state = STATE.load(deps.storage)?;
 
     if info.sender.ne(&config.manager)
@@ -559,8 +537,6 @@ pub fn swap_rewards(deps: DepsMut, info: MessageInfo, env: Env) -> Result<Respon
 
 pub fn reinvest(mut deps: DepsMut, info: MessageInfo, env: Env) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
-    validate(&config, &info, &env, vec![Verify::NoFunds])?;
-
     check_slashing(&mut deps, &env)?;
 
     let mut state = STATE.load(deps.storage)?;
@@ -734,8 +710,6 @@ pub fn undelegate_stake(
     env: Env,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
-    validate(&config, &info, &env, vec![Verify::NoFunds])?;
-
     check_slashing(&mut deps, &env)?;
 
     let mut state = STATE.load(deps.storage)?;
@@ -831,7 +805,6 @@ pub fn reconcile_funds(
     env: Env,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
-    validate(&config, &info, &env, vec![Verify::NoFunds])?;
 
     let mut state = STATE.load(deps.storage)?;
 
@@ -911,7 +884,6 @@ pub fn withdraw_funds_to_wallet(
     batch_id: u64,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
-    validate(&config, &info, &env, vec![Verify::NoFunds])?;
 
     let mut state = STATE.load(deps.storage)?;
     let user_addr = deps.api.addr_validate(info.sender.as_str())?;
@@ -1000,7 +972,6 @@ pub fn claim_airdrops(
     airdrop_rates: Vec<AirdropRate>,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
-    validate(&config, &info, &env, vec![Verify::NoFunds])?;
 
     let mut msgs = vec![];
     let airdrop_withdrawal_contract = config.airdrop_withdrawal_contract;
