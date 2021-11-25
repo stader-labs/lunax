@@ -149,5 +149,5 @@ pub struct GetFundsDepositRecord {
 pub struct GetFundsClaimRecord {
     pub user_withdrawal_amount: Uint128,
     pub protocol_fee: Uint128,
-    pub undelegated_amount: Uint128,
+    pub undelegated_tokens: Uint128,
 }

@@ -2740,7 +2740,7 @@ mod tests {
             GetFundsClaimRecord {
                 user_withdrawal_amount: Uint128::new(743_u128),
                 protocol_fee: Uint128::new(7_u128),
-                undelegated_amount: Uint128::new(1000_u128)
+                undelegated_tokens: Uint128::new(1000_u128)
             }
         );
     }

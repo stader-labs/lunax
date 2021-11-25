@@ -12,12 +12,12 @@ pub struct Config {
     pub max_deposit: Uint128,
     pub active: bool,
 
-    pub reward_contract: Addr,
-    pub cw20_token_contract: Addr,
-    pub airdrop_registry_contract: Addr,
-    pub airdrop_withdrawal_contract: Addr,
+    pub reward_contract: Addr, // Non-changeable
+    pub cw20_token_contract: Addr, // Changeable once
+    pub airdrop_registry_contract: Addr, // Non-changeable
+    pub airdrop_withdrawal_contract: Addr, // Non-changeable
 
-    pub protocol_fee_contract: Addr,
+    pub protocol_fee_contract: Addr, // Non-changeable
     pub protocol_reward_fee: Decimal,
     pub protocol_deposit_fee: Decimal,
     pub protocol_withdraw_fee: Decimal,
@@ -89,11 +89,9 @@ pub struct ConfigUpdateRequest {
     pub(crate) max_deposit: Option<Uint128>,
 
     pub(crate) cw20_token_contract: Option<String>, // Only upgradeable once.
-    pub(crate) protocol_fee_contract: Option<String>,
     pub(crate) protocol_reward_fee: Option<Decimal>,
     pub(crate) protocol_withdraw_fee: Option<Decimal>,
     pub(crate) protocol_deposit_fee: Option<Decimal>,
-    pub(crate) airdrop_withdrawal_contract: Option<String>,
     pub(crate) airdrop_registry_contract: Option<String>,
 
     pub(crate) unbonding_period: Option<u64>,

@@ -157,14 +157,6 @@ pub fn update_config(
         }
     }
 
-    if let Some(pfc) = update_config.protocol_fee_contract {
-        config.protocol_fee_contract = deps.api.addr_validate(pfc.as_str())?;
-    }
-
-    if let Some(awc) = update_config.airdrop_withdrawal_contract {
-        config.airdrop_withdrawal_contract = deps.api.addr_validate(awc.as_str())?;
-    }
-
     if let Some(arc) = update_config.airdrop_registry_contract {
         config.airdrop_registry_contract = deps.api.addr_validate(arc.as_str())?;
     }
@@ -385,15 +377,8 @@ pub fn check_slashing(deps: &mut DepsMut, env: &Env) -> Result<Response, Contrac
             let mut val_meta = x.unwrap_or(VMeta::new());
 
             if val_meta.staked.gt(&delegation_amount) {
-                val_meta.slashed = val_meta
-                    .slashed
-                    .checked_add(
-                        val_meta
-                            .staked
-                            .checked_sub(delegation_amount)
-                            .unwrap_or(Uint128::zero()),
-                    )
-                    .unwrap();
+                let slashed_amount = val_meta.staked.checked_sub(delegation_amount).unwrap_or(Uint128::zero());
+                val_meta.slashed = val_meta.slashed.checked_add(slashed_amount).unwrap();
             }
             val_meta.staked = delegation_amount;
 
@@ -552,7 +537,7 @@ pub fn swap_rewards(deps: DepsMut, info: MessageInfo, env: Env) -> Result<Respon
     let config = CONFIG.load(deps.storage)?;
     validate(&config, &info, &env, vec![Verify::NoFunds])?;
 
-    let state = STATE.load(deps.storage)?;
+    let mut state = STATE.load(deps.storage)?;
 
     if info.sender.ne(&config.manager)
         && env
@@ -562,6 +547,9 @@ pub fn swap_rewards(deps: DepsMut, info: MessageInfo, env: Env) -> Result<Respon
     {
         return Err(ContractError::SwapInCooldown {});
     }
+
+    state.last_swap_time = env.block.time;
+    STATE.update(deps.storage, &state)?;
 
     Ok(Response::new().add_message(WasmMsg::Execute {
         contract_addr: config.reward_contract.to_string(),
@@ -612,6 +600,7 @@ pub fn reinvest(mut deps: DepsMut, info: MessageInfo, env: Env) -> Result<Respon
         get_total_token_supply(deps.querier, config.cw20_token_contract)?,
     );
 
+    state.last_reinvest_time = env.block.time;
     STATE.save(deps.storage, &state)?;
 
     let mut msgs = vec![];
@@ -730,6 +719,9 @@ pub fn queue_undelegation(
         batch_undelegation.undelegated_tokens = batch_undelegation
             .undelegated_tokens
             .checked_add(amount_to_burn)?;
+        // Updated every time a new entry is added. Final update to this value happens when the actual undelegation occurs.
+        // Helps the caller understand what the latest er for this batch_undelegation is.
+        batch_undelegation.undelegation_er = state.exchange_rate;
         Ok(batch_undelegation)
     })?;
     STATE.save(deps.storage, &state)?;
@@ -997,7 +989,7 @@ pub fn compute_withdrawable_funds(
     Ok(GetFundsClaimRecord {
         user_withdrawal_amount: Uint128::new(user_withdrawal_amount),
         protocol_fee: Uint128::new(protocol_fee),
-        undelegated_amount: user_undelegation.token_amount,
+        undelegated_tokens: user_undelegation.token_amount,
     })
 }
 
@@ -1015,6 +1007,10 @@ pub fn claim_airdrops(
     let airdrop_withdrawal_contract = config.airdrop_withdrawal_contract;
     let airdrops_registry_contract = config.airdrop_registry_contract;
     for rate in airdrop_rates {
+        if rate.amount.is_zero() {
+            continue;
+        }
+
         let contract_response: GetAirdropContractsResponse = get_airdrop_contracts(
             deps.querier,
             airdrops_registry_contract.clone(),
@@ -1026,10 +1022,6 @@ pub fn claim_airdrops(
         } else {
             return Err(ContractError::AirdropNotRegistered(rate.denom));
         };
-
-        if rate.amount.is_zero() {
-            continue;
-        }
 
         let claim_msg = to_binary(&MerkleAirdropMsg::Claim {
             stage: rate.stage,
