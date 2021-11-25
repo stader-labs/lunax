@@ -671,7 +671,7 @@ mod tests {
             config.cw20_token_contract,
             Addr::unchecked("cw20_token_contract")
         );
-        assert_eq!(config.protocol_fee_contract, Addr::unchecked("new_pfc"));
+        assert_eq!(config.protocol_fee_contract, Addr::unchecked("protocol_fee_contract"));
         assert_eq!(
             config.airdrop_withdrawal_contract,
             Addr::unchecked("airdrop_withdrawal_contract")
@@ -1198,6 +1198,8 @@ mod tests {
         )
         .unwrap_err();
         assert!(matches!(err, ContractError::SwapInCooldown {}));
+        let state = STATE.load(deps.as_mut().storage).unwrap();
+        assert_eq!(state.last_swap_time, env.block.time.minus_seconds(3));
 
         /*
            Test - 2. Success
@@ -2374,6 +2376,8 @@ mod tests {
         )
         .unwrap_err();
         assert!(matches!(err, ContractError::ReinvestInCooldown {}));
+        let state = STATE.load(deps.as_mut().storage).unwrap();
+        assert_eq!(state.last_reinvest_time, env.block.time.minus_seconds(3));
 
         /*
            Test - 1. Successful run
@@ -2462,6 +2466,7 @@ mod tests {
             ]
         ));
         let state = STATE.load(deps.as_mut().storage).unwrap();
+        assert_eq!(state.last_reinvest_time, env.block.time);
         assert_eq!(state.total_staked, Uint128::new(3990_u128));
         assert_eq!(
             state.exchange_rate,
