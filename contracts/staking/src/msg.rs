@@ -27,6 +27,9 @@ pub struct InstantiateMsg {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct MigrateMsg {}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct UserQueryInfo {
     pub total_tokens: Uint128,
     pub total_amount: Coin, // value of tokens in luna with the exchange rate at that point
@@ -41,6 +44,10 @@ pub enum Cw20HookMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
+    InduceSlashing {
+        val_addr: Addr,
+        amount: Uint128,
+    },
     AddValidator {
         val_addr: Addr,
     },
