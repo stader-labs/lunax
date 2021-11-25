@@ -5,30 +5,6 @@
     {
       "type": "object",
       "required": [
-        "induce_slashing"
-      ],
-      "properties": {
-        "induce_slashing": {
-          "type": "object",
-          "required": [
-            "amount",
-            "val_addr"
-          ],
-          "properties": {
-            "amount": {
-              "$ref": "#/definitions/Uint128"
-            },
-            "val_addr": {
-              "$ref": "#/definitions/Addr"
-            }
-          }
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "type": "object",
-      "required": [
         "add_validator"
       ],
       "properties": {
@@ -130,6 +106,26 @@
       "properties": {
         "swap": {
           "type": "object"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "reimburse_slashing"
+      ],
+      "properties": {
+        "reimburse_slashing": {
+          "type": "object",
+          "required": [
+            "val_addr"
+          ],
+          "properties": {
+            "val_addr": {
+              "$ref": "#/definitions/Addr"
+            }
+          }
         }
       },
       "additionalProperties": false
@@ -294,7 +290,7 @@
             "null"
           ]
         },
-        "airdrop_withdrawal_contract": {
+        "airdrop_registry_contract": {
           "type": [
             "string",
             "null"
@@ -334,12 +330,6 @@
             {
               "type": "null"
             }
-          ]
-        },
-        "protocol_fee_contract": {
-          "type": [
-            "string",
-            "null"
           ]
         },
         "protocol_reward_fee": {
