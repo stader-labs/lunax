@@ -97,7 +97,6 @@ pub fn instantiate(
         address: config.reward_contract.to_string(),
     }];
 
-    // TODO - GM. Do I need to store the token contract
     Ok(Response::new().add_messages(msgs))
 }
 
@@ -549,7 +548,7 @@ pub fn swap_rewards(deps: DepsMut, info: MessageInfo, env: Env) -> Result<Respon
     }
 
     state.last_swap_time = env.block.time;
-    STATE.update(deps.storage, &state)?;
+    STATE.save(deps.storage, &state)?;
 
     Ok(Response::new().add_message(WasmMsg::Execute {
         contract_addr: config.reward_contract.to_string(),
