@@ -12,18 +12,20 @@ pub struct Config {
     pub max_deposit: Uint128,
     pub active: bool,
 
-    pub reward_contract: Addr,
-    pub cw20_token_contract: Addr,
-    pub airdrop_registry_contract: Addr,
-    pub airdrop_withdrawal_contract: Addr,
+    pub reward_contract: Addr,             // Non-changeable
+    pub cw20_token_contract: Addr,         // Changeable once
+    pub airdrop_registry_contract: Addr,   // Non-changeable
+    pub airdrop_withdrawal_contract: Addr, // Non-changeable
 
-    pub protocol_fee_contract: Addr,
+    pub protocol_fee_contract: Addr, // Non-changeable
     pub protocol_reward_fee: Decimal,
     pub protocol_deposit_fee: Decimal,
     pub protocol_withdraw_fee: Decimal,
 
     pub unbonding_period: u64,
     pub undelegation_cooldown: u64,
+    pub swap_cooldown: u64, // cooldown to avoid external users from spamming the swap message
+    pub reinvest_cooldown: u64, // cooldown to avoid external users from spamming the reinvest message
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -33,7 +35,10 @@ pub struct State {
     pub last_reconciled_batch_id: u64,
     pub current_undelegation_batch_id: u64,
     pub last_undelegation_time: Timestamp,
+    pub last_swap_time: Timestamp,
+    pub last_reinvest_time: Timestamp,
     pub validators: Vec<Addr>,
+    pub reconciled_funds_to_withdraw: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -68,9 +73,9 @@ pub struct BatchUndelegationRecord {
     pub(crate) create_time: Timestamp,
     pub(crate) est_release_time: Option<Timestamp>,
     pub(crate) reconciled: bool,
-    pub(crate) undelegation_er: Decimal, // pool pointer from every time user action is processed or "most" managerial messages are executed.
+    pub(crate) undelegation_er: Decimal,
     pub(crate) undelegated_stake: Uint128,
-    pub(crate) unbonding_slashing_ratio: Decimal, // If Unbonding happens during the 21 day period.
+    pub(crate) unbonding_slashing_ratio: Decimal, // If Unbonding slashing happens during the 21 day period.
 }
 
 // (undelegation_batch_id) -> BatchUndelegationRecord
@@ -84,11 +89,10 @@ pub struct ConfigUpdateRequest {
     pub(crate) max_deposit: Option<Uint128>,
 
     pub(crate) cw20_token_contract: Option<String>, // Only upgradeable once.
-    pub(crate) protocol_fee_contract: Option<String>,
     pub(crate) protocol_reward_fee: Option<Decimal>,
     pub(crate) protocol_withdraw_fee: Option<Decimal>,
     pub(crate) protocol_deposit_fee: Option<Decimal>,
-    pub(crate) airdrop_withdrawal_contract: Option<String>,
+    pub(crate) airdrop_registry_contract: Option<String>,
 
     pub(crate) unbonding_period: Option<u64>,
     pub(crate) undelegation_cooldown: Option<u64>,

@@ -89,6 +89,7 @@ mod tests {
         let msg = InstantiateMsg {
             unbonding_period: 3600 * 24 * 21,
             undelegation_cooldown: 10,
+            swap_cooldown: 10,
             min_deposit: Uint128::new(1000),
             max_deposit: Uint128::new(1_000_000_000_000),
             reward_contract: "reward_contract".to_string(),
@@ -98,9 +99,37 @@ mod tests {
             protocol_reward_fee: Decimal::from_ratio(1_u128, 100_u128), // 1%
             protocol_deposit_fee: Decimal::from_ratio(1_u128, 100_u128), // 1%
             protocol_withdraw_fee: Decimal::from_ratio(1_u128, 100_u128), // 1%
+            reinvest_cooldown: 10,
         };
 
         instantiate(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
+    }
+
+    #[test]
+    fn proper_initialization_fail() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &[]);
+        let env = mock_env();
+
+        let msg = InstantiateMsg {
+            unbonding_period: 3600 * 24 * 21,
+            undelegation_cooldown: 10,
+            swap_cooldown: 10,
+            min_deposit: Uint128::new(1000),
+            max_deposit: Uint128::new(1_000_000_000_000),
+            reward_contract: "reward_contract".to_string(),
+            airdrops_registry_contract: "airdrop_registry_contract".to_string(),
+            airdrop_withdrawal_contract: "airdrop_withdrawal_contract".to_string(),
+            protocol_fee_contract: "protocol_fee_contract".to_string(),
+            protocol_reward_fee: Decimal::from_ratio(2_u128, 1_u128), // 1%
+            protocol_deposit_fee: Decimal::from_ratio(2_u128, 1_u128), // 1%
+            protocol_withdraw_fee: Decimal::from_ratio(2_u128, 100_u128), // 1%
+            reinvest_cooldown: 10,
+        };
+        let info = mock_info("creator", &[]);
+
+        let err = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap_err();
+        assert!(matches!(err, ContractError::ProtocolFeeAboveLimit {}));
     }
 
     #[test]
@@ -112,6 +141,7 @@ mod tests {
         let msg = InstantiateMsg {
             unbonding_period: 3600 * 24 * 21,
             undelegation_cooldown: 10,
+            swap_cooldown: 10,
             min_deposit: Uint128::new(1000),
             max_deposit: Uint128::new(1_000_000_000_000),
             reward_contract: "reward_contract".to_string(),
@@ -121,12 +151,14 @@ mod tests {
             protocol_reward_fee: Decimal::from_ratio(1_u128, 100_u128), // 1%
             protocol_deposit_fee: Decimal::from_ratio(1_u128, 100_u128), // 1%
             protocol_withdraw_fee: Decimal::from_ratio(1_u128, 100_u128), // 1%
+            reinvest_cooldown: 10,
         };
         let expected_config = Config {
             manager: Addr::unchecked("creator"),
             vault_denom: "uluna".to_string(),
             unbonding_period: 3600 * 24 * 21,
             undelegation_cooldown: 10,
+            swap_cooldown: 10,
             min_deposit: Uint128::new(1000),
             max_deposit: Uint128::new(1_000_000_000_000),
             active: true,
@@ -138,6 +170,7 @@ mod tests {
             protocol_reward_fee: Decimal::from_ratio(1_u128, 100_u128), // 1%
             protocol_deposit_fee: Decimal::from_ratio(1_u128, 100_u128), // 1%
             protocol_withdraw_fee: Decimal::from_ratio(1_u128, 100_u128), // 1%
+            reinvest_cooldown: 10,
         };
         let info = mock_info("creator", &[]);
 
@@ -166,8 +199,14 @@ mod tests {
                 last_undelegation_time: env
                     .block
                     .time
-                    .minus_seconds(config.config.undelegation_cooldown), // Gives flexibility for first undelegaion run.
-                validators: vec![]
+                    .minus_seconds(config.config.undelegation_cooldown),
+                last_swap_time: env.block.time.minus_seconds(config.config.swap_cooldown),
+                last_reinvest_time: env
+                    .block
+                    .time
+                    .minus_seconds(config.config.reinvest_cooldown),
+                validators: vec![],
+                reconciled_funds_to_withdraw: Uint128::zero()
             }
         );
     }
@@ -492,11 +531,10 @@ mod tests {
                     min_deposit: None,
                     max_deposit: None,
                     cw20_token_contract: None,
-                    protocol_fee_contract: None,
                     protocol_reward_fee: None,
                     protocol_withdraw_fee: None,
                     protocol_deposit_fee: None,
-                    airdrop_withdrawal_contract: None,
+                    airdrop_registry_contract: None,
                     unbonding_period: None,
                     undelegation_cooldown: None,
                 },
@@ -504,6 +542,81 @@ mod tests {
         )
         .unwrap_err();
         assert!(matches!(err, ContractError::Unauthorized {}));
+
+        /*
+            Test - 2.
+        */
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::UpdateConfig {
+                config_request: ConfigUpdateRequest {
+                    active: Some(true),
+                    min_deposit: Some(Uint128::from(1_u128)),
+                    max_deposit: Some(Uint128::from(10000000_u128)),
+                    cw20_token_contract: Some("cw20_token_contract".parse().unwrap()),
+                    protocol_reward_fee: Some(Decimal::from_ratio(2_u128, 1_u128)),
+                    protocol_withdraw_fee: Some(Decimal::from_ratio(2_u128, 100_u128)),
+                    protocol_deposit_fee: Some(Decimal::from_ratio(2_u128, 100_u128)),
+                    airdrop_registry_contract: None,
+                    unbonding_period: Some(100u64),
+                    undelegation_cooldown: Some(10000u64),
+                },
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::ProtocolFeeAboveLimit {}));
+
+        /*
+            Test - 2.
+        */
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::UpdateConfig {
+                config_request: ConfigUpdateRequest {
+                    active: Some(true),
+                    min_deposit: Some(Uint128::from(1_u128)),
+                    max_deposit: Some(Uint128::from(10000000_u128)),
+                    cw20_token_contract: Some("cw20_token_contract".parse().unwrap()),
+                    protocol_reward_fee: Some(Decimal::from_ratio(2_u128, 100_u128)),
+                    protocol_withdraw_fee: Some(Decimal::from_ratio(2_u128, 1_u128)),
+                    protocol_deposit_fee: Some(Decimal::from_ratio(2_u128, 100_u128)),
+                    airdrop_registry_contract: Some("airdrop_registry_contract".to_string()),
+                    unbonding_period: Some(100u64),
+                    undelegation_cooldown: Some(10000u64),
+                },
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::ProtocolFeeAboveLimit {}));
+
+        /*
+            Test - 2.
+        */
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::UpdateConfig {
+                config_request: ConfigUpdateRequest {
+                    active: Some(true),
+                    min_deposit: Some(Uint128::from(1_u128)),
+                    max_deposit: Some(Uint128::from(10000000_u128)),
+                    cw20_token_contract: Some("cw20_token_contract".parse().unwrap()),
+                    protocol_reward_fee: Some(Decimal::from_ratio(2_u128, 100_u128)),
+                    protocol_withdraw_fee: Some(Decimal::from_ratio(2_u128, 100_u128)),
+                    protocol_deposit_fee: Some(Decimal::from_ratio(2_u128, 1_u128)),
+                    airdrop_registry_contract: None,
+                    unbonding_period: Some(100u64),
+                    undelegation_cooldown: Some(10000u64),
+                },
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::ProtocolFeeAboveLimit {}));
 
         /*
            Test - 2.
@@ -518,11 +631,10 @@ mod tests {
                     min_deposit: Some(Uint128::from(1_u128)),
                     max_deposit: Some(Uint128::from(10000000_u128)),
                     cw20_token_contract: Some("cw20_token_contract".parse().unwrap()),
-                    protocol_fee_contract: Some("new_pfc".parse().unwrap()),
                     protocol_reward_fee: Some(Decimal::from_ratio(2_u128, 100_u128)),
                     protocol_withdraw_fee: Some(Decimal::from_ratio(2_u128, 100_u128)),
                     protocol_deposit_fee: Some(Decimal::from_ratio(2_u128, 100_u128)),
-                    airdrop_withdrawal_contract: Some("airdrop_withdrawal_contract".to_string()),
+                    airdrop_registry_contract: Some("airdrop_registry_contract".to_string()),
                     unbonding_period: Some(100u64),
                     undelegation_cooldown: Some(10000u64),
                 },
@@ -537,10 +649,17 @@ mod tests {
             config.cw20_token_contract,
             Addr::unchecked("cw20_token_contract")
         );
-        assert_eq!(config.protocol_fee_contract, Addr::unchecked("new_pfc"));
+        assert_eq!(
+            config.protocol_fee_contract,
+            Addr::unchecked("protocol_fee_contract")
+        );
         assert_eq!(
             config.airdrop_withdrawal_contract,
             Addr::unchecked("airdrop_withdrawal_contract")
+        );
+        assert_eq!(
+            config.airdrop_registry_contract,
+            Addr::unchecked("airdrop_registry_contract")
         );
         assert_eq!(
             config.protocol_reward_fee,
@@ -936,14 +1055,12 @@ mod tests {
             Test - 2. Validator already added
         */
         let val_addr = Addr::unchecked("val_addr");
-        VALIDATOR_META
-            .save(
+        STATE
+            .update(
                 deps.as_mut().storage,
-                &val_addr,
-                &VMeta {
-                    staked: Uint128::new(100_u128),
-                    slashed: Uint128::zero(),
-                    filled: Uint128::new(100_u128),
+                |mut state| -> Result<_, ContractError> {
+                    state.validators = vec![val_addr.clone()];
+                    Ok(state)
                 },
             )
             .unwrap();
@@ -1023,6 +1140,29 @@ mod tests {
         let _res = instantiate_contract(&mut deps, &info, &env);
 
         /*
+            Test - 2. In cooldown period
+        */
+        STATE
+            .update(
+                deps.as_mut().storage,
+                |mut state| -> Result<_, ContractError> {
+                    state.last_swap_time = env.block.time.minus_seconds(3);
+                    Ok(state)
+                },
+            )
+            .unwrap();
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("not-creator", &[]),
+            ExecuteMsg::Swap {},
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::SwapInCooldown {}));
+        let state = STATE.load(deps.as_mut().storage).unwrap();
+        assert_eq!(state.last_swap_time, env.block.time.minus_seconds(3));
+
+        /*
            Test - 2. Success
         */
         let res = execute(
@@ -1042,6 +1182,8 @@ mod tests {
                 funds: vec![]
             })]
         );
+        let state = STATE.load(deps.as_mut().storage).unwrap();
+        assert_eq!(state.last_swap_time, env.block.time);
     }
 
     #[test]
@@ -1249,6 +1391,22 @@ mod tests {
         )
         .unwrap_err();
         assert!(matches!(err, ContractError::Unauthorized {}));
+
+        /*
+            Test - 2. Zero amount
+        */
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::RebalancePool {
+                amount: Uint128::zero(),
+                val_addr: Addr::unchecked("val_addr"),
+                redel_addr: Addr::unchecked("redel_addr"),
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::ZeroAmount {}));
 
         let valid1 = Addr::unchecked("valid0001");
         let valid2 = Addr::unchecked("valid0002");
@@ -1552,6 +1710,7 @@ mod tests {
         let env = mock_env();
 
         let _res = instantiate_contract(&mut deps, &info, &env);
+
         let valid1 = Addr::unchecked("valid0001");
         let valid2 = Addr::unchecked("valid0002");
         let valid3 = Addr::unchecked("valid0003");
@@ -1954,32 +2113,36 @@ mod tests {
         )
         .unwrap();
         let config = CONFIG.load(deps.as_mut().storage).unwrap();
-        assert_eq!(res.messages.len(), 2);
-        assert!(check_equal_vec(
+        assert_eq!(res.messages.len(), 3);
+        assert_eq!(
             res.messages,
             vec![
+                SubMsg::new(BankMsg::Send {
+                    to_address: "protocol_fee_contract".to_string(),
+                    amount: vec![Coin::new(10_u128, "uluna")]
+                }),
                 SubMsg::new(StakingMsg::Delegate {
                     validator: valid1.to_string(),
-                    amount: Coin::new(1000_u128, "uluna".to_string())
+                    amount: Coin::new(990_u128, "uluna".to_string())
                 }),
                 SubMsg::new(WasmMsg::Execute {
                     contract_addr: config.cw20_token_contract.to_string(),
                     msg: to_binary(&Cw20ExecuteMsg::Mint {
                         recipient: "other".to_string(),
-                        amount: Uint128::new(1000_u128)
+                        amount: Uint128::new(990_u128)
                     })
                     .unwrap(),
                     funds: vec![]
                 })
             ]
-        ));
+        );
         let state = STATE.load(deps.as_mut().storage).unwrap();
-        assert_eq!(state.total_staked, Uint128::new(4000_u128));
+        assert_eq!(state.total_staked, Uint128::new(3990_u128));
         let val1_meta = VALIDATOR_META.load(deps.as_mut().storage, &valid1).unwrap();
         assert_eq!(
             val1_meta,
             VMeta {
-                staked: Uint128::new(2000_u128),
+                staked: Uint128::new(1990_u128),
                 slashed: Uint128::zero(),
                 filled: Default::default()
             }
@@ -2114,6 +2277,26 @@ mod tests {
 
         let _res = instantiate_contract(&mut deps, &info, &env);
 
+        STATE
+            .update(
+                deps.as_mut().storage,
+                |mut state| -> Result<_, ContractError> {
+                    state.last_reinvest_time = env.block.time.minus_seconds(3);
+                    Ok(state)
+                },
+            )
+            .unwrap();
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("not-creator", &[]),
+            ExecuteMsg::Reinvest {},
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::ReinvestInCooldown {}));
+        let state = STATE.load(deps.as_mut().storage).unwrap();
+        assert_eq!(state.last_reinvest_time, env.block.time.minus_seconds(3));
+
         /*
            Test - 1. Successful run
         */
@@ -2201,11 +2384,13 @@ mod tests {
             ]
         ));
         let state = STATE.load(deps.as_mut().storage).unwrap();
+        assert_eq!(state.last_reinvest_time, env.block.time);
         assert_eq!(state.total_staked, Uint128::new(3990_u128));
         assert_eq!(
             state.exchange_rate,
             Decimal::from_ratio(3990_u128, 3000_u128)
         );
+        assert_eq!(state.last_reinvest_time, env.block.time);
         let val1_meta = VALIDATOR_META.load(deps.as_mut().storage, &valid1).unwrap();
         assert_eq!(val1_meta.staked, Uint128::new(1990_u128));
     }
@@ -2460,7 +2645,7 @@ mod tests {
             GetFundsClaimRecord {
                 user_withdrawal_amount: Uint128::new(743_u128),
                 protocol_fee: Uint128::new(7_u128),
-                undelegated_amount: Uint128::new(1000_u128)
+                undelegated_tokens: Uint128::new(1000_u128)
             }
         );
     }
@@ -2475,6 +2660,12 @@ mod tests {
 
         let user1 = Addr::unchecked("user1");
 
+        STATE
+            .update(deps.as_mut().storage, |mut state| -> StdResult<_> {
+                state.reconciled_funds_to_withdraw = Uint128::new(1200);
+                Ok(state)
+            })
+            .unwrap();
         BATCH_UNDELEGATION_REGISTRY
             .save(
                 deps.as_mut().storage,
@@ -2507,14 +2698,23 @@ mod tests {
             ExecuteMsg::WithdrawFundsToWallet { batch_id: 1 },
         )
         .unwrap();
-        assert_eq!(res.messages.len(), 1);
-        assert!(check_equal_vec(
-            res.messages,
-            vec![SubMsg::new(BankMsg::Send {
+        assert_eq!(res.messages.len(), 2);
+        assert_eq!(
+            res.messages[0],
+            SubMsg::new(BankMsg::Send {
                 to_address: user1.to_string(),
                 amount: vec![Coin::new(743_u128, "uluna".to_string())]
-            })]
-        ));
+            })
+        );
+        assert_eq!(
+            res.messages[1],
+            SubMsg::new(BankMsg::Send {
+                to_address: "protocol_fee_contract".to_string(),
+                amount: vec![Coin::new(7_u128, "uluna".to_string())]
+            })
+        );
+        let state = STATE.load(deps.as_mut().storage).unwrap();
+        assert_eq!(state.reconciled_funds_to_withdraw, Uint128::new(450));
         let user_undel_info = USERS
             .may_load(deps.as_mut().storage, (&user1, U64Key::new(1)))
             .unwrap();
@@ -2982,6 +3182,7 @@ mod tests {
                 |mut state| -> Result<_, ContractError> {
                     state.current_undelegation_batch_id = 3;
                     state.last_reconciled_batch_id = 1;
+                    state.reconciled_funds_to_withdraw = Uint128::new(1800);
                     Ok(state)
                 },
             )
@@ -2997,7 +3198,7 @@ mod tests {
                     reconciled: false,
                     undelegation_er: Decimal::one(),
                     undelegated_stake: Uint128::new(3000_u128),
-                    unbonding_slashing_ratio: Default::default(),
+                    unbonding_slashing_ratio: Decimal::one(),
                 },
             )
             .unwrap();
@@ -3012,13 +3213,13 @@ mod tests {
                     reconciled: false,
                     undelegation_er: Decimal::one(),
                     undelegated_stake: Uint128::new(2000_u128),
-                    unbonding_slashing_ratio: Default::default(),
+                    unbonding_slashing_ratio: Decimal::one(),
                 },
             )
             .unwrap();
         deps.querier.update_balance(
             env.contract.address.clone(),
-            vec![Coin::new(5000_u128, "uluna".to_string())],
+            vec![Coin::new(7000_u128, "uluna".to_string())],
         );
         let res = execute(
             deps.as_mut(),
@@ -3028,6 +3229,7 @@ mod tests {
         )
         .unwrap();
         let state = STATE.load(deps.as_mut().storage).unwrap();
+        assert_eq!(state.reconciled_funds_to_withdraw, Uint128::new(6800));
         let batch_2 = BATCH_UNDELEGATION_REGISTRY
             .load(deps.as_mut().storage, U64Key::new(2))
             .unwrap();
@@ -3068,6 +3270,7 @@ mod tests {
                 |mut state| -> Result<_, ContractError> {
                     state.current_undelegation_batch_id = 3;
                     state.last_reconciled_batch_id = 1;
+                    state.reconciled_funds_to_withdraw = Uint128::new(1800);
                     Ok(state)
                 },
             )
@@ -3104,7 +3307,7 @@ mod tests {
             .unwrap();
         deps.querier.update_balance(
             env.contract.address.clone(),
-            vec![Coin::new(4000_u128, "uluna".to_string())],
+            vec![Coin::new(6000_u128, "uluna".to_string())],
         );
         let res = execute(
             deps.as_mut(),
@@ -3114,6 +3317,7 @@ mod tests {
         )
         .unwrap();
         let state = STATE.load(deps.as_mut().storage).unwrap();
+        assert_eq!(state.reconciled_funds_to_withdraw, Uint128::new(6000));
         let batch_2 = BATCH_UNDELEGATION_REGISTRY
             .load(deps.as_mut().storage, U64Key::new(2))
             .unwrap();
@@ -3129,7 +3333,7 @@ mod tests {
                 reconciled: true,
                 undelegation_er: Decimal::one(),
                 undelegated_stake: Uint128::new(3000_u128),
-                unbonding_slashing_ratio: Decimal::from_ratio(4_u128, 5_u128)
+                unbonding_slashing_ratio: Decimal::from_ratio(42_u128, 50_u128)
             }
         );
         assert_eq!(
@@ -3141,8 +3345,71 @@ mod tests {
                 reconciled: true,
                 undelegation_er: Decimal::one(),
                 undelegated_stake: Uint128::new(2000_u128),
-                unbonding_slashing_ratio: Decimal::from_ratio(4_u128, 5_u128)
+                unbonding_slashing_ratio: Decimal::from_ratio(42_u128, 50_u128)
             }
+        );
+    }
+
+    #[test]
+    fn test_reimburse_slashing() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &[]);
+        let env = mock_env();
+        let valid1 = Addr::unchecked("valid0001");
+
+        let _res = instantiate_contract(&mut deps, &info, &env);
+        STATE
+            .update(deps.as_mut().storage, |mut state| -> StdResult<_> {
+                state.validators = vec![Addr::unchecked("valid0001")];
+                Ok(state)
+            })
+            .unwrap();
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("other", &[Coin::new(25_u128, "uluna")]),
+            ExecuteMsg::ReimburseSlashing {
+                val_addr: valid1.clone(),
+            },
+        )
+        .unwrap();
+
+        assert_eq!(res.messages.len(), 1);
+        assert_eq!(
+            res.messages[0],
+            SubMsg::new(StakingMsg::Delegate {
+                validator: valid1.to_string(),
+                amount: Coin::new(25_u128, "uluna")
+            })
+        );
+
+        let vmeta = VALIDATOR_META.load(deps.as_mut().storage, &valid1).unwrap();
+        assert_eq!(
+            vmeta,
+            VMeta {
+                staked: Default::default(),
+                slashed: Default::default(),
+                filled: Uint128::new(25),
+            }
+        );
+
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("other", &[Coin::new(125_u128, "uluna")]),
+            ExecuteMsg::ReimburseSlashing {
+                val_addr: valid1.clone(),
+            },
+        )
+        .unwrap();
+
+        assert_eq!(res.messages.len(), 1);
+        assert_eq!(
+            res.messages[0],
+            SubMsg::new(StakingMsg::Delegate {
+                validator: valid1.to_string(),
+                amount: Coin::new(125_u128, "uluna")
+            })
         );
     }
 }

@@ -22,7 +22,12 @@ pub struct InstantiateMsg {
 
     pub unbonding_period: u64,
     pub undelegation_cooldown: u64,
+    pub swap_cooldown: u64,
+    pub reinvest_cooldown: u64,
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct MigrateMsg {}
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct UserQueryInfo {
@@ -39,6 +44,10 @@ pub enum Cw20HookMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
+    InduceSlashing {
+        val_addr: Addr,
+        amount: Uint128,
+    },
     AddValidator {
         val_addr: Addr,
     },
@@ -54,6 +63,9 @@ pub enum ExecuteMsg {
     Deposit {},
     RedeemRewards {},
     Swap {},
+    ReimburseSlashing {
+        val_addr: Addr,
+    },
     Receive(Cw20ReceiveMsg),
     Reinvest {},
     Undelegate {},
@@ -102,6 +114,9 @@ pub enum QueryMsg {
     GetUserInfo {
         user_addr: String,
     },
+    ComputeDepositBreakdown {
+        amount: Uint128,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -130,8 +145,16 @@ pub struct GetValMetaResponse {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct GetFundsDepositRecord {
+    pub user_deposit_amount: Uint128,
+    pub protocol_fee: Uint128,
+    pub staked_amount: Uint128,
+    pub tokens_to_mint: Uint128,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct GetFundsClaimRecord {
     pub user_withdrawal_amount: Uint128,
     pub protocol_fee: Uint128,
-    pub undelegated_amount: Uint128,
+    pub undelegated_tokens: Uint128,
 }

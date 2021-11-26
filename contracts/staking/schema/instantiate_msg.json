@@ -11,7 +11,9 @@
     "protocol_fee_contract",
     "protocol_reward_fee",
     "protocol_withdraw_fee",
+    "reinvest_cooldown",
     "reward_contract",
+    "swap_cooldown",
     "unbonding_period",
     "undelegation_cooldown"
   ],
@@ -40,8 +42,18 @@
     "protocol_withdraw_fee": {
       "$ref": "#/definitions/Decimal"
     },
+    "reinvest_cooldown": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    },
     "reward_contract": {
       "type": "string"
+    },
+    "swap_cooldown": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
     },
     "unbonding_period": {
       "type": "integer",
