@@ -190,6 +190,10 @@ pub fn update_config(
     config.unbonding_period = update_config
         .unbonding_period
         .unwrap_or(config.unbonding_period);
+    config.swap_cooldown = update_config.swap_cooldown.unwrap_or(config.swap_cooldown);
+    config.reinvest_cooldown = update_config
+        .reinvest_cooldown
+        .unwrap_or(config.reinvest_cooldown);
 
     CONFIG.save(deps.storage, &config)?;
 

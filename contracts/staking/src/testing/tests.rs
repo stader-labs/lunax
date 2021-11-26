@@ -517,6 +517,7 @@ mod tests {
         let env = mock_env();
 
         let _res = instantiate_contract(&mut deps, &info, &env);
+        let initial_state = STATE.load(deps.as_mut().storage).unwrap();
 
         /*
            Test - 1. Unauthorized
@@ -537,11 +538,39 @@ mod tests {
                     airdrop_registry_contract: None,
                     unbonding_period: None,
                     undelegation_cooldown: None,
+                    swap_cooldown: None,
+                    reinvest_cooldown: None,
                 },
             },
         )
         .unwrap_err();
         assert!(matches!(err, ContractError::Unauthorized {}));
+
+        // Authorized but no changes
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::UpdateConfig {
+                config_request: ConfigUpdateRequest {
+                    active: None,
+                    min_deposit: None,
+                    max_deposit: None,
+                    cw20_token_contract: None,
+                    protocol_reward_fee: None,
+                    protocol_withdraw_fee: None,
+                    protocol_deposit_fee: None,
+                    airdrop_registry_contract: None,
+                    unbonding_period: None,
+                    undelegation_cooldown: None,
+                    swap_cooldown: None,
+                    reinvest_cooldown: None,
+                },
+            },
+        )
+        .unwrap();
+        let state = STATE.load(deps.as_mut().storage).unwrap();
+        assert_eq!(state, initial_state);
 
         /*
             Test - 2.
@@ -562,6 +591,8 @@ mod tests {
                     airdrop_registry_contract: None,
                     unbonding_period: Some(100u64),
                     undelegation_cooldown: Some(10000u64),
+                    swap_cooldown: Some(123u64),
+                    reinvest_cooldown: Some(234u64),
                 },
             },
         )
@@ -587,6 +618,8 @@ mod tests {
                     airdrop_registry_contract: Some("airdrop_registry_contract".to_string()),
                     unbonding_period: Some(100u64),
                     undelegation_cooldown: Some(10000u64),
+                    swap_cooldown: Some(123u64),
+                    reinvest_cooldown: Some(234u64),
                 },
             },
         )
@@ -612,6 +645,8 @@ mod tests {
                     airdrop_registry_contract: None,
                     unbonding_period: Some(100u64),
                     undelegation_cooldown: Some(10000u64),
+                    swap_cooldown: Some(123u64),
+                    reinvest_cooldown: Some(234u64),
                 },
             },
         )
@@ -637,6 +672,8 @@ mod tests {
                     airdrop_registry_contract: Some("airdrop_registry_contract".to_string()),
                     unbonding_period: Some(100u64),
                     undelegation_cooldown: Some(10000u64),
+                    swap_cooldown: Some(123u64),
+                    reinvest_cooldown: Some(234u64),
                 },
             },
         )
@@ -675,6 +712,8 @@ mod tests {
         );
         assert_eq!(config.unbonding_period, 100u64);
         assert_eq!(config.undelegation_cooldown, 10000u64);
+        assert_eq!(config.swap_cooldown, 123u64);
+        assert_eq!(config.reinvest_cooldown, 234u64);
     }
 
     #[test]
