@@ -112,9 +112,6 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::InduceSlashing { val_addr, amount } => {
-            induce_slashing(deps, info, env, val_addr, amount)
-        }
         ExecuteMsg::AddValidator { val_addr } => add_validator(deps, info, env, val_addr),
         ExecuteMsg::RemoveValidator {
             val_addr,
@@ -141,19 +138,6 @@ pub fn execute(
             update_config(deps, info, env, config_request)
         }
     }
-}
-
-pub fn induce_slashing(
-    deps: DepsMut,
-    info: MessageInfo,
-    env: Env,
-    val_addr: Addr,
-    amount: Uint128,
-) -> Result<Response, ContractError> {
-    Ok(Response::new().add_message(StakingMsg::Undelegate {
-        validator: val_addr.to_string(),
-        amount: Coin::new(amount.u128(), "uluna".to_string()),
-    }))
 }
 
 pub fn update_config(
