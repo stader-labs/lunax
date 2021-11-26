@@ -44,10 +44,6 @@ pub enum Cw20HookMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
-    InduceSlashing {
-        val_addr: Addr,
-        amount: Uint128,
-    },
     AddValidator {
         val_addr: Addr,
     },
