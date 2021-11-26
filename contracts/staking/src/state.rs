@@ -96,6 +96,8 @@ pub struct ConfigUpdateRequest {
 
     pub(crate) unbonding_period: Option<u64>,
     pub(crate) undelegation_cooldown: Option<u64>,
+    pub(crate) swap_cooldown: Option<u64>,
+    pub(crate) reinvest_cooldown: Option<u64>,
 }
 
 pub const CONFIG: Item<Config> = Item::new("config");
