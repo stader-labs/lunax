@@ -13,18 +13,6 @@
         }
       },
       "additionalProperties": false
-    },
-    {
-      "type": "object",
-      "required": [
-        "swapped_amount"
-      ],
-      "properties": {
-        "swapped_amount": {
-          "type": "object"
-        }
-      },
-      "additionalProperties": false
     }
   ]
 }
