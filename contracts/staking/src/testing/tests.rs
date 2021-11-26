@@ -671,7 +671,10 @@ mod tests {
             config.cw20_token_contract,
             Addr::unchecked("cw20_token_contract")
         );
-        assert_eq!(config.protocol_fee_contract, Addr::unchecked("protocol_fee_contract"));
+        assert_eq!(
+            config.protocol_fee_contract,
+            Addr::unchecked("protocol_fee_contract")
+        );
         assert_eq!(
             config.airdrop_withdrawal_contract,
             Addr::unchecked("airdrop_withdrawal_contract")

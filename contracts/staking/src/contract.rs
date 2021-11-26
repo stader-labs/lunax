@@ -19,8 +19,7 @@ use airdrops_registry::msg::GetAirdropContractsResponse;
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     from_binary, to_binary, Addr, BankMsg, Binary, Coin, Decimal, Deps, DepsMut, DistributionMsg,
-    Env, MessageInfo, Order, Response, StakingMsg, StdError, StdResult, Storage, SubMsg, Uint128,
-    WasmMsg,
+    Env, MessageInfo, Order, Response, StakingMsg, StdResult, Storage, SubMsg, Uint128, WasmMsg,
 };
 use cw20::Cw20ReceiveMsg;
 use cw20_base::msg::ExecuteMsg as Cw20ExecuteMsg;
@@ -28,9 +27,9 @@ use cw_storage_plus::{Bound, U64Key};
 use reward::msg::ExecuteMsg as RewardExecuteMsg;
 use stader_utils::coin_utils::{
     decimal_division_in_256, decimal_multiplication_in_256, get_decimal_from_uint128,
-    multiply_u128_with_decimal, u128_from_decimal, uint128_from_decimal,
+    multiply_u128_with_decimal, uint128_from_decimal,
 };
-use std::ops::{Deref, Div, Mul, Sub};
+use std::ops::{Deref, Mul};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -376,7 +375,10 @@ pub fn check_slashing(deps: &mut DepsMut, env: &Env) -> Result<Response, Contrac
             let mut val_meta = x.unwrap_or(VMeta::new());
 
             if val_meta.staked.gt(&delegation_amount) {
-                let slashed_amount = val_meta.staked.checked_sub(delegation_amount).unwrap_or(Uint128::zero());
+                let slashed_amount = val_meta
+                    .staked
+                    .checked_sub(delegation_amount)
+                    .unwrap_or(Uint128::zero());
                 val_meta.slashed = val_meta.slashed.checked_add(slashed_amount).unwrap();
             }
             val_meta.staked = delegation_amount;

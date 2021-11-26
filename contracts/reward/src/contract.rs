@@ -91,18 +91,44 @@ pub fn swap(
         .querier
         .query_all_balances(env.contract.address)
         .unwrap();
-    let denoms: Vec<String> = total_rewards
-        .iter()
-        .map(|item| item.denom.clone())
-        .collect();
+    // let denoms: Vec<String> = total_rewards
+    //     .iter()
+    //     .map(|item| item.denom.clone())
+    //     .collect();
+
+    // got this list from https://fcd.terra.dev/v1/txs/gas_prices. These are native Terra
+    let denoms = vec![
+        "uluna".to_string(),
+        "usdr".to_string(),
+        "uusd".to_string(),
+        "ukrw".to_string(),
+        "umnt".to_string(),
+        "ueur".to_string(),
+        "ucny".to_string(),
+        "ujpy".to_string(),
+        "ugbp".to_string(),
+        "uinr".to_string(),
+        "ucad".to_string(),
+        "uchf".to_string(),
+        "uaud".to_string(),
+        "usgd".to_string(),
+        "uthb".to_string(),
+        "usek".to_string(),
+        "unok".to_string(),
+        "udkk".to_string(),
+        "uidr".to_string(),
+        "uphp".to_string(),
+        "uhkd".to_string(),
+    ];
 
     let mut is_listed = true;
-    if query_exchange_rates(&deps, config.reward_denom.clone(), denoms).is_err() {
+    if query_exchange_rates(&deps, config.reward_denom.clone(), denoms.clone()).is_err() {
         is_listed = false;
     }
 
     for coin in total_rewards {
-        if coin.denom == config.reward_denom.clone() {
+        // No need to swap uluna and Don't process rewards that aren't native to Terra
+        if coin.denom == config.reward_denom.clone() || !denoms.contains(&coin.denom) {
             continue;
         }
 
