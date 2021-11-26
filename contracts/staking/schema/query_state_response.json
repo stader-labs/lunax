@@ -25,7 +25,10 @@
         "current_undelegation_batch_id",
         "exchange_rate",
         "last_reconciled_batch_id",
+        "last_reinvest_time",
+        "last_swap_time",
         "last_undelegation_time",
+        "reconciled_funds_to_withdraw",
         "total_staked",
         "validators"
       ],
@@ -43,8 +46,17 @@
           "format": "uint64",
           "minimum": 0.0
         },
+        "last_reinvest_time": {
+          "$ref": "#/definitions/Timestamp"
+        },
+        "last_swap_time": {
+          "$ref": "#/definitions/Timestamp"
+        },
         "last_undelegation_time": {
           "$ref": "#/definitions/Timestamp"
+        },
+        "reconciled_funds_to_withdraw": {
+          "$ref": "#/definitions/Uint128"
         },
         "total_staked": {
           "$ref": "#/definitions/Uint128"

@@ -113,6 +113,26 @@
     {
       "type": "object",
       "required": [
+        "reimburse_slashing"
+      ],
+      "properties": {
+        "reimburse_slashing": {
+          "type": "object",
+          "required": [
+            "val_addr"
+          ],
+          "properties": {
+            "val_addr": {
+              "$ref": "#/definitions/Addr"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
         "receive"
       ],
       "properties": {
@@ -270,7 +290,7 @@
             "null"
           ]
         },
-        "airdrop_withdrawal_contract": {
+        "airdrop_registry_contract": {
           "type": [
             "string",
             "null"
@@ -310,12 +330,6 @@
             {
               "type": "null"
             }
-          ]
-        },
-        "protocol_fee_contract": {
-          "type": [
-            "string",
-            "null"
           ]
         },
         "protocol_reward_fee": {

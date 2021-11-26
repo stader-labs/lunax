@@ -518,28 +518,6 @@ mod tests {
 
         let _res = instantiate_contract(&mut deps, &info, &env);
 
-        let err = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info("creator", &[Coin::new(100_u128, "uluna".to_string())]),
-            ExecuteMsg::UpdateConfig {
-                config_request: ConfigUpdateRequest {
-                    active: None,
-                    min_deposit: None,
-                    max_deposit: None,
-                    cw20_token_contract: None,
-                    protocol_reward_fee: None,
-                    protocol_withdraw_fee: None,
-                    protocol_deposit_fee: None,
-                    airdrop_registry_contract: None,
-                    unbonding_period: None,
-                    undelegation_cooldown: None,
-                },
-            },
-        )
-        .unwrap_err();
-        assert!(matches!(err, ContractError::FundsNotExpected {}));
-
         /*
            Test - 1. Unauthorized
         */
@@ -1059,17 +1037,6 @@ mod tests {
 
         let _res = instantiate_contract(&mut deps, &info, &env);
 
-        let err = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info("creator", &[Coin::new(100_u128, "uluna".to_string())]),
-            ExecuteMsg::AddValidator {
-                val_addr: Addr::unchecked("abcdefg"),
-            },
-        )
-        .unwrap_err();
-        assert!(matches!(err, ContractError::FundsNotExpected {}));
-
         /*
            Test - 1. Unauthorized
         */
@@ -1172,15 +1139,6 @@ mod tests {
 
         let _res = instantiate_contract(&mut deps, &info, &env);
 
-        let err = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info("not-creator", &[Coin::new(100_u128, "uluna".to_string())]),
-            ExecuteMsg::Swap {},
-        )
-        .unwrap_err();
-        assert!(matches!(err, ContractError::FundsNotExpected {}));
-
         /*
             Test - 2. In cooldown period
         */
@@ -1239,15 +1197,6 @@ mod tests {
         let valid1 = Addr::unchecked("valid0001");
         let valid2 = Addr::unchecked("valid0002");
         let valid3 = Addr::unchecked("valid0003");
-
-        let err = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info("creator", &[Coin::new(100_u128, "uluna".to_string())]),
-            ExecuteMsg::RedeemRewards {},
-        )
-        .unwrap_err();
-        assert!(matches!(err, ContractError::FundsNotExpected {}));
 
         /*
            Test - 1 - No failed validators
@@ -1426,19 +1375,6 @@ mod tests {
         let env = mock_env();
 
         let _res = instantiate_contract(&mut deps, &info, &env);
-
-        let err = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info("creator", &[Coin::new(100_u128, "uluna".to_string())]),
-            ExecuteMsg::RebalancePool {
-                amount: Uint128::new(100_u128),
-                val_addr: Addr::unchecked("abc"),
-                redel_addr: Addr::unchecked("def"),
-            },
-        )
-        .unwrap_err();
-        assert!(matches!(err, ContractError::FundsNotExpected {}));
 
         /*
            Test - 1. Unauthorized
@@ -1774,18 +1710,6 @@ mod tests {
         let env = mock_env();
 
         let _res = instantiate_contract(&mut deps, &info, &env);
-
-        let err = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info("creator", &[Coin::new(100_u128, "uluna".to_string())]),
-            ExecuteMsg::RemoveValidator {
-                val_addr: Addr::unchecked("abcdef"),
-                redel_addr: Addr::unchecked("hijklm"),
-            },
-        )
-        .unwrap_err();
-        assert!(matches!(err, ContractError::FundsNotExpected {}));
 
         let valid1 = Addr::unchecked("valid0001");
         let valid2 = Addr::unchecked("valid0002");
@@ -2353,15 +2277,6 @@ mod tests {
 
         let _res = instantiate_contract(&mut deps, &info, &env);
 
-        let err = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info("not-creator", &[Coin::new(100_u128, "uluna".to_string())]),
-            ExecuteMsg::Reinvest {},
-        )
-        .unwrap_err();
-        assert!(matches!(err, ContractError::FundsNotExpected {}));
-
         STATE
             .update(
                 deps.as_mut().storage,
@@ -2487,15 +2402,6 @@ mod tests {
         let env = mock_env();
 
         let _res = instantiate_contract(&mut deps, &info, &env);
-
-        let err = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info("not-creator", &[Coin::new(100_u128, "uluna".to_string())]),
-            ExecuteMsg::ClaimAirdrops { rates: vec![] },
-        )
-        .unwrap_err();
-        assert!(matches!(err, ContractError::FundsNotExpected {}));
 
         /*
            Test - 1. Airdrop not registered
@@ -2822,15 +2728,6 @@ mod tests {
         let env = mock_env();
 
         let _res = instantiate_contract(&mut deps, &info, &env);
-
-        let err = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info("creator", &[Coin::new(100_u128, "uluna".to_string())]),
-            ExecuteMsg::Undelegate {},
-        )
-        .unwrap_err();
-        assert!(matches!(err, ContractError::FundsNotExpected {}));
 
         let valid1 = Addr::unchecked("valid0001");
         let valid2 = Addr::unchecked("valid0002");
@@ -3275,15 +3172,6 @@ mod tests {
         let env = mock_env();
 
         let _res = instantiate_contract(&mut deps, &info, &env);
-
-        let err = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info("creator", &[Coin::new(100_u128, "uluna".to_string())]),
-            ExecuteMsg::ReconcileFunds {},
-        )
-        .unwrap_err();
-        assert!(matches!(err, ContractError::FundsNotExpected {}));
 
         /*
            Test - 1. No undelegation slashing

@@ -6,8 +6,8 @@ use crate::helpers::{
 };
 use crate::msg::{
     Cw20HookMsg, ExecuteMsg, GetFundsClaimRecord, GetFundsDepositRecord, GetValMetaResponse,
-    InstantiateMsg, MerkleAirdropMsg, QueryBatchUndelegationResponse, QueryConfigResponse,
-    QueryMsg, QueryStateResponse, UserInfoResponse, UserQueryInfo,
+    InstantiateMsg, MerkleAirdropMsg, MigrateMsg, QueryBatchUndelegationResponse,
+    QueryConfigResponse, QueryMsg, QueryStateResponse, UserInfoResponse, UserQueryInfo,
 };
 use crate::state::{
     AirdropRate, Config, ConfigUpdateRequest, State, UndelegationInfo, VMeta,
@@ -100,6 +100,11 @@ pub fn instantiate(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
+    Ok(Response::default())
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
     env: Env,
@@ -107,6 +112,9 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
+        ExecuteMsg::InduceSlashing { val_addr, amount } => {
+            induce_slashing(deps, info, env, val_addr, amount)
+        }
         ExecuteMsg::AddValidator { val_addr } => add_validator(deps, info, env, val_addr),
         ExecuteMsg::RemoveValidator {
             val_addr,
@@ -135,6 +143,19 @@ pub fn execute(
     }
 }
 
+pub fn induce_slashing(
+    deps: DepsMut,
+    info: MessageInfo,
+    env: Env,
+    val_addr: Addr,
+    amount: Uint128,
+) -> Result<Response, ContractError> {
+    Ok(Response::new().add_message(StakingMsg::Undelegate {
+        validator: val_addr.to_string(),
+        amount: Coin::new(amount.u128(), "uluna".to_string()),
+    }))
+}
+
 pub fn update_config(
     deps: DepsMut,
     info: MessageInfo,
@@ -142,12 +163,7 @@ pub fn update_config(
     update_config: ConfigUpdateRequest,
 ) -> Result<Response, ContractError> {
     let mut config = CONFIG.load(deps.storage)?;
-    validate(
-        &config,
-        &info,
-        &env,
-        vec![Verify::SenderManager, Verify::NoFunds],
-    )?;
+    validate(&config, &info, &env, vec![Verify::SenderManager])?;
 
     if let Some(cw20_contract) = update_config.cw20_token_contract {
         if config.cw20_token_contract == Addr::unchecked("0") {
@@ -204,12 +220,7 @@ pub fn add_validator(
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
     let state = STATE.load(deps.storage)?;
-    validate(
-        &config,
-        &info,
-        &env,
-        vec![Verify::SenderManager, Verify::NoFunds],
-    )?;
+    validate(&config, &info, &env, vec![Verify::SenderManager])?;
 
     if state.validators.contains(&val_addr) {
         return Err(ContractError::ValidatorAlreadyAdded {});
@@ -238,12 +249,7 @@ pub fn remove_validator_from_pool(
     redel_addr: Addr,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
-    validate(
-        &config,
-        &info,
-        &env,
-        vec![Verify::SenderManager, Verify::NoFunds],
-    )?;
+    validate(&config, &info, &env, vec![Verify::SenderManager])?;
 
     check_slashing(&mut deps, &env)?;
 
@@ -300,12 +306,7 @@ pub fn rebalance_pool(
     redel_addr: Addr,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
-    validate(
-        &config,
-        &info,
-        &env,
-        vec![Verify::SenderManager, Verify::NoFunds],
-    )?;
+    validate(&config, &info, &env, vec![Verify::SenderManager])?;
 
     if amount.is_zero() {
         return Err(ContractError::ZeroAmount {});
@@ -496,12 +497,9 @@ pub fn compute_deposit_breakdown(
 
 pub fn redeem_rewards(
     mut deps: DepsMut,
-    info: MessageInfo,
+    _info: MessageInfo,
     env: Env,
 ) -> Result<Response, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
-    // Don't allow funds. it will mess up reconcile funds tracking
-    validate(&config, &info, &env, vec![Verify::NoFunds])?;
     check_slashing(&mut deps, &env)?;
     let state = STATE.load(deps.storage)?;
 
@@ -536,8 +534,6 @@ pub fn redeem_rewards(
 // Useful to make this permissionless.
 pub fn swap_rewards(deps: DepsMut, info: MessageInfo, env: Env) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
-    validate(&config, &info, &env, vec![Verify::NoFunds])?;
-
     let mut state = STATE.load(deps.storage)?;
 
     if info.sender.ne(&config.manager)
@@ -561,8 +557,6 @@ pub fn swap_rewards(deps: DepsMut, info: MessageInfo, env: Env) -> Result<Respon
 
 pub fn reinvest(mut deps: DepsMut, info: MessageInfo, env: Env) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
-    validate(&config, &info, &env, vec![Verify::NoFunds])?;
-
     check_slashing(&mut deps, &env)?;
 
     let mut state = STATE.load(deps.storage)?;
@@ -736,8 +730,6 @@ pub fn undelegate_stake(
     env: Env,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
-    validate(&config, &info, &env, vec![Verify::NoFunds])?;
-
     check_slashing(&mut deps, &env)?;
 
     let mut state = STATE.load(deps.storage)?;
@@ -829,11 +821,10 @@ pub fn undelegate_stake(
 // we are now checking if there was slashing in these 21 days for these funds.
 pub fn reconcile_funds(
     deps: DepsMut,
-    info: MessageInfo,
+    _info: MessageInfo,
     env: Env,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
-    validate(&config, &info, &env, vec![Verify::NoFunds])?;
 
     let mut state = STATE.load(deps.storage)?;
 
@@ -909,11 +900,10 @@ pub fn reconcile_funds(
 pub fn withdraw_funds_to_wallet(
     deps: DepsMut,
     info: MessageInfo,
-    env: Env,
+    _env: Env,
     batch_id: u64,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
-    validate(&config, &info, &env, vec![Verify::NoFunds])?;
 
     let mut state = STATE.load(deps.storage)?;
     let user_addr = deps.api.addr_validate(info.sender.as_str())?;
@@ -997,12 +987,11 @@ pub fn compute_withdrawable_funds(
 // Can be permissionless and no check_slashing reqd because all airdrops are drained.
 pub fn claim_airdrops(
     deps: DepsMut,
-    info: MessageInfo,
-    env: Env,
+    _info: MessageInfo,
+    _env: Env,
     airdrop_rates: Vec<AirdropRate>,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
-    validate(&config, &info, &env, vec![Verify::NoFunds])?;
 
     let mut msgs = vec![];
     let airdrop_withdrawal_contract = config.airdrop_withdrawal_contract;

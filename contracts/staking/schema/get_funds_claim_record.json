@@ -4,14 +4,14 @@
   "type": "object",
   "required": [
     "protocol_fee",
-    "undelegated_amount",
+    "undelegated_tokens",
     "user_withdrawal_amount"
   ],
   "properties": {
     "protocol_fee": {
       "$ref": "#/definitions/Uint128"
     },
-    "undelegated_amount": {
+    "undelegated_tokens": {
       "$ref": "#/definitions/Uint128"
     },
     "user_withdrawal_amount": {
