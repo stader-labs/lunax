@@ -3390,13 +3390,64 @@ mod tests {
     }
 
     #[test]
-    fn test_reimburse_slashing() {
+    fn test_reimburse_slashing_failure() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
         let valid1 = Addr::unchecked("valid0001");
 
         let _res = instantiate_contract(&mut deps, &info, &env);
+
+        /*
+           Test - Validator not in pool
+        */
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("not-creator", &[Coin::new(1000_u128, "uluna".to_string())]),
+            ExecuteMsg::ReimburseSlashing {
+                val_addr: valid1.clone(),
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::ValidatorNotAdded {}));
+
+        /*
+            Test - Validator not discoverable
+        */
+        STATE
+            .update(
+                deps.as_mut().storage,
+                |mut state| -> Result<_, ContractError> {
+                    state.validators = vec![valid1.clone()];
+                    Ok(state)
+                },
+            )
+            .unwrap();
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("not-creator", &[Coin::new(1000_u128, "uluna".to_string())]),
+            ExecuteMsg::ReimburseSlashing {
+                val_addr: valid1.clone(),
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::ValidatorJailed {}));
+    }
+
+    #[test]
+    fn test_reimburse_slashing_success() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &[]);
+        let env = mock_env();
+        let valid1 = Addr::unchecked("valid0001");
+
+        let _res = instantiate_contract(&mut deps, &info, &env);
+
+        deps.querier
+            .update_staking("uluna", &*get_validators(), &[]);
+
         STATE
             .update(deps.as_mut().storage, |mut state| -> StdResult<_> {
                 state.validators = vec![Addr::unchecked("valid0001")];

@@ -6,9 +6,6 @@ pub enum ContractError {
     #[error("Staking-Contract: {0}")]
     Std(#[from] StdError),
 
-    #[error("Staking-Contract: Mint deploy failed")]
-    MintDeployFailed {},
-
     #[error("Staking-Contract: Unauthorized")]
     Unauthorized {},
 
@@ -84,6 +81,9 @@ pub enum ContractError {
     #[error("Staking-Contract: Provided validator contract is in use for another pool")]
     ValidatorContractInUse {},
 
+    #[error("Staking-Contract: Provided validator is jailed")]
+    ValidatorJailed {},
+
     #[error("Staking-Contract: Provided reward contract is in use for another pool")]
     RewardContractInUse {},
 
@@ -95,9 +95,6 @@ pub enum ContractError {
 
     #[error("Staking-Contract: Validator to redelegate should be different from source validator")]
     ValidatorsCannotBeSame {},
-
-    #[error("Staking-Contract: Token string cannot be empty")]
-    TokenEmpty {},
 
     #[error("Staking-Contract: Redelegation in progress. Cannot remove validator")]
     RedelegationInProgress {},

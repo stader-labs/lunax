@@ -627,11 +627,20 @@ pub fn reimburse_slashing(
         return Err(ContractError::ValidatorNotAdded {});
     }
 
+    if deps
+        .querier
+        .query_validator(val_addr.to_string())?
+        .is_none()
+    {
+        return Err(ContractError::ValidatorJailed {});
+    }
+
     VALIDATOR_META.update(deps.storage, &val_addr, |x| -> StdResult<_> {
         let mut vmeta = x.unwrap_or(VMeta::new());
         vmeta.filled = vmeta.filled.checked_add(reimburse_amount).unwrap();
         Ok(vmeta)
     })?;
+
     // We could update state.total_staked and state.exchange_rate here but we could let next check_slashing take that up.
     Ok(Response::new().add_message(StakingMsg::Delegate {
         validator: val_addr.to_string(),
@@ -698,6 +707,7 @@ pub fn queue_undelegation(
         },
     )?;
     BATCH_UNDELEGATION_REGISTRY.update(deps.storage, batch_key, |x| -> StdResult<_> {
+        // the batch will always be created
         let mut batch_undelegation = x.unwrap();
         batch_undelegation.undelegated_tokens = batch_undelegation
             .undelegated_tokens
