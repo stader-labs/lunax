@@ -159,6 +159,10 @@ pub fn update_config(
         config.airdrop_registry_contract = deps.api.addr_validate(arc.as_str())?;
     }
 
+    if let Some(awc) = update_config.airdrop_withdrawal_contract {
+        config.airdrop_withdrawal_contract = deps.api.addr_validate(awc.as_str())?;
+    }
+
     config.min_deposit = update_config.min_deposit.unwrap_or(config.min_deposit);
     config.max_deposit = update_config.max_deposit.unwrap_or(config.max_deposit);
     config.active = update_config.active.unwrap_or(config.active);
