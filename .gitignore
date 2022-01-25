@@ -21,3 +21,5 @@ s-airdrops-registry
 s-reward
 
 .idea/
+
+scripts/node_modules
