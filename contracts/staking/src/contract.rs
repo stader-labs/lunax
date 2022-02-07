@@ -1043,15 +1043,8 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             start_after,
             limit,
         )?),
-        QueryMsg::GetUserUndelegationInfo {
-            user_addr,
-            batch_id,
-        } => to_binary(&query_user_undelegation_info(deps, user_addr, batch_id)?),
         QueryMsg::GetValMeta { val_addr } => to_binary(&query_val_meta(deps, val_addr)?),
         QueryMsg::GetUserInfo { user_addr } => to_binary(&query_user_info(deps, user_addr)?),
-        QueryMsg::ComputeDepositBreakdown { amount } => {
-            to_binary(&query_compute_deposit_breakdown(deps, amount)?)
-        }
     }
 }
 
@@ -1111,29 +1104,9 @@ pub fn query_user_undelegation_records(
     return Ok(user_undelegations);
 }
 
-pub fn query_user_undelegation_info(
-    deps: Deps,
-    user_addr: String,
-    batch_id: u64,
-) -> StdResult<GetFundsClaimRecord> {
-    let user_addr = deps.api.addr_validate(user_addr.as_str())?;
-    let funds_record = compute_withdrawable_funds(deps.storage, batch_id, &user_addr)
-        .expect("compute_withdrawable_funds failed");
-    Ok(funds_record)
-}
-
 pub fn query_val_meta(deps: Deps, val_addr: Addr) -> StdResult<GetValMetaResponse> {
     let val_meta_opt = VALIDATOR_META.may_load(deps.storage, &val_addr)?;
     Ok(GetValMetaResponse {
         val_meta: val_meta_opt,
     })
-}
-
-pub fn query_compute_deposit_breakdown(
-    deps: Deps,
-    amount: Uint128,
-) -> StdResult<GetFundsDepositRecord> {
-    let deposit_breakdown =
-        compute_deposit_breakdown(deps.storage, amount).expect("Cannot breakdown deposit amount");
-    Ok(deposit_breakdown)
 }
