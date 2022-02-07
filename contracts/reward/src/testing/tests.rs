@@ -142,6 +142,7 @@ mod tests {
 
         let initial_msg = ExecuteMsg::UpdateConfig {
             staking_contract: None,
+            manager: None,
         };
         let err = execute(
             deps.as_mut(),
@@ -172,7 +173,7 @@ mod tests {
         assert_eq!(config, expected_config);
 
         expected_config = Config {
-            manager: Addr::unchecked("creator"),
+            manager: Addr::unchecked("new_manager"),
             reward_denom: "uluna".to_string(),
             staking_contract: Addr::unchecked("new_pools_addr"),
         };
@@ -183,6 +184,7 @@ mod tests {
             mock_info("creator", &[]),
             ExecuteMsg::UpdateConfig {
                 staking_contract: Some("new_pools_addr".to_string()),
+                manager: Some("new_manager".to_string()),
             }
             .clone(),
         )

@@ -528,6 +528,7 @@ mod tests {
             mock_info("not-creator", &[]),
             ExecuteMsg::UpdateConfig {
                 config_request: ConfigUpdateRequest {
+                    manager: None,
                     active: None,
                     min_deposit: None,
                     max_deposit: None,
@@ -553,6 +554,7 @@ mod tests {
             mock_info("creator", &[]),
             ExecuteMsg::UpdateConfig {
                 config_request: ConfigUpdateRequest {
+                    manager: None,
                     active: None,
                     min_deposit: None,
                     max_deposit: None,
@@ -581,6 +583,7 @@ mod tests {
             mock_info("creator", &[]),
             ExecuteMsg::UpdateConfig {
                 config_request: ConfigUpdateRequest {
+                    manager: None,
                     active: Some(true),
                     min_deposit: Some(Uint128::from(1_u128)),
                     max_deposit: Some(Uint128::from(10000000_u128)),
@@ -608,6 +611,7 @@ mod tests {
             mock_info("creator", &[]),
             ExecuteMsg::UpdateConfig {
                 config_request: ConfigUpdateRequest {
+                    manager: None,
                     active: Some(true),
                     min_deposit: Some(Uint128::from(1_u128)),
                     max_deposit: Some(Uint128::from(10000000_u128)),
@@ -635,6 +639,7 @@ mod tests {
             mock_info("creator", &[]),
             ExecuteMsg::UpdateConfig {
                 config_request: ConfigUpdateRequest {
+                    manager: None,
                     active: Some(true),
                     min_deposit: Some(Uint128::from(1_u128)),
                     max_deposit: Some(Uint128::from(10000000_u128)),
@@ -662,6 +667,7 @@ mod tests {
             mock_info("creator", &[]),
             ExecuteMsg::UpdateConfig {
                 config_request: ConfigUpdateRequest {
+                    manager: Some("new_manager".to_string()),
                     active: Some(true),
                     min_deposit: Some(Uint128::from(1_u128)),
                     max_deposit: Some(Uint128::from(10000000_u128)),
@@ -680,6 +686,7 @@ mod tests {
         .unwrap();
         let config = CONFIG.load(deps.as_mut().storage).unwrap();
         assert!(config.active);
+        assert_eq!(config.manager, Addr::unchecked("new_manager"));
         assert_eq!(config.min_deposit, Uint128::new(1_u128));
         assert_eq!(config.max_deposit, Uint128::new(10000000_u128));
         assert_eq!(

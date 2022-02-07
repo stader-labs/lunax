@@ -23,6 +23,7 @@ pub enum ExecuteMsg {
     }, // Transfer swapped rewards to SCC.
     UpdateConfig {
         staking_contract: Option<String>,
+        manager: Option<String>,
     },
 }
 

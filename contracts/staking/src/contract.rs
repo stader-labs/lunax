@@ -155,6 +155,10 @@ pub fn update_config(
         }
     }
 
+    if let Some(manager) = update_config.manager {
+        config.manager = deps.api.addr_validate(manager.as_str())?;
+    }
+
     if let Some(arc) = update_config.airdrop_registry_contract {
         config.airdrop_registry_contract = deps.api.addr_validate(arc.as_str())?;
     }
@@ -1093,7 +1097,7 @@ pub fn query_user_undelegation_records(
 ) -> StdResult<Vec<UndelegationInfo>> {
     let user_addr = deps.api.addr_validate(user_addr_str.as_str())?;
     let limit = limit.unwrap_or(10).min(20) as usize;
-    let start = start_after.map(|batch_id| Bound::exclusive(batch_id.to_string()));
+    let start = start_after.map(|batch_id| Bound::exclusive(U64Key::new(batch_id)));
 
     let user_undelegations = USERS
         .prefix(&user_addr)

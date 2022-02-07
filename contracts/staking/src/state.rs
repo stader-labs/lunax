@@ -84,6 +84,8 @@ pub const BATCH_UNDELEGATION_REGISTRY: Map<U64Key, BatchUndelegationRecord> =
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigUpdateRequest {
+    pub(crate) manager: Option<String>,
+
     pub(crate) active: Option<bool>,
     pub(crate) min_deposit: Option<Uint128>,
     pub(crate) max_deposit: Option<Uint128>,

@@ -69,7 +69,8 @@ pub fn execute(
         ),
         ExecuteMsg::UpdateConfig {
             staking_contract: pools_contract,
-        } => update_config(deps, info, env, pools_contract),
+            manager,
+        } => update_config(deps, info, env, pools_contract, manager),
     }
 }
 
@@ -205,6 +206,7 @@ pub fn update_config(
     info: MessageInfo,
     _env: Env,
     pools_contract: Option<String>,
+    manager: Option<String>,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let mut config = CONFIG.load(deps.storage)?;
 
@@ -214,6 +216,10 @@ pub fn update_config(
 
     if pools_contract.is_some() {
         config.staking_contract = deps.api.addr_validate(pools_contract.unwrap().as_str())?;
+    }
+
+    if let Some(manager) = manager {
+        config.manager = deps.api.addr_validate(manager.as_str())?;
     }
 
     CONFIG.save(deps.storage, &config)?;

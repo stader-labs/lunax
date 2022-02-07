@@ -53,7 +53,27 @@ pub fn execute(
             airdrop_contract_str,
             cw20_contract_str,
         ),
+        ExecuteMsg::UpdateConfig { manager } => update_config(deps, info, manager),
     }
+}
+
+pub fn update_config(
+    deps: DepsMut,
+    info: MessageInfo,
+    manager: String,
+) -> Result<Response, ContractError> {
+    let mut config = CONFIG.load(deps.storage)?;
+    let manager = deps.api.addr_validate(manager.as_str())?;
+
+    if config.manager != info.sender {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    config.manager = manager;
+
+    CONFIG.save(deps.storage, &config)?;
+
+    Ok(Response::default())
 }
 
 pub fn update_airdrop_registry(

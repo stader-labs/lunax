@@ -16,6 +16,9 @@ pub enum ExecuteMsg {
         airdrop_contract: String,
         cw20_contract: String,
     },
+    UpdateConfig {
+        manager: String,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

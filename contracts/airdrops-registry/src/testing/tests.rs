@@ -4,7 +4,7 @@ mod tests {
 
     use crate::error::ContractError::TokenEmpty;
     use crate::msg::{ExecuteMsg, GetConfigResponse, InstantiateMsg, QueryMsg};
-    use crate::state::{AirdropRegistryInfo, Config, AIRDROP_REGISTRY};
+    use crate::state::{AirdropRegistryInfo, Config, AIRDROP_REGISTRY, CONFIG};
     use crate::ContractError;
     use cosmwasm_std::testing::{
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
@@ -44,6 +44,44 @@ mod tests {
                 manager: Addr::unchecked("creator"),
             }
         );
+    }
+
+    #[test]
+    fn test_update_config() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &[]);
+        let env = mock_env();
+
+        let _res = instantiate_contract(&mut deps, &info, &env);
+
+        /*
+           Test Unauthorized
+        */
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("not-creator", &[]),
+            ExecuteMsg::UpdateConfig {
+                manager: "new_manager".to_string(),
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::Unauthorized {}));
+
+        /*
+            Test Success
+        */
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::UpdateConfig {
+                manager: "new_manager".to_string(),
+            },
+        )
+        .unwrap();
+        let config = CONFIG.load(deps.as_mut().storage).unwrap();
+        assert_eq!(config.manager, Addr::unchecked("new_manager"));
     }
 
     #[test]
