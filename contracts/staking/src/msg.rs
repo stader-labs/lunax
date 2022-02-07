@@ -96,6 +96,7 @@ pub enum MerkleAirdropMsg {
 pub enum QueryMsg {
     Config {},
     State {},
+    OperationControls {},
     BatchUndelegation {
         batch_id: u64,
     },

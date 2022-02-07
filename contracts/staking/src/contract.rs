@@ -1118,6 +1118,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => to_binary(&query_config(deps)?),
         QueryMsg::State {} => to_binary(&query_state(deps)?),
+        QueryMsg::OperationControls {} => to_binary(&query_operation_controls(deps)?),
         QueryMsg::BatchUndelegation { batch_id } => {
             to_binary(&query_batch_undelegate(deps, batch_id)?)
         }
@@ -1141,6 +1142,11 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             batch_id,
         } => to_binary(&query_user_undelegation_info(deps, user_addr, batch_id)?),
     }
+}
+
+pub fn query_operation_controls(deps: Deps) -> StdResult<OperationControls> {
+    let operation_controls = OPERATION_CONTROLS.load(deps.storage)?;
+    Ok(operation_controls)
 }
 
 pub fn query_user_info(deps: Deps, user_addr: String) -> StdResult<UserInfoResponse> {
