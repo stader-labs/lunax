@@ -29,6 +29,18 @@
     {
       "type": "object",
       "required": [
+        "operation_controls"
+      ],
+      "properties": {
+        "operation_controls": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
         "batch_undelegation"
       ],
       "properties": {
