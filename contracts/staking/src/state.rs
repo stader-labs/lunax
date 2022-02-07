@@ -42,6 +42,16 @@ pub struct State {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct OperationControls {
+    pub deposit_paused: bool,
+    pub queue_undelegate_paused: bool,
+    pub undelegate_paused: bool,
+    pub withdraw_paused: bool,
+    pub reinvest_paused: bool,
+    pub reconcile_paused: bool,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct VMeta {
     pub staked: Uint128, // Staked so far. This is the net sum and does not count filled funds.
     pub slashed: Uint128, // Slashed by this validator.
@@ -102,8 +112,19 @@ pub struct ConfigUpdateRequest {
     pub(crate) reinvest_cooldown: Option<u64>,
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct OperationControlsUpdateRequest {
+    pub(crate) deposit_paused: Option<bool>,
+    pub(crate) queue_undelegate_paused: Option<bool>,
+    pub(crate) undelegate_paused: Option<bool>,
+    pub(crate) withdraw_paused: Option<bool>,
+    pub(crate) reinvest_paused: Option<bool>,
+    pub(crate) reconcile_paused: Option<bool>,
+}
+
 pub const CONFIG: Item<Config> = Item::new("config");
 pub const STATE: Item<State> = Item::new("state");
+pub const OPERATION_CONTROLS: Item<OperationControls> = Item::new("operation_controls");
 
 // (User_Address, Undelegation Batch)
 pub const USERS: Map<(&Addr, U64Key), UndelegationInfo> = Map::new("users");

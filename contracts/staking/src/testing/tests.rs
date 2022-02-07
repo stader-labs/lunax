@@ -13,8 +13,9 @@ mod tests {
         QueryConfigResponse, QueryMsg, QueryStateResponse,
     };
     use crate::state::{
-        AirdropRate, BatchUndelegationRecord, Config, ConfigUpdateRequest, State, UndelegationInfo,
-        VMeta, BATCH_UNDELEGATION_REGISTRY, CONFIG, STATE, USERS, VALIDATOR_META,
+        AirdropRate, BatchUndelegationRecord, Config, ConfigUpdateRequest, OperationControls,
+        OperationControlsUpdateRequest, State, UndelegationInfo, VMeta,
+        BATCH_UNDELEGATION_REGISTRY, CONFIG, OPERATION_CONTROLS, STATE, USERS, VALIDATOR_META,
     };
     use crate::testing::mock_querier;
     use crate::testing::mock_querier::{mock_dependencies, WasmMockQuerier};
@@ -508,6 +509,36 @@ mod tests {
         config.manager = Addr::unchecked("creator");
         let err = validate(&config, &info, &env, vec![Verify::NoFunds]).unwrap_err();
         assert!(matches!(err, ContractError::FundsNotExpected {}));
+    }
+
+    #[test]
+    fn test_update_operation_controls() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &[]);
+        let env = mock_env();
+
+        let _res = instantiate_contract(&mut deps, &info, &env);
+
+        /*
+           Unauthorized
+        */
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("not-creator", &[]),
+            ExecuteMsg::UpdateOperationFlags {
+                operation_controls_update_request: OperationControlsUpdateRequest {
+                    deposit_paused: None,
+                    queue_undelegate_paused: None,
+                    undelegate_paused: None,
+                    withdraw_paused: None,
+                    reinvest_paused: None,
+                    reconcile_paused: None,
+                },
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::Unauthorized {}));
     }
 
     #[test]
@@ -1979,25 +2010,43 @@ mod tests {
         let valid3 = Addr::unchecked("valid0003");
 
         /*
-           Protocol inactive
+           Deposit paused
         */
-        CONFIG
-            .update(
+        OPERATION_CONTROLS
+            .save(
                 deps.as_mut().storage,
-                |mut config| -> Result<_, ContractError> {
-                    config.active = false;
-                    Ok(config)
+                &OperationControls {
+                    deposit_paused: true,
+                    queue_undelegate_paused: false,
+                    undelegate_paused: false,
+                    withdraw_paused: false,
+                    reinvest_paused: false,
+                    reconcile_paused: false,
                 },
             )
             .unwrap();
         let err = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info("other", &[Coin::new(120_u128, "uluna".to_string())]),
+            mock_info("other", &[Coin::new(10_u128, "uluna".to_string())]),
             ExecuteMsg::Deposit {},
         )
         .unwrap_err();
-        assert!(matches!(err, ContractError::ProtocolInactive {}));
+        assert!(matches!(err, ContractError::OperationPaused(String { .. })));
+
+        OPERATION_CONTROLS
+            .save(
+                deps.as_mut().storage,
+                &OperationControls {
+                    deposit_paused: false,
+                    queue_undelegate_paused: false,
+                    undelegate_paused: false,
+                    withdraw_paused: false,
+                    reinvest_paused: false,
+                    reconcile_paused: false,
+                },
+            )
+            .unwrap();
 
         STATE
             .update(
@@ -2053,7 +2102,6 @@ mod tests {
             .update(
                 deps.as_mut().storage,
                 |mut config| -> Result<_, ContractError> {
-                    config.active = true;
                     config.max_deposit = Uint128::new(100_u128);
                     Ok(config)
                 },
@@ -2315,12 +2363,51 @@ mod tests {
     }
 
     #[test]
-    fn test_reinvest_success() {
+    fn test_reinvest() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
 
         let _res = instantiate_contract(&mut deps, &info, &env);
+
+        /*
+           reinvest paused
+        */
+        OPERATION_CONTROLS
+            .save(
+                deps.as_mut().storage,
+                &OperationControls {
+                    deposit_paused: false,
+                    queue_undelegate_paused: false,
+                    undelegate_paused: false,
+                    withdraw_paused: false,
+                    reinvest_paused: true,
+                    reconcile_paused: false,
+                },
+            )
+            .unwrap();
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("other", &[]),
+            ExecuteMsg::Reinvest {},
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::OperationPaused(String { .. })));
+
+        OPERATION_CONTROLS
+            .save(
+                deps.as_mut().storage,
+                &OperationControls {
+                    deposit_paused: false,
+                    queue_undelegate_paused: false,
+                    undelegate_paused: false,
+                    withdraw_paused: false,
+                    reinvest_paused: false,
+                    reconcile_paused: false,
+                },
+            )
+            .unwrap();
 
         STATE
             .update(
@@ -2705,6 +2792,45 @@ mod tests {
 
         let user1 = Addr::unchecked("user1");
 
+        /*
+           withdraw paused
+        */
+        OPERATION_CONTROLS
+            .save(
+                deps.as_mut().storage,
+                &OperationControls {
+                    deposit_paused: false,
+                    queue_undelegate_paused: false,
+                    undelegate_paused: false,
+                    withdraw_paused: true,
+                    reinvest_paused: false,
+                    reconcile_paused: false,
+                },
+            )
+            .unwrap();
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("other", &[]),
+            ExecuteMsg::WithdrawFundsToWallet { batch_id: 0 },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::OperationPaused(String { .. })));
+
+        OPERATION_CONTROLS
+            .save(
+                deps.as_mut().storage,
+                &OperationControls {
+                    deposit_paused: false,
+                    queue_undelegate_paused: false,
+                    undelegate_paused: false,
+                    withdraw_paused: false,
+                    reinvest_paused: false,
+                    reconcile_paused: false,
+                },
+            )
+            .unwrap();
+
         STATE
             .update(deps.as_mut().storage, |mut state| -> StdResult<_> {
                 state.reconciled_funds_to_withdraw = Uint128::new(1200);
@@ -2823,6 +2949,45 @@ mod tests {
             .update_staking("uluna", &*get_validators(), &*get_delegations());
         deps.querier
             .update_stader_balances(Some(Uint128::new(3000_u128)), None);
+
+        /*
+           Paused
+        */
+        OPERATION_CONTROLS
+            .save(
+                deps.as_mut().storage,
+                &OperationControls {
+                    deposit_paused: false,
+                    queue_undelegate_paused: false,
+                    undelegate_paused: true,
+                    withdraw_paused: false,
+                    reinvest_paused: false,
+                    reconcile_paused: false,
+                },
+            )
+            .unwrap();
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("other", &[]),
+            ExecuteMsg::Undelegate {},
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::OperationPaused(String { .. })));
+
+        OPERATION_CONTROLS
+            .save(
+                deps.as_mut().storage,
+                &OperationControls {
+                    deposit_paused: false,
+                    queue_undelegate_paused: false,
+                    undelegate_paused: false,
+                    withdraw_paused: false,
+                    reinvest_paused: false,
+                    reconcile_paused: false,
+                },
+            )
+            .unwrap();
 
         /*
            Test - 1. Undelegation in cooldown
@@ -3217,6 +3382,42 @@ mod tests {
         let env = mock_env();
 
         let _res = instantiate_contract(&mut deps, &info, &env);
+
+        OPERATION_CONTROLS
+            .save(
+                deps.as_mut().storage,
+                &OperationControls {
+                    deposit_paused: false,
+                    queue_undelegate_paused: false,
+                    undelegate_paused: false,
+                    withdraw_paused: false,
+                    reinvest_paused: false,
+                    reconcile_paused: true,
+                },
+            )
+            .unwrap();
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("other", &[]),
+            ExecuteMsg::ReconcileFunds {},
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::OperationPaused(String { .. })));
+
+        OPERATION_CONTROLS
+            .save(
+                deps.as_mut().storage,
+                &OperationControls {
+                    deposit_paused: false,
+                    queue_undelegate_paused: false,
+                    undelegate_paused: false,
+                    withdraw_paused: false,
+                    reinvest_paused: false,
+                    reconcile_paused: false,
+                },
+            )
+            .unwrap();
 
         /*
            Test - 1. No undelegation slashing

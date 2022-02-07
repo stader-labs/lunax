@@ -6,9 +6,6 @@ pub enum ContractError {
     #[error("Staking-Contract: {0}")]
     Std(#[from] StdError),
 
-    #[error("Staking-Contract: Mint deploy failed")]
-    MintDeployFailed {},
-
     #[error("Staking-Contract: Unauthorized")]
     Unauthorized {},
 
@@ -42,14 +39,11 @@ pub enum ContractError {
     #[error("Staking-Contract: Redelegation has failed for the provided validators")]
     RedelegationFailed {},
 
-    #[error("Staking-Contract: Submessage event object not found")]
-    EventNotFound {},
-
     #[error("Staking-Contract: Pool requested is not found")]
     PoolNotFound {},
 
-    #[error("Staking-Contract: Pool requested is not active")]
-    PoolInactive {},
+    #[error("Staking-Contract: Operation has been paused '{0}")]
+    OperationPaused(String),
 
     #[error("Staking-Contract: No validators in selected pool")]
     NoValidatorsInPool {},
@@ -81,12 +75,6 @@ pub enum ContractError {
     #[error("Staking-Contract: Deposit amount cannot be less than min deposit amount")]
     MinDeposit {},
 
-    #[error("Staking-Contract: Provided validator contract is in use for another pool")]
-    ValidatorContractInUse {},
-
-    #[error("Staking-Contract: Provided reward contract is in use for another pool")]
-    RewardContractInUse {},
-
     #[error("Staking-Contract: All validators in the pool are inactive/jailed")]
     AllValidatorsJailed {},
 
@@ -95,9 +83,6 @@ pub enum ContractError {
 
     #[error("Staking-Contract: Validator to redelegate should be different from source validator")]
     ValidatorsCannotBeSame {},
-
-    #[error("Staking-Contract: Token string cannot be empty")]
-    TokenEmpty {},
 
     #[error("Staking-Contract: Redelegation in progress. Cannot remove validator")]
     RedelegationInProgress {},
@@ -113,8 +98,4 @@ pub enum ContractError {
 
     #[error("Staking-Contract: Reinvest is in cooldown")]
     ReinvestInCooldown {},
-
-    #[error("Staking-Contract: Protocol is currently inactive. Deposits are not allowed")]
-    ProtocolInactive {}, // Add any other custom errors you like here.
-                         // Look at https://docs.rs/thiserror/1.0.21/thiserror/ for details.
 }

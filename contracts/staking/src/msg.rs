@@ -1,5 +1,6 @@
 use crate::state::{
-    AirdropRate, BatchUndelegationRecord, Config, ConfigUpdateRequest, State, VMeta,
+    AirdropRate, BatchUndelegationRecord, Config, ConfigUpdateRequest,
+    OperationControlsUpdateRequest, State, VMeta,
 };
 use cosmwasm_std::{Addr, Coin, Decimal, Uint128};
 use cw20::Cw20ReceiveMsg;
@@ -74,6 +75,9 @@ pub enum ExecuteMsg {
     },
     UpdateConfig {
         config_request: ConfigUpdateRequest,
+    },
+    UpdateOperationFlags {
+        operation_controls_update_request: OperationControlsUpdateRequest,
     },
 }
 

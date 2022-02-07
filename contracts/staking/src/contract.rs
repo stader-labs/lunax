@@ -10,8 +10,9 @@ use crate::msg::{
     QueryConfigResponse, QueryMsg, QueryStateResponse, UserInfoResponse, UserQueryInfo,
 };
 use crate::state::{
-    AirdropRate, Config, ConfigUpdateRequest, State, UndelegationInfo, VMeta,
-    BATCH_UNDELEGATION_REGISTRY, CONFIG, STATE, USERS, VALIDATOR_META,
+    AirdropRate, Config, ConfigUpdateRequest, OperationControls, OperationControlsUpdateRequest,
+    State, UndelegationInfo, VMeta, BATCH_UNDELEGATION_REGISTRY, CONFIG, OPERATION_CONTROLS, STATE,
+    USERS, VALIDATOR_META,
 };
 use crate::ContractError;
 use airdrops_registry::msg::GetAirdropContractsResponse;
@@ -90,6 +91,16 @@ pub fn instantiate(
     };
     STATE.save(deps.storage, &state)?;
 
+    let operation_controls = OperationControls {
+        deposit_paused: false,
+        queue_undelegate_paused: false,
+        undelegate_paused: false,
+        withdraw_paused: false,
+        reinvest_paused: false,
+        reconcile_paused: false,
+    };
+    OPERATION_CONTROLS.save(deps.storage, &operation_controls)?;
+
     // loads the saved state
     create_new_undelegation_batch(deps.storage, env.clone())?;
 
@@ -138,7 +149,44 @@ pub fn execute(
         ExecuteMsg::UpdateConfig { config_request } => {
             update_config(deps, info, env, config_request)
         }
+        ExecuteMsg::UpdateOperationFlags {
+            operation_controls_update_request,
+        } => update_operation_flags(deps, info, env, operation_controls_update_request),
     }
+}
+
+pub fn update_operation_flags(
+    deps: DepsMut,
+    info: MessageInfo,
+    env: Env,
+    operation_controls_update_request: OperationControlsUpdateRequest,
+) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    validate(&config, &info, &env, vec![Verify::SenderManager])?;
+    let mut operation_controls = OPERATION_CONTROLS.load(deps.storage)?;
+
+    operation_controls.deposit_paused = operation_controls_update_request
+        .deposit_paused
+        .unwrap_or(operation_controls.deposit_paused);
+    operation_controls.withdraw_paused = operation_controls_update_request
+        .withdraw_paused
+        .unwrap_or(operation_controls.withdraw_paused);
+    operation_controls.reconcile_paused = operation_controls_update_request
+        .reconcile_paused
+        .unwrap_or(operation_controls.reconcile_paused);
+    operation_controls.undelegate_paused = operation_controls_update_request
+        .undelegate_paused
+        .unwrap_or(operation_controls.undelegate_paused);
+    operation_controls.queue_undelegate_paused = operation_controls_update_request
+        .queue_undelegate_paused
+        .unwrap_or(operation_controls.queue_undelegate_paused);
+    operation_controls.reinvest_paused = operation_controls_update_request
+        .reinvest_paused
+        .unwrap_or(operation_controls.reinvest_paused);
+
+    OPERATION_CONTROLS.save(deps.storage, &operation_controls)?;
+
+    Ok(Response::default())
 }
 
 pub fn update_config(
@@ -362,7 +410,8 @@ pub fn check_slashing(deps: &mut DepsMut, env: &Env) -> Result<Response, Contrac
         };
 
         total_staked_on_chain = total_staked_on_chain
-            .checked_add(delegation_amount).unwrap();
+            .checked_add(delegation_amount)
+            .unwrap();
 
         VALIDATOR_META.update(deps.storage, val_addr, |x| -> Result<_, ContractError> {
             let mut val_meta = x.unwrap_or(VMeta::new());
@@ -392,9 +441,10 @@ pub fn check_slashing(deps: &mut DepsMut, env: &Env) -> Result<Response, Contrac
 // Any address can call this.
 pub fn deposit(mut deps: DepsMut, info: MessageInfo, env: Env) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
+    let operation_controls = OPERATION_CONTROLS.load(deps.storage)?;
 
-    if !config.active {
-        return Err(ContractError::ProtocolInactive {});
+    if operation_controls.deposit_paused {
+        return Err(ContractError::OperationPaused("deposit".to_string()));
     }
 
     validate(&config, &info, &env, vec![Verify::NonZeroSingleInfoFund])?;
@@ -548,6 +598,11 @@ pub fn swap_rewards(deps: DepsMut, info: MessageInfo, env: Env) -> Result<Respon
 
 pub fn reinvest(mut deps: DepsMut, info: MessageInfo, env: Env) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
+    let operation_controls = OPERATION_CONTROLS.load(deps.storage)?;
+    if operation_controls.reinvest_paused {
+        return Err(ContractError::OperationPaused("reinvest".to_string()));
+    }
+
     check_slashing(&mut deps, &env)?;
 
     let mut state = STATE.load(deps.storage)?;
@@ -682,6 +737,13 @@ pub fn queue_undelegation(
     amount_to_burn: Uint128,
     user_addr_str: String,
 ) -> Result<Response, ContractError> {
+    let operation_controls = OPERATION_CONTROLS.load(deps.storage)?;
+    if operation_controls.queue_undelegate_paused {
+        return Err(ContractError::OperationPaused(
+            "queue_undelegate".to_string(),
+        ));
+    }
+
     check_slashing(&mut deps, &env)?;
 
     let state = STATE.load(deps.storage)?;
@@ -725,6 +787,13 @@ pub fn undelegate_stake(
     env: Env,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
+    let operation_controls = OPERATION_CONTROLS.load(deps.storage)?;
+    if operation_controls.undelegate_paused {
+        return Err(ContractError::OperationPaused(
+            "undelegate_stake".to_string(),
+        ));
+    }
+
     check_slashing(&mut deps, &env)?;
 
     let mut state = STATE.load(deps.storage)?;
@@ -789,7 +858,9 @@ pub fn undelegate_stake(
         });
 
         decrease_tracked_stake(&mut deps, &val_addr, amount)?;
-        to_undelegate = to_undelegate.checked_sub(amount).unwrap_or_else(|_| Uint128::zero());
+        to_undelegate = to_undelegate
+            .checked_sub(amount)
+            .unwrap_or_else(|_| Uint128::zero());
     }
 
     if !to_undelegate.is_zero() {
@@ -820,6 +891,12 @@ pub fn reconcile_funds(
     env: Env,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
+    let operation_controls = OPERATION_CONTROLS.load(deps.storage)?;
+    if operation_controls.reconcile_paused {
+        return Err(ContractError::OperationPaused(
+            "reconcile_funds".to_string(),
+        ));
+    }
 
     let mut state = STATE.load(deps.storage)?;
 
@@ -899,6 +976,10 @@ pub fn withdraw_funds_to_wallet(
     batch_id: u64,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
+    let operation_controls = OPERATION_CONTROLS.load(deps.storage)?;
+    if operation_controls.withdraw_paused {
+        return Err(ContractError::OperationPaused("withdraw".to_string()));
+    }
 
     let mut state = STATE.load(deps.storage)?;
     let user_addr = deps.api.addr_validate(info.sender.as_str())?;
