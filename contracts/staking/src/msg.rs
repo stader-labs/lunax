@@ -100,18 +100,11 @@ pub enum QueryMsg {
         start_after: Option<u64>,
         limit: Option<u64>,
     }, // return shares & undelegation list.
-    GetUserUndelegationInfo {
-        user_addr: String,
-        batch_id: u64,
-    },
     GetValMeta {
         val_addr: Addr,
     },
     GetUserInfo {
         user_addr: String,
-    },
-    ComputeDepositBreakdown {
-        amount: Uint128,
     },
 }
 
