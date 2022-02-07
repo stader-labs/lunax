@@ -26,7 +26,6 @@ pub enum Verify {
     NoFunds,
 }
 
-// TODO: bchain99 - write unit-tests for validate.
 // Let's not add assertions for these checks in other tests
 pub fn validate(
     config: &Config,

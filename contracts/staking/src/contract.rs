@@ -518,7 +518,6 @@ pub fn redeem_rewards(
         .add_attribute("failed_validators", failed_vals.join(",")))
 }
 
-// TODO - GM. Does swap have a fixed cost or a linear cost?
 // Useful to make this permissionless.
 pub fn swap_rewards(deps: DepsMut, info: MessageInfo, env: Env) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
@@ -1082,7 +1081,6 @@ pub fn query_batch_undelegate(
     Ok(QueryBatchUndelegationResponse { batch: batch_meta })
 }
 
-// TODO - GM. Test this
 pub fn query_user_undelegation_records(
     deps: Deps,
     user_addr_str: String,
@@ -1091,7 +1089,6 @@ pub fn query_user_undelegation_records(
 ) -> StdResult<Vec<UndelegationInfo>> {
     let user_addr = deps.api.addr_validate(user_addr_str.as_str())?;
     let limit = limit.unwrap_or(10).min(20) as usize;
-    // TODO - GM. Will converting u64 to string for batch id start work?
     let start = start_after.map(|batch_id| Bound::exclusive(batch_id.to_string()));
 
     let user_undelegations = USERS
