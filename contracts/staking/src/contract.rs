@@ -1104,8 +1104,7 @@ pub fn claim_airdrops(
             msg: to_binary(&Cw20ExecuteMsg::Transfer {
                 recipient: airdrop_withdrawal_contract.to_string(),
                 amount: rate.amount,
-            })
-            .unwrap(),
+            })?,
             funds: vec![],
         })
     }
