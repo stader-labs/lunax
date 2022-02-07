@@ -2209,7 +2209,6 @@ mod tests {
         /*
            Test - 1. Successful undelegation
         */
-        // TODO: bchain99 - modularize this code. Let's finish the tests for now tho
         let valid1 = Addr::unchecked("valid0001");
         let valid2 = Addr::unchecked("valid0002");
         let valid3 = Addr::unchecked("valid0003");
