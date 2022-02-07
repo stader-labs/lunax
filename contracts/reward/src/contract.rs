@@ -89,8 +89,7 @@ pub fn swap(
     let mut messages = vec![];
     let total_rewards = deps
         .querier
-        .query_all_balances(env.contract.address)
-        .unwrap();
+        .query_all_balances(env.contract.address)?;
     // let denoms: Vec<String> = total_rewards
     //     .iter()
     //     .map(|item| item.denom.clone())
@@ -167,8 +166,7 @@ pub fn transfer(
     let total_withdrawal_amount = reward_amount.checked_add(protocol_fee).unwrap();
     if deps
         .querier
-        .query_balance(env.contract.address, config.reward_denom.clone())
-        .unwrap()
+        .query_balance(env.contract.address, config.reward_denom.clone())?
         .amount
         .lt(&total_withdrawal_amount)
     {

@@ -19,7 +19,8 @@ use airdrops_registry::msg::GetAirdropContractsResponse;
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     from_binary, to_binary, Addr, BankMsg, Binary, Coin, Decimal, Deps, DepsMut, DistributionMsg,
-    Env, MessageInfo, Order, Response, StakingMsg, StdResult, Storage, SubMsg, Uint128, WasmMsg,
+    Env, MessageInfo, Order, Response, StakingMsg, StdError, StdResult, Storage, SubMsg, Uint128,
+    WasmMsg,
 };
 use cw20::Cw20ReceiveMsg;
 use cw20_base::msg::ExecuteMsg as Cw20ExecuteMsg;
@@ -361,8 +362,7 @@ pub fn check_slashing(deps: &mut DepsMut, env: &Env) -> Result<Response, Contrac
         };
 
         total_staked_on_chain = total_staked_on_chain
-            .checked_add(delegation_amount)
-            .unwrap();
+            .checked_add(delegation_amount).unwrap();
 
         VALIDATOR_META.update(deps.storage, val_addr, |x| -> Result<_, ContractError> {
             let mut val_meta = x.unwrap_or(VMeta::new());
@@ -789,7 +789,7 @@ pub fn undelegate_stake(
         });
 
         decrease_tracked_stake(&mut deps, &val_addr, amount)?;
-        to_undelegate = to_undelegate.checked_sub(amount).unwrap();
+        to_undelegate = to_undelegate.checked_sub(amount).unwrap_or_else(|_| Uint128::zero());
     }
 
     if !to_undelegate.is_zero() {
@@ -1052,6 +1052,13 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         )?),
         QueryMsg::GetValMeta { val_addr } => to_binary(&query_val_meta(deps, val_addr)?),
         QueryMsg::GetUserInfo { user_addr } => to_binary(&query_user_info(deps, user_addr)?),
+        QueryMsg::ComputeDepositBreakdown { amount } => {
+            to_binary(&query_compute_deposit_breakdown(deps, amount)?)
+        }
+        QueryMsg::GetUserUndelegationInfo {
+            user_addr,
+            batch_id,
+        } => to_binary(&query_user_undelegation_info(deps, user_addr, batch_id)?),
     }
 }
 
@@ -1114,4 +1121,37 @@ pub fn query_val_meta(deps: Deps, val_addr: Addr) -> StdResult<GetValMetaRespons
     Ok(GetValMetaResponse {
         val_meta: val_meta_opt,
     })
+}
+
+pub fn query_user_undelegation_info(
+    deps: Deps,
+    user_addr: String,
+    batch_id: u64,
+) -> StdResult<GetFundsClaimRecord> {
+    let user_addr = deps.api.addr_validate(user_addr.as_str())?;
+    let res = compute_withdrawable_funds(deps.storage, batch_id, &user_addr);
+    if res.is_err() {
+        return Err(StdError::GenericErr {
+            msg: "Error in computing the withdrawable funds".to_string(),
+        });
+    }
+
+    let funds_record = res.unwrap();
+
+    Ok(funds_record)
+}
+
+pub fn query_compute_deposit_breakdown(
+    deps: Deps,
+    amount: Uint128,
+) -> StdResult<GetFundsDepositRecord> {
+    let res = compute_deposit_breakdown(deps.storage, amount);
+    if res.is_err() {
+        return Err(StdError::GenericErr {
+            msg: "Error in computing the deposit breakdown".to_string(),
+        });
+    }
+
+    let deposit_breakdown = res.unwrap();
+    Ok(deposit_breakdown)
 }
