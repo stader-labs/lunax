@@ -609,7 +609,6 @@ pub fn reinvest(mut deps: DepsMut, info: MessageInfo, env: Env) -> Result<Respon
 }
 
 // Useful for staking to a validator as a mechanism for filling lost slashing funds.
-// Notice that this message has no side effect, not even in check_slashing.
 // Anyone call this function.
 pub fn reimburse_slashing(
     deps: DepsMut,
@@ -631,11 +630,16 @@ pub fn reimburse_slashing(
         vmeta.filled = vmeta.filled.checked_add(reimburse_amount).unwrap();
         Ok(vmeta)
     })?;
-    // We could update state.total_staked and state.exchange_rate here but we could let next check_slashing take that up.
-    Ok(Response::new().add_message(StakingMsg::Delegate {
-        validator: val_addr.to_string(),
-        amount: Coin::new(reimburse_amount.u128(), config.vault_denom),
-    }))
+    Ok(Response::new()
+        .add_message(StakingMsg::Delegate {
+            validator: val_addr.to_string(),
+            amount: Coin::new(reimburse_amount.u128(), config.vault_denom),
+        })
+        .add_message(WasmMsg::Execute {
+            contract_addr: env.contract.address.to_string(),
+            msg: to_binary(&ExecuteMsg::RedeemRewards {})?,
+            funds: vec![],
+        }))
 }
 
 pub fn receive_cw20(

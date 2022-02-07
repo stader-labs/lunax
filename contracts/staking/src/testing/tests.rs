@@ -3412,14 +3412,21 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(res.messages.len(), 1);
-        assert_eq!(
-            res.messages[0],
-            SubMsg::new(StakingMsg::Delegate {
-                validator: valid1.to_string(),
-                amount: Coin::new(25_u128, "uluna")
-            })
-        );
+        assert_eq!(res.messages.len(), 2);
+        assert!(check_equal_vec(
+            res.messages,
+            vec![
+                SubMsg::new(StakingMsg::Delegate {
+                    validator: valid1.to_string(),
+                    amount: Coin::new(25_u128, "uluna")
+                }),
+                SubMsg::new(WasmMsg::Execute {
+                    contract_addr: env.contract.address.to_string(),
+                    msg: to_binary(&ExecuteMsg::RedeemRewards {}).unwrap(),
+                    funds: vec![]
+                })
+            ]
+        ));
 
         let vmeta = VALIDATOR_META.load(deps.as_mut().storage, &valid1).unwrap();
         assert_eq!(
@@ -3441,13 +3448,20 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(res.messages.len(), 1);
-        assert_eq!(
-            res.messages[0],
-            SubMsg::new(StakingMsg::Delegate {
-                validator: valid1.to_string(),
-                amount: Coin::new(125_u128, "uluna")
-            })
-        );
+        assert_eq!(res.messages.len(), 2);
+        assert!(check_equal_vec(
+            res.messages,
+            vec![
+                SubMsg::new(StakingMsg::Delegate {
+                    validator: valid1.to_string(),
+                    amount: Coin::new(125_u128, "uluna")
+                }),
+                SubMsg::new(WasmMsg::Execute {
+                    contract_addr: env.contract.address.to_string(),
+                    msg: to_binary(&ExecuteMsg::RedeemRewards {}).unwrap(),
+                    funds: vec![]
+                })
+            ]
+        ))
     }
 }
