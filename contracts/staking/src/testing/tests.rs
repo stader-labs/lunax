@@ -1365,6 +1365,50 @@ mod tests {
 
         let _res = instantiate_contract(&mut deps, &info, &env);
 
+        OPERATION_CONTROLS
+            .save(
+                deps.as_mut().storage,
+                &OperationControls {
+                    deposit_paused: false,
+                    queue_undelegate_paused: false,
+                    undelegate_paused: false,
+                    withdraw_paused: false,
+                    reinvest_paused: false,
+                    reconcile_paused: false,
+                    claim_airdrops_paused: false,
+                    redeem_rewards_paused: false,
+                    swap_paused: true,
+                    reimburse_slashing_paused: false,
+                },
+            )
+            .unwrap();
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("other", &[Coin::new(10_u128, "uluna".to_string())]),
+            ExecuteMsg::Swap {},
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::OperationPaused(String { .. })));
+
+        OPERATION_CONTROLS
+            .save(
+                deps.as_mut().storage,
+                &OperationControls {
+                    deposit_paused: false,
+                    queue_undelegate_paused: false,
+                    undelegate_paused: false,
+                    withdraw_paused: false,
+                    reinvest_paused: false,
+                    reconcile_paused: false,
+                    claim_airdrops_paused: false,
+                    redeem_rewards_paused: false,
+                    swap_paused: false,
+                    reimburse_slashing_paused: false,
+                },
+            )
+            .unwrap();
+
         /*
             Test - 2. In cooldown period
         */
@@ -1423,6 +1467,53 @@ mod tests {
         let valid1 = Addr::unchecked("valid0001");
         let valid2 = Addr::unchecked("valid0002");
         let valid3 = Addr::unchecked("valid0003");
+
+        /*
+           Redeem rewards
+        */
+        OPERATION_CONTROLS
+            .save(
+                deps.as_mut().storage,
+                &OperationControls {
+                    deposit_paused: true,
+                    queue_undelegate_paused: false,
+                    undelegate_paused: false,
+                    withdraw_paused: false,
+                    reinvest_paused: false,
+                    reconcile_paused: false,
+                    claim_airdrops_paused: false,
+                    redeem_rewards_paused: true,
+                    swap_paused: false,
+                    reimburse_slashing_paused: false,
+                },
+            )
+            .unwrap();
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("other", &[Coin::new(10_u128, "uluna".to_string())]),
+            ExecuteMsg::RedeemRewards {},
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::OperationPaused(String { .. })));
+
+        OPERATION_CONTROLS
+            .save(
+                deps.as_mut().storage,
+                &OperationControls {
+                    deposit_paused: false,
+                    queue_undelegate_paused: false,
+                    undelegate_paused: false,
+                    withdraw_paused: false,
+                    reinvest_paused: false,
+                    reconcile_paused: false,
+                    claim_airdrops_paused: false,
+                    redeem_rewards_paused: false,
+                    swap_paused: false,
+                    reimburse_slashing_paused: false,
+                },
+            )
+            .unwrap();
 
         /*
            Test - 1 - No failed validators
@@ -3793,6 +3884,53 @@ mod tests {
         let valid1 = Addr::unchecked("valid0001");
 
         let _res = instantiate_contract(&mut deps, &info, &env);
+
+        OPERATION_CONTROLS
+            .save(
+                deps.as_mut().storage,
+                &OperationControls {
+                    deposit_paused: false,
+                    queue_undelegate_paused: false,
+                    undelegate_paused: false,
+                    withdraw_paused: false,
+                    reinvest_paused: false,
+                    reconcile_paused: false,
+                    claim_airdrops_paused: false,
+                    redeem_rewards_paused: false,
+                    swap_paused: false,
+                    reimburse_slashing_paused: true,
+                },
+            )
+            .unwrap();
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("other", &[Coin::new(10_u128, "uluna".to_string())]),
+            ExecuteMsg::ReimburseSlashing {
+                val_addr: Addr::unchecked("val1".to_string()),
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::OperationPaused(String { .. })));
+
+        OPERATION_CONTROLS
+            .save(
+                deps.as_mut().storage,
+                &OperationControls {
+                    deposit_paused: false,
+                    queue_undelegate_paused: false,
+                    undelegate_paused: false,
+                    withdraw_paused: false,
+                    reinvest_paused: false,
+                    reconcile_paused: false,
+                    claim_airdrops_paused: false,
+                    redeem_rewards_paused: false,
+                    swap_paused: false,
+                    reimburse_slashing_paused: false,
+                },
+            )
+            .unwrap();
+
         STATE
             .update(deps.as_mut().storage, |mut state| -> StdResult<_> {
                 state.validators = vec![Addr::unchecked("valid0001")];

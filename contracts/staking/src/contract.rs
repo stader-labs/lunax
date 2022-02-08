@@ -597,7 +597,7 @@ pub fn redeem_rewards(
     check_slashing(&mut deps, &env)?;
     let state = STATE.load(deps.storage)?;
     let operation_controls = OPERATION_CONTROLS.load(deps.storage)?;
-    if operation_controls.reinvest_paused {
+    if operation_controls.redeem_rewards_paused {
         return Err(ContractError::OperationPaused("redeem_rewards".to_string()));
     }
 
@@ -633,8 +633,8 @@ pub fn swap_rewards(deps: DepsMut, info: MessageInfo, env: Env) -> Result<Respon
     let config = CONFIG.load(deps.storage)?;
     let mut state = STATE.load(deps.storage)?;
     let operation_controls = OPERATION_CONTROLS.load(deps.storage)?;
-    if operation_controls.reinvest_paused {
-        return Err(ContractError::OperationPaused("reinvest".to_string()));
+    if operation_controls.swap_paused {
+        return Err(ContractError::OperationPaused("swap".to_string()));
     }
 
     if info.sender.ne(&config.manager)
