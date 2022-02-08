@@ -82,9 +82,6 @@ pub fn accept_manager(
     _env: Env,
 ) -> Result<Response, ContractError> {
     let mut config = CONFIG.load(deps.storage)?;
-    if info.sender != config.manager {
-        return Err(ContractError::Unauthorized {});
-    }
 
     let tmp_manager_store =
         if let Some(tmp_manager_store) = TMP_MANAGER_STORE.may_load(deps.storage)? {
@@ -92,6 +89,11 @@ pub fn accept_manager(
         } else {
             return Err(ContractError::TmpManagerStoreEmpty {});
         };
+
+    let manager = deps.api.addr_validate(tmp_manager_store.manager.as_str())?;
+    if info.sender != manager {
+        return Err(ContractError::Unauthorized {});
+    }
 
     config.manager = deps.api.addr_validate(tmp_manager_store.manager.as_str())?;
     TMP_MANAGER_STORE.remove(deps.storage);

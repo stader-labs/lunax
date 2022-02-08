@@ -650,18 +650,6 @@ mod tests {
         let _res = instantiate_contract(&mut deps, &info, &env);
 
         /*
-           Unauthorized
-        */
-        let err = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info("not-creator", &[]),
-            ExecuteMsg::AcceptManager {},
-        )
-        .unwrap_err();
-        assert!(matches!(err, ContractError::Unauthorized {}));
-
-        /*
            Empty tmp store
         */
         let err = execute(
@@ -684,10 +672,25 @@ mod tests {
                 },
             )
             .unwrap();
+        /*
+            Unauthorized
+        */
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("not-creator", &[]),
+            ExecuteMsg::AcceptManager {},
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::Unauthorized {}));
+
+        /*
+           Successful
+        */
         let res = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info("creator", &[]),
+            mock_info("new_manager", &[]),
             ExecuteMsg::AcceptManager {},
         )
         .unwrap();

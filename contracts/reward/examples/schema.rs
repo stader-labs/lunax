@@ -3,7 +3,9 @@ use std::fs::create_dir_all;
 
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 
-use reward::msg::{ExecuteMsg, GetConfigResponse, InstantiateMsg, QueryMsg, TmpManagerStoreResponse};
+use reward::msg::{
+    ExecuteMsg, GetConfigResponse, InstantiateMsg, QueryMsg, TmpManagerStoreResponse,
+};
 use reward::state::*;
 
 fn main() {

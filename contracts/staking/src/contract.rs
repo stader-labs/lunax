@@ -179,10 +179,9 @@ pub fn set_manager(
 pub fn accept_manager(
     deps: DepsMut,
     info: MessageInfo,
-    env: Env,
+    _env: Env,
 ) -> Result<Response, ContractError> {
     let mut config = CONFIG.load(deps.storage)?;
-    validate(&config, &info, &env, vec![Verify::SenderManager])?;
 
     let tmp_manager_store =
         if let Some(tmp_manager_store) = TMP_MANAGER_STORE.may_load(deps.storage)? {
@@ -191,7 +190,12 @@ pub fn accept_manager(
             return Err(ContractError::TmpManagerStoreEmpty {});
         };
 
-    config.manager = deps.api.addr_validate(tmp_manager_store.manager.as_str())?;
+    let manager = deps.api.addr_validate(tmp_manager_store.manager.as_str())?;
+    if info.sender != manager {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    config.manager = manager;
     TMP_MANAGER_STORE.remove(deps.storage);
 
     CONFIG.save(deps.storage, &config)?;
