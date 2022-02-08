@@ -465,6 +465,12 @@
     "OperationControlsUpdateRequest": {
       "type": "object",
       "properties": {
+        "claim_airdrops_paused": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
         "deposit_paused": {
           "type": [
             "boolean",
@@ -483,7 +489,25 @@
             "null"
           ]
         },
+        "redeem_rewards_paused": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "reimburse_slashing_paused": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
         "reinvest_paused": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "swap_paused": {
           "type": [
             "boolean",
             "null"

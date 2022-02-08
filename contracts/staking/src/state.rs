@@ -52,7 +52,7 @@ pub struct OperationControls {
     pub claim_airdrops_paused: bool,
     pub redeem_rewards_paused: bool,
     pub swap_paused: bool,
-    pub reimburse_slashing_paused: bool
+    pub reimburse_slashing_paused: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -125,6 +125,7 @@ pub struct OperationControlsUpdateRequest {
     pub(crate) claim_airdrops_paused: Option<bool>,
     pub(crate) swap_paused: Option<bool>,
     pub(crate) redeem_rewards_paused: Option<bool>,
+    pub(crate) reimburse_slashing_paused: Option<bool>,
 }
 
 pub const CONFIG: Item<Config> = Item::new("config");

@@ -102,7 +102,7 @@ pub fn instantiate(
         claim_airdrops_paused: false,
         redeem_rewards_paused: false,
         swap_paused: false,
-        reimburse_slashing_paused: false
+        reimburse_slashing_paused: false,
     };
     OPERATION_CONTROLS.save(deps.storage, &operation_controls)?;
 
@@ -236,6 +236,9 @@ pub fn update_operation_flags(
     operation_controls.claim_airdrops_paused = operation_controls_update_request
         .claim_airdrops_paused
         .unwrap_or(operation_controls.claim_airdrops_paused);
+    operation_controls.reimburse_slashing_paused = operation_controls_update_request
+        .reimburse_slashing_paused
+        .unwrap_or(operation_controls.reimburse_slashing_paused);
 
     OPERATION_CONTROLS.save(deps.storage, &operation_controls)?;
 
