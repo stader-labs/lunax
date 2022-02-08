@@ -631,7 +631,7 @@ pub fn swap_rewards(deps: DepsMut, info: MessageInfo, env: Env) -> Result<Respon
     let mut state = STATE.load(deps.storage)?;
     let operation_controls = OPERATION_CONTROLS.load(deps.storage)?;
     if operation_controls.reinvest_paused {
-        return Err(ContractError::OperationPaused("swap".to_string()));
+        return Err(ContractError::OperationPaused("reinvest".to_string()));
     }
 
     if info.sender.ne(&config.manager)
