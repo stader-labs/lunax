@@ -9,6 +9,9 @@ pub enum ContractError {
     #[error("AirdropRegistry-Contract: Unauthorized")]
     Unauthorized {},
 
-    #[error("Airdrop token cannot be empty")]
+    #[error("AirdropRegistry-Contract: Airdrop token cannot be empty")]
     TokenEmpty {},
+
+    #[error("AirdropRegistry-Contract: Temp manager store is empty")]
+    TmpManagerStoreEmpty {},
 }

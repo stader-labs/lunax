@@ -65,6 +65,38 @@
         }
       },
       "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "set_manager"
+      ],
+      "properties": {
+        "set_manager": {
+          "type": "object",
+          "required": [
+            "manager"
+          ],
+          "properties": {
+            "manager": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "accept_manager"
+      ],
+      "properties": {
+        "accept_manager": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
     }
   ],
   "definitions": {

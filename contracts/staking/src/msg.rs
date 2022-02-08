@@ -1,6 +1,6 @@
 use crate::state::{
     AirdropRate, BatchUndelegationRecord, Config, ConfigUpdateRequest,
-    OperationControlsUpdateRequest, State, VMeta,
+    OperationControlsUpdateRequest, State, TmpManagerStore, VMeta,
 };
 use cosmwasm_std::{Addr, Coin, Decimal, Uint128};
 use cw20::Cw20ReceiveMsg;
@@ -79,6 +79,10 @@ pub enum ExecuteMsg {
     UpdateOperationFlags {
         operation_controls_update_request: OperationControlsUpdateRequest,
     },
+    SetManager {
+        manager: String,
+    },
+    AcceptManager {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -97,6 +101,7 @@ pub enum QueryMsg {
     Config {},
     State {},
     OperationControls {},
+    TmpManagerStore {},
     BatchUndelegation {
         batch_id: u64,
     },
@@ -123,6 +128,11 @@ pub enum QueryMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct QueryConfigResponse {
     pub config: Config,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct TmpManagerStoreResponse {
+    pub tmp_manager_store: Option<TmpManagerStore>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

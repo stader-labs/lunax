@@ -262,6 +262,38 @@
         }
       },
       "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "set_manager"
+      ],
+      "properties": {
+        "set_manager": {
+          "type": "object",
+          "required": [
+            "manager"
+          ],
+          "properties": {
+            "manager": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "accept_manager"
+      ],
+      "properties": {
+        "accept_manager": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
     }
   ],
   "definitions": {
@@ -317,12 +349,6 @@
           ]
         },
         "cw20_token_contract": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "manager": {
           "type": [
             "string",
             "null"

@@ -2,9 +2,11 @@
 use cosmwasm_std::entry_point;
 
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, GetConfigResponse, InstantiateMsg, MigrateMsg, QueryMsg};
+use crate::msg::{
+    ExecuteMsg, GetConfigResponse, InstantiateMsg, MigrateMsg, QueryMsg, TmpManagerStoreResponse,
+};
 
-use crate::state::{Config, CONFIG};
+use crate::state::{Config, TmpManagerStore, CONFIG, TMP_MANAGER_STORE};
 use cw2::set_contract_version;
 
 use cosmwasm_std::{
@@ -69,9 +71,51 @@ pub fn execute(
         ),
         ExecuteMsg::UpdateConfig {
             staking_contract: pools_contract,
-            manager,
-        } => update_config(deps, info, env, pools_contract, manager),
+        } => update_config(deps, info, env, pools_contract),
+        ExecuteMsg::SetManager { manager } => set_manager(deps, info, env, manager),
+        ExecuteMsg::AcceptManager {} => accept_manager(deps, info, env),
     }
+}
+
+pub fn set_manager(
+    deps: DepsMut,
+    info: MessageInfo,
+    _env: Env,
+    manager: String,
+) -> Result<Response<TerraMsgWrapper>, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    if info.sender != config.manager {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    TMP_MANAGER_STORE.save(deps.storage, &TmpManagerStore { manager })?;
+
+    Ok(Response::default())
+}
+
+pub fn accept_manager(
+    deps: DepsMut,
+    info: MessageInfo,
+    _env: Env,
+) -> Result<Response<TerraMsgWrapper>, ContractError> {
+    let mut config = CONFIG.load(deps.storage)?;
+    if info.sender != config.manager {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    let tmp_manager_store =
+        if let Some(tmp_manager_store) = TMP_MANAGER_STORE.may_load(deps.storage)? {
+            tmp_manager_store
+        } else {
+            return Err(ContractError::TmpManagerStoreEmpty {});
+        };
+
+    config.manager = deps.api.addr_validate(tmp_manager_store.manager.as_str())?;
+
+    TMP_MANAGER_STORE.remove(deps.storage);
+    CONFIG.save(deps.storage, &config)?;
+
+    Ok(Response::default())
 }
 
 // Swaps all rewards accrued in this contract to reward denom - luna.
@@ -202,7 +246,6 @@ pub fn update_config(
     info: MessageInfo,
     _env: Env,
     pools_contract: Option<String>,
-    manager: Option<String>,
 ) -> Result<Response<TerraMsgWrapper>, ContractError> {
     let mut config = CONFIG.load(deps.storage)?;
 
@@ -214,10 +257,6 @@ pub fn update_config(
         config.staking_contract = deps.api.addr_validate(pools_contract.unwrap().as_str())?;
     }
 
-    if let Some(manager) = manager {
-        config.manager = deps.api.addr_validate(manager.as_str())?;
-    }
-
     CONFIG.save(deps.storage, &config)?;
     Ok(Response::default())
 }
@@ -226,7 +265,13 @@ pub fn update_config(
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => to_binary(&query_config(deps)?),
+        QueryMsg::TmpManagerStore {} => to_binary(&query_tmp_manager_store(deps)?),
     }
+}
+
+pub fn query_tmp_manager_store(deps: Deps) -> StdResult<TmpManagerStoreResponse> {
+    let tmp_manager_store = TMP_MANAGER_STORE.may_load(deps.storage)?;
+    Ok(TmpManagerStoreResponse { tmp_manager_store })
 }
 
 pub fn query_config(deps: Deps) -> StdResult<GetConfigResponse> {

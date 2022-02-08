@@ -207,8 +207,8 @@ pub fn merge_decimal(decimal1: Decimal, decimal_op: DecimalOp) -> Decimal {
             if decimal1 < fund {
                 panic!(
                     "Cannot make decimal with negative value {}-{}",
-                    decimal1.to_string(),
-                    fund.to_string()
+                    decimal1,
+                    fund
                 )
             }
             decimal_subtraction_in_256(decimal1, fund)

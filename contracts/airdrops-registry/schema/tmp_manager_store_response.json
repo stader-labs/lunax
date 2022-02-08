@@ -1,0 +1,30 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "TmpManagerStoreResponse",
+  "type": "object",
+  "properties": {
+    "tmp_manager_store": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/TmpManagerStore"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "definitions": {
+    "TmpManagerStore": {
+      "type": "object",
+      "required": [
+        "manager"
+      ],
+      "properties": {
+        "manager": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

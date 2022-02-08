@@ -20,3 +20,13 @@ pub struct AirdropRegistryInfo {
 }
 // Map of airdrop token to the token contract
 pub const AIRDROP_REGISTRY: Map<String, AirdropRegistryInfo> = Map::new("airdrop_registry");
+
+// this is a tmp store to store the intermediate values of manager updates.
+// manager updates are 2 phase, we set it and then accept it. This is done to
+// add a greater assurance of the update.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct TmpManagerStore {
+    pub manager: String,
+}
+
+pub const TMP_MANAGER_STORE: Item<TmpManagerStore> = Item::new("tmp_manager_store");

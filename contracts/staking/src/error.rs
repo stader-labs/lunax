@@ -98,4 +98,7 @@ pub enum ContractError {
 
     #[error("Staking-Contract: Reinvest is in cooldown")]
     ReinvestInCooldown {},
+
+    #[error("Staking-Contract: Tmp manager store is empty")]
+    TmpManagerStoreEmpty {},
 }

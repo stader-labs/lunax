@@ -31,6 +31,7 @@ mod tests {
     use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
     use cw_storage_plus::U64Key;
     use reward::msg::ExecuteMsg as RewardExecuteMsg;
+    use reward::state::{TmpManagerStore, TMP_MANAGER_STORE};
     use stader_utils::coin_utils::{check_equal_deccoin_vector, DecCoin};
 
     fn get_validators() -> Vec<Validator> {
@@ -587,6 +588,100 @@ mod tests {
     }
 
     #[test]
+    fn test_set_manager() {
+        let mut deps = mock_dependencies(&[]);
+        let env = mock_env();
+        let info = mock_info("creator", &[]);
+
+        let _res = instantiate_contract(&mut deps, &info, &env);
+
+        /*
+           Unauthorized
+        */
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("not-creator", &[]),
+            ExecuteMsg::SetManager {
+                manager: "test_manager".to_string(),
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::Unauthorized {}));
+
+        /*
+            Successful
+        */
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::SetManager {
+                manager: "test_manager".to_string(),
+            },
+        )
+        .unwrap();
+        let tmp_manager_store = TMP_MANAGER_STORE.load(deps.as_mut().storage).unwrap();
+        assert_eq!(tmp_manager_store.manager, "test_manager".to_string())
+    }
+
+    #[test]
+    fn test_accept_manager() {
+        let mut deps = mock_dependencies(&[]);
+        let env = mock_env();
+        let info = mock_info("creator", &[]);
+
+        let _res = instantiate_contract(&mut deps, &info, &env);
+
+        /*
+           Unauthorized
+        */
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("not-creator", &[]),
+            ExecuteMsg::AcceptManager {},
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::Unauthorized {}));
+
+        /*
+           Empty tmp store
+        */
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::AcceptManager {},
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::TmpManagerStoreEmpty {}));
+
+        /*
+            Successful
+        */
+        TMP_MANAGER_STORE
+            .save(
+                deps.as_mut().storage,
+                &TmpManagerStore {
+                    manager: "new_manager".to_string(),
+                },
+            )
+            .unwrap();
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::AcceptManager {},
+        )
+        .unwrap();
+        let config = CONFIG.load(deps.as_mut().storage).unwrap();
+        assert_eq!(config.manager, Addr::unchecked("new_manager"));
+        let tmp_manager_store = TMP_MANAGER_STORE.may_load(deps.as_mut().storage).unwrap();
+        assert_eq!(tmp_manager_store, None);
+    }
+
+    #[test]
     fn test_update_config() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
@@ -604,7 +699,6 @@ mod tests {
             mock_info("not-creator", &[]),
             ExecuteMsg::UpdateConfig {
                 config_request: ConfigUpdateRequest {
-                    manager: None,
                     active: None,
                     min_deposit: None,
                     max_deposit: None,
@@ -630,7 +724,6 @@ mod tests {
             mock_info("creator", &[]),
             ExecuteMsg::UpdateConfig {
                 config_request: ConfigUpdateRequest {
-                    manager: None,
                     active: None,
                     min_deposit: None,
                     max_deposit: None,
@@ -659,7 +752,6 @@ mod tests {
             mock_info("creator", &[]),
             ExecuteMsg::UpdateConfig {
                 config_request: ConfigUpdateRequest {
-                    manager: None,
                     active: Some(true),
                     min_deposit: Some(Uint128::from(1_u128)),
                     max_deposit: Some(Uint128::from(10000000_u128)),
@@ -687,7 +779,6 @@ mod tests {
             mock_info("creator", &[]),
             ExecuteMsg::UpdateConfig {
                 config_request: ConfigUpdateRequest {
-                    manager: None,
                     active: Some(true),
                     min_deposit: Some(Uint128::from(1_u128)),
                     max_deposit: Some(Uint128::from(10000000_u128)),
@@ -715,7 +806,6 @@ mod tests {
             mock_info("creator", &[]),
             ExecuteMsg::UpdateConfig {
                 config_request: ConfigUpdateRequest {
-                    manager: None,
                     active: Some(true),
                     min_deposit: Some(Uint128::from(1_u128)),
                     max_deposit: Some(Uint128::from(10000000_u128)),
@@ -743,7 +833,6 @@ mod tests {
             mock_info("creator", &[]),
             ExecuteMsg::UpdateConfig {
                 config_request: ConfigUpdateRequest {
-                    manager: Some("new_manager".to_string()),
                     active: Some(true),
                     min_deposit: Some(Uint128::from(1_u128)),
                     max_deposit: Some(Uint128::from(10000000_u128)),
@@ -762,7 +851,6 @@ mod tests {
         .unwrap();
         let config = CONFIG.load(deps.as_mut().storage).unwrap();
         assert!(config.active);
-        assert_eq!(config.manager, Addr::unchecked("new_manager"));
         assert_eq!(config.min_deposit, Uint128::new(1_u128));
         assert_eq!(config.max_deposit, Uint128::new(10000000_u128));
         assert_eq!(

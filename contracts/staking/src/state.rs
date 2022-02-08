@@ -94,8 +94,6 @@ pub const BATCH_UNDELEGATION_REGISTRY: Map<U64Key, BatchUndelegationRecord> =
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigUpdateRequest {
-    pub(crate) manager: Option<String>,
-
     pub(crate) active: Option<bool>,
     pub(crate) min_deposit: Option<Uint128>,
     pub(crate) max_deposit: Option<Uint128>,
@@ -136,3 +134,13 @@ pub struct AirdropRate {
     pub stage: u8,
     pub proof: Vec<String>,
 }
+
+// this is a tmp store to store the intermediate values of manager updates.
+// manager updates are 2 phase, we set it and then accept it. This is done to
+// add a greater assurance of the update.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct TmpManagerStore {
+    pub manager: String,
+}
+
+pub const TMP_MANAGER_STORE: Item<TmpManagerStore> = Item::new("tmp_manager_store");

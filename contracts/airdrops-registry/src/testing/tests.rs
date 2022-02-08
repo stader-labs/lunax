@@ -4,7 +4,9 @@ mod tests {
 
     use crate::error::ContractError::TokenEmpty;
     use crate::msg::{ExecuteMsg, GetConfigResponse, InstantiateMsg, QueryMsg};
-    use crate::state::{AirdropRegistryInfo, Config, AIRDROP_REGISTRY, CONFIG};
+    use crate::state::{
+        AirdropRegistryInfo, Config, TmpManagerStore, AIRDROP_REGISTRY, CONFIG, TMP_MANAGER_STORE,
+    };
     use crate::ContractError;
     use cosmwasm_std::testing::{
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
@@ -44,44 +46,6 @@ mod tests {
                 manager: Addr::unchecked("creator"),
             }
         );
-    }
-
-    #[test]
-    fn test_update_config() {
-        let mut deps = mock_dependencies(&[]);
-        let info = mock_info("creator", &[]);
-        let env = mock_env();
-
-        let _res = instantiate_contract(&mut deps, &info, &env);
-
-        /*
-           Test Unauthorized
-        */
-        let err = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info("not-creator", &[]),
-            ExecuteMsg::UpdateConfig {
-                manager: "new_manager".to_string(),
-            },
-        )
-        .unwrap_err();
-        assert!(matches!(err, ContractError::Unauthorized {}));
-
-        /*
-            Test Success
-        */
-        let res = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info("creator", &[]),
-            ExecuteMsg::UpdateConfig {
-                manager: "new_manager".to_string(),
-            },
-        )
-        .unwrap();
-        let config = CONFIG.load(deps.as_mut().storage).unwrap();
-        assert_eq!(config.manager, Addr::unchecked("new_manager"));
     }
 
     #[test]
@@ -149,5 +113,99 @@ mod tests {
                 cw20_contract: Addr::unchecked("anc_cw20_contract")
             }
         );
+    }
+
+    #[test]
+    fn test_set_manager() {
+        let mut deps = mock_dependencies(&[]);
+        let env = mock_env();
+        let info = mock_info("creator", &[]);
+
+        let _res = instantiate_contract(&mut deps, &info, &env);
+
+        /*
+           Unauthorized
+        */
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("not-creator", &[]),
+            ExecuteMsg::SetManager {
+                manager: "test_manager".to_string(),
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::Unauthorized {}));
+
+        /*
+            Successful
+        */
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::SetManager {
+                manager: "test_manager".to_string(),
+            },
+        )
+        .unwrap();
+        let tmp_manager_store = TMP_MANAGER_STORE.load(deps.as_mut().storage).unwrap();
+        assert_eq!(tmp_manager_store.manager, "test_manager".to_string())
+    }
+
+    #[test]
+    fn test_accept_manager() {
+        let mut deps = mock_dependencies(&[]);
+        let env = mock_env();
+        let info = mock_info("creator", &[]);
+
+        let _res = instantiate_contract(&mut deps, &info, &env);
+
+        /*
+           Unauthorized
+        */
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("not-creator", &[]),
+            ExecuteMsg::AcceptManager {},
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::Unauthorized {}));
+
+        /*
+           Empty tmp store
+        */
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::AcceptManager {},
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::TmpManagerStoreEmpty {}));
+
+        /*
+            Successful
+        */
+        TMP_MANAGER_STORE
+            .save(
+                deps.as_mut().storage,
+                &TmpManagerStore {
+                    manager: "new_manager".to_string(),
+                },
+            )
+            .unwrap();
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::AcceptManager {},
+        )
+        .unwrap();
+        let config = CONFIG.load(deps.as_mut().storage).unwrap();
+        assert_eq!(config.manager, Addr::unchecked("new_manager"));
+        let tmp_manager_store = TMP_MANAGER_STORE.may_load(deps.as_mut().storage).unwrap();
+        assert_eq!(tmp_manager_store, None);
     }
 }

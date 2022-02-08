@@ -33,6 +33,18 @@
         }
       },
       "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "tmp_manager_store"
+      ],
+      "properties": {
+        "tmp_manager_store": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
     }
   ]
 }

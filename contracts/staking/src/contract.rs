@@ -7,12 +7,13 @@ use crate::helpers::{
 use crate::msg::{
     Cw20HookMsg, ExecuteMsg, GetFundsClaimRecord, GetFundsDepositRecord, GetValMetaResponse,
     InstantiateMsg, MerkleAirdropMsg, MigrateMsg, QueryBatchUndelegationResponse,
-    QueryConfigResponse, QueryMsg, QueryStateResponse, UserInfoResponse, UserQueryInfo,
+    QueryConfigResponse, QueryMsg, QueryStateResponse, TmpManagerStoreResponse, UserInfoResponse,
+    UserQueryInfo,
 };
 use crate::state::{
     AirdropRate, Config, ConfigUpdateRequest, OperationControls, OperationControlsUpdateRequest,
-    State, UndelegationInfo, VMeta, BATCH_UNDELEGATION_REGISTRY, CONFIG, OPERATION_CONTROLS, STATE,
-    USERS, VALIDATOR_META,
+    State, TmpManagerStore, UndelegationInfo, VMeta, BATCH_UNDELEGATION_REGISTRY, CONFIG,
+    OPERATION_CONTROLS, STATE, TMP_MANAGER_STORE, USERS, VALIDATOR_META,
 };
 use crate::ContractError;
 use airdrops_registry::msg::GetAirdropContractsResponse;
@@ -152,7 +153,46 @@ pub fn execute(
         ExecuteMsg::UpdateOperationFlags {
             operation_controls_update_request,
         } => update_operation_flags(deps, info, env, operation_controls_update_request),
+        ExecuteMsg::SetManager { manager } => set_manager(deps, info, env, manager),
+        ExecuteMsg::AcceptManager {} => accept_manager(deps, info, env),
     }
+}
+
+pub fn set_manager(
+    deps: DepsMut,
+    info: MessageInfo,
+    env: Env,
+    manager: String,
+) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    validate(&config, &info, &env, vec![Verify::SenderManager])?;
+
+    TMP_MANAGER_STORE.save(deps.storage, &TmpManagerStore { manager })?;
+
+    Ok(Response::default())
+}
+
+pub fn accept_manager(
+    deps: DepsMut,
+    info: MessageInfo,
+    env: Env,
+) -> Result<Response, ContractError> {
+    let mut config = CONFIG.load(deps.storage)?;
+    validate(&config, &info, &env, vec![Verify::SenderManager])?;
+
+    let tmp_manager_store =
+        if let Some(tmp_manager_store) = TMP_MANAGER_STORE.may_load(deps.storage)? {
+            tmp_manager_store
+        } else {
+            return Err(ContractError::TmpManagerStoreEmpty {});
+        };
+
+    config.manager = deps.api.addr_validate(tmp_manager_store.manager.as_str())?;
+    TMP_MANAGER_STORE.remove(deps.storage);
+
+    CONFIG.save(deps.storage, &config)?;
+
+    Ok(Response::default())
 }
 
 pub fn update_operation_flags(
@@ -202,10 +242,6 @@ pub fn update_config(
         if config.cw20_token_contract == Addr::unchecked("0") {
             config.cw20_token_contract = deps.api.addr_validate(cw20_contract.as_str())?;
         }
-    }
-
-    if let Some(manager) = update_config.manager {
-        config.manager = deps.api.addr_validate(manager.as_str())?;
     }
 
     if let Some(arc) = update_config.airdrop_registry_contract {
@@ -1140,7 +1176,13 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             user_addr,
             batch_id,
         } => to_binary(&query_user_undelegation_info(deps, user_addr, batch_id)?),
+        QueryMsg::TmpManagerStore {} => to_binary(&query_manager_tmp_store(deps)?),
     }
+}
+
+pub fn query_manager_tmp_store(deps: Deps) -> StdResult<TmpManagerStoreResponse> {
+    let tmp_manager_store = TMP_MANAGER_STORE.may_load(deps.storage)?;
+    Ok(TmpManagerStoreResponse { tmp_manager_store })
 }
 
 pub fn query_operation_controls(deps: Deps) -> StdResult<OperationControls> {
