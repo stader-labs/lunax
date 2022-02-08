@@ -99,6 +99,10 @@ pub fn instantiate(
         withdraw_paused: false,
         reinvest_paused: false,
         reconcile_paused: false,
+        claim_airdrops_paused: false,
+        redeem_rewards_paused: false,
+        swap_paused: false,
+        reimburse_slashing_paused: false
     };
     OPERATION_CONTROLS.save(deps.storage, &operation_controls)?;
 
@@ -223,6 +227,15 @@ pub fn update_operation_flags(
     operation_controls.reinvest_paused = operation_controls_update_request
         .reinvest_paused
         .unwrap_or(operation_controls.reinvest_paused);
+    operation_controls.redeem_rewards_paused = operation_controls_update_request
+        .redeem_rewards_paused
+        .unwrap_or(operation_controls.redeem_rewards_paused);
+    operation_controls.swap_paused = operation_controls_update_request
+        .swap_paused
+        .unwrap_or(operation_controls.swap_paused);
+    operation_controls.claim_airdrops_paused = operation_controls_update_request
+        .claim_airdrops_paused
+        .unwrap_or(operation_controls.claim_airdrops_paused);
 
     OPERATION_CONTROLS.save(deps.storage, &operation_controls)?;
 
@@ -580,6 +593,10 @@ pub fn redeem_rewards(
 ) -> Result<Response, ContractError> {
     check_slashing(&mut deps, &env)?;
     let state = STATE.load(deps.storage)?;
+    let operation_controls = OPERATION_CONTROLS.load(deps.storage)?;
+    if operation_controls.reinvest_paused {
+        return Err(ContractError::OperationPaused("redeem_rewards".to_string()));
+    }
 
     let mut messages = vec![];
     let mut failed_vals: Vec<String> = vec![];
@@ -612,6 +629,10 @@ pub fn redeem_rewards(
 pub fn swap_rewards(deps: DepsMut, info: MessageInfo, env: Env) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
     let mut state = STATE.load(deps.storage)?;
+    let operation_controls = OPERATION_CONTROLS.load(deps.storage)?;
+    if operation_controls.reinvest_paused {
+        return Err(ContractError::OperationPaused("swap".to_string()));
+    }
 
     if info.sender.ne(&config.manager)
         && env
@@ -713,6 +734,12 @@ pub fn reimburse_slashing(
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
     validate(&config, &info, &env, vec![Verify::NonZeroSingleInfoFund])?;
+    let operation_controls = OPERATION_CONTROLS.load(deps.storage)?;
+    if operation_controls.reimburse_slashing_paused {
+        return Err(ContractError::OperationPaused(
+            "reimburse_slashing".to_string(),
+        ));
+    }
 
     let reimburse_amount = info.funds[0].amount;
     let state = STATE.load(deps.storage)?;
@@ -1104,6 +1131,10 @@ pub fn claim_airdrops(
     airdrop_rates: Vec<AirdropRate>,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
+    let operation_controls = OPERATION_CONTROLS.load(deps.storage)?;
+    if operation_controls.claim_airdrops_paused {
+        return Err(ContractError::OperationPaused("claim_airdrops".to_string()));
+    }
 
     let mut msgs = vec![];
     let airdrop_withdrawal_contract = config.airdrop_withdrawal_contract;

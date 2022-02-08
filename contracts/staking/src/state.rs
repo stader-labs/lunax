@@ -49,6 +49,10 @@ pub struct OperationControls {
     pub withdraw_paused: bool,
     pub reinvest_paused: bool,
     pub reconcile_paused: bool,
+    pub claim_airdrops_paused: bool,
+    pub redeem_rewards_paused: bool,
+    pub swap_paused: bool,
+    pub reimburse_slashing_paused: bool
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -118,6 +122,9 @@ pub struct OperationControlsUpdateRequest {
     pub(crate) withdraw_paused: Option<bool>,
     pub(crate) reinvest_paused: Option<bool>,
     pub(crate) reconcile_paused: Option<bool>,
+    pub(crate) claim_airdrops_paused: Option<bool>,
+    pub(crate) swap_paused: Option<bool>,
+    pub(crate) redeem_rewards_paused: Option<bool>,
 }
 
 pub const CONFIG: Item<Config> = Item::new("config");
