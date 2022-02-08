@@ -539,6 +539,51 @@ mod tests {
         )
         .unwrap_err();
         assert!(matches!(err, ContractError::Unauthorized {}));
+
+        /*
+            Successful update
+        */
+        OPERATION_CONTROLS
+            .save(
+                deps.as_mut().storage,
+                &OperationControls {
+                    deposit_paused: true,
+                    queue_undelegate_paused: false,
+                    undelegate_paused: true,
+                    withdraw_paused: false,
+                    reinvest_paused: true,
+                    reconcile_paused: false,
+                },
+            )
+            .unwrap();
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::UpdateOperationFlags {
+                operation_controls_update_request: OperationControlsUpdateRequest {
+                    deposit_paused: Some(false),
+                    queue_undelegate_paused: None,
+                    undelegate_paused: Some(false),
+                    withdraw_paused: None,
+                    reinvest_paused: None,
+                    reconcile_paused: Some(true),
+                },
+            },
+        )
+        .unwrap();
+        let operation_controls = OPERATION_CONTROLS.load(deps.as_mut().storage).unwrap();
+        assert_eq!(
+            operation_controls,
+            OperationControls {
+                deposit_paused: false,
+                queue_undelegate_paused: false,
+                undelegate_paused: false,
+                withdraw_paused: false,
+                reinvest_paused: true,
+                reconcile_paused: true
+            }
+        );
     }
 
     #[test]
