@@ -132,10 +132,6 @@ pub fn swap(
 
     let mut messages = vec![];
     let total_rewards = deps.querier.query_all_balances(env.contract.address)?;
-    // let denoms: Vec<String> = total_rewards
-    //     .iter()
-    //     .map(|item| item.denom.clone())
-    //     .collect();
 
     // got this list from https://fcd.terra.dev/v1/txs/gas_prices. These are native Terra
     let denoms = vec![
