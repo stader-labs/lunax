@@ -63,14 +63,11 @@ pub struct DecimalOp {
     pub operation: Operation,
 }
 
-// TODO - GM. What happens to all these methods where amount is not available but sub amount is 0, Especiolly for vec case.
 // (coin1 + coin2) or (coin1 - coin2)
 pub fn merge_coin(coin1: Coin, coin_op: CoinOp) -> Coin {
     let fund = coin_op.fund;
     let operation = coin_op.operation;
 
-    // TODO - GM. Is denom equality check required?
-    // TODO - GM. Should worry about denom casing?
     match operation {
         Operation::Add => Coin {
             amount: coin1.amount.checked_add(fund.amount).unwrap(),
@@ -92,7 +89,6 @@ pub fn merge_coin(coin1: Coin, coin_op: CoinOp) -> Coin {
     }
 }
 
-// TODO - GM. This has to be a trait with DecCoin.
 pub fn check_equal_deccoin_vector(deccoins1: &[DecCoin], deccoins2: &[DecCoin]) -> bool {
     deccoins1.len() == deccoins2.len()
         && deccoins1.iter().all(|x| deccoins2.contains(x))
@@ -105,7 +101,6 @@ pub fn check_equal_coin_vector(coins1: &[Coin], coins2: &[Coin]) -> bool {
         && coins2.iter().all(|x| coins1.contains(x))
 }
 
-// TODO - GM. Generalize map_to_vec for Coin and DecCoin
 pub fn map_to_coin_vec(coin_map: HashMap<String, Uint128>) -> Vec<Coin> {
     let mut coins: Vec<Coin> = vec![];
     let mut sorted_coin_map: Vec<(&String, &Uint128)> =
@@ -212,8 +207,7 @@ pub fn merge_decimal(decimal1: Decimal, decimal_op: DecimalOp) -> Decimal {
             if decimal1 < fund {
                 panic!(
                     "Cannot make decimal with negative value {}-{}",
-                    decimal1.to_string(),
-                    fund.to_string()
+                    decimal1, fund
                 )
             }
             decimal_subtraction_in_256(decimal1, fund)
@@ -369,7 +363,6 @@ pub fn filter_by_other_denom(coin_vector: &[Coin], denoms: Vec<String>) -> Vec<C
         .collect()
 }
 
-// TODO - GM. Make these add & subtract coinvecs and deccoinvecs more efficient
 fn add_coin_vectors(coins1: &[Coin], coins2: &[Coin]) -> Vec<Coin> {
     let mut coin_map = add_coin_vector_to_map(&mut HashMap::new(), coins1);
     coin_map = add_coin_vector_to_map(&mut coin_map, coins2);

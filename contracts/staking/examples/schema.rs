@@ -23,4 +23,5 @@ fn main() {
     export_schema(&schema_for!(GetValMetaResponse), &out_dir);
     export_schema(&schema_for!(GetFundsClaimRecord), &out_dir);
     export_schema(&schema_for!(UserInfoResponse), &out_dir);
+    export_schema(&schema_for!(TmpManagerStoreResponse), &out_dir);
 }

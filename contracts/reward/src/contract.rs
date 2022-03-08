@@ -2,9 +2,11 @@
 use cosmwasm_std::entry_point;
 
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, GetConfigResponse, InstantiateMsg, MigrateMsg, QueryMsg};
+use crate::msg::{
+    ExecuteMsg, GetConfigResponse, InstantiateMsg, MigrateMsg, QueryMsg, TmpManagerStoreResponse,
+};
 
-use crate::state::{Config, CONFIG};
+use crate::state::{Config, TmpManagerStore, CONFIG, TMP_MANAGER_STORE};
 use cw2::set_contract_version;
 
 use cosmwasm_std::{
@@ -70,11 +72,55 @@ pub fn execute(
         ExecuteMsg::UpdateConfig {
             staking_contract: pools_contract,
         } => update_config(deps, info, env, pools_contract),
+        ExecuteMsg::SetManager { manager } => set_manager(deps, info, env, manager),
+        ExecuteMsg::AcceptManager {} => accept_manager(deps, info, env),
     }
 }
 
+pub fn set_manager(
+    deps: DepsMut,
+    info: MessageInfo,
+    _env: Env,
+    manager: String,
+) -> Result<Response<TerraMsgWrapper>, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    if info.sender != config.manager {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    TMP_MANAGER_STORE.save(deps.storage, &TmpManagerStore { manager })?;
+
+    Ok(Response::default())
+}
+
+pub fn accept_manager(
+    deps: DepsMut,
+    info: MessageInfo,
+    _env: Env,
+) -> Result<Response<TerraMsgWrapper>, ContractError> {
+    let mut config = CONFIG.load(deps.storage)?;
+
+    let tmp_manager_store =
+        if let Some(tmp_manager_store) = TMP_MANAGER_STORE.may_load(deps.storage)? {
+            tmp_manager_store
+        } else {
+            return Err(ContractError::TmpManagerStoreEmpty {});
+        };
+
+    let manager = deps.api.addr_validate(tmp_manager_store.manager.as_str())?;
+    if info.sender != manager {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    config.manager = deps.api.addr_validate(tmp_manager_store.manager.as_str())?;
+
+    TMP_MANAGER_STORE.remove(deps.storage);
+    CONFIG.save(deps.storage, &config)?;
+
+    Ok(Response::default())
+}
+
 // Swaps all rewards accrued in this contract to reward denom - luna.
-// TODO - GM. Does swap have a fixed cost or a linear cost? Useful to make this permissionless.
 pub fn swap(
     deps: DepsMut,
     info: MessageInfo,
@@ -87,14 +133,7 @@ pub fn swap(
     }
 
     let mut messages = vec![];
-    let total_rewards = deps
-        .querier
-        .query_all_balances(env.contract.address)
-        .unwrap();
-    // let denoms: Vec<String> = total_rewards
-    //     .iter()
-    //     .map(|item| item.denom.clone())
-    //     .collect();
+    let total_rewards = deps.querier.query_all_balances(env.contract.address)?;
 
     // got this list from https://fcd.terra.dev/v1/txs/gas_prices. These are native Terra
     let denoms = vec![
@@ -167,8 +206,7 @@ pub fn transfer(
     let total_withdrawal_amount = reward_amount.checked_add(protocol_fee).unwrap();
     if deps
         .querier
-        .query_balance(env.contract.address, config.reward_denom.clone())
-        .unwrap()
+        .query_balance(env.contract.address, config.reward_denom.clone())?
         .amount
         .lt(&total_withdrawal_amount)
     {
@@ -225,7 +263,13 @@ pub fn update_config(
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => to_binary(&query_config(deps)?),
+        QueryMsg::TmpManagerStore {} => to_binary(&query_tmp_manager_store(deps)?),
     }
+}
+
+pub fn query_tmp_manager_store(deps: Deps) -> StdResult<TmpManagerStoreResponse> {
+    let tmp_manager_store = TMP_MANAGER_STORE.may_load(deps.storage)?;
+    Ok(TmpManagerStoreResponse { tmp_manager_store })
 }
 
 pub fn query_config(deps: Deps) -> StdResult<GetConfigResponse> {

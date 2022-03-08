@@ -13,8 +13,9 @@ mod tests {
         QueryConfigResponse, QueryMsg, QueryStateResponse,
     };
     use crate::state::{
-        AirdropRate, BatchUndelegationRecord, Config, ConfigUpdateRequest, State, UndelegationInfo,
-        VMeta, BATCH_UNDELEGATION_REGISTRY, CONFIG, STATE, USERS, VALIDATOR_META,
+        AirdropRate, BatchUndelegationRecord, Config, ConfigUpdateRequest, OperationControls,
+        OperationControlsUpdateRequest, State, UndelegationInfo, VMeta,
+        BATCH_UNDELEGATION_REGISTRY, CONFIG, OPERATION_CONTROLS, STATE, USERS, VALIDATOR_META,
     };
     use crate::testing::mock_querier;
     use crate::testing::mock_querier::{mock_dependencies, WasmMockQuerier};
@@ -30,6 +31,7 @@ mod tests {
     use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
     use cw_storage_plus::U64Key;
     use reward::msg::ExecuteMsg as RewardExecuteMsg;
+    use reward::state::{TmpManagerStore, TMP_MANAGER_STORE};
     use stader_utils::coin_utils::{check_equal_deccoin_vector, DecCoin};
 
     fn get_validators() -> Vec<Validator> {
@@ -508,6 +510,194 @@ mod tests {
         config.manager = Addr::unchecked("creator");
         let err = validate(&config, &info, &env, vec![Verify::NoFunds]).unwrap_err();
         assert!(matches!(err, ContractError::FundsNotExpected {}));
+    }
+
+    #[test]
+    fn test_update_operation_controls() {
+        let mut deps = mock_dependencies(&[]);
+        let info = mock_info("creator", &[]);
+        let env = mock_env();
+
+        let _res = instantiate_contract(&mut deps, &info, &env);
+
+        /*
+           Unauthorized
+        */
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("not-creator", &[]),
+            ExecuteMsg::UpdateOperationFlags {
+                operation_controls_update_request: OperationControlsUpdateRequest {
+                    deposit_paused: None,
+                    queue_undelegate_paused: None,
+                    undelegate_paused: None,
+                    withdraw_paused: None,
+                    reinvest_paused: None,
+                    reconcile_paused: None,
+                    claim_airdrops_paused: None,
+                    swap_paused: None,
+                    redeem_rewards_paused: None,
+                    reimburse_slashing_paused: None,
+                },
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::Unauthorized {}));
+
+        /*
+            Successful update
+        */
+        OPERATION_CONTROLS
+            .save(
+                deps.as_mut().storage,
+                &OperationControls {
+                    deposit_paused: true,
+                    queue_undelegate_paused: false,
+                    undelegate_paused: true,
+                    withdraw_paused: false,
+                    reinvest_paused: true,
+                    reconcile_paused: false,
+                    claim_airdrops_paused: true,
+                    redeem_rewards_paused: true,
+                    swap_paused: false,
+                    reimburse_slashing_paused: false,
+                },
+            )
+            .unwrap();
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::UpdateOperationFlags {
+                operation_controls_update_request: OperationControlsUpdateRequest {
+                    deposit_paused: Some(false),
+                    queue_undelegate_paused: None,
+                    undelegate_paused: Some(false),
+                    withdraw_paused: None,
+                    reinvest_paused: None,
+                    reconcile_paused: Some(true),
+                    claim_airdrops_paused: Some(false),
+                    swap_paused: Some(false),
+                    redeem_rewards_paused: None,
+                    reimburse_slashing_paused: Some(true),
+                },
+            },
+        )
+        .unwrap();
+        let operation_controls = OPERATION_CONTROLS.load(deps.as_mut().storage).unwrap();
+        assert_eq!(
+            operation_controls,
+            OperationControls {
+                deposit_paused: false,
+                queue_undelegate_paused: false,
+                undelegate_paused: false,
+                withdraw_paused: false,
+                reinvest_paused: true,
+                reconcile_paused: true,
+                claim_airdrops_paused: false,
+                redeem_rewards_paused: true,
+                swap_paused: false,
+                reimburse_slashing_paused: true
+            }
+        );
+    }
+
+    #[test]
+    fn test_set_manager() {
+        let mut deps = mock_dependencies(&[]);
+        let env = mock_env();
+        let info = mock_info("creator", &[]);
+
+        let _res = instantiate_contract(&mut deps, &info, &env);
+
+        /*
+           Unauthorized
+        */
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("not-creator", &[]),
+            ExecuteMsg::SetManager {
+                manager: "test_manager".to_string(),
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::Unauthorized {}));
+
+        /*
+            Successful
+        */
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::SetManager {
+                manager: "test_manager".to_string(),
+            },
+        )
+        .unwrap();
+        let tmp_manager_store = TMP_MANAGER_STORE.load(deps.as_mut().storage).unwrap();
+        assert_eq!(tmp_manager_store.manager, "test_manager".to_string())
+    }
+
+    #[test]
+    fn test_accept_manager() {
+        let mut deps = mock_dependencies(&[]);
+        let env = mock_env();
+        let info = mock_info("creator", &[]);
+
+        let _res = instantiate_contract(&mut deps, &info, &env);
+
+        /*
+           Empty tmp store
+        */
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::AcceptManager {},
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::TmpManagerStoreEmpty {}));
+
+        /*
+            Successful
+        */
+        TMP_MANAGER_STORE
+            .save(
+                deps.as_mut().storage,
+                &TmpManagerStore {
+                    manager: "new_manager".to_string(),
+                },
+            )
+            .unwrap();
+        /*
+            Unauthorized
+        */
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("not-creator", &[]),
+            ExecuteMsg::AcceptManager {},
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::Unauthorized {}));
+
+        /*
+           Successful
+        */
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("new_manager", &[]),
+            ExecuteMsg::AcceptManager {},
+        )
+        .unwrap();
+        let config = CONFIG.load(deps.as_mut().storage).unwrap();
+        assert_eq!(config.manager, Addr::unchecked("new_manager"));
+        let tmp_manager_store = TMP_MANAGER_STORE.may_load(deps.as_mut().storage).unwrap();
+        assert_eq!(tmp_manager_store, None);
     }
 
     #[test]
@@ -1178,6 +1368,50 @@ mod tests {
 
         let _res = instantiate_contract(&mut deps, &info, &env);
 
+        OPERATION_CONTROLS
+            .save(
+                deps.as_mut().storage,
+                &OperationControls {
+                    deposit_paused: false,
+                    queue_undelegate_paused: false,
+                    undelegate_paused: false,
+                    withdraw_paused: false,
+                    reinvest_paused: false,
+                    reconcile_paused: false,
+                    claim_airdrops_paused: false,
+                    redeem_rewards_paused: false,
+                    swap_paused: true,
+                    reimburse_slashing_paused: false,
+                },
+            )
+            .unwrap();
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("other", &[Coin::new(10_u128, "uluna".to_string())]),
+            ExecuteMsg::Swap {},
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::OperationPaused(String { .. })));
+
+        OPERATION_CONTROLS
+            .save(
+                deps.as_mut().storage,
+                &OperationControls {
+                    deposit_paused: false,
+                    queue_undelegate_paused: false,
+                    undelegate_paused: false,
+                    withdraw_paused: false,
+                    reinvest_paused: false,
+                    reconcile_paused: false,
+                    claim_airdrops_paused: false,
+                    redeem_rewards_paused: false,
+                    swap_paused: false,
+                    reimburse_slashing_paused: false,
+                },
+            )
+            .unwrap();
+
         /*
             Test - 2. In cooldown period
         */
@@ -1236,6 +1470,53 @@ mod tests {
         let valid1 = Addr::unchecked("valid0001");
         let valid2 = Addr::unchecked("valid0002");
         let valid3 = Addr::unchecked("valid0003");
+
+        /*
+           Redeem rewards
+        */
+        OPERATION_CONTROLS
+            .save(
+                deps.as_mut().storage,
+                &OperationControls {
+                    deposit_paused: true,
+                    queue_undelegate_paused: false,
+                    undelegate_paused: false,
+                    withdraw_paused: false,
+                    reinvest_paused: false,
+                    reconcile_paused: false,
+                    claim_airdrops_paused: false,
+                    redeem_rewards_paused: true,
+                    swap_paused: false,
+                    reimburse_slashing_paused: false,
+                },
+            )
+            .unwrap();
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("other", &[Coin::new(10_u128, "uluna".to_string())]),
+            ExecuteMsg::RedeemRewards {},
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::OperationPaused(String { .. })));
+
+        OPERATION_CONTROLS
+            .save(
+                deps.as_mut().storage,
+                &OperationControls {
+                    deposit_paused: false,
+                    queue_undelegate_paused: false,
+                    undelegate_paused: false,
+                    withdraw_paused: false,
+                    reinvest_paused: false,
+                    reconcile_paused: false,
+                    claim_airdrops_paused: false,
+                    redeem_rewards_paused: false,
+                    swap_paused: false,
+                    reimburse_slashing_paused: false,
+                },
+            )
+            .unwrap();
 
         /*
            Test - 1 - No failed validators
@@ -1972,25 +2253,51 @@ mod tests {
         let valid3 = Addr::unchecked("valid0003");
 
         /*
-           Protocol inactive
+           Deposit paused
         */
-        CONFIG
-            .update(
+        OPERATION_CONTROLS
+            .save(
                 deps.as_mut().storage,
-                |mut config| -> Result<_, ContractError> {
-                    config.active = false;
-                    Ok(config)
+                &OperationControls {
+                    deposit_paused: true,
+                    queue_undelegate_paused: false,
+                    undelegate_paused: false,
+                    withdraw_paused: false,
+                    reinvest_paused: false,
+                    reconcile_paused: false,
+                    claim_airdrops_paused: false,
+                    redeem_rewards_paused: false,
+                    swap_paused: false,
+                    reimburse_slashing_paused: false,
                 },
             )
             .unwrap();
         let err = execute(
             deps.as_mut(),
             env.clone(),
-            mock_info("other", &[Coin::new(120_u128, "uluna".to_string())]),
+            mock_info("other", &[Coin::new(10_u128, "uluna".to_string())]),
             ExecuteMsg::Deposit {},
         )
         .unwrap_err();
-        assert!(matches!(err, ContractError::ProtocolInactive {}));
+        assert!(matches!(err, ContractError::OperationPaused(String { .. })));
+
+        OPERATION_CONTROLS
+            .save(
+                deps.as_mut().storage,
+                &OperationControls {
+                    deposit_paused: false,
+                    queue_undelegate_paused: false,
+                    undelegate_paused: false,
+                    withdraw_paused: false,
+                    reinvest_paused: false,
+                    reconcile_paused: false,
+                    claim_airdrops_paused: false,
+                    redeem_rewards_paused: false,
+                    swap_paused: false,
+                    reimburse_slashing_paused: false,
+                },
+            )
+            .unwrap();
 
         STATE
             .update(
@@ -2046,7 +2353,6 @@ mod tests {
             .update(
                 deps.as_mut().storage,
                 |mut config| -> Result<_, ContractError> {
-                    config.active = true;
                     config.max_deposit = Uint128::new(100_u128);
                     Ok(config)
                 },
@@ -2209,7 +2515,6 @@ mod tests {
         /*
            Test - 1. Successful undelegation
         */
-        // TODO: bchain99 - modularize this code. Let's finish the tests for now tho
         let valid1 = Addr::unchecked("valid0001");
         let valid2 = Addr::unchecked("valid0002");
         let valid3 = Addr::unchecked("valid0003");
@@ -2309,12 +2614,59 @@ mod tests {
     }
 
     #[test]
-    fn test_reinvest_success() {
+    fn test_reinvest() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
         let env = mock_env();
 
         let _res = instantiate_contract(&mut deps, &info, &env);
+
+        /*
+           reinvest paused
+        */
+        OPERATION_CONTROLS
+            .save(
+                deps.as_mut().storage,
+                &OperationControls {
+                    deposit_paused: false,
+                    queue_undelegate_paused: false,
+                    undelegate_paused: false,
+                    withdraw_paused: false,
+                    reinvest_paused: true,
+                    reconcile_paused: false,
+                    claim_airdrops_paused: false,
+                    redeem_rewards_paused: false,
+                    swap_paused: false,
+                    reimburse_slashing_paused: false,
+                },
+            )
+            .unwrap();
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("other", &[]),
+            ExecuteMsg::Reinvest {},
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::OperationPaused(String { .. })));
+
+        OPERATION_CONTROLS
+            .save(
+                deps.as_mut().storage,
+                &OperationControls {
+                    deposit_paused: false,
+                    queue_undelegate_paused: false,
+                    undelegate_paused: false,
+                    withdraw_paused: false,
+                    reinvest_paused: false,
+                    reconcile_paused: false,
+                    claim_airdrops_paused: false,
+                    redeem_rewards_paused: false,
+                    swap_paused: false,
+                    reimburse_slashing_paused: false,
+                },
+            )
+            .unwrap();
 
         STATE
             .update(
@@ -2699,6 +3051,53 @@ mod tests {
 
         let user1 = Addr::unchecked("user1");
 
+        /*
+           withdraw paused
+        */
+        OPERATION_CONTROLS
+            .save(
+                deps.as_mut().storage,
+                &OperationControls {
+                    deposit_paused: false,
+                    queue_undelegate_paused: false,
+                    undelegate_paused: false,
+                    withdraw_paused: true,
+                    reinvest_paused: false,
+                    reconcile_paused: false,
+                    claim_airdrops_paused: false,
+                    redeem_rewards_paused: false,
+                    swap_paused: false,
+                    reimburse_slashing_paused: false,
+                },
+            )
+            .unwrap();
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("other", &[]),
+            ExecuteMsg::WithdrawFundsToWallet { batch_id: 0 },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::OperationPaused(String { .. })));
+
+        OPERATION_CONTROLS
+            .save(
+                deps.as_mut().storage,
+                &OperationControls {
+                    deposit_paused: false,
+                    queue_undelegate_paused: false,
+                    undelegate_paused: false,
+                    withdraw_paused: false,
+                    reinvest_paused: false,
+                    reconcile_paused: false,
+                    claim_airdrops_paused: false,
+                    redeem_rewards_paused: false,
+                    swap_paused: false,
+                    reimburse_slashing_paused: false,
+                },
+            )
+            .unwrap();
+
         STATE
             .update(deps.as_mut().storage, |mut state| -> StdResult<_> {
                 state.reconciled_funds_to_withdraw = Uint128::new(1200);
@@ -2817,6 +3216,53 @@ mod tests {
             .update_staking("uluna", &*get_validators(), &*get_delegations());
         deps.querier
             .update_stader_balances(Some(Uint128::new(3000_u128)), None);
+
+        /*
+           Paused
+        */
+        OPERATION_CONTROLS
+            .save(
+                deps.as_mut().storage,
+                &OperationControls {
+                    deposit_paused: false,
+                    queue_undelegate_paused: false,
+                    undelegate_paused: true,
+                    withdraw_paused: false,
+                    reinvest_paused: false,
+                    reconcile_paused: false,
+                    claim_airdrops_paused: false,
+                    redeem_rewards_paused: false,
+                    swap_paused: false,
+                    reimburse_slashing_paused: false,
+                },
+            )
+            .unwrap();
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("other", &[]),
+            ExecuteMsg::Undelegate {},
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::OperationPaused(String { .. })));
+
+        OPERATION_CONTROLS
+            .save(
+                deps.as_mut().storage,
+                &OperationControls {
+                    deposit_paused: false,
+                    queue_undelegate_paused: false,
+                    undelegate_paused: false,
+                    withdraw_paused: false,
+                    reinvest_paused: false,
+                    reconcile_paused: false,
+                    claim_airdrops_paused: false,
+                    redeem_rewards_paused: false,
+                    swap_paused: false,
+                    reimburse_slashing_paused: false,
+                },
+            )
+            .unwrap();
 
         /*
            Test - 1. Undelegation in cooldown
@@ -3212,6 +3658,50 @@ mod tests {
 
         let _res = instantiate_contract(&mut deps, &info, &env);
 
+        OPERATION_CONTROLS
+            .save(
+                deps.as_mut().storage,
+                &OperationControls {
+                    deposit_paused: false,
+                    queue_undelegate_paused: false,
+                    undelegate_paused: false,
+                    withdraw_paused: false,
+                    reinvest_paused: false,
+                    reconcile_paused: true,
+                    claim_airdrops_paused: false,
+                    redeem_rewards_paused: false,
+                    swap_paused: false,
+                    reimburse_slashing_paused: false,
+                },
+            )
+            .unwrap();
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("other", &[]),
+            ExecuteMsg::ReconcileFunds {},
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::OperationPaused(String { .. })));
+
+        OPERATION_CONTROLS
+            .save(
+                deps.as_mut().storage,
+                &OperationControls {
+                    deposit_paused: false,
+                    queue_undelegate_paused: false,
+                    undelegate_paused: false,
+                    withdraw_paused: false,
+                    reinvest_paused: false,
+                    reconcile_paused: false,
+                    claim_airdrops_paused: false,
+                    redeem_rewards_paused: false,
+                    swap_paused: false,
+                    reimburse_slashing_paused: false,
+                },
+            )
+            .unwrap();
+
         /*
            Test - 1. No undelegation slashing
         */
@@ -3397,6 +3887,53 @@ mod tests {
         let valid1 = Addr::unchecked("valid0001");
 
         let _res = instantiate_contract(&mut deps, &info, &env);
+
+        OPERATION_CONTROLS
+            .save(
+                deps.as_mut().storage,
+                &OperationControls {
+                    deposit_paused: false,
+                    queue_undelegate_paused: false,
+                    undelegate_paused: false,
+                    withdraw_paused: false,
+                    reinvest_paused: false,
+                    reconcile_paused: false,
+                    claim_airdrops_paused: false,
+                    redeem_rewards_paused: false,
+                    swap_paused: false,
+                    reimburse_slashing_paused: true,
+                },
+            )
+            .unwrap();
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("other", &[Coin::new(10_u128, "uluna".to_string())]),
+            ExecuteMsg::ReimburseSlashing {
+                val_addr: Addr::unchecked("val1".to_string()),
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::OperationPaused(String { .. })));
+
+        OPERATION_CONTROLS
+            .save(
+                deps.as_mut().storage,
+                &OperationControls {
+                    deposit_paused: false,
+                    queue_undelegate_paused: false,
+                    undelegate_paused: false,
+                    withdraw_paused: false,
+                    reinvest_paused: false,
+                    reconcile_paused: false,
+                    claim_airdrops_paused: false,
+                    redeem_rewards_paused: false,
+                    swap_paused: false,
+                    reimburse_slashing_paused: false,
+                },
+            )
+            .unwrap();
+
         STATE
             .update(deps.as_mut().storage, |mut state| -> StdResult<_> {
                 state.validators = vec![Addr::unchecked("valid0001")];
@@ -3413,14 +3950,21 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(res.messages.len(), 1);
-        assert_eq!(
-            res.messages[0],
-            SubMsg::new(StakingMsg::Delegate {
-                validator: valid1.to_string(),
-                amount: Coin::new(25_u128, "uluna")
-            })
-        );
+        assert_eq!(res.messages.len(), 2);
+        assert!(check_equal_vec(
+            res.messages,
+            vec![
+                SubMsg::new(StakingMsg::Delegate {
+                    validator: valid1.to_string(),
+                    amount: Coin::new(25_u128, "uluna")
+                }),
+                SubMsg::new(WasmMsg::Execute {
+                    contract_addr: env.contract.address.to_string(),
+                    msg: to_binary(&ExecuteMsg::RedeemRewards {}).unwrap(),
+                    funds: vec![]
+                })
+            ]
+        ));
 
         let vmeta = VALIDATOR_META.load(deps.as_mut().storage, &valid1).unwrap();
         assert_eq!(
@@ -3442,13 +3986,20 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(res.messages.len(), 1);
-        assert_eq!(
-            res.messages[0],
-            SubMsg::new(StakingMsg::Delegate {
-                validator: valid1.to_string(),
-                amount: Coin::new(125_u128, "uluna")
-            })
-        );
+        assert_eq!(res.messages.len(), 2);
+        assert!(check_equal_vec(
+            res.messages,
+            vec![
+                SubMsg::new(StakingMsg::Delegate {
+                    validator: valid1.to_string(),
+                    amount: Coin::new(125_u128, "uluna")
+                }),
+                SubMsg::new(WasmMsg::Execute {
+                    contract_addr: env.contract.address.to_string(),
+                    msg: to_binary(&ExecuteMsg::RedeemRewards {}).unwrap(),
+                    funds: vec![]
+                })
+            ]
+        ))
     }
 }

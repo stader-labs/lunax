@@ -5,9 +5,11 @@ use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response,
 use crate::error::ContractError;
 use crate::msg::{
     ExecuteMsg, GetAirdropContractsResponse, GetConfigResponse, InstantiateMsg, MigrateMsg,
-    QueryMsg,
+    QueryMsg, TmpManagerStoreResponse,
 };
-use crate::state::{AirdropRegistryInfo, Config, AIRDROP_REGISTRY, CONFIG};
+use crate::state::{
+    AirdropRegistryInfo, Config, TmpManagerStore, AIRDROP_REGISTRY, CONFIG, TMP_MANAGER_STORE,
+};
 use cw2::set_contract_version;
 
 const CONTRACT_NAME: &str = "airdrops-registry";
@@ -53,7 +55,52 @@ pub fn execute(
             airdrop_contract_str,
             cw20_contract_str,
         ),
+        ExecuteMsg::SetManager { manager } => set_manager(deps, info, _env, manager),
+        ExecuteMsg::AcceptManager {} => accept_manager(deps, info, _env),
     }
+}
+
+pub fn set_manager(
+    deps: DepsMut,
+    info: MessageInfo,
+    _env: Env,
+    manager: String,
+) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    if info.sender != config.manager {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    TMP_MANAGER_STORE.save(deps.storage, &TmpManagerStore { manager })?;
+
+    Ok(Response::default())
+}
+
+pub fn accept_manager(
+    deps: DepsMut,
+    info: MessageInfo,
+    _env: Env,
+) -> Result<Response, ContractError> {
+    let mut config = CONFIG.load(deps.storage)?;
+
+    let tmp_manager_store =
+        if let Some(tmp_manager_store) = TMP_MANAGER_STORE.may_load(deps.storage)? {
+            tmp_manager_store
+        } else {
+            return Err(ContractError::TmpManagerStoreEmpty {});
+        };
+
+    let manager = deps.api.addr_validate(tmp_manager_store.manager.as_str())?;
+    if info.sender != manager {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    config.manager = deps.api.addr_validate(tmp_manager_store.manager.as_str())?;
+    TMP_MANAGER_STORE.remove(deps.storage);
+
+    CONFIG.save(deps.storage, &config)?;
+
+    Ok(Response::default())
 }
 
 pub fn update_airdrop_registry(
@@ -96,7 +143,13 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::GetAirdropContracts { token } => {
             to_binary(&query_airdrop_contracts(deps, token)?)
         }
+        QueryMsg::TmpManagerStore {} => to_binary(&query_tmp_manager_store(deps)?),
     }
+}
+
+pub fn query_tmp_manager_store(deps: Deps) -> StdResult<TmpManagerStoreResponse> {
+    let tmp_manager_store = TMP_MANAGER_STORE.may_load(deps.storage)?;
+    Ok(TmpManagerStoreResponse { tmp_manager_store })
 }
 
 fn query_config(deps: Deps) -> StdResult<GetConfigResponse> {

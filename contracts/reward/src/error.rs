@@ -14,4 +14,7 @@ pub enum ContractError {
 
     #[error("Reward-Contract: Amount cannot be zero")]
     ZeroAmount {},
+
+    #[error("Reward-Contract: Tmp manager store is empty")]
+    TmpManagerStoreEmpty {},
 }

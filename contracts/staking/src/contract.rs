@@ -7,11 +7,13 @@ use crate::helpers::{
 use crate::msg::{
     Cw20HookMsg, ExecuteMsg, GetFundsClaimRecord, GetFundsDepositRecord, GetValMetaResponse,
     InstantiateMsg, MerkleAirdropMsg, MigrateMsg, QueryBatchUndelegationResponse,
-    QueryConfigResponse, QueryMsg, QueryStateResponse, UserInfoResponse, UserQueryInfo,
+    QueryConfigResponse, QueryMsg, QueryStateResponse, TmpManagerStoreResponse, UserInfoResponse,
+    UserQueryInfo,
 };
 use crate::state::{
-    AirdropRate, Config, ConfigUpdateRequest, State, UndelegationInfo, VMeta,
-    BATCH_UNDELEGATION_REGISTRY, CONFIG, STATE, USERS, VALIDATOR_META,
+    AirdropRate, Config, ConfigUpdateRequest, OperationControls, OperationControlsUpdateRequest,
+    State, TmpManagerStore, UndelegationInfo, VMeta, BATCH_UNDELEGATION_REGISTRY, CONFIG,
+    OPERATION_CONTROLS, STATE, TMP_MANAGER_STORE, USERS, VALIDATOR_META,
 };
 use crate::ContractError;
 use airdrops_registry::msg::GetAirdropContractsResponse;
@@ -19,7 +21,8 @@ use airdrops_registry::msg::GetAirdropContractsResponse;
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     from_binary, to_binary, Addr, BankMsg, Binary, Coin, Decimal, Deps, DepsMut, DistributionMsg,
-    Env, MessageInfo, Order, Response, StakingMsg, StdResult, Storage, SubMsg, Uint128, WasmMsg,
+    Env, MessageInfo, Order, Response, StakingMsg, StdError, StdResult, Storage, SubMsg, Uint128,
+    WasmMsg,
 };
 use cw20::Cw20ReceiveMsg;
 use cw20_base::msg::ExecuteMsg as Cw20ExecuteMsg;
@@ -89,6 +92,20 @@ pub fn instantiate(
     };
     STATE.save(deps.storage, &state)?;
 
+    let operation_controls = OperationControls {
+        deposit_paused: false,
+        queue_undelegate_paused: false,
+        undelegate_paused: false,
+        withdraw_paused: false,
+        reinvest_paused: false,
+        reconcile_paused: false,
+        claim_airdrops_paused: false,
+        redeem_rewards_paused: false,
+        swap_paused: false,
+        reimburse_slashing_paused: false,
+    };
+    OPERATION_CONTROLS.save(deps.storage, &operation_controls)?;
+
     // loads the saved state
     create_new_undelegation_batch(deps.storage, env.clone())?;
 
@@ -137,7 +154,99 @@ pub fn execute(
         ExecuteMsg::UpdateConfig { config_request } => {
             update_config(deps, info, env, config_request)
         }
+        ExecuteMsg::UpdateOperationFlags {
+            operation_controls_update_request,
+        } => update_operation_flags(deps, info, env, operation_controls_update_request),
+        ExecuteMsg::SetManager { manager } => set_manager(deps, info, env, manager),
+        ExecuteMsg::AcceptManager {} => accept_manager(deps, info, env),
     }
+}
+
+pub fn set_manager(
+    deps: DepsMut,
+    info: MessageInfo,
+    env: Env,
+    manager: String,
+) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    validate(&config, &info, &env, vec![Verify::SenderManager])?;
+
+    TMP_MANAGER_STORE.save(deps.storage, &TmpManagerStore { manager })?;
+
+    Ok(Response::default())
+}
+
+pub fn accept_manager(
+    deps: DepsMut,
+    info: MessageInfo,
+    _env: Env,
+) -> Result<Response, ContractError> {
+    let mut config = CONFIG.load(deps.storage)?;
+
+    let tmp_manager_store =
+        if let Some(tmp_manager_store) = TMP_MANAGER_STORE.may_load(deps.storage)? {
+            tmp_manager_store
+        } else {
+            return Err(ContractError::TmpManagerStoreEmpty {});
+        };
+
+    let manager = deps.api.addr_validate(tmp_manager_store.manager.as_str())?;
+    if info.sender != manager {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    config.manager = manager;
+    TMP_MANAGER_STORE.remove(deps.storage);
+
+    CONFIG.save(deps.storage, &config)?;
+
+    Ok(Response::default())
+}
+
+pub fn update_operation_flags(
+    deps: DepsMut,
+    info: MessageInfo,
+    env: Env,
+    operation_controls_update_request: OperationControlsUpdateRequest,
+) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    validate(&config, &info, &env, vec![Verify::SenderManager])?;
+    let mut operation_controls = OPERATION_CONTROLS.load(deps.storage)?;
+
+    operation_controls.deposit_paused = operation_controls_update_request
+        .deposit_paused
+        .unwrap_or(operation_controls.deposit_paused);
+    operation_controls.withdraw_paused = operation_controls_update_request
+        .withdraw_paused
+        .unwrap_or(operation_controls.withdraw_paused);
+    operation_controls.reconcile_paused = operation_controls_update_request
+        .reconcile_paused
+        .unwrap_or(operation_controls.reconcile_paused);
+    operation_controls.undelegate_paused = operation_controls_update_request
+        .undelegate_paused
+        .unwrap_or(operation_controls.undelegate_paused);
+    operation_controls.queue_undelegate_paused = operation_controls_update_request
+        .queue_undelegate_paused
+        .unwrap_or(operation_controls.queue_undelegate_paused);
+    operation_controls.reinvest_paused = operation_controls_update_request
+        .reinvest_paused
+        .unwrap_or(operation_controls.reinvest_paused);
+    operation_controls.redeem_rewards_paused = operation_controls_update_request
+        .redeem_rewards_paused
+        .unwrap_or(operation_controls.redeem_rewards_paused);
+    operation_controls.swap_paused = operation_controls_update_request
+        .swap_paused
+        .unwrap_or(operation_controls.swap_paused);
+    operation_controls.claim_airdrops_paused = operation_controls_update_request
+        .claim_airdrops_paused
+        .unwrap_or(operation_controls.claim_airdrops_paused);
+    operation_controls.reimburse_slashing_paused = operation_controls_update_request
+        .reimburse_slashing_paused
+        .unwrap_or(operation_controls.reimburse_slashing_paused);
+
+    OPERATION_CONTROLS.save(deps.storage, &operation_controls)?;
+
+    Ok(Response::default())
 }
 
 pub fn update_config(
@@ -388,9 +497,10 @@ pub fn check_slashing(deps: &mut DepsMut, env: &Env) -> Result<Response, Contrac
 // Any address can call this.
 pub fn deposit(mut deps: DepsMut, info: MessageInfo, env: Env) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
+    let operation_controls = OPERATION_CONTROLS.load(deps.storage)?;
 
-    if !config.active {
-        return Err(ContractError::ProtocolInactive {});
+    if operation_controls.deposit_paused {
+        return Err(ContractError::OperationPaused("deposit".to_string()));
     }
 
     validate(&config, &info, &env, vec![Verify::NonZeroSingleInfoFund])?;
@@ -490,6 +600,10 @@ pub fn redeem_rewards(
 ) -> Result<Response, ContractError> {
     check_slashing(&mut deps, &env)?;
     let state = STATE.load(deps.storage)?;
+    let operation_controls = OPERATION_CONTROLS.load(deps.storage)?;
+    if operation_controls.redeem_rewards_paused {
+        return Err(ContractError::OperationPaused("redeem_rewards".to_string()));
+    }
 
     let mut messages = vec![];
     let mut failed_vals: Vec<String> = vec![];
@@ -518,11 +632,14 @@ pub fn redeem_rewards(
         .add_attribute("failed_validators", failed_vals.join(",")))
 }
 
-// TODO - GM. Does swap have a fixed cost or a linear cost?
 // Useful to make this permissionless.
 pub fn swap_rewards(deps: DepsMut, info: MessageInfo, env: Env) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
     let mut state = STATE.load(deps.storage)?;
+    let operation_controls = OPERATION_CONTROLS.load(deps.storage)?;
+    if operation_controls.swap_paused {
+        return Err(ContractError::OperationPaused("swap".to_string()));
+    }
 
     if info.sender.ne(&config.manager)
         && env
@@ -545,6 +662,11 @@ pub fn swap_rewards(deps: DepsMut, info: MessageInfo, env: Env) -> Result<Respon
 
 pub fn reinvest(mut deps: DepsMut, info: MessageInfo, env: Env) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
+    let operation_controls = OPERATION_CONTROLS.load(deps.storage)?;
+    if operation_controls.reinvest_paused {
+        return Err(ContractError::OperationPaused("reinvest".to_string()));
+    }
+
     check_slashing(&mut deps, &env)?;
 
     let mut state = STATE.load(deps.storage)?;
@@ -610,7 +732,6 @@ pub fn reinvest(mut deps: DepsMut, info: MessageInfo, env: Env) -> Result<Respon
 }
 
 // Useful for staking to a validator as a mechanism for filling lost slashing funds.
-// Notice that this message has no side effect, not even in check_slashing.
 // Anyone call this function.
 pub fn reimburse_slashing(
     deps: DepsMut,
@@ -620,6 +741,12 @@ pub fn reimburse_slashing(
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
     validate(&config, &info, &env, vec![Verify::NonZeroSingleInfoFund])?;
+    let operation_controls = OPERATION_CONTROLS.load(deps.storage)?;
+    if operation_controls.reimburse_slashing_paused {
+        return Err(ContractError::OperationPaused(
+            "reimburse_slashing".to_string(),
+        ));
+    }
 
     let reimburse_amount = info.funds[0].amount;
     let state = STATE.load(deps.storage)?;
@@ -632,11 +759,16 @@ pub fn reimburse_slashing(
         vmeta.filled = vmeta.filled.checked_add(reimburse_amount).unwrap();
         Ok(vmeta)
     })?;
-    // We could update state.total_staked and state.exchange_rate here but we could let next check_slashing take that up.
-    Ok(Response::new().add_message(StakingMsg::Delegate {
-        validator: val_addr.to_string(),
-        amount: Coin::new(reimburse_amount.u128(), config.vault_denom),
-    }))
+    Ok(Response::new()
+        .add_message(StakingMsg::Delegate {
+            validator: val_addr.to_string(),
+            amount: Coin::new(reimburse_amount.u128(), config.vault_denom),
+        })
+        .add_message(WasmMsg::Execute {
+            contract_addr: env.contract.address.to_string(),
+            msg: to_binary(&ExecuteMsg::RedeemRewards {})?,
+            funds: vec![],
+        }))
 }
 
 pub fn receive_cw20(
@@ -675,6 +807,13 @@ pub fn queue_undelegation(
     amount_to_burn: Uint128,
     user_addr_str: String,
 ) -> Result<Response, ContractError> {
+    let operation_controls = OPERATION_CONTROLS.load(deps.storage)?;
+    if operation_controls.queue_undelegate_paused {
+        return Err(ContractError::OperationPaused(
+            "queue_undelegate".to_string(),
+        ));
+    }
+
     check_slashing(&mut deps, &env)?;
 
     let state = STATE.load(deps.storage)?;
@@ -718,6 +857,13 @@ pub fn undelegate_stake(
     env: Env,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
+    let operation_controls = OPERATION_CONTROLS.load(deps.storage)?;
+    if operation_controls.undelegate_paused {
+        return Err(ContractError::OperationPaused(
+            "undelegate_stake".to_string(),
+        ));
+    }
+
     check_slashing(&mut deps, &env)?;
 
     let mut state = STATE.load(deps.storage)?;
@@ -782,7 +928,9 @@ pub fn undelegate_stake(
         });
 
         decrease_tracked_stake(&mut deps, &val_addr, amount)?;
-        to_undelegate = to_undelegate.checked_sub(amount).unwrap();
+        to_undelegate = to_undelegate
+            .checked_sub(amount)
+            .unwrap_or_else(|_| Uint128::zero());
     }
 
     if !to_undelegate.is_zero() {
@@ -813,6 +961,12 @@ pub fn reconcile_funds(
     env: Env,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
+    let operation_controls = OPERATION_CONTROLS.load(deps.storage)?;
+    if operation_controls.reconcile_paused {
+        return Err(ContractError::OperationPaused(
+            "reconcile_funds".to_string(),
+        ));
+    }
 
     let mut state = STATE.load(deps.storage)?;
 
@@ -892,6 +1046,10 @@ pub fn withdraw_funds_to_wallet(
     batch_id: u64,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
+    let operation_controls = OPERATION_CONTROLS.load(deps.storage)?;
+    if operation_controls.withdraw_paused {
+        return Err(ContractError::OperationPaused("withdraw".to_string()));
+    }
 
     let mut state = STATE.load(deps.storage)?;
     let user_addr = deps.api.addr_validate(info.sender.as_str())?;
@@ -980,6 +1138,10 @@ pub fn claim_airdrops(
     airdrop_rates: Vec<AirdropRate>,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
+    let operation_controls = OPERATION_CONTROLS.load(deps.storage)?;
+    if operation_controls.claim_airdrops_paused {
+        return Err(ContractError::OperationPaused("claim_airdrops".to_string()));
+    }
 
     let mut msgs = vec![];
     let airdrop_withdrawal_contract = config.airdrop_withdrawal_contract;
@@ -1016,8 +1178,7 @@ pub fn claim_airdrops(
             msg: to_binary(&Cw20ExecuteMsg::Transfer {
                 recipient: airdrop_withdrawal_contract.to_string(),
                 amount: rate.amount,
-            })
-            .unwrap(),
+            })?,
             funds: vec![],
         })
     }
@@ -1030,6 +1191,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => to_binary(&query_config(deps)?),
         QueryMsg::State {} => to_binary(&query_state(deps)?),
+        QueryMsg::OperationControls {} => to_binary(&query_operation_controls(deps)?),
         QueryMsg::BatchUndelegation { batch_id } => {
             to_binary(&query_batch_undelegate(deps, batch_id)?)
         }
@@ -1043,16 +1205,27 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             start_after,
             limit,
         )?),
-        QueryMsg::GetUserUndelegationInfo {
-            user_addr,
-            batch_id,
-        } => to_binary(&query_user_undelegation_info(deps, user_addr, batch_id)?),
         QueryMsg::GetValMeta { val_addr } => to_binary(&query_val_meta(deps, val_addr)?),
         QueryMsg::GetUserInfo { user_addr } => to_binary(&query_user_info(deps, user_addr)?),
         QueryMsg::ComputeDepositBreakdown { amount } => {
             to_binary(&query_compute_deposit_breakdown(deps, amount)?)
         }
+        QueryMsg::GetUserUndelegationInfo {
+            user_addr,
+            batch_id,
+        } => to_binary(&query_user_undelegation_info(deps, user_addr, batch_id)?),
+        QueryMsg::TmpManagerStore {} => to_binary(&query_manager_tmp_store(deps)?),
     }
+}
+
+pub fn query_manager_tmp_store(deps: Deps) -> StdResult<TmpManagerStoreResponse> {
+    let tmp_manager_store = TMP_MANAGER_STORE.may_load(deps.storage)?;
+    Ok(TmpManagerStoreResponse { tmp_manager_store })
+}
+
+pub fn query_operation_controls(deps: Deps) -> StdResult<OperationControls> {
+    let operation_controls = OPERATION_CONTROLS.load(deps.storage)?;
+    Ok(operation_controls)
 }
 
 pub fn query_user_info(deps: Deps, user_addr: String) -> StdResult<UserInfoResponse> {
@@ -1089,7 +1262,6 @@ pub fn query_batch_undelegate(
     Ok(QueryBatchUndelegationResponse { batch: batch_meta })
 }
 
-// TODO - GM. Test this
 pub fn query_user_undelegation_records(
     deps: Deps,
     user_addr_str: String,
@@ -1098,8 +1270,7 @@ pub fn query_user_undelegation_records(
 ) -> StdResult<Vec<UndelegationInfo>> {
     let user_addr = deps.api.addr_validate(user_addr_str.as_str())?;
     let limit = limit.unwrap_or(10).min(20) as usize;
-    // TODO - GM. Will converting u64 to string for batch id start work?
-    let start = start_after.map(|batch_id| Bound::exclusive(batch_id.to_string()));
+    let start = start_after.map(|batch_id| Bound::exclusive(U64Key::new(batch_id)));
 
     let user_undelegations = USERS
         .prefix(&user_addr)
@@ -1111,17 +1282,6 @@ pub fn query_user_undelegation_records(
     return Ok(user_undelegations);
 }
 
-pub fn query_user_undelegation_info(
-    deps: Deps,
-    user_addr: String,
-    batch_id: u64,
-) -> StdResult<GetFundsClaimRecord> {
-    let user_addr = deps.api.addr_validate(user_addr.as_str())?;
-    let funds_record = compute_withdrawable_funds(deps.storage, batch_id, &user_addr)
-        .expect("compute_withdrawable_funds failed");
-    Ok(funds_record)
-}
-
 pub fn query_val_meta(deps: Deps, val_addr: Addr) -> StdResult<GetValMetaResponse> {
     let val_meta_opt = VALIDATOR_META.may_load(deps.storage, &val_addr)?;
     Ok(GetValMetaResponse {
@@ -1129,11 +1289,35 @@ pub fn query_val_meta(deps: Deps, val_addr: Addr) -> StdResult<GetValMetaRespons
     })
 }
 
+pub fn query_user_undelegation_info(
+    deps: Deps,
+    user_addr: String,
+    batch_id: u64,
+) -> StdResult<GetFundsClaimRecord> {
+    let user_addr = deps.api.addr_validate(user_addr.as_str())?;
+    let res = compute_withdrawable_funds(deps.storage, batch_id, &user_addr);
+    if res.is_err() {
+        return Err(StdError::GenericErr {
+            msg: "Error in computing the withdrawable funds".to_string(),
+        });
+    }
+
+    let funds_record = res.unwrap();
+
+    Ok(funds_record)
+}
+
 pub fn query_compute_deposit_breakdown(
     deps: Deps,
     amount: Uint128,
 ) -> StdResult<GetFundsDepositRecord> {
-    let deposit_breakdown =
-        compute_deposit_breakdown(deps.storage, amount).expect("Cannot breakdown deposit amount");
+    let res = compute_deposit_breakdown(deps.storage, amount);
+    if res.is_err() {
+        return Err(StdError::GenericErr {
+            msg: "Error in computing the deposit breakdown".to_string(),
+        });
+    }
+
+    let deposit_breakdown = res.unwrap();
     Ok(deposit_breakdown)
 }

@@ -1,4 +1,4 @@
-use crate::state::{AirdropRegistryInfo, Config};
+use crate::state::{AirdropRegistryInfo, Config, TmpManagerStore};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -16,6 +16,10 @@ pub enum ExecuteMsg {
         airdrop_contract: String,
         cw20_contract: String,
     },
+    SetManager {
+        manager: String,
+    },
+    AcceptManager {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -23,6 +27,12 @@ pub enum ExecuteMsg {
 pub enum QueryMsg {
     GetConfig {},
     GetAirdropContracts { token: String },
+    TmpManagerStore {},
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct TmpManagerStoreResponse {
+    pub tmp_manager_store: Option<TmpManagerStore>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
