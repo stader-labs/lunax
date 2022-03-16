@@ -188,7 +188,12 @@ pub fn set_manager(
     let config = CONFIG.load(deps.storage)?;
     validate(&config, &info, &env, vec![Verify::SenderManager])?;
 
-    TMP_MANAGER_STORE.save(deps.storage, &TmpManagerStore { manager })?;
+    TMP_MANAGER_STORE.save(
+        deps.storage,
+        &TmpManagerStore {
+            manager: manager.to_lowercase(),
+        },
+    )?;
 
     Ok(Response::default())
 }
