@@ -779,6 +779,8 @@ pub fn reimburse_slashing(
         ));
     }
 
+    let val_addr = Addr::unchecked(val_addr.to_string().to_lowercase());
+
     let reimburse_amount = info.funds[0].amount;
     let state = STATE.load(deps.storage)?;
     if !state.validators.contains(&val_addr) {
