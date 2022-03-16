@@ -88,7 +88,12 @@ pub fn set_manager(
         return Err(ContractError::Unauthorized {});
     }
 
-    TMP_MANAGER_STORE.save(deps.storage, &TmpManagerStore { manager })?;
+    TMP_MANAGER_STORE.save(
+        deps.storage,
+        &TmpManagerStore {
+            manager: manager.to_lowercase(),
+        },
+    )?;
 
     Ok(Response::default())
 }
