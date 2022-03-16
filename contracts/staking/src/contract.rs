@@ -1,3 +1,4 @@
+use crate::constants::{get_deposit_fee_cap, get_reward_fee_cap, get_withdraw_fee_cap};
 use crate::helpers::{
     burn_minted_tokens, calculate_exchange_rate, create_mint_message,
     create_new_undelegation_batch, decrease_tracked_stake, get_active_validators_sorted_by_stake,
@@ -41,9 +42,9 @@ pub fn instantiate(
     info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
-    if msg.protocol_reward_fee.gt(&Decimal::one())
-        || msg.protocol_deposit_fee.gt(&Decimal::one())
-        || msg.protocol_withdraw_fee.gt(&Decimal::one())
+    if msg.protocol_reward_fee.gt(&get_reward_fee_cap())
+        || msg.protocol_deposit_fee.gt(&get_deposit_fee_cap())
+        || msg.protocol_withdraw_fee.gt(&get_withdraw_fee_cap())
     {
         return Err(ContractError::ProtocolFeeAboveLimit {});
     }
@@ -117,7 +118,23 @@ pub fn instantiate(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
+pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
+    OPERATION_CONTROLS.save(
+        deps.storage,
+        &OperationControls {
+            deposit_paused: false,
+            queue_undelegate_paused: false,
+            undelegate_paused: false,
+            withdraw_paused: false,
+            reinvest_paused: false,
+            reconcile_paused: false,
+            claim_airdrops_paused: false,
+            redeem_rewards_paused: false,
+            swap_paused: false,
+            reimburse_slashing_paused: false,
+        },
+    )?;
+
     Ok(Response::default())
 }
 
@@ -270,24 +287,23 @@ pub fn update_config(
 
     config.min_deposit = update_config.min_deposit.unwrap_or(config.min_deposit);
     config.max_deposit = update_config.max_deposit.unwrap_or(config.max_deposit);
-    config.active = update_config.active.unwrap_or(config.active);
 
     if let Some(pdf) = update_config.protocol_deposit_fee {
-        if pdf.gt(&Decimal::one()) {
+        if pdf.gt(&get_deposit_fee_cap()) {
             return Err(ContractError::ProtocolFeeAboveLimit {});
         }
         config.protocol_deposit_fee = pdf;
     }
 
     if let Some(pwf) = update_config.protocol_withdraw_fee {
-        if pwf.gt(&Decimal::one()) {
+        if pwf.gt(&get_withdraw_fee_cap()) {
             return Err(ContractError::ProtocolFeeAboveLimit {});
         }
         config.protocol_withdraw_fee = pwf;
     }
 
     if let Some(prf) = update_config.protocol_reward_fee {
-        if prf.gt(&Decimal::one()) {
+        if prf.gt(&get_reward_fee_cap()) {
             return Err(ContractError::ProtocolFeeAboveLimit {});
         }
         config.protocol_reward_fee = prf;

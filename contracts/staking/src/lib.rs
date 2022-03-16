@@ -4,6 +4,7 @@ mod helpers;
 pub mod msg;
 pub mod state;
 
+mod constants;
 #[cfg(test)]
 mod testing;
 
