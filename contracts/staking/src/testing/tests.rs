@@ -113,6 +113,9 @@ mod tests {
         let info = mock_info("creator", &[]);
         let env = mock_env();
 
+        /*
+           Reward fee above limit
+        */
         let msg = InstantiateMsg {
             unbonding_period: 3600 * 24 * 21,
             undelegation_cooldown: 10,
@@ -123,9 +126,55 @@ mod tests {
             airdrops_registry_contract: "airdrop_registry_contract".to_string(),
             airdrop_withdrawal_contract: "airdrop_withdrawal_contract".to_string(),
             protocol_fee_contract: "protocol_fee_contract".to_string(),
-            protocol_reward_fee: Decimal::from_ratio(2_u128, 1_u128), // 1%
-            protocol_deposit_fee: Decimal::from_ratio(2_u128, 1_u128), // 1%
+            protocol_reward_fee: Decimal::from_ratio(11_u128, 100_u128), // 1%
+            protocol_deposit_fee: Decimal::from_ratio(2_u128, 100_u128), // 1%
             protocol_withdraw_fee: Decimal::from_ratio(2_u128, 100_u128), // 1%
+            reinvest_cooldown: 10,
+        };
+        let info = mock_info("creator", &[]);
+
+        let err = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap_err();
+        assert!(matches!(err, ContractError::ProtocolFeeAboveLimit {}));
+
+        /*
+            Deposit fee above limit
+        */
+        let msg = InstantiateMsg {
+            unbonding_period: 3600 * 24 * 21,
+            undelegation_cooldown: 10,
+            swap_cooldown: 10,
+            min_deposit: Uint128::new(1000),
+            max_deposit: Uint128::new(1_000_000_000_000),
+            reward_contract: "reward_contract".to_string(),
+            airdrops_registry_contract: "airdrop_registry_contract".to_string(),
+            airdrop_withdrawal_contract: "airdrop_withdrawal_contract".to_string(),
+            protocol_fee_contract: "protocol_fee_contract".to_string(),
+            protocol_reward_fee: Decimal::from_ratio(2_u128, 100_u128), // 1%
+            protocol_deposit_fee: Decimal::from_ratio(6_u128, 100_u128), // 1%
+            protocol_withdraw_fee: Decimal::from_ratio(2_u128, 100_u128), // 1%
+            reinvest_cooldown: 10,
+        };
+        let info = mock_info("creator", &[]);
+
+        let err = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap_err();
+        assert!(matches!(err, ContractError::ProtocolFeeAboveLimit {}));
+
+        /*
+           Withdraw fee above limit
+        */
+        let msg = InstantiateMsg {
+            unbonding_period: 3600 * 24 * 21,
+            undelegation_cooldown: 10,
+            swap_cooldown: 10,
+            min_deposit: Uint128::new(1000),
+            max_deposit: Uint128::new(1_000_000_000_000),
+            reward_contract: "reward_contract".to_string(),
+            airdrops_registry_contract: "airdrop_registry_contract".to_string(),
+            airdrop_withdrawal_contract: "airdrop_withdrawal_contract".to_string(),
+            protocol_fee_contract: "protocol_fee_contract".to_string(),
+            protocol_reward_fee: Decimal::from_ratio(2_u128, 100_u128), // 1%
+            protocol_deposit_fee: Decimal::from_ratio(2_u128, 100_u128), // 1%
+            protocol_withdraw_fee: Decimal::from_ratio(8_u128, 100_u128), // 1%
             reinvest_cooldown: 10,
         };
         let info = mock_info("creator", &[]);
@@ -604,6 +653,64 @@ mod tests {
     }
 
     #[test]
+    fn test_set_and_accept_manager_successful() {
+        let mut deps = mock_dependencies(&[]);
+        let env = mock_env();
+        let info = mock_info("creator", &[]);
+
+        let _res = instantiate_contract(&mut deps, &info, &env);
+
+        let tmp_manager_store = TMP_MANAGER_STORE.may_load(deps.as_mut().storage).unwrap();
+        assert_eq!(tmp_manager_store, None);
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::SetManager {
+                manager: "new_manager1".to_string(),
+            },
+        )
+        .unwrap();
+        let tmp_manager_store = TMP_MANAGER_STORE.load(deps.as_mut().storage).unwrap();
+        assert_eq!(tmp_manager_store.manager, "new_manager1".to_string());
+
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("new_manager1", &[]),
+            ExecuteMsg::AcceptManager {},
+        )
+        .unwrap();
+        let config = CONFIG.load(deps.as_mut().storage).unwrap();
+        let tmp_manager_store = TMP_MANAGER_STORE.may_load(deps.as_mut().storage).unwrap();
+
+        assert_eq!(config.manager, Addr::unchecked("new_manager1"));
+        assert_eq!(tmp_manager_store, None);
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("new_manager1", &[]),
+            ExecuteMsg::SetManager {
+                manager: "new_manager2".to_string(),
+            },
+        )
+        .unwrap();
+        let tmp_manager_store = TMP_MANAGER_STORE.load(deps.as_mut().storage).unwrap();
+        assert_eq!(tmp_manager_store.manager, "new_manager2".to_string());
+
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("new_manager2", &[]),
+            ExecuteMsg::AcceptManager {},
+        )
+        .unwrap();
+        let config = CONFIG.load(deps.as_mut().storage).unwrap();
+        assert_eq!(config.manager, Addr::unchecked("new_manager2"));
+        let tmp_manager_store = TMP_MANAGER_STORE.may_load(deps.as_mut().storage).unwrap();
+    }
+
+    #[test]
     fn test_set_manager() {
         let mut deps = mock_dependencies(&[]);
         let env = mock_env();
@@ -718,7 +825,6 @@ mod tests {
             mock_info("not-creator", &[]),
             ExecuteMsg::UpdateConfig {
                 config_request: ConfigUpdateRequest {
-                    active: None,
                     min_deposit: None,
                     max_deposit: None,
                     cw20_token_contract: None,
@@ -743,7 +849,6 @@ mod tests {
             mock_info("creator", &[]),
             ExecuteMsg::UpdateConfig {
                 config_request: ConfigUpdateRequest {
-                    active: None,
                     min_deposit: None,
                     max_deposit: None,
                     cw20_token_contract: None,
@@ -771,11 +876,10 @@ mod tests {
             mock_info("creator", &[]),
             ExecuteMsg::UpdateConfig {
                 config_request: ConfigUpdateRequest {
-                    active: Some(true),
                     min_deposit: Some(Uint128::from(1_u128)),
                     max_deposit: Some(Uint128::from(10000000_u128)),
                     cw20_token_contract: Some("cw20_token_contract".parse().unwrap()),
-                    protocol_reward_fee: Some(Decimal::from_ratio(2_u128, 1_u128)),
+                    protocol_reward_fee: Some(Decimal::from_ratio(11_u128, 100_u128)),
                     protocol_withdraw_fee: Some(Decimal::from_ratio(2_u128, 100_u128)),
                     protocol_deposit_fee: Some(Decimal::from_ratio(2_u128, 100_u128)),
                     airdrop_registry_contract: None,
@@ -798,12 +902,11 @@ mod tests {
             mock_info("creator", &[]),
             ExecuteMsg::UpdateConfig {
                 config_request: ConfigUpdateRequest {
-                    active: Some(true),
                     min_deposit: Some(Uint128::from(1_u128)),
                     max_deposit: Some(Uint128::from(10000000_u128)),
                     cw20_token_contract: Some("cw20_token_contract".parse().unwrap()),
                     protocol_reward_fee: Some(Decimal::from_ratio(2_u128, 100_u128)),
-                    protocol_withdraw_fee: Some(Decimal::from_ratio(2_u128, 1_u128)),
+                    protocol_withdraw_fee: Some(Decimal::from_ratio(6_u128, 100_u128)),
                     protocol_deposit_fee: Some(Decimal::from_ratio(2_u128, 100_u128)),
                     airdrop_registry_contract: Some("airdrop_registry_contract".to_string()),
                     unbonding_period: Some(100u64),
@@ -825,13 +928,12 @@ mod tests {
             mock_info("creator", &[]),
             ExecuteMsg::UpdateConfig {
                 config_request: ConfigUpdateRequest {
-                    active: Some(true),
                     min_deposit: Some(Uint128::from(1_u128)),
                     max_deposit: Some(Uint128::from(10000000_u128)),
                     cw20_token_contract: Some("cw20_token_contract".parse().unwrap()),
                     protocol_reward_fee: Some(Decimal::from_ratio(2_u128, 100_u128)),
                     protocol_withdraw_fee: Some(Decimal::from_ratio(2_u128, 100_u128)),
-                    protocol_deposit_fee: Some(Decimal::from_ratio(2_u128, 1_u128)),
+                    protocol_deposit_fee: Some(Decimal::from_ratio(8_u128, 100_u128)),
                     airdrop_registry_contract: None,
                     unbonding_period: Some(100u64),
                     undelegation_cooldown: Some(10000u64),
@@ -852,7 +954,6 @@ mod tests {
             mock_info("creator", &[]),
             ExecuteMsg::UpdateConfig {
                 config_request: ConfigUpdateRequest {
-                    active: Some(true),
                     min_deposit: Some(Uint128::from(1_u128)),
                     max_deposit: Some(Uint128::from(10000000_u128)),
                     cw20_token_contract: Some("cw20_token_contract".parse().unwrap()),
