@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::fmt::Display;
+use std::ops::{Add, Div, Mul, Sub};
 
 #[derive(Serialize, Deserialize, Clone, Default, Debug, PartialEq, JsonSchema)]
 pub struct DecCoin {
@@ -36,6 +37,7 @@ pub enum Operation {
     Add,
     Sub,
     Replace,
+    Remove,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -86,6 +88,7 @@ pub fn merge_coin(coin1: Coin, coin_op: CoinOp) -> Coin {
             }
         }
         Operation::Replace => fund, // _ => panic!("Unknown operation type {:?}", operation)
+        Operation::Remove => unimplemented!(),
     }
 }
 
@@ -136,6 +139,7 @@ pub fn merge_dec_coin_vector(deccoins: &[DecCoin], deccoin_vec_op: DecCoinVecOp)
     match operation {
         Operation::Add => add_deccoin_vectors(deccoins, &fund),
         Operation::Sub => subtract_deccoin_vectors(deccoins, &fund),
+        Operation::Remove => remove_from_vector(deccoins, &fund),
         Operation::Replace => fund,
     }
 }
@@ -149,15 +153,26 @@ pub fn merge_coin_vector(coins: &[Coin], coin_vec_op: CoinVecOp) -> Vec<Coin> {
     match operation {
         Operation::Add => add_coin_vectors(coins, &fund),
         Operation::Sub => subtract_coin_vectors(coins, &fund),
+        Operation::Remove => remove_from_vector(coins, &fund),
         Operation::Replace => fund,
     }
+}
+
+pub fn remove_from_vector<T: Clone + PartialEq>(vec1: &[T], vec2: &[T]) -> Vec<T> {
+    vec1.iter()
+        .filter(|x| !vec2.contains(x))
+        .cloned()
+        .collect::<Vec<T>>()
 }
 
 /// return a * b
 pub fn decimal_division_in_256(a: Decimal, b: Decimal) -> Decimal {
     let a_u256: Decimal256 = a.into();
     let b_u256: Decimal256 = b.into();
-    let c_u256: Decimal = (a_u256 / b_u256).into();
+    if b.is_zero() {
+        panic!("decimal_division_in_256: Divide by 0!")
+    }
+    let c_u256: Decimal = (a_u256.div(b_u256)).into();
     c_u256
 }
 
@@ -165,7 +180,7 @@ pub fn decimal_division_in_256(a: Decimal, b: Decimal) -> Decimal {
 pub fn decimal_multiplication_in_256(a: Decimal, b: Decimal) -> Decimal {
     let a_u256: Decimal256 = a.into();
     let b_u256: Decimal256 = b.into();
-    let c_u256: Decimal = (b_u256 * a_u256).into();
+    let c_u256: Decimal = (b_u256.mul(a_u256)).into();
     c_u256
 }
 
@@ -173,7 +188,7 @@ pub fn decimal_multiplication_in_256(a: Decimal, b: Decimal) -> Decimal {
 pub fn decimal_summation_in_256(a: Decimal, b: Decimal) -> Decimal {
     let a_u256: Decimal256 = a.into();
     let b_u256: Decimal256 = b.into();
-    let c_u256: Decimal = (b_u256 + a_u256).into();
+    let c_u256: Decimal = (b_u256.add(a_u256)).into();
     c_u256
 }
 
@@ -181,12 +196,16 @@ pub fn decimal_summation_in_256(a: Decimal, b: Decimal) -> Decimal {
 pub fn decimal_subtraction_in_256(a: Decimal, b: Decimal) -> Decimal {
     let a_u256: Decimal256 = a.into();
     let b_u256: Decimal256 = b.into();
-    let c_u256: Decimal = (a_u256 - b_u256).into();
+    if b_u256.gt(&a_u256) {
+        return Decimal::zero();
+    }
+
+    let c_u256: Decimal = (a_u256.sub(b_u256)).into();
     c_u256
 }
 
 pub fn u128_from_decimal(a: Decimal) -> u128 {
-    a.numerator() / a.denominator()
+    a.numerator().checked_div(a.denominator()).unwrap()
 }
 
 pub fn uint128_from_decimal(a: Decimal) -> Uint128 {
@@ -213,6 +232,7 @@ pub fn merge_decimal(decimal1: Decimal, decimal_op: DecimalOp) -> Decimal {
             decimal_subtraction_in_256(decimal1, fund)
         }
         Operation::Replace => fund, // _ => panic!("Unknown operation type {:?}", operation)
+        Operation::Remove => unimplemented!(),
     }
 }
 
@@ -234,7 +254,7 @@ pub fn add_coin_vector_to_map(
             let existing_coin = existing_coins.get(&coin.denom).unwrap();
             accumulated_coins.insert(
                 coin.denom.clone(),
-                Uint128::new(coin.amount.u128() + existing_coin.u128()),
+                coin.amount.checked_add(*existing_coin).unwrap(),
             );
         } else {
             accumulated_coins.insert(coin.denom.clone(), coin.amount);
@@ -269,7 +289,7 @@ pub fn subtract_coin_vector_from_map(
 
             dissipated_coins.insert(
                 coin.denom.clone(),
-                Uint128::new(existing_coin.u128() - coin.amount.u128()),
+                existing_coin.checked_sub(coin.amount).unwrap(),
             );
         } else {
             panic!(
@@ -422,12 +442,16 @@ pub fn multiply_deccoin_vector_with_uint128(deccoins: &[DecCoin], amount: Uint12
 
 pub fn multiply_coin_with_decimal(coin: &Coin, ratio: Decimal) -> Coin {
     Coin::new(
-        coin.amount.u128() * ratio.numerator() / ratio.denominator(),
+        (coin.amount.u128().checked_mul(ratio.numerator()).unwrap())
+            .checked_div(ratio.denominator())
+            .unwrap(),
         coin.denom.clone(),
     )
 }
 pub fn multiply_u128_with_decimal(num: u128, dec: Decimal) -> u128 {
-    (num * dec.numerator() / dec.denominator()) as u128
+    (num.checked_mul(dec.numerator()).unwrap())
+        .checked_div(dec.denominator())
+        .unwrap()
 }
 
 pub fn coin_to_deccoin(coin: Coin) -> DecCoin {
@@ -439,7 +463,11 @@ pub fn coin_to_deccoin(coin: Coin) -> DecCoin {
 
 pub fn deccoin_to_coin(deccoin: DecCoin) -> Coin {
     Coin::new(
-        deccoin.amount.numerator() / deccoin.amount.denominator(),
+        deccoin
+            .amount
+            .numerator()
+            .checked_div(deccoin.amount.denominator())
+            .unwrap(),
         deccoin.denom,
     )
 }
@@ -783,12 +811,12 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
     fn test_decimal_subtraction_in_256_underflow() {
         let a = Decimal::from_ratio(5_u128, 1_u128);
         let b = Decimal::from_ratio(10_u128, 1_u128);
 
-        decimal_subtraction_in_256(a, b);
+        let res = decimal_subtraction_in_256(a, b);
+        assert_eq!(res, Decimal::zero());
     }
 
     #[test]
@@ -1080,6 +1108,131 @@ mod tests {
     }
 
     #[test]
+    fn test_merge_coin_vector_remove() {
+        /*
+           Test - 1
+        */
+        let a = vec![
+            Coin::new(100_u128, "uluna".to_string()),
+            Coin::new(200_u128, "uusd".to_string()),
+            Coin::new(300_u128, "ukrt".to_string()),
+        ];
+        let b = vec![
+            Coin::new(100_u128, "uusd".to_string()),
+            Coin::new(200_u128, "ukrt".to_string()),
+            Coin::new(300_u128, "uluna".to_string()),
+        ];
+
+        let res = merge_coin_vector(
+            a.borrow(),
+            CoinVecOp {
+                fund: b,
+                operation: Operation::Remove,
+            },
+        );
+
+        assert!(check_equal_vec(
+            res,
+            vec![
+                Coin::new(100_u128, "uluna".to_string()),
+                Coin::new(200_u128, "uusd".to_string()),
+                Coin::new(300_u128, "ukrt".to_string()),
+            ]
+        ));
+
+        /*
+           Test - 2
+        */
+        let a = vec![
+            Coin::new(100_u128, "uluna".to_string()),
+            Coin::new(200_u128, "uusd".to_string()),
+            Coin::new(300_u128, "ukrt".to_string()),
+        ];
+        let b = vec![
+            Coin::new(200_u128, "uusd".to_string()),
+            Coin::new(300_u128, "ukrt".to_string()),
+        ];
+
+        let res = merge_coin_vector(
+            a.borrow(),
+            CoinVecOp {
+                fund: b,
+                operation: Operation::Remove,
+            },
+        );
+
+        assert!(check_equal_vec(
+            res,
+            vec![Coin::new(100_u128, "uluna".to_string())]
+        ));
+
+        /*
+            Test - 3
+        */
+        let a = vec![
+            Coin::new(100_u128, "uluna".to_string()),
+            Coin::new(200_u128, "uusd".to_string()),
+            Coin::new(300_u128, "ukrt".to_string()),
+        ];
+        let b = vec![
+            Coin::new(100_u128, "uluna".to_string()),
+            Coin::new(200_u128, "uusd".to_string()),
+            Coin::new(300_u128, "ukrt".to_string()),
+        ];
+
+        let res = merge_coin_vector(
+            a.borrow(),
+            CoinVecOp {
+                fund: b,
+                operation: Operation::Remove,
+            },
+        );
+
+        assert!(res.is_empty());
+
+        /*
+            Test - 4
+        */
+        let a = vec![
+            Coin::new(100_u128, "uluna".to_string()),
+            Coin::new(200_u128, "uusd".to_string()),
+            Coin::new(300_u128, "ukrt".to_string()),
+        ];
+        let b = vec![
+            Coin::new(100_u128, "uluna".to_string()),
+            Coin::new(200_u128, "uusd".to_string()),
+            Coin::new(300_u128, "ukrt".to_string()),
+            Coin::new(500_u128, "umnt".to_string()),
+        ];
+
+        let res = merge_coin_vector(
+            a.borrow(),
+            CoinVecOp {
+                fund: b,
+                operation: Operation::Remove,
+            },
+        );
+
+        assert!(res.is_empty());
+
+        /*
+            Test - 5
+        */
+        let a = vec![];
+        let b = vec![];
+
+        let res = merge_coin_vector(
+            a.borrow(),
+            CoinVecOp {
+                fund: b,
+                operation: Operation::Remove,
+            },
+        );
+
+        assert!(res.is_empty());
+    }
+
+    #[test]
     fn test_merge_coin_vector_replace() {
         let a = vec![
             Coin::new(100_u128, "uluna".to_string()),
@@ -1278,5 +1431,133 @@ mod tests {
                 DecCoin::new(Decimal::from_ratio(100_u128, 1_u128), "uusd".to_string())
             ]
         ));
+    }
+
+    #[test]
+    fn test_merge_dec_coin_vector_remove() {
+        /*
+           Test - 1
+        */
+        let a = vec![
+            DecCoin::new(Decimal::from_ratio(100_u128, 1_u128), "uluna".to_string()),
+            DecCoin::new(Decimal::from_ratio(200_u128, 1_u128), "uusd".to_string()),
+            DecCoin::new(Decimal::from_ratio(300_u128, 1_u128), "ukrt".to_string()),
+        ];
+        let b = vec![
+            DecCoin::new(Decimal::from_ratio(100_u128, 1_u128), "uusd".to_string()),
+            DecCoin::new(Decimal::from_ratio(200_u128, 1_u128), "ukrt".to_string()),
+            DecCoin::new(Decimal::from_ratio(300_u128, 1_u128), "uluna".to_string()),
+        ];
+
+        let res = merge_dec_coin_vector(
+            a.borrow(),
+            DecCoinVecOp {
+                fund: b,
+                operation: Operation::Remove,
+            },
+        );
+
+        assert!(check_equal_vec(
+            res,
+            vec![
+                DecCoin::new(Decimal::from_ratio(100_u128, 1_u128), "uluna".to_string()),
+                DecCoin::new(Decimal::from_ratio(200_u128, 1_u128), "uusd".to_string()),
+                DecCoin::new(Decimal::from_ratio(300_u128, 1_u128), "ukrt".to_string()),
+            ]
+        ));
+
+        /*
+           Test - 2
+        */
+        let a = vec![
+            DecCoin::new(Decimal::from_ratio(100_u128, 1_u128), "uluna".to_string()),
+            DecCoin::new(Decimal::from_ratio(200_u128, 1_u128), "uusd".to_string()),
+            DecCoin::new(Decimal::from_ratio(300_u128, 1_u128), "ukrt".to_string()),
+        ];
+        let b = vec![
+            DecCoin::new(Decimal::from_ratio(200_u128, 1_u128), "uusd".to_string()),
+            DecCoin::new(Decimal::from_ratio(300_u128, 1_u128), "ukrt".to_string()),
+        ];
+
+        let res = merge_dec_coin_vector(
+            a.borrow(),
+            DecCoinVecOp {
+                fund: b,
+                operation: Operation::Remove,
+            },
+        );
+
+        assert!(check_equal_vec(
+            res,
+            vec![DecCoin::new(
+                Decimal::from_ratio(100_u128, 1_u128),
+                "uluna".to_string()
+            )]
+        ));
+
+        /*
+            Test - 3
+        */
+        let a = vec![
+            DecCoin::new(Decimal::from_ratio(100_u128, 1_u128), "uluna".to_string()),
+            DecCoin::new(Decimal::from_ratio(200_u128, 1_u128), "uusd".to_string()),
+            DecCoin::new(Decimal::from_ratio(300_u128, 1_u128), "ukrt".to_string()),
+        ];
+        let b = vec![
+            DecCoin::new(Decimal::from_ratio(100_u128, 1_u128), "uluna".to_string()),
+            DecCoin::new(Decimal::from_ratio(200_u128, 1_u128), "uusd".to_string()),
+            DecCoin::new(Decimal::from_ratio(300_u128, 1_u128), "ukrt".to_string()),
+        ];
+
+        let res = merge_dec_coin_vector(
+            a.borrow(),
+            DecCoinVecOp {
+                fund: b,
+                operation: Operation::Remove,
+            },
+        );
+
+        assert!(res.is_empty());
+
+        /*
+            Test - 4
+        */
+        let a = vec![
+            DecCoin::new(Decimal::from_ratio(100_u128, 1_u128), "uluna".to_string()),
+            DecCoin::new(Decimal::from_ratio(200_u128, 1_u128), "uusd".to_string()),
+            DecCoin::new(Decimal::from_ratio(300_u128, 1_u128), "ukrt".to_string()),
+        ];
+        let b = vec![
+            DecCoin::new(Decimal::from_ratio(100_u128, 1_u128), "uluna".to_string()),
+            DecCoin::new(Decimal::from_ratio(200_u128, 1_u128), "uusd".to_string()),
+            DecCoin::new(Decimal::from_ratio(300_u128, 1_u128), "ukrt".to_string()),
+            DecCoin::new(Decimal::from_ratio(500_u128, 1_u128), "umnt".to_string()),
+        ];
+
+        let res = merge_dec_coin_vector(
+            a.borrow(),
+            DecCoinVecOp {
+                fund: b,
+                operation: Operation::Remove,
+            },
+        );
+
+        assert!(res.is_empty());
+
+        /*
+            Test - 5
+        */
+        let a = vec![];
+        let b = vec![];
+
+        let res = merge_dec_coin_vector(
+            a.borrow(),
+            DecCoinVecOp {
+                fund: b,
+                operation: Operation::Remove,
+            },
+        );
+
+        assert!(res.is_empty());
     }
 }
