@@ -71,7 +71,12 @@ pub fn set_manager(
         return Err(ContractError::Unauthorized {});
     }
 
-    TMP_MANAGER_STORE.save(deps.storage, &TmpManagerStore { manager })?;
+    TMP_MANAGER_STORE.save(
+        deps.storage,
+        &TmpManagerStore {
+            manager: manager.to_lowercase(),
+        },
+    )?;
 
     Ok(Response::default())
 }
@@ -121,8 +126,8 @@ pub fn update_airdrop_registry(
     }
 
     let airdrop_token = airdrop_token_str.to_lowercase();
-    let airdrop_contract = deps.api.addr_validate(airdrop_contract_str.as_str())?;
-    let cw20_contract = deps.api.addr_validate(cw20_contract_str.as_str())?;
+    let airdrop_contract = deps.api.addr_validate(airdrop_contract_str.to_lowercase().as_str())?;
+    let cw20_contract = deps.api.addr_validate(cw20_contract_str.to_lowercase().as_str())?;
     AIRDROP_REGISTRY.save(
         deps.storage,
         airdrop_token.clone(),

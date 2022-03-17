@@ -188,7 +188,12 @@ pub fn set_manager(
     let config = CONFIG.load(deps.storage)?;
     validate(&config, &info, &env, vec![Verify::SenderManager])?;
 
-    TMP_MANAGER_STORE.save(deps.storage, &TmpManagerStore { manager })?;
+    TMP_MANAGER_STORE.save(
+        deps.storage,
+        &TmpManagerStore {
+            manager: manager.to_lowercase(),
+        },
+    )?;
 
     Ok(Response::default())
 }
@@ -277,7 +282,9 @@ pub fn update_config(
 
     if let Some(cw20_contract) = update_config.cw20_token_contract {
         if config.cw20_token_contract == Addr::unchecked("0") {
-            config.cw20_token_contract = deps.api.addr_validate(cw20_contract.as_str())?;
+            config.cw20_token_contract = deps
+                .api
+                .addr_validate(cw20_contract.to_lowercase().as_str())?;
         }
     }
 
@@ -335,6 +342,9 @@ pub fn add_validator(
     let state = STATE.load(deps.storage)?;
     validate(&config, &info, &env, vec![Verify::SenderManager])?;
 
+    // lower case the addresses to avoid inconsistencies
+    let val_addr = Addr::unchecked(val_addr.to_string().to_lowercase());
+
     if state.validators.contains(&val_addr) {
         return Err(ContractError::ValidatorAlreadyAdded {});
     }
@@ -363,6 +373,9 @@ pub fn remove_validator_from_pool(
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
     validate(&config, &info, &env, vec![Verify::SenderManager])?;
+
+    let val_addr = Addr::unchecked(val_addr.to_string().to_lowercase());
+    let redel_addr = Addr::unchecked(redel_addr.to_string().to_lowercase());
 
     check_slashing(&mut deps, &env)?;
 
@@ -424,6 +437,10 @@ pub fn rebalance_pool(
     if amount.is_zero() {
         return Err(ContractError::ZeroAmount {});
     }
+
+    // lower case the addresses to avoid inconsistencies
+    let val_addr = Addr::unchecked(val_addr.to_string().to_lowercase());
+    let redel_addr = Addr::unchecked(redel_addr.to_string().to_lowercase());
 
     check_slashing(&mut deps, &env)?;
 
@@ -763,6 +780,8 @@ pub fn reimburse_slashing(
             "reimburse_slashing".to_string(),
         ));
     }
+
+    let val_addr = Addr::unchecked(val_addr.to_string().to_lowercase());
 
     let reimburse_amount = info.funds[0].amount;
     let state = STATE.load(deps.storage)?;
@@ -1170,7 +1189,7 @@ pub fn claim_airdrops(
         let contract_response: GetAirdropContractsResponse = get_airdrop_contracts(
             deps.querier,
             airdrops_registry_contract.clone(),
-            rate.denom.clone(),
+            rate.denom.to_lowercase().clone(),
         )?;
 
         let contracts = if let Some(contracts) = contract_response.contracts {
@@ -1245,7 +1264,7 @@ pub fn query_operation_controls(deps: Deps) -> StdResult<OperationControls> {
 }
 
 pub fn query_user_info(deps: Deps, user_addr: String) -> StdResult<UserInfoResponse> {
-    let user_addr = deps.api.addr_validate(user_addr.as_str())?;
+    let user_addr = deps.api.addr_validate(user_addr.to_lowercase().as_str())?;
     let config = CONFIG.load(deps.storage)?;
     let state = STATE.load(deps.storage)?;
 
@@ -1284,7 +1303,9 @@ pub fn query_user_undelegation_records(
     start_after: Option<u64>,
     limit: Option<u64>,
 ) -> StdResult<Vec<UndelegationInfo>> {
-    let user_addr = deps.api.addr_validate(user_addr_str.as_str())?;
+    let user_addr = deps
+        .api
+        .addr_validate(user_addr_str.to_lowercase().as_str())?;
     let limit = limit.unwrap_or(10).min(20) as usize;
     let start = start_after.map(|batch_id| Bound::exclusive(U64Key::new(batch_id)));
 
@@ -1310,7 +1331,7 @@ pub fn query_user_undelegation_info(
     user_addr: String,
     batch_id: u64,
 ) -> StdResult<GetFundsClaimRecord> {
-    let user_addr = deps.api.addr_validate(user_addr.as_str())?;
+    let user_addr = deps.api.addr_validate(user_addr.to_lowercase().as_str())?;
     let res = compute_withdrawable_funds(deps.storage, batch_id, &user_addr);
     if res.is_err() {
         return Err(StdError::GenericErr {
