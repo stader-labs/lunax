@@ -261,252 +261,252 @@ mod tests {
             }
         );
     }
+    //
+    // #[test]
+    // fn test_get_active_validators_sorted_by_stake() {
+    //     let mut deps = mock_dependencies(&[]);
+    //     let env = mock_env();
+    //     let info = mock_info("creator", &[]);
+    //
+    //     let _res = instantiate_contract(&mut deps, &info, &env);
+    //
+    //     let valid1 = Addr::unchecked("valid0001");
+    //     let valid2 = Addr::unchecked("valid0002");
+    //     let valid3 = Addr::unchecked("valid0003");
+    //
+    //     /*
+    //        Test - 1. Empty validator pool
+    //     */
+    //     let err = get_active_validators_sorted_by_stake(
+    //         deps.as_mut().querier,
+    //         env.contract.address.clone(),
+    //         vec![],
+    //     )
+    //     .unwrap_err();
+    //     assert!(matches!(err, ContractError::NoValidatorsInPool {}));
+    //
+    //     /*
+    //        Test - 2. All validators are jailed
+    //     */
+    //     deps.querier.update_staking("uluna", &[], &[]);
+    //     let err = get_active_validators_sorted_by_stake(
+    //         deps.as_mut().querier,
+    //         env.contract.address.clone(),
+    //         vec![valid1.clone(), valid2.clone(), valid3.clone()],
+    //     )
+    //     .unwrap_err();
+    //     assert!(matches!(err, ContractError::AllValidatorsJailed {}));
+    //
+    //     /*
+    //         Test - 3. Successful
+    //     */
+    //     fn get_validators_test_3() -> Vec<Validator> {
+    //         vec![
+    //             Validator {
+    //                 address: "valid0001".to_string(),
+    //                 commission: Decimal::zero(),
+    //                 max_commission: Decimal::zero(),
+    //                 max_change_rate: Decimal::zero(),
+    //             },
+    //             Validator {
+    //                 address: "valid0002".to_string(),
+    //                 commission: Decimal::zero(),
+    //                 max_commission: Decimal::zero(),
+    //                 max_change_rate: Decimal::zero(),
+    //             },
+    //             Validator {
+    //                 address: "valid0003".to_string(),
+    //                 commission: Decimal::zero(),
+    //                 max_commission: Decimal::zero(),
+    //                 max_change_rate: Decimal::zero(),
+    //             },
+    //         ]
+    //     }
+    //     fn get_delegations_test_3() -> Vec<FullDelegation> {
+    //         vec![
+    //             FullDelegation {
+    //                 delegator: Addr::unchecked(MOCK_CONTRACT_ADDR),
+    //                 validator: "valid0001".to_string(),
+    //                 amount: Coin::new(1000, "uluna"),
+    //                 can_redelegate: Coin::new(1000, "uluna"),
+    //                 accumulated_rewards: vec![Coin::new(20, "uluna"), Coin::new(30, "urew1")],
+    //             },
+    //             FullDelegation {
+    //                 delegator: Addr::unchecked(MOCK_CONTRACT_ADDR),
+    //                 validator: "valid0002".to_string(),
+    //                 amount: Coin::new(2000, "uluna"),
+    //                 can_redelegate: Coin::new(0, "uluna"),
+    //                 accumulated_rewards: vec![Coin::new(40, "uluna"), Coin::new(60, "urew1")],
+    //             },
+    //             FullDelegation {
+    //                 delegator: Addr::unchecked(MOCK_CONTRACT_ADDR),
+    //                 validator: "valid0003".to_string(),
+    //                 amount: Coin::new(3000, "uluna"),
+    //                 can_redelegate: Coin::new(0, "uluna"),
+    //                 accumulated_rewards: vec![Coin::new(40, "uluna"), Coin::new(60, "urew1")],
+    //             },
+    //         ]
+    //     }
+    //     deps.querier.update_staking(
+    //         "uluna",
+    //         &*get_validators_test_3(),
+    //         &*get_delegations_test_3(),
+    //     );
+    //     let res = get_active_validators_sorted_by_stake(
+    //         deps.as_mut().querier,
+    //         env.contract.address.clone(),
+    //         vec![valid1.clone(), valid2.clone(), valid3.clone()],
+    //     )
+    //     .unwrap();
+    //     assert!(check_equal_vec(
+    //         res,
+    //         vec![
+    //             (Uint128::new(1000_u128), valid1.to_string()),
+    //             (Uint128::new(2000_u128), valid2.to_string()),
+    //             (Uint128::new(3000_u128), valid3.to_string())
+    //         ]
+    //     ));
+    // }
 
-    #[test]
-    fn test_get_active_validators_sorted_by_stake() {
-        let mut deps = mock_dependencies(&[]);
-        let env = mock_env();
-        let info = mock_info("creator", &[]);
-
-        let _res = instantiate_contract(&mut deps, &info, &env);
-
-        let valid1 = Addr::unchecked("valid0001");
-        let valid2 = Addr::unchecked("valid0002");
-        let valid3 = Addr::unchecked("valid0003");
-
-        /*
-           Test - 1. Empty validator pool
-        */
-        let err = get_active_validators_sorted_by_stake(
-            deps.as_mut().querier,
-            env.contract.address.clone(),
-            vec![],
-        )
-        .unwrap_err();
-        assert!(matches!(err, ContractError::NoValidatorsInPool {}));
-
-        /*
-           Test - 2. All validators are jailed
-        */
-        deps.querier.update_staking("uluna", &[], &[]);
-        let err = get_active_validators_sorted_by_stake(
-            deps.as_mut().querier,
-            env.contract.address.clone(),
-            vec![valid1.clone(), valid2.clone(), valid3.clone()],
-        )
-        .unwrap_err();
-        assert!(matches!(err, ContractError::AllValidatorsJailed {}));
-
-        /*
-            Test - 3. Successful
-        */
-        fn get_validators_test_3() -> Vec<Validator> {
-            vec![
-                Validator {
-                    address: "valid0001".to_string(),
-                    commission: Decimal::zero(),
-                    max_commission: Decimal::zero(),
-                    max_change_rate: Decimal::zero(),
-                },
-                Validator {
-                    address: "valid0002".to_string(),
-                    commission: Decimal::zero(),
-                    max_commission: Decimal::zero(),
-                    max_change_rate: Decimal::zero(),
-                },
-                Validator {
-                    address: "valid0003".to_string(),
-                    commission: Decimal::zero(),
-                    max_commission: Decimal::zero(),
-                    max_change_rate: Decimal::zero(),
-                },
-            ]
-        }
-        fn get_delegations_test_3() -> Vec<FullDelegation> {
-            vec![
-                FullDelegation {
-                    delegator: Addr::unchecked(MOCK_CONTRACT_ADDR),
-                    validator: "valid0001".to_string(),
-                    amount: Coin::new(1000, "uluna"),
-                    can_redelegate: Coin::new(1000, "uluna"),
-                    accumulated_rewards: vec![Coin::new(20, "uluna"), Coin::new(30, "urew1")],
-                },
-                FullDelegation {
-                    delegator: Addr::unchecked(MOCK_CONTRACT_ADDR),
-                    validator: "valid0002".to_string(),
-                    amount: Coin::new(2000, "uluna"),
-                    can_redelegate: Coin::new(0, "uluna"),
-                    accumulated_rewards: vec![Coin::new(40, "uluna"), Coin::new(60, "urew1")],
-                },
-                FullDelegation {
-                    delegator: Addr::unchecked(MOCK_CONTRACT_ADDR),
-                    validator: "valid0003".to_string(),
-                    amount: Coin::new(3000, "uluna"),
-                    can_redelegate: Coin::new(0, "uluna"),
-                    accumulated_rewards: vec![Coin::new(40, "uluna"), Coin::new(60, "urew1")],
-                },
-            ]
-        }
-        deps.querier.update_staking(
-            "uluna",
-            &*get_validators_test_3(),
-            &*get_delegations_test_3(),
-        );
-        let res = get_active_validators_sorted_by_stake(
-            deps.as_mut().querier,
-            env.contract.address.clone(),
-            vec![valid1.clone(), valid2.clone(), valid3.clone()],
-        )
-        .unwrap();
-        assert!(check_equal_vec(
-            res,
-            vec![
-                (Uint128::new(1000_u128), valid1.to_string()),
-                (Uint128::new(2000_u128), valid2.to_string()),
-                (Uint128::new(3000_u128), valid3.to_string())
-            ]
-        ));
-    }
-
-    #[test]
-    fn test_get_validator_for_deposit() {
-        let mut deps = mock_dependencies(&[]);
-        let env = mock_env();
-        let info = mock_info("creator", &[]);
-
-        let _res = instantiate_contract(&mut deps, &info, &env);
-
-        let valid1 = Addr::unchecked("valid0001");
-        let valid2 = Addr::unchecked("valid0002");
-        let valid3 = Addr::unchecked("valid0003");
-
-        /*
-           Test - 1. Empty validator pool
-        */
-        let err =
-            get_validator_for_deposit(deps.as_mut().querier, env.contract.address.clone(), vec![])
-                .unwrap_err();
-        assert!(matches!(err, ContractError::NoValidatorsInPool {}));
-
-        /*
-           Test - 2. Get Validator with no delegation
-        */
-        fn get_validators_test_1() -> Vec<Validator> {
-            vec![
-                Validator {
-                    address: "valid0001".to_string(),
-                    commission: Decimal::zero(),
-                    max_commission: Decimal::zero(),
-                    max_change_rate: Decimal::zero(),
-                },
-                Validator {
-                    address: "valid0002".to_string(),
-                    commission: Decimal::zero(),
-                    max_commission: Decimal::zero(),
-                    max_change_rate: Decimal::zero(),
-                },
-                Validator {
-                    address: "valid0003".to_string(),
-                    commission: Decimal::zero(),
-                    max_commission: Decimal::zero(),
-                    max_change_rate: Decimal::zero(),
-                },
-            ]
-        }
-        fn get_delegations_test_1() -> Vec<FullDelegation> {
-            vec![
-                FullDelegation {
-                    delegator: Addr::unchecked(MOCK_CONTRACT_ADDR),
-                    validator: "valid0001".to_string(),
-                    amount: Coin::new(1000, "uluna"),
-                    can_redelegate: Coin::new(1000, "uluna"),
-                    accumulated_rewards: vec![Coin::new(20, "uluna"), Coin::new(30, "urew1")],
-                },
-                FullDelegation {
-                    delegator: Addr::unchecked(MOCK_CONTRACT_ADDR),
-                    validator: "valid0002".to_string(),
-                    amount: Coin::new(1000, "uluna"),
-                    can_redelegate: Coin::new(0, "uluna"),
-                    accumulated_rewards: vec![Coin::new(40, "uluna"), Coin::new(60, "urew1")],
-                },
-            ]
-        }
-        deps.querier.update_staking(
-            "uluna",
-            &*get_validators_test_1(),
-            &*get_delegations_test_1(),
-        );
-        let res = get_validator_for_deposit(
-            deps.as_mut().querier,
-            env.contract.address.clone(),
-            vec![valid1.clone(), valid2.clone(), valid3.clone()],
-        )
-        .unwrap();
-        assert_eq!(res, valid3);
-
-        /*
-           Test - 3. Validator with smallest delegation
-        */
-        fn get_validators_test_2() -> Vec<Validator> {
-            vec![
-                Validator {
-                    address: "valid0001".to_string(),
-                    commission: Decimal::zero(),
-                    max_commission: Decimal::zero(),
-                    max_change_rate: Decimal::zero(),
-                },
-                Validator {
-                    address: "valid0002".to_string(),
-                    commission: Decimal::zero(),
-                    max_commission: Decimal::zero(),
-                    max_change_rate: Decimal::zero(),
-                },
-                Validator {
-                    address: "valid0003".to_string(),
-                    commission: Decimal::zero(),
-                    max_commission: Decimal::zero(),
-                    max_change_rate: Decimal::zero(),
-                },
-            ]
-        }
-        fn get_delegations_test_2() -> Vec<FullDelegation> {
-            vec![
-                FullDelegation {
-                    delegator: Addr::unchecked(MOCK_CONTRACT_ADDR),
-                    validator: "valid0001".to_string(),
-                    amount: Coin::new(1000, "uluna"),
-                    can_redelegate: Coin::new(1000, "uluna"),
-                    accumulated_rewards: vec![Coin::new(20, "uluna"), Coin::new(30, "urew1")],
-                },
-                FullDelegation {
-                    delegator: Addr::unchecked(MOCK_CONTRACT_ADDR),
-                    validator: "valid0002".to_string(),
-                    amount: Coin::new(2000, "uluna"),
-                    can_redelegate: Coin::new(0, "uluna"),
-                    accumulated_rewards: vec![Coin::new(40, "uluna"), Coin::new(60, "urew1")],
-                },
-                FullDelegation {
-                    delegator: Addr::unchecked(MOCK_CONTRACT_ADDR),
-                    validator: "valid0003".to_string(),
-                    amount: Coin::new(3000, "uluna"),
-                    can_redelegate: Coin::new(0, "uluna"),
-                    accumulated_rewards: vec![Coin::new(40, "uluna"), Coin::new(60, "urew1")],
-                },
-            ]
-        }
-        deps.querier.update_staking(
-            "uluna",
-            &*get_validators_test_2(),
-            &*get_delegations_test_2(),
-        );
-        let res = get_validator_for_deposit(
-            deps.as_mut().querier,
-            env.contract.address.clone(),
-            vec![valid1.clone(), valid2.clone(), valid3.clone()],
-        )
-        .unwrap();
-        assert_eq!(res, valid1);
-    }
+    // #[test]
+    // fn test_get_validator_for_deposit() {
+    //     let mut deps = mock_dependencies(&[]);
+    //     let env = mock_env();
+    //     let info = mock_info("creator", &[]);
+    //
+    //     let _res = instantiate_contract(&mut deps, &info, &env);
+    //
+    //     let valid1 = Addr::unchecked("valid0001");
+    //     let valid2 = Addr::unchecked("valid0002");
+    //     let valid3 = Addr::unchecked("valid0003");
+    //
+    //     /*
+    //        Test - 1. Empty validator pool
+    //     */
+    //     let err =
+    //         get_validator_for_deposit(deps.as_mut().querier, env.contract.address.clone(), vec![])
+    //             .unwrap_err();
+    //     assert!(matches!(err, ContractError::NoValidatorsInPool {}));
+    //
+    //     /*
+    //        Test - 2. Get Validator with no delegation
+    //     */
+    //     fn get_validators_test_1() -> Vec<Validator> {
+    //         vec![
+    //             Validator {
+    //                 address: "valid0001".to_string(),
+    //                 commission: Decimal::zero(),
+    //                 max_commission: Decimal::zero(),
+    //                 max_change_rate: Decimal::zero(),
+    //             },
+    //             Validator {
+    //                 address: "valid0002".to_string(),
+    //                 commission: Decimal::zero(),
+    //                 max_commission: Decimal::zero(),
+    //                 max_change_rate: Decimal::zero(),
+    //             },
+    //             Validator {
+    //                 address: "valid0003".to_string(),
+    //                 commission: Decimal::zero(),
+    //                 max_commission: Decimal::zero(),
+    //                 max_change_rate: Decimal::zero(),
+    //             },
+    //         ]
+    //     }
+    //     fn get_delegations_test_1() -> Vec<FullDelegation> {
+    //         vec![
+    //             FullDelegation {
+    //                 delegator: Addr::unchecked(MOCK_CONTRACT_ADDR),
+    //                 validator: "valid0001".to_string(),
+    //                 amount: Coin::new(1000, "uluna"),
+    //                 can_redelegate: Coin::new(1000, "uluna"),
+    //                 accumulated_rewards: vec![Coin::new(20, "uluna"), Coin::new(30, "urew1")],
+    //             },
+    //             FullDelegation {
+    //                 delegator: Addr::unchecked(MOCK_CONTRACT_ADDR),
+    //                 validator: "valid0002".to_string(),
+    //                 amount: Coin::new(1000, "uluna"),
+    //                 can_redelegate: Coin::new(0, "uluna"),
+    //                 accumulated_rewards: vec![Coin::new(40, "uluna"), Coin::new(60, "urew1")],
+    //             },
+    //         ]
+    //     }
+    //     deps.querier.update_staking(
+    //         "uluna",
+    //         &*get_validators_test_1(),
+    //         &*get_delegations_test_1(),
+    //     );
+    //     let res = get_validator_for_deposit(
+    //         deps.as_mut().querier,
+    //         env.contract.address.clone(),
+    //         vec![valid1.clone(), valid2.clone(), valid3.clone()],
+    //     )
+    //     .unwrap();
+    //     assert_eq!(res, valid3);
+    //
+    //     /*
+    //        Test - 3. Validator with smallest delegation
+    //     */
+    //     fn get_validators_test_2() -> Vec<Validator> {
+    //         vec![
+    //             Validator {
+    //                 address: "valid0001".to_string(),
+    //                 commission: Decimal::zero(),
+    //                 max_commission: Decimal::zero(),
+    //                 max_change_rate: Decimal::zero(),
+    //             },
+    //             Validator {
+    //                 address: "valid0002".to_string(),
+    //                 commission: Decimal::zero(),
+    //                 max_commission: Decimal::zero(),
+    //                 max_change_rate: Decimal::zero(),
+    //             },
+    //             Validator {
+    //                 address: "valid0003".to_string(),
+    //                 commission: Decimal::zero(),
+    //                 max_commission: Decimal::zero(),
+    //                 max_change_rate: Decimal::zero(),
+    //             },
+    //         ]
+    //     }
+    //     fn get_delegations_test_2() -> Vec<FullDelegation> {
+    //         vec![
+    //             FullDelegation {
+    //                 delegator: Addr::unchecked(MOCK_CONTRACT_ADDR),
+    //                 validator: "valid0001".to_string(),
+    //                 amount: Coin::new(1000, "uluna"),
+    //                 can_redelegate: Coin::new(1000, "uluna"),
+    //                 accumulated_rewards: vec![Coin::new(20, "uluna"), Coin::new(30, "urew1")],
+    //             },
+    //             FullDelegation {
+    //                 delegator: Addr::unchecked(MOCK_CONTRACT_ADDR),
+    //                 validator: "valid0002".to_string(),
+    //                 amount: Coin::new(2000, "uluna"),
+    //                 can_redelegate: Coin::new(0, "uluna"),
+    //                 accumulated_rewards: vec![Coin::new(40, "uluna"), Coin::new(60, "urew1")],
+    //             },
+    //             FullDelegation {
+    //                 delegator: Addr::unchecked(MOCK_CONTRACT_ADDR),
+    //                 validator: "valid0003".to_string(),
+    //                 amount: Coin::new(3000, "uluna"),
+    //                 can_redelegate: Coin::new(0, "uluna"),
+    //                 accumulated_rewards: vec![Coin::new(40, "uluna"), Coin::new(60, "urew1")],
+    //             },
+    //         ]
+    //     }
+    //     deps.querier.update_staking(
+    //         "uluna",
+    //         &*get_validators_test_2(),
+    //         &*get_delegations_test_2(),
+    //     );
+    //     let res = get_validator_for_deposit(
+    //         deps.as_mut().querier,
+    //         env.contract.address.clone(),
+    //         vec![valid1.clone(), valid2.clone(), valid3.clone()],
+    //     )
+    //     .unwrap();
+    //     assert_eq!(res, valid1);
+    // }
 
     #[test]
     fn test_validate() {
@@ -1006,358 +1006,359 @@ mod tests {
         assert_eq!(config.swap_cooldown, 123u64);
         assert_eq!(config.reinvest_cooldown, 234u64);
     }
-
-    #[test]
-    fn test_check_slashing() {
-        let mut deps = mock_dependencies(&[]);
-        let info = mock_info("creator", &[]);
-        let env = mock_env();
-
-        let _res = instantiate_contract(&mut deps, &info, &env);
-
-        let valid1 = Addr::unchecked("valid0001");
-        let valid2 = Addr::unchecked("valid0002");
-        let valid3 = Addr::unchecked("valid0003");
-
-        /*
-           Test - 1. There is no slashing
-        */
-        deps.querier
-            .update_staking("uluna", &*get_validators(), &*get_delegations());
-        deps.querier
-            .update_stader_balances(Some(Uint128::new(3000_u128)), None);
-        VALIDATOR_META
-            .save(
-                deps.as_mut().storage,
-                &valid1,
-                &VMeta {
-                    staked: Uint128::new(1000_u128),
-                    slashed: Uint128::zero(),
-                    filled: Default::default(),
-                },
-            )
-            .unwrap();
-        VALIDATOR_META
-            .save(
-                deps.as_mut().storage,
-                &valid2,
-                &VMeta {
-                    staked: Uint128::new(1000_u128),
-                    slashed: Uint128::zero(),
-                    filled: Default::default(),
-                },
-            )
-            .unwrap();
-        VALIDATOR_META
-            .save(
-                deps.as_mut().storage,
-                &valid3,
-                &VMeta {
-                    staked: Uint128::new(1000_u128),
-                    slashed: Uint128::zero(),
-                    filled: Default::default(),
-                },
-            )
-            .unwrap();
-        STATE
-            .update(
-                deps.as_mut().storage,
-                |mut state| -> Result<_, ContractError> {
-                    state.validators = vec![valid1.clone(), valid2.clone(), valid3.clone()];
-                    Ok(state)
-                },
-            )
-            .unwrap();
-
-        check_slashing(&mut deps.as_mut(), &env).unwrap();
-        let val1_meta = VALIDATOR_META.load(deps.as_mut().storage, &valid1).unwrap();
-        let val2_meta = VALIDATOR_META.load(deps.as_mut().storage, &valid2).unwrap();
-        let val3_meta = VALIDATOR_META.load(deps.as_mut().storage, &valid3).unwrap();
-        assert_eq!(
-            val1_meta,
-            VMeta {
-                staked: Uint128::new(1000_u128),
-                slashed: Uint128::zero(),
-                filled: Default::default()
-            }
-        );
-        assert_eq!(
-            val2_meta,
-            VMeta {
-                staked: Uint128::new(1000_u128),
-                slashed: Uint128::zero(),
-                filled: Default::default()
-            }
-        );
-        assert_eq!(
-            val3_meta,
-            VMeta {
-                staked: Uint128::new(1000_u128),
-                slashed: Uint128::zero(),
-                filled: Default::default()
-            }
-        );
-
-        let state = STATE.load(deps.as_mut().storage).unwrap();
-        assert_eq!(state.total_staked, Uint128::new(3000_u128));
-        assert_eq!(state.exchange_rate, Decimal::one());
-
-        /*
-            Test - 2. There is some slashing
-        */
-        fn get_validators_test_2() -> Vec<Validator> {
-            vec![
-                Validator {
-                    address: "valid0001".to_string(),
-                    commission: Decimal::zero(),
-                    max_commission: Decimal::zero(),
-                    max_change_rate: Decimal::zero(),
-                },
-                Validator {
-                    address: "valid0002".to_string(),
-                    commission: Decimal::zero(),
-                    max_commission: Decimal::zero(),
-                    max_change_rate: Decimal::zero(),
-                },
-                Validator {
-                    address: "valid0003".to_string(),
-                    commission: Decimal::zero(),
-                    max_commission: Decimal::zero(),
-                    max_change_rate: Decimal::zero(),
-                },
-            ]
-        }
-
-        fn get_delegations_test_2() -> Vec<FullDelegation> {
-            vec![
-                FullDelegation {
-                    delegator: Addr::unchecked(MOCK_CONTRACT_ADDR),
-                    validator: "valid0001".to_string(),
-                    amount: Coin::new(500, "uluna"),
-                    can_redelegate: Coin::new(1000, "uluna"),
-                    accumulated_rewards: vec![Coin::new(20, "uluna"), Coin::new(30, "urew1")],
-                },
-                FullDelegation {
-                    delegator: Addr::unchecked(MOCK_CONTRACT_ADDR),
-                    validator: "valid0002".to_string(),
-                    amount: Coin::new(1000, "uluna"),
-                    can_redelegate: Coin::new(0, "uluna"),
-                    accumulated_rewards: vec![Coin::new(40, "uluna"), Coin::new(60, "urew1")],
-                },
-                FullDelegation {
-                    delegator: Addr::unchecked(MOCK_CONTRACT_ADDR),
-                    validator: "valid0003".to_string(),
-                    amount: Coin::new(1000, "uluna"),
-                    can_redelegate: Coin::new(0, "uluna"),
-                    accumulated_rewards: vec![],
-                },
-            ]
-        }
-        deps.querier.update_staking(
-            "uluna",
-            &*get_validators_test_2(),
-            &*get_delegations_test_2(),
-        );
-        deps.querier
-            .update_stader_balances(Some(Uint128::new(3000_u128)), None);
-        VALIDATOR_META
-            .save(
-                deps.as_mut().storage,
-                &valid1,
-                &VMeta {
-                    staked: Uint128::new(1000_u128),
-                    slashed: Uint128::zero(),
-                    filled: Default::default(),
-                },
-            )
-            .unwrap();
-        VALIDATOR_META
-            .save(
-                deps.as_mut().storage,
-                &valid2,
-                &VMeta {
-                    staked: Uint128::new(1000_u128),
-                    slashed: Uint128::zero(),
-                    filled: Default::default(),
-                },
-            )
-            .unwrap();
-        VALIDATOR_META
-            .save(
-                deps.as_mut().storage,
-                &valid3,
-                &VMeta {
-                    staked: Uint128::new(1000_u128),
-                    slashed: Uint128::zero(),
-                    filled: Default::default(),
-                },
-            )
-            .unwrap();
-
-        check_slashing(&mut deps.as_mut(), &env).unwrap();
-        let val1_meta = VALIDATOR_META.load(deps.as_mut().storage, &valid1).unwrap();
-        let val2_meta = VALIDATOR_META.load(deps.as_mut().storage, &valid2).unwrap();
-        let val3_meta = VALIDATOR_META.load(deps.as_mut().storage, &valid3).unwrap();
-        assert_eq!(
-            val1_meta,
-            VMeta {
-                staked: Uint128::new(500_u128),
-                slashed: Uint128::new(500_u128),
-                filled: Default::default()
-            }
-        );
-        assert_eq!(
-            val2_meta,
-            VMeta {
-                staked: Uint128::new(1000_u128),
-                slashed: Uint128::zero(),
-                filled: Default::default()
-            }
-        );
-        assert_eq!(
-            val3_meta,
-            VMeta {
-                staked: Uint128::new(1000_u128),
-                slashed: Uint128::zero(),
-                filled: Default::default()
-            }
-        );
-
-        let state = STATE.load(deps.as_mut().storage).unwrap();
-        assert_eq!(state.total_staked, Uint128::new(2500_u128));
-        assert_eq!(
-            state.exchange_rate,
-            Decimal::from_ratio(2500_u128, 3000_u128)
-        );
-
-        /*
-            Test - 3. There is some yield
-        */
-        fn get_validators_test_3() -> Vec<Validator> {
-            vec![
-                Validator {
-                    address: "valid0001".to_string(),
-                    commission: Decimal::zero(),
-                    max_commission: Decimal::zero(),
-                    max_change_rate: Decimal::zero(),
-                },
-                Validator {
-                    address: "valid0002".to_string(),
-                    commission: Decimal::zero(),
-                    max_commission: Decimal::zero(),
-                    max_change_rate: Decimal::zero(),
-                },
-                Validator {
-                    address: "valid0003".to_string(),
-                    commission: Decimal::zero(),
-                    max_commission: Decimal::zero(),
-                    max_change_rate: Decimal::zero(),
-                },
-            ]
-        }
-
-        fn get_delegations_test_3() -> Vec<FullDelegation> {
-            vec![
-                FullDelegation {
-                    delegator: Addr::unchecked(MOCK_CONTRACT_ADDR),
-                    validator: "valid0001".to_string(),
-                    amount: Coin::new(1500, "uluna"),
-                    can_redelegate: Coin::new(1000, "uluna"),
-                    accumulated_rewards: vec![Coin::new(20, "uluna"), Coin::new(30, "urew1")],
-                },
-                FullDelegation {
-                    delegator: Addr::unchecked(MOCK_CONTRACT_ADDR),
-                    validator: "valid0002".to_string(),
-                    amount: Coin::new(1000, "uluna"),
-                    can_redelegate: Coin::new(0, "uluna"),
-                    accumulated_rewards: vec![Coin::new(40, "uluna"), Coin::new(60, "urew1")],
-                },
-                FullDelegation {
-                    delegator: Addr::unchecked(MOCK_CONTRACT_ADDR),
-                    validator: "valid0003".to_string(),
-                    amount: Coin::new(1000, "uluna"),
-                    can_redelegate: Coin::new(0, "uluna"),
-                    accumulated_rewards: vec![],
-                },
-            ]
-        }
-        deps.querier.update_staking(
-            "uluna",
-            &*get_validators_test_3(),
-            &*get_delegations_test_3(),
-        );
-        deps.querier
-            .update_stader_balances(Some(Uint128::new(3000_u128)), None);
-        VALIDATOR_META
-            .save(
-                deps.as_mut().storage,
-                &valid1,
-                &VMeta {
-                    staked: Uint128::new(1000_u128),
-                    slashed: Uint128::zero(),
-                    filled: Default::default(),
-                },
-            )
-            .unwrap();
-        VALIDATOR_META
-            .save(
-                deps.as_mut().storage,
-                &valid2,
-                &VMeta {
-                    staked: Uint128::new(1000_u128),
-                    slashed: Uint128::zero(),
-                    filled: Default::default(),
-                },
-            )
-            .unwrap();
-        VALIDATOR_META
-            .save(
-                deps.as_mut().storage,
-                &valid3,
-                &VMeta {
-                    staked: Uint128::new(1000_u128),
-                    slashed: Uint128::zero(),
-                    filled: Default::default(),
-                },
-            )
-            .unwrap();
-
-        check_slashing(&mut deps.as_mut(), &env).unwrap();
-        let val1_meta = VALIDATOR_META.load(deps.as_mut().storage, &valid1).unwrap();
-        let val2_meta = VALIDATOR_META.load(deps.as_mut().storage, &valid2).unwrap();
-        let val3_meta = VALIDATOR_META.load(deps.as_mut().storage, &valid3).unwrap();
-        assert_eq!(
-            val1_meta,
-            VMeta {
-                staked: Uint128::new(1500_u128),
-                slashed: Uint128::zero(),
-                filled: Default::default()
-            }
-        );
-        assert_eq!(
-            val2_meta,
-            VMeta {
-                staked: Uint128::new(1000_u128),
-                slashed: Uint128::zero(),
-                filled: Default::default()
-            }
-        );
-        assert_eq!(
-            val3_meta,
-            VMeta {
-                staked: Uint128::new(1000_u128),
-                slashed: Uint128::zero(),
-                filled: Default::default()
-            }
-        );
-
-        let state = STATE.load(deps.as_mut().storage).unwrap();
-        assert_eq!(state.total_staked, Uint128::new(3500_u128));
-        assert_eq!(
-            state.exchange_rate,
-            Decimal::from_ratio(3500_u128, 3000_u128)
-        );
-    }
+    //
+    // #[test]
+    // fn test_check_slashing() {
+    //     let mut deps = mock_dependencies(&[]);
+    //     let info = mock_info("creator", &[]);
+    //     let env = mock_env();
+    //
+    //     let _res = instantiate_contract(&mut deps, &info, &env);
+    //
+    //     let valid1 = Addr::unchecked("valid0001");
+    //     let valid2 = Addr::unchecked("valid0002");
+    //     let valid3 = Addr::unchecked("valid0003");
+    //
+    //     /*
+    //        Test - 1. There is no slashing
+    //     */
+    //     deps.querier
+    //         .update_staking("uluna", &*get_validators(), &*get_delegations());
+    //     deps.querier
+    //         .update_stader_balances(Some(Uint128::new(3000_u128)), None);
+    //     VALIDATOR_META
+    //         .save(
+    //             deps.as_mut().storage,
+    //             &valid1,
+    //             &VMeta {
+    //                 staked: Uint128::new(1000_u128),
+    //                 slashed: Uint128::zero(),
+    //                 filled: Default::default(),
+    //             },
+    //         )
+    //         .unwrap();
+    //     VALIDATOR_META
+    //         .save(
+    //             deps.as_mut().storage,
+    //             &valid2,
+    //             &VMeta {
+    //                 staked: Uint128::new(1000_u128),
+    //                 slashed: Uint128::zero(),
+    //                 filled: Default::default(),
+    //             },
+    //         )
+    //         .unwrap();
+    //     VALIDATOR_META
+    //         .save(
+    //             deps.as_mut().storage,
+    //             &valid3,
+    //             &VMeta {
+    //                 staked: Uint128::new(1000_u128),
+    //                 slashed: Uint128::zero(),
+    //                 filled: Default::default(),
+    //             },
+    //         )
+    //         .unwrap();
+    //     STATE
+    //         .update(
+    //             deps.as_mut().storage,
+    //             |mut state| -> Result<_, ContractError> {
+    //                 state.validators = vec![valid1.clone(), valid2.clone(), valid3.clone()];
+    //                 Ok(state)
+    //             },
+    //         )
+    //         .unwrap();
+    //
+    //     // let delegations = get_delegations();
+    //     check_slashing(&mut deps.as_mut(), &env).unwrap();
+    //     let val1_meta = VALIDATOR_META.load(deps.as_mut().storage, &valid1).unwrap();
+    //     let val2_meta = VALIDATOR_META.load(deps.as_mut().storage, &valid2).unwrap();
+    //     let val3_meta = VALIDATOR_META.load(deps.as_mut().storage, &valid3).unwrap();
+    //     assert_eq!(
+    //         val1_meta,
+    //         VMeta {
+    //             staked: Uint128::new(1000_u128),
+    //             slashed: Uint128::zero(),
+    //             filled: Default::default()
+    //         }
+    //     );
+    //     assert_eq!(
+    //         val2_meta,
+    //         VMeta {
+    //             staked: Uint128::new(1000_u128),
+    //             slashed: Uint128::zero(),
+    //             filled: Default::default()
+    //         }
+    //     );
+    //     assert_eq!(
+    //         val3_meta,
+    //         VMeta {
+    //             staked: Uint128::new(1000_u128),
+    //             slashed: Uint128::zero(),
+    //             filled: Default::default()
+    //         }
+    //     );
+    //
+    //     let state = STATE.load(deps.as_mut().storage).unwrap();
+    //     assert_eq!(state.total_staked, Uint128::new(3000_u128));
+    //     assert_eq!(state.exchange_rate, Decimal::one());
+    //
+    //     /*
+    //         Test - 2. There is some slashing
+    //     */
+    //     fn get_validators_test_2() -> Vec<Validator> {
+    //         vec![
+    //             Validator {
+    //                 address: "valid0001".to_string(),
+    //                 commission: Decimal::zero(),
+    //                 max_commission: Decimal::zero(),
+    //                 max_change_rate: Decimal::zero(),
+    //             },
+    //             Validator {
+    //                 address: "valid0002".to_string(),
+    //                 commission: Decimal::zero(),
+    //                 max_commission: Decimal::zero(),
+    //                 max_change_rate: Decimal::zero(),
+    //             },
+    //             Validator {
+    //                 address: "valid0003".to_string(),
+    //                 commission: Decimal::zero(),
+    //                 max_commission: Decimal::zero(),
+    //                 max_change_rate: Decimal::zero(),
+    //             },
+    //         ]
+    //     }
+    //
+    //     fn get_delegations_test_2() -> Vec<FullDelegation> {
+    //         vec![
+    //             FullDelegation {
+    //                 delegator: Addr::unchecked(MOCK_CONTRACT_ADDR),
+    //                 validator: "valid0001".to_string(),
+    //                 amount: Coin::new(500, "uluna"),
+    //                 can_redelegate: Coin::new(1000, "uluna"),
+    //                 accumulated_rewards: vec![Coin::new(20, "uluna"), Coin::new(30, "urew1")],
+    //             },
+    //             FullDelegation {
+    //                 delegator: Addr::unchecked(MOCK_CONTRACT_ADDR),
+    //                 validator: "valid0002".to_string(),
+    //                 amount: Coin::new(1000, "uluna"),
+    //                 can_redelegate: Coin::new(0, "uluna"),
+    //                 accumulated_rewards: vec![Coin::new(40, "uluna"), Coin::new(60, "urew1")],
+    //             },
+    //             FullDelegation {
+    //                 delegator: Addr::unchecked(MOCK_CONTRACT_ADDR),
+    //                 validator: "valid0003".to_string(),
+    //                 amount: Coin::new(1000, "uluna"),
+    //                 can_redelegate: Coin::new(0, "uluna"),
+    //                 accumulated_rewards: vec![],
+    //             },
+    //         ]
+    //     }
+    //     deps.querier.update_staking(
+    //         "uluna",
+    //         &*get_validators_test_2(),
+    //         &*get_delegations_test_2(),
+    //     );
+    //     deps.querier
+    //         .update_stader_balances(Some(Uint128::new(3000_u128)), None);
+    //     VALIDATOR_META
+    //         .save(
+    //             deps.as_mut().storage,
+    //             &valid1,
+    //             &VMeta {
+    //                 staked: Uint128::new(1000_u128),
+    //                 slashed: Uint128::zero(),
+    //                 filled: Default::default(),
+    //             },
+    //         )
+    //         .unwrap();
+    //     VALIDATOR_META
+    //         .save(
+    //             deps.as_mut().storage,
+    //             &valid2,
+    //             &VMeta {
+    //                 staked: Uint128::new(1000_u128),
+    //                 slashed: Uint128::zero(),
+    //                 filled: Default::default(),
+    //             },
+    //         )
+    //         .unwrap();
+    //     VALIDATOR_META
+    //         .save(
+    //             deps.as_mut().storage,
+    //             &valid3,
+    //             &VMeta {
+    //                 staked: Uint128::new(1000_u128),
+    //                 slashed: Uint128::zero(),
+    //                 filled: Default::default(),
+    //             },
+    //         )
+    //         .unwrap();
+    //
+    //     check_slashing(&mut deps.as_mut(), &env).unwrap();
+    //     let val1_meta = VALIDATOR_META.load(deps.as_mut().storage, &valid1).unwrap();
+    //     let val2_meta = VALIDATOR_META.load(deps.as_mut().storage, &valid2).unwrap();
+    //     let val3_meta = VALIDATOR_META.load(deps.as_mut().storage, &valid3).unwrap();
+    //     assert_eq!(
+    //         val1_meta,
+    //         VMeta {
+    //             staked: Uint128::new(500_u128),
+    //             slashed: Uint128::new(500_u128),
+    //             filled: Default::default()
+    //         }
+    //     );
+    //     assert_eq!(
+    //         val2_meta,
+    //         VMeta {
+    //             staked: Uint128::new(1000_u128),
+    //             slashed: Uint128::zero(),
+    //             filled: Default::default()
+    //         }
+    //     );
+    //     assert_eq!(
+    //         val3_meta,
+    //         VMeta {
+    //             staked: Uint128::new(1000_u128),
+    //             slashed: Uint128::zero(),
+    //             filled: Default::default()
+    //         }
+    //     );
+    //
+    //     let state = STATE.load(deps.as_mut().storage).unwrap();
+    //     assert_eq!(state.total_staked, Uint128::new(2500_u128));
+    //     assert_eq!(
+    //         state.exchange_rate,
+    //         Decimal::from_ratio(2500_u128, 3000_u128)
+    //     );
+    //
+    //     /*
+    //         Test - 3. There is some yield
+    //     */
+    //     fn get_validators_test_3() -> Vec<Validator> {
+    //         vec![
+    //             Validator {
+    //                 address: "valid0001".to_string(),
+    //                 commission: Decimal::zero(),
+    //                 max_commission: Decimal::zero(),
+    //                 max_change_rate: Decimal::zero(),
+    //             },
+    //             Validator {
+    //                 address: "valid0002".to_string(),
+    //                 commission: Decimal::zero(),
+    //                 max_commission: Decimal::zero(),
+    //                 max_change_rate: Decimal::zero(),
+    //             },
+    //             Validator {
+    //                 address: "valid0003".to_string(),
+    //                 commission: Decimal::zero(),
+    //                 max_commission: Decimal::zero(),
+    //                 max_change_rate: Decimal::zero(),
+    //             },
+    //         ]
+    //     }
+    //
+    //     fn get_delegations_test_3() -> Vec<FullDelegation> {
+    //         vec![
+    //             FullDelegation {
+    //                 delegator: Addr::unchecked(MOCK_CONTRACT_ADDR),
+    //                 validator: "valid0001".to_string(),
+    //                 amount: Coin::new(1500, "uluna"),
+    //                 can_redelegate: Coin::new(1000, "uluna"),
+    //                 accumulated_rewards: vec![Coin::new(20, "uluna"), Coin::new(30, "urew1")],
+    //             },
+    //             FullDelegation {
+    //                 delegator: Addr::unchecked(MOCK_CONTRACT_ADDR),
+    //                 validator: "valid0002".to_string(),
+    //                 amount: Coin::new(1000, "uluna"),
+    //                 can_redelegate: Coin::new(0, "uluna"),
+    //                 accumulated_rewards: vec![Coin::new(40, "uluna"), Coin::new(60, "urew1")],
+    //             },
+    //             FullDelegation {
+    //                 delegator: Addr::unchecked(MOCK_CONTRACT_ADDR),
+    //                 validator: "valid0003".to_string(),
+    //                 amount: Coin::new(1000, "uluna"),
+    //                 can_redelegate: Coin::new(0, "uluna"),
+    //                 accumulated_rewards: vec![],
+    //             },
+    //         ]
+    //     }
+    //     deps.querier.update_staking(
+    //         "uluna",
+    //         &*get_validators_test_3(),
+    //         &*get_delegations_test_3(),
+    //     );
+    //     deps.querier
+    //         .update_stader_balances(Some(Uint128::new(3000_u128)), None);
+    //     VALIDATOR_META
+    //         .save(
+    //             deps.as_mut().storage,
+    //             &valid1,
+    //             &VMeta {
+    //                 staked: Uint128::new(1000_u128),
+    //                 slashed: Uint128::zero(),
+    //                 filled: Default::default(),
+    //             },
+    //         )
+    //         .unwrap();
+    //     VALIDATOR_META
+    //         .save(
+    //             deps.as_mut().storage,
+    //             &valid2,
+    //             &VMeta {
+    //                 staked: Uint128::new(1000_u128),
+    //                 slashed: Uint128::zero(),
+    //                 filled: Default::default(),
+    //             },
+    //         )
+    //         .unwrap();
+    //     VALIDATOR_META
+    //         .save(
+    //             deps.as_mut().storage,
+    //             &valid3,
+    //             &VMeta {
+    //                 staked: Uint128::new(1000_u128),
+    //                 slashed: Uint128::zero(),
+    //                 filled: Default::default(),
+    //             },
+    //         )
+    //         .unwrap();
+    //
+    //     check_slashing(&mut deps.as_mut(), &env).unwrap();
+    //     let val1_meta = VALIDATOR_META.load(deps.as_mut().storage, &valid1).unwrap();
+    //     let val2_meta = VALIDATOR_META.load(deps.as_mut().storage, &valid2).unwrap();
+    //     let val3_meta = VALIDATOR_META.load(deps.as_mut().storage, &valid3).unwrap();
+    //     assert_eq!(
+    //         val1_meta,
+    //         VMeta {
+    //             staked: Uint128::new(1500_u128),
+    //             slashed: Uint128::zero(),
+    //             filled: Default::default()
+    //         }
+    //     );
+    //     assert_eq!(
+    //         val2_meta,
+    //         VMeta {
+    //             staked: Uint128::new(1000_u128),
+    //             slashed: Uint128::zero(),
+    //             filled: Default::default()
+    //         }
+    //     );
+    //     assert_eq!(
+    //         val3_meta,
+    //         VMeta {
+    //             staked: Uint128::new(1000_u128),
+    //             slashed: Uint128::zero(),
+    //             filled: Default::default()
+    //         }
+    //     );
+    //
+    //     let state = STATE.load(deps.as_mut().storage).unwrap();
+    //     assert_eq!(state.total_staked, Uint128::new(3500_u128));
+    //     assert_eq!(
+    //         state.exchange_rate,
+    //         Decimal::from_ratio(3500_u128, 3000_u128)
+    //     );
+    // }
 
     #[test]
     fn test_add_validator_fail() {
