@@ -20,7 +20,11 @@ use crate::ContractError;
 use airdrops_registry::msg::GetAirdropContractsResponse;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{from_binary, to_binary, Addr, BankMsg, Binary, Coin, Decimal, Deps, DepsMut, DistributionMsg, Env, MessageInfo, Order, Response, StakingMsg, StdError, StdResult, Storage, SubMsg, Uint128, WasmMsg, Delegation};
+use cosmwasm_std::{
+    from_binary, to_binary, Addr, BankMsg, Binary, Coin, Decimal, Delegation, Deps, DepsMut,
+    DistributionMsg, Env, MessageInfo, Order, Response, StakingMsg, StdError, StdResult, Storage,
+    SubMsg, Uint128, WasmMsg,
+};
 use cw20::Cw20ReceiveMsg;
 use cw20_base::msg::ExecuteMsg as Cw20ExecuteMsg;
 use cw_storage_plus::{Bound, U64Key};
@@ -373,7 +377,9 @@ pub fn remove_validator_from_pool(
     let val_addr = Addr::unchecked(val_addr.to_string().to_lowercase());
     let redel_addr = Addr::unchecked(redel_addr.to_string().to_lowercase());
 
-    let all_delegations = deps.querier.query_all_delegations(env.contract.address.clone())?;
+    let all_delegations = deps
+        .querier
+        .query_all_delegations(env.contract.address.clone())?;
     check_slashing(&mut deps, &env, all_delegations.as_slice())?;
 
     let mut state = STATE.load(deps.storage)?;
@@ -439,7 +445,9 @@ pub fn rebalance_pool(
     let val_addr = Addr::unchecked(val_addr.to_string().to_lowercase());
     let redel_addr = Addr::unchecked(redel_addr.to_string().to_lowercase());
 
-    let all_delegations = deps.querier.query_all_delegations(env.contract.address.clone())?;
+    let all_delegations = deps
+        .querier
+        .query_all_delegations(env.contract.address.clone())?;
     check_slashing(&mut deps, &env, all_delegations.as_slice())?;
 
     let state = STATE.load(deps.storage)?;
@@ -481,28 +489,21 @@ pub fn rebalance_pool(
     }))
 }
 
-pub fn check_slashing(deps: &mut DepsMut, env: &Env, delegations: &[Delegation]) -> Result<Response, ContractError> {
+pub fn check_slashing(
+    deps: &mut DepsMut,
+    env: &Env,
+    delegations: &[Delegation],
+) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
     let mut state = STATE.load(deps.storage)?;
     let mut total_staked_on_chain = Uint128::zero();
 
     for val_addr in state.validators.iter() {
-        let val_delegation = delegations.iter().find(|x| {
-            x.validator.eq(val_addr)
-        });
+        let val_delegation = delegations.iter().find(|x| x.validator.eq(val_addr));
         let mut delegation_amount = Uint128::zero();
         if val_delegation.is_some() {
             delegation_amount = val_delegation.unwrap().amount.amount;
         }
-
-        // let delegation_amount = if let Some(delegation) = deps
-        //     .querier
-        //     .query_delegation(env.contract.address.clone(), val_addr)?
-        // {
-        //     delegation.amount.amount
-        // } else {
-        //     Uint128::zero()
-        // };
 
         total_staked_on_chain = total_staked_on_chain
             .checked_add(delegation_amount)
@@ -544,7 +545,9 @@ pub fn deposit(mut deps: DepsMut, info: MessageInfo, env: Env) -> Result<Respons
 
     validate(&config, &info, &env, vec![Verify::NonZeroSingleInfoFund])?;
 
-    let all_delegations = deps.querier.query_all_delegations(env.contract.address.clone())?;
+    let all_delegations = deps
+        .querier
+        .query_all_delegations(env.contract.address.clone())?;
 
     check_slashing(&mut deps, &env, all_delegations.as_slice())?;
 
@@ -576,7 +579,7 @@ pub fn deposit(mut deps: DepsMut, info: MessageInfo, env: Env) -> Result<Respons
             deps.querier,
             env.contract.address,
             state.validators.clone(),
-            all_delegations.as_slice()
+            all_delegations.as_slice(),
         )?;
 
         state.total_staked = state
@@ -640,7 +643,9 @@ pub fn redeem_rewards(
     _info: MessageInfo,
     env: Env,
 ) -> Result<Response, ContractError> {
-    let all_delegations = deps.querier.query_all_delegations(env.contract.address.clone())?;
+    let all_delegations = deps
+        .querier
+        .query_all_delegations(env.contract.address.clone())?;
     let all_validators = deps.querier.query_all_validators()?;
 
     check_slashing(&mut deps, &env, all_delegations.as_slice())?;
@@ -654,12 +659,8 @@ pub fn redeem_rewards(
     let mut failed_vals: Vec<String> = vec![];
     for val_addr in state.validators {
         // Skip validators that are currently jailed.
-        let validator = all_validators.iter().find(|x| {
-            x.address.eq(&val_addr)
-        });
-        let delegation = all_delegations.iter().find(|x| {
-            x.validator.eq(&val_addr)
-        });
+        let validator = all_validators.iter().find(|x| x.address.eq(&val_addr));
+        let delegation = all_delegations.iter().find(|x| x.validator.eq(&val_addr));
 
         if validator.is_none() || delegation.is_none() {
             failed_vals.push(val_addr.to_string());
@@ -724,7 +725,9 @@ pub fn reinvest(mut deps: DepsMut, info: MessageInfo, env: Env) -> Result<Respon
         return Err(ContractError::OperationPaused("reinvest".to_string()));
     }
 
-    let all_delegations = deps.querier.query_all_delegations(env.contract.address.clone())?;
+    let all_delegations = deps
+        .querier
+        .query_all_delegations(env.contract.address.clone())?;
 
     check_slashing(&mut deps, &env, all_delegations.as_slice())?;
 
@@ -756,7 +759,7 @@ pub fn reinvest(mut deps: DepsMut, info: MessageInfo, env: Env) -> Result<Respon
         deps.querier,
         env.contract.address.clone(),
         state.validators.clone(),
-        all_delegations.as_slice()
+        all_delegations.as_slice(),
     )?;
     state.total_staked = state.total_staked.checked_add(transfer_amount).unwrap();
     increase_tracked_stake(&mut deps, &val_addr, transfer_amount)?;
@@ -876,7 +879,9 @@ pub fn queue_undelegation(
         ));
     }
 
-    let all_delegations = deps.querier.query_all_delegations(env.contract.address.clone())?;
+    let all_delegations = deps
+        .querier
+        .query_all_delegations(env.contract.address.clone())?;
     check_slashing(&mut deps, &env, all_delegations.as_slice())?;
 
     let state = STATE.load(deps.storage)?;
@@ -927,7 +932,9 @@ pub fn undelegate_stake(
         ));
     }
 
-    let all_delegations = deps.querier.query_all_delegations(env.contract.address.clone())?;
+    let all_delegations = deps
+        .querier
+        .query_all_delegations(env.contract.address.clone())?;
     check_slashing(&mut deps, &env, all_delegations.as_slice())?;
 
     let mut state = STATE.load(deps.storage)?;
@@ -977,7 +984,7 @@ pub fn undelegate_stake(
         deps.querier,
         env.contract.address.clone(),
         validators,
-        all_delegations.as_slice()
+        all_delegations.as_slice(),
     )?;
 
     for index in (0..stake_tuples.len()).rev() {
