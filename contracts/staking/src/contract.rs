@@ -157,7 +157,7 @@ pub fn execute(
             redel_addr,
         } => rebalance_pool(deps, info, env, amount, val_addr, redel_addr),
         ExecuteMsg::Deposit {} => deposit(deps, info, env),
-        ExecuteMsg::RedeemRewards {} => redeem_rewards(deps, info, env),
+        ExecuteMsg::RedeemRewards { validators } => redeem_rewards(deps, info, env, validators),
         ExecuteMsg::Swap {} => swap_rewards(deps, info, env),
         ExecuteMsg::Reinvest {} => reinvest(deps, info, env),
         ExecuteMsg::ReimburseSlashing { val_addr } => reimburse_slashing(deps, info, env, val_addr),
@@ -642,6 +642,7 @@ pub fn redeem_rewards(
     mut deps: DepsMut,
     _info: MessageInfo,
     env: Env,
+    validators: Option<Vec<Addr>>,
 ) -> Result<Response, ContractError> {
     let all_delegations = deps
         .querier
@@ -650,6 +651,8 @@ pub fn redeem_rewards(
 
     check_slashing(&mut deps, &env, all_delegations.as_slice())?;
     let state = STATE.load(deps.storage)?;
+
+    let validators = validators.unwrap_or(state.validators);
     let operation_controls = OPERATION_CONTROLS.load(deps.storage)?;
     if operation_controls.redeem_rewards_paused {
         return Err(ContractError::OperationPaused("redeem_rewards".to_string()));
@@ -657,7 +660,7 @@ pub fn redeem_rewards(
 
     let mut messages = vec![];
     let mut failed_vals: Vec<String> = vec![];
-    for val_addr in state.validators {
+    for val_addr in validators {
         // Skip validators that are currently jailed.
         let validator = all_validators.iter().find(|x| x.address.eq(&val_addr));
         let delegation = all_delegations.iter().find(|x| x.validator.eq(&val_addr));
@@ -666,19 +669,6 @@ pub fn redeem_rewards(
             failed_vals.push(val_addr.to_string());
             continue;
         }
-
-        // if deps
-        //     .querier
-        //     .query_validator(val_addr.to_string())?
-        //     .is_none()
-        //     || deps
-        //         .querier
-        //         .query_delegation(env.contract.address.clone(), val_addr.to_string())?
-        //         .is_none()
-        // {
-        //     failed_vals.push(val_addr.to_string());
-        //     continue;
-        // }
 
         messages.push(DistributionMsg::WithdrawDelegatorReward {
             validator: val_addr.to_string(),
@@ -831,7 +821,10 @@ pub fn reimburse_slashing(
         })
         .add_message(WasmMsg::Execute {
             contract_addr: env.contract.address.to_string(),
-            msg: to_binary(&ExecuteMsg::RedeemRewards {})?,
+            msg: to_binary(&ExecuteMsg::RedeemRewards {
+                // just add the first validator. We need this to update the exchange rate with check slashing
+                validators: Some(vec![state.validators[0].clone()]),
+            })?,
             funds: vec![],
         }))
 }

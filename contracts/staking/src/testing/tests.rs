@@ -1632,7 +1632,7 @@ mod tests {
             deps.as_mut(),
             env.clone(),
             mock_info("other", &[Coin::new(10_u128, "uluna".to_string())]),
-            ExecuteMsg::RedeemRewards {},
+            ExecuteMsg::RedeemRewards { validators: None },
         )
         .unwrap_err();
         assert!(matches!(err, ContractError::OperationPaused(String { .. })));
@@ -1708,7 +1708,7 @@ mod tests {
             deps.as_mut(),
             env.clone(),
             mock_info("creator", &[]),
-            ExecuteMsg::RedeemRewards {},
+            ExecuteMsg::RedeemRewards { validators: None },
         )
         .unwrap();
         assert_eq!(res.attributes.len(), 1);
@@ -1797,7 +1797,7 @@ mod tests {
             deps.as_mut(),
             env.clone(),
             mock_info("creator", &[]),
-            ExecuteMsg::RedeemRewards {},
+            ExecuteMsg::RedeemRewards { validators: None },
         )
         .unwrap();
         assert_eq!(res.attributes.len(), 1);
@@ -1821,6 +1821,86 @@ mod tests {
                 SubMsg::new(DistributionMsg::WithdrawDelegatorReward {
                     validator: "valid0003".to_string()
                 })
+            ]
+        ));
+
+        /*
+            Test - 3 - Only selected validators
+        */
+        let valid4 = Addr::unchecked("valid0004");
+        STATE
+            .update(
+                deps.as_mut().storage,
+                |mut state| -> Result<_, ContractError> {
+                    state.validators = vec![
+                        valid1.clone(),
+                        valid2.clone(),
+                        valid3.clone(),
+                        valid4.clone(),
+                    ];
+                    Ok(state)
+                },
+            )
+            .unwrap();
+        deps.querier
+            .update_staking("uluna", &*get_validators(), &*get_delegations());
+        deps.querier
+            .update_stader_balances(Some(Uint128::new(3000_u128)), None);
+        VALIDATOR_META
+            .save(
+                deps.as_mut().storage,
+                &valid1,
+                &VMeta {
+                    staked: Uint128::new(1000_u128),
+                    slashed: Uint128::zero(),
+                    filled: Uint128::new(1000_u128),
+                },
+            )
+            .unwrap();
+        VALIDATOR_META
+            .save(
+                deps.as_mut().storage,
+                &valid2,
+                &VMeta {
+                    staked: Uint128::new(1000_u128),
+                    slashed: Uint128::zero(),
+                    filled: Uint128::new(1000_u128),
+                },
+            )
+            .unwrap();
+        VALIDATOR_META
+            .save(
+                deps.as_mut().storage,
+                &valid3,
+                &VMeta {
+                    staked: Uint128::new(1000_u128),
+                    slashed: Uint128::zero(),
+                    filled: Uint128::new(1000_u128),
+                },
+            )
+            .unwrap();
+        VALIDATOR_META
+            .save(deps.as_mut().storage, &valid4, &VMeta::new())
+            .unwrap();
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::RedeemRewards {
+                validators: Some(vec![valid1, valid2]),
+            },
+        )
+        .unwrap();
+        assert_eq!(res.messages.len(), 2);
+        assert!(check_equal_vec(
+            res.messages,
+            vec![
+                SubMsg::new(DistributionMsg::WithdrawDelegatorReward {
+                    validator: "valid0001".to_string()
+                }),
+                SubMsg::new(DistributionMsg::WithdrawDelegatorReward {
+                    validator: "valid0002".to_string()
+                }),
             ]
         ));
     }
@@ -4097,7 +4177,10 @@ mod tests {
                 }),
                 SubMsg::new(WasmMsg::Execute {
                     contract_addr: env.contract.address.to_string(),
-                    msg: to_binary(&ExecuteMsg::RedeemRewards {}).unwrap(),
+                    msg: to_binary(&ExecuteMsg::RedeemRewards {
+                        validators: Some(vec![valid1.clone()])
+                    })
+                    .unwrap(),
                     funds: vec![]
                 })
             ]
@@ -4133,7 +4216,10 @@ mod tests {
                 }),
                 SubMsg::new(WasmMsg::Execute {
                     contract_addr: env.contract.address.to_string(),
-                    msg: to_binary(&ExecuteMsg::RedeemRewards {}).unwrap(),
+                    msg: to_binary(&ExecuteMsg::RedeemRewards {
+                        validators: Some(vec![valid1])
+                    })
+                    .unwrap(),
                     funds: vec![]
                 })
             ]
