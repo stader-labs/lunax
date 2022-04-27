@@ -10,10 +10,7 @@ mod tests {
     use cosmwasm_std::testing::{
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
     };
-    use cosmwasm_std::{
-        from_binary, Addr, Empty, Env, MessageInfo,
-        OwnedDeps, Response
-    };
+    use cosmwasm_std::{from_binary, Addr, Empty, Env, MessageInfo, OwnedDeps, Response};
 
     fn instantiate_contract(
         deps: &mut OwnedDeps<MockStorage, MockApi, MockQuerier>,
