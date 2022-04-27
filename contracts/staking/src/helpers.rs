@@ -184,10 +184,7 @@ pub fn decrease_tracked_slashing(
 ) -> Result<(), ContractError> {
     VALIDATOR_META.update(deps.storage, val_addr, |x| -> StdResult<_> {
         let mut vmeta = x.unwrap_or_else(VMeta::new);
-        vmeta.slashed = vmeta
-            .slashed
-            .checked_sub(amount)
-            .unwrap_or_else(|_| Uint128::zero());
+        vmeta.slashed = vmeta.slashed.saturating_sub(amount);
         Ok(vmeta)
     })?;
     Ok(())
