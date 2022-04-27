@@ -1,10 +1,9 @@
 #[cfg(test)]
 mod tests {
     use crate::contract::{
-        check_slashing, compute_withdrawable_funds, execute, instantiate, query, queue_undelegation,
+        check_slashing, compute_withdrawable_funds, execute, instantiate, query,
     };
     use crate::error::ContractError;
-    use crate::error::ContractError::ValidatorNotDiscoverable;
     use crate::helpers::{
         get_active_validators_sorted_by_stake, get_validator_for_deposit, validate, Verify,
     };
@@ -17,22 +16,18 @@ mod tests {
         OperationControlsUpdateRequest, State, UndelegationInfo, VMeta,
         BATCH_UNDELEGATION_REGISTRY, CONFIG, OPERATION_CONTROLS, STATE, USERS, VALIDATOR_META,
     };
-    use crate::testing::mock_querier;
     use crate::testing::mock_querier::{mock_dependencies, WasmMockQuerier};
     use crate::testing::test_helpers::check_equal_vec;
-    use cosmwasm_std::testing::{
-        mock_env, mock_info, MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR,
-    };
+    use cosmwasm_std::testing::{mock_env, mock_info, MockApi, MockStorage, MOCK_CONTRACT_ADDR};
     use cosmwasm_std::{
-        attr, from_binary, to_binary, Addr, Attribute, BankMsg, Coin, Decimal, DistributionMsg,
-        Env, FullDelegation, MessageInfo, OwnedDeps, StakingMsg, StdResult, SubMsg, Timestamp,
-        Uint128, Validator, WasmMsg,
+        from_binary, to_binary, Addr, Attribute, BankMsg, Coin, Decimal, DistributionMsg, Env,
+        FullDelegation, MessageInfo, OwnedDeps, StakingMsg, StdResult, SubMsg, Uint128, Validator,
+        WasmMsg,
     };
     use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
     use cw_storage_plus::U64Key;
     use reward::msg::ExecuteMsg as RewardExecuteMsg;
     use reward::state::{TmpManagerStore, TMP_MANAGER_STORE};
-    use stader_utils::coin_utils::{check_equal_deccoin_vector, DecCoin};
 
     fn get_validators() -> Vec<Validator> {
         vec![
@@ -110,8 +105,8 @@ mod tests {
     #[test]
     fn proper_initialization_fail() {
         let mut deps = mock_dependencies(&[]);
-        let info = mock_info("creator", &[]);
-        let env = mock_env();
+        let _info = mock_info("creator", &[]);
+        let _env = mock_env();
 
         /*
            Reward fee above limit
@@ -186,7 +181,7 @@ mod tests {
     #[test]
     fn proper_initialization() {
         let mut deps = mock_dependencies(&[]);
-        let info = mock_info("creator", &[]);
+        let _info = mock_info("creator", &[]);
         let env = mock_env();
 
         let msg = InstantiateMsg {
@@ -614,7 +609,7 @@ mod tests {
                 },
             )
             .unwrap();
-        let res = execute(
+        let _res = execute(
             deps.as_mut(),
             env.clone(),
             mock_info("creator", &[]),
@@ -662,7 +657,7 @@ mod tests {
 
         let tmp_manager_store = TMP_MANAGER_STORE.may_load(deps.as_mut().storage).unwrap();
         assert_eq!(tmp_manager_store, None);
-        let res = execute(
+        let _res = execute(
             deps.as_mut(),
             env.clone(),
             mock_info("creator", &[]),
@@ -674,7 +669,7 @@ mod tests {
         let tmp_manager_store = TMP_MANAGER_STORE.load(deps.as_mut().storage).unwrap();
         assert_eq!(tmp_manager_store.manager, "new_manager1".to_string());
 
-        let res = execute(
+        let _res = execute(
             deps.as_mut(),
             env.clone(),
             mock_info("new_manager1", &[]),
@@ -686,7 +681,7 @@ mod tests {
 
         assert_eq!(config.manager, Addr::unchecked("new_manager1"));
         assert_eq!(tmp_manager_store, None);
-        let res = execute(
+        let _res = execute(
             deps.as_mut(),
             env.clone(),
             mock_info("new_manager1", &[]),
@@ -698,7 +693,7 @@ mod tests {
         let tmp_manager_store = TMP_MANAGER_STORE.load(deps.as_mut().storage).unwrap();
         assert_eq!(tmp_manager_store.manager, "new_manager2".to_string());
 
-        let res = execute(
+        let _res = execute(
             deps.as_mut(),
             env.clone(),
             mock_info("new_manager2", &[]),
@@ -707,7 +702,7 @@ mod tests {
         .unwrap();
         let config = CONFIG.load(deps.as_mut().storage).unwrap();
         assert_eq!(config.manager, Addr::unchecked("new_manager2"));
-        let tmp_manager_store = TMP_MANAGER_STORE.may_load(deps.as_mut().storage).unwrap();
+        let _tmp_manager_store = TMP_MANAGER_STORE.may_load(deps.as_mut().storage).unwrap();
     }
 
     #[test]
@@ -735,7 +730,7 @@ mod tests {
         /*
             Successful
         */
-        let res = execute(
+        let _res = execute(
             deps.as_mut(),
             env.clone(),
             mock_info("creator", &[]),
@@ -794,7 +789,7 @@ mod tests {
         /*
            Successful
         */
-        let res = execute(
+        let _res = execute(
             deps.as_mut(),
             env.clone(),
             mock_info("new_manager", &[]),
@@ -843,7 +838,7 @@ mod tests {
         assert!(matches!(err, ContractError::Unauthorized {}));
 
         // Authorized but no changes
-        let res = execute(
+        let _res = execute(
             deps.as_mut(),
             env.clone(),
             mock_info("creator", &[]),
@@ -948,7 +943,7 @@ mod tests {
         /*
            Test - 2.
         */
-        let res = execute(
+        let _res = execute(
             deps.as_mut(),
             env.clone(),
             mock_info("creator", &[]),
@@ -3851,7 +3846,7 @@ mod tests {
             env.contract.address.clone(),
             vec![Coin::new(7000_u128, "uluna".to_string())],
         );
-        let res = execute(
+        let _res = execute(
             deps.as_mut(),
             env.clone(),
             mock_info("other", &[]),
@@ -3939,7 +3934,7 @@ mod tests {
             env.contract.address.clone(),
             vec![Coin::new(6000_u128, "uluna".to_string())],
         );
-        let res = execute(
+        let _res = execute(
             deps.as_mut(),
             env.clone(),
             mock_info("other", &[]),

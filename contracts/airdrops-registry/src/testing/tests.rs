@@ -2,7 +2,6 @@
 mod tests {
     use crate::contract::{execute, instantiate, query};
 
-    use crate::error::ContractError::TokenEmpty;
     use crate::msg::{ExecuteMsg, GetConfigResponse, InstantiateMsg, QueryMsg};
     use crate::state::{
         AirdropRegistryInfo, Config, TmpManagerStore, AIRDROP_REGISTRY, CONFIG, TMP_MANAGER_STORE,
@@ -11,11 +10,7 @@ mod tests {
     use cosmwasm_std::testing::{
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
     };
-    use cosmwasm_std::{
-        coins, from_binary, to_binary, Addr, Attribute, BankMsg, Coin, Empty, Env, MessageInfo,
-        OwnedDeps, Response, SubMsg, Uint128, WasmMsg,
-    };
-    use cw20::Cw20ExecuteMsg;
+    use cosmwasm_std::{from_binary, Addr, Empty, Env, MessageInfo, OwnedDeps, Response};
 
     fn instantiate_contract(
         deps: &mut OwnedDeps<MockStorage, MockApi, MockQuerier>,
@@ -91,7 +86,7 @@ mod tests {
         /*
            Test - 3. Success
         */
-        let res = execute(
+        let _res = execute(
             deps.as_mut(),
             env.clone(),
             mock_info("creator", &[]),
@@ -140,7 +135,7 @@ mod tests {
         /*
             Successful
         */
-        let res = execute(
+        let _res = execute(
             deps.as_mut(),
             env.clone(),
             mock_info("creator", &[]),
@@ -197,7 +192,7 @@ mod tests {
         /*
            Successful
         */
-        let res = execute(
+        let _res = execute(
             deps.as_mut(),
             env.clone(),
             mock_info("new_manager", &[]),

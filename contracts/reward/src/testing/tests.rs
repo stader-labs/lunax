@@ -16,7 +16,7 @@ mod tests {
         deps: &mut OwnedDeps<MockStorage, MockApi, MockQuerier>,
         info: &MessageInfo,
         env: &Env,
-        vault_denom: Option<String>,
+        _vault_denom: Option<String>,
     ) -> Response<TerraMsgWrapper> {
         let instantiate_msg = InstantiateMsg {
             staking_contract: "pools_addr".to_string(),
@@ -157,7 +157,7 @@ mod tests {
         /*
             Successful
         */
-        let res = execute(
+        let _res = execute(
             deps.as_mut(),
             env.clone(),
             mock_info("creator", &[]),
@@ -216,7 +216,7 @@ mod tests {
         /*
            Successful
         */
-        let res = execute(
+        let _res = execute(
             deps.as_mut(),
             env.clone(),
             mock_info("new_manager", &[]),
