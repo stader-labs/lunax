@@ -178,11 +178,7 @@ pub fn swap(
             continue;
         }
 
-        if is_listed {
-            messages.push(create_swap_msg(coin, config.reward_denom.to_string()));
-        } else if query_exchange_rates(&deps, config.reward_denom.clone(), vec![coin.denom.clone()])
-            .is_ok()
-        {
+        if is_listed || query_exchange_rates(&deps, config.reward_denom.clone(), vec![coin.denom.clone()]).is_ok() {
             messages.push(create_swap_msg(coin, config.reward_denom.to_string()));
         }
     }

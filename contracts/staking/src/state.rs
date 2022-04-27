@@ -62,6 +62,16 @@ pub struct VMeta {
     pub filled: Uint128, // Filled with validator slashing insurance
 }
 
+impl Default for VMeta {
+    fn default() -> Self {
+        VMeta {
+            staked: Uint128::zero(),
+            slashed: Uint128::zero(),
+            filled: Uint128::zero(),
+        }
+    }
+}
+
 impl VMeta {
     pub fn new() -> Self {
         VMeta {
