@@ -114,11 +114,10 @@ pub fn get_active_validators_sorted_by_stake(
         }
         let delegation_opt =
             querier.query_delegation(validator_contract.clone(), val_addr.clone())?;
-        if delegation_opt.is_none() {
-            // No delegation. So can
-            stake_tuples.push((Uint128::zero(), val_addr.to_string()));
+        if let Some(full_delegation) = delegation_opt {
+            stake_tuples.push((full_delegation.amount.amount, val_addr.to_string()))
         } else {
-            stake_tuples.push((delegation_opt.unwrap().amount.amount, val_addr.to_string()))
+            stake_tuples.push((Uint128::zero(), val_addr.to_string()));
         }
     }
     if stake_tuples.is_empty() {
@@ -158,7 +157,7 @@ pub fn increase_tracked_stake(
     amount: Uint128,
 ) -> Result<(), ContractError> {
     VALIDATOR_META.update(deps.storage, val_addr, |x| -> StdResult<_> {
-        let mut vmeta = x.unwrap_or(VMeta::new());
+        let mut vmeta = x.unwrap_or_else(VMeta::new);
         vmeta.staked = vmeta.staked.checked_add(amount).unwrap();
         Ok(vmeta)
     })?;
@@ -171,8 +170,8 @@ pub fn decrease_tracked_stake(
     amount: Uint128,
 ) -> Result<(), ContractError> {
     VALIDATOR_META.update(deps.storage, val_addr, |x| -> StdResult<_> {
-        let mut vmeta = x.unwrap_or(VMeta::new());
-        vmeta.staked = vmeta.staked.checked_sub(amount).unwrap_or(Uint128::zero());
+        let mut vmeta = x.unwrap_or_else(VMeta::new);
+        vmeta.staked = vmeta.staked.saturating_sub(amount);
         Ok(vmeta)
     })?;
     Ok(())
@@ -184,8 +183,8 @@ pub fn decrease_tracked_slashing(
     amount: Uint128,
 ) -> Result<(), ContractError> {
     VALIDATOR_META.update(deps.storage, val_addr, |x| -> StdResult<_> {
-        let mut vmeta = x.unwrap_or(VMeta::new());
-        vmeta.slashed = vmeta.slashed.checked_sub(amount).unwrap_or(Uint128::zero());
+        let mut vmeta = x.unwrap_or_else(VMeta::new);
+        vmeta.slashed = vmeta.slashed.saturating_sub(amount);
         Ok(vmeta)
     })?;
     Ok(())

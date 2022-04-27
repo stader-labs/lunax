@@ -25,6 +25,7 @@ use cosmwasm_std::{
     Env, MessageInfo, Order, Response, StakingMsg, StdError, StdResult, Storage, SubMsg, Uint128,
     WasmMsg,
 };
+use cw2::set_contract_version;
 use cw20::Cw20ReceiveMsg;
 use cw20_base::msg::ExecuteMsg as Cw20ExecuteMsg;
 use cw_storage_plus::{Bound, U64Key};
@@ -34,6 +35,9 @@ use stader_utils::coin_utils::{
     multiply_u128_with_decimal, uint128_from_decimal,
 };
 use std::ops::{Deref, Mul};
+
+const CONTRACT_NAME: &str = "staking";
+const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -50,7 +54,7 @@ pub fn instantiate(
     }
 
     let config = Config {
-        manager: info.sender.clone(),
+        manager: info.sender,
         vault_denom: "uluna".to_string(),
         min_deposit: msg.min_deposit,
         max_deposit: msg.max_deposit,
@@ -108,32 +112,19 @@ pub fn instantiate(
     OPERATION_CONTROLS.save(deps.storage, &operation_controls)?;
 
     // loads the saved state
-    create_new_undelegation_batch(deps.storage, env.clone())?;
+    create_new_undelegation_batch(deps.storage, env)?;
 
     let msgs = vec![DistributionMsg::SetWithdrawAddress {
         address: config.reward_contract.to_string(),
     }];
 
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
     Ok(Response::new().add_messages(msgs))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
-    OPERATION_CONTROLS.save(
-        deps.storage,
-        &OperationControls {
-            deposit_paused: false,
-            queue_undelegate_paused: false,
-            undelegate_paused: false,
-            withdraw_paused: false,
-            reinvest_paused: false,
-            reconcile_paused: false,
-            claim_airdrops_paused: false,
-            redeem_rewards_paused: false,
-            swap_paused: false,
-            reimburse_slashing_paused: false,
-        },
-    )?;
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     Ok(Response::default())
 }
@@ -400,9 +391,7 @@ pub fn remove_validator_from_pool(
         .querier
         .query_delegation(env.contract.address, val_addr.clone())?;
     let mut msgs = vec![];
-    if val_delegation.is_some() {
-        let full_delegation = val_delegation.unwrap();
-
+    if let Some(full_delegation) = val_delegation {
         if full_delegation.can_redelegate.ne(&full_delegation.amount) {
             return Err(ContractError::RedelegationInProgress {});
         }
@@ -503,13 +492,10 @@ pub fn check_slashing(deps: &mut DepsMut, env: &Env) -> Result<Response, Contrac
             .unwrap();
 
         VALIDATOR_META.update(deps.storage, val_addr, |x| -> Result<_, ContractError> {
-            let mut val_meta = x.unwrap_or(VMeta::new());
+            let mut val_meta = x.unwrap_or_else(VMeta::new);
 
             if val_meta.staked.gt(&delegation_amount) {
-                let slashed_amount = val_meta
-                    .staked
-                    .checked_sub(delegation_amount)
-                    .unwrap_or(Uint128::zero());
+                let slashed_amount = val_meta.staked.saturating_sub(delegation_amount);
                 val_meta.slashed = val_meta.slashed.checked_add(slashed_amount).unwrap();
             }
             val_meta.staked = delegation_amount;
@@ -610,9 +596,7 @@ pub fn compute_deposit_breakdown(
 
     if !config.protocol_deposit_fee.is_zero() {
         protocol_deposit_fee = config.protocol_deposit_fee.mul(user_amount);
-        amount_to_stake = user_amount
-            .checked_sub(protocol_deposit_fee)
-            .unwrap_or(Uint128::zero());
+        amount_to_stake = user_amount.saturating_sub(protocol_deposit_fee);
     }
     let mint_tokens = uint128_from_decimal(decimal_division_in_256(
         get_decimal_from_uint128(amount_to_stake),
@@ -721,10 +705,7 @@ pub fn reinvest(mut deps: DepsMut, info: MessageInfo, env: Env) -> Result<Respon
         get_decimal_from_uint128(balance.amount),
         config.protocol_reward_fee,
     ));
-    let transfer_amount = balance
-        .amount
-        .checked_sub(protocol_fee_amount)
-        .unwrap_or(Uint128::zero());
+    let transfer_amount = balance.amount.saturating_sub(protocol_fee_amount);
 
     let val_addr = get_validator_for_deposit(
         deps.querier,
@@ -741,8 +722,7 @@ pub fn reinvest(mut deps: DepsMut, info: MessageInfo, env: Env) -> Result<Respon
     state.last_reinvest_time = env.block.time;
     STATE.save(deps.storage, &state)?;
 
-    let mut msgs = vec![];
-    msgs.push(SubMsg::new(WasmMsg::Execute {
+    let mut msgs = vec![SubMsg::new(WasmMsg::Execute {
         contract_addr: config.reward_contract.to_string(),
         msg: to_binary(&RewardExecuteMsg::Transfer {
             reward_amount: transfer_amount,
@@ -751,7 +731,7 @@ pub fn reinvest(mut deps: DepsMut, info: MessageInfo, env: Env) -> Result<Respon
             protocol_fee_contract: config.protocol_fee_contract,
         })?,
         funds: vec![],
-    }));
+    })];
 
     if !transfer_amount.is_zero() {
         msgs.push(SubMsg::new(StakingMsg::Delegate {
@@ -790,7 +770,7 @@ pub fn reimburse_slashing(
     }
 
     VALIDATOR_META.update(deps.storage, &val_addr, |x| -> StdResult<_> {
-        let mut vmeta = x.unwrap_or(VMeta::new());
+        let mut vmeta = x.unwrap_or_else(VMeta::new);
         vmeta.filled = vmeta.filled.checked_add(reimburse_amount).unwrap();
         Ok(vmeta)
     })?;
@@ -963,9 +943,7 @@ pub fn undelegate_stake(
         });
 
         decrease_tracked_stake(&mut deps, &val_addr, amount)?;
-        to_undelegate = to_undelegate
-            .checked_sub(amount)
-            .unwrap_or_else(|_| Uint128::zero());
+        to_undelegate = to_undelegate.saturating_sub(amount);
     }
 
     if !to_undelegate.is_zero() {
@@ -973,10 +951,7 @@ pub fn undelegate_stake(
     }
 
     state.last_undelegation_time = env.block.time;
-    state.total_staked = state
-        .total_staked
-        .checked_sub(undel_amount)
-        .unwrap_or(Uint128::zero());
+    state.total_staked = state.total_staked.saturating_sub(undel_amount);
     STATE.save(deps.storage, &state)?;
 
     // Loads the saved state.
@@ -1037,8 +1012,7 @@ pub fn reconcile_funds(
 
     let unaccounted_funds = contract_balance
         .amount
-        .checked_sub(state.reconciled_funds_to_withdraw)
-        .unwrap_or(Uint128::zero());
+        .saturating_sub(state.reconciled_funds_to_withdraw);
     if unaccounted_funds.is_zero() {
         return Err(ContractError::ZeroAmount {});
     }
@@ -1094,8 +1068,7 @@ pub fn withdraw_funds_to_wallet(
     if !funds_record.user_withdrawal_amount.is_zero() {
         state.reconciled_funds_to_withdraw = state
             .reconciled_funds_to_withdraw
-            .checked_sub(funds_record.user_withdrawal_amount)
-            .unwrap_or(Uint128::zero());
+            .saturating_sub(funds_record.user_withdrawal_amount);
         msgs.push(BankMsg::Send {
             to_address: user_addr.to_string(),
             amount: vec![Coin::new(
@@ -1107,8 +1080,7 @@ pub fn withdraw_funds_to_wallet(
     if !funds_record.protocol_fee.is_zero() {
         state.reconciled_funds_to_withdraw = state
             .reconciled_funds_to_withdraw
-            .checked_sub(funds_record.protocol_fee)
-            .unwrap_or(Uint128::zero());
+            .saturating_sub(funds_record.protocol_fee);
         msgs.push(BankMsg::Send {
             to_address: config.protocol_fee_contract.to_string(),
             amount: vec![Coin::new(
@@ -1157,7 +1129,7 @@ pub fn compute_withdrawable_funds(
 
     let protocol_fee = multiply_u128_with_decimal(claimable_amount, config.protocol_withdraw_fee);
 
-    let user_withdrawal_amount = claimable_amount.checked_sub(protocol_fee).unwrap_or(0_u128);
+    let user_withdrawal_amount = claimable_amount.saturating_sub(protocol_fee);
     Ok(GetFundsClaimRecord {
         user_withdrawal_amount: Uint128::new(user_withdrawal_amount),
         protocol_fee: Uint128::new(protocol_fee),
@@ -1316,7 +1288,7 @@ pub fn query_user_undelegation_records(
         .map(|item| item.unwrap().1)
         .collect::<Vec<UndelegationInfo>>();
 
-    return Ok(user_undelegations);
+    Ok(user_undelegations)
 }
 
 pub fn query_val_meta(deps: Deps, val_addr: Addr) -> StdResult<GetValMetaResponse> {
