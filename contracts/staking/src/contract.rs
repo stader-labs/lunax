@@ -495,10 +495,7 @@ pub fn check_slashing(deps: &mut DepsMut, env: &Env) -> Result<Response, Contrac
             let mut val_meta = x.unwrap_or_else(VMeta::new);
 
             if val_meta.staked.gt(&delegation_amount) {
-                let slashed_amount = val_meta
-                    .staked
-                    .checked_sub(delegation_amount)
-                    .unwrap_or_else(|_| Uint128::zero());
+                let slashed_amount = val_meta.staked.saturating_sub(delegation_amount);
                 val_meta.slashed = val_meta.slashed.checked_add(slashed_amount).unwrap();
             }
             val_meta.staked = delegation_amount;
@@ -599,9 +596,7 @@ pub fn compute_deposit_breakdown(
 
     if !config.protocol_deposit_fee.is_zero() {
         protocol_deposit_fee = config.protocol_deposit_fee.mul(user_amount);
-        amount_to_stake = user_amount
-            .checked_sub(protocol_deposit_fee)
-            .unwrap_or_else(|_| Uint128::zero());
+        amount_to_stake = user_amount.saturating_sub(protocol_deposit_fee);
     }
     let mint_tokens = uint128_from_decimal(decimal_division_in_256(
         get_decimal_from_uint128(amount_to_stake),
@@ -710,10 +705,7 @@ pub fn reinvest(mut deps: DepsMut, info: MessageInfo, env: Env) -> Result<Respon
         get_decimal_from_uint128(balance.amount),
         config.protocol_reward_fee,
     ));
-    let transfer_amount = balance
-        .amount
-        .checked_sub(protocol_fee_amount)
-        .unwrap_or_else(|_| Uint128::zero());
+    let transfer_amount = balance.amount.saturating_sub(protocol_fee_amount);
 
     let val_addr = get_validator_for_deposit(
         deps.querier,
@@ -951,9 +943,7 @@ pub fn undelegate_stake(
         });
 
         decrease_tracked_stake(&mut deps, &val_addr, amount)?;
-        to_undelegate = to_undelegate
-            .checked_sub(amount)
-            .unwrap_or_else(|_| Uint128::zero());
+        to_undelegate = to_undelegate.saturating_sub(amount);
     }
 
     if !to_undelegate.is_zero() {
@@ -961,10 +951,7 @@ pub fn undelegate_stake(
     }
 
     state.last_undelegation_time = env.block.time;
-    state.total_staked = state
-        .total_staked
-        .checked_sub(undel_amount)
-        .unwrap_or_else(|_| Uint128::zero());
+    state.total_staked = state.total_staked.saturating_sub(undel_amount);
     STATE.save(deps.storage, &state)?;
 
     // Loads the saved state.
@@ -1025,8 +1012,7 @@ pub fn reconcile_funds(
 
     let unaccounted_funds = contract_balance
         .amount
-        .checked_sub(state.reconciled_funds_to_withdraw)
-        .unwrap_or_else(|_| Uint128::zero());
+        .saturating_sub(state.reconciled_funds_to_withdraw);
     if unaccounted_funds.is_zero() {
         return Err(ContractError::ZeroAmount {});
     }
@@ -1082,8 +1068,7 @@ pub fn withdraw_funds_to_wallet(
     if !funds_record.user_withdrawal_amount.is_zero() {
         state.reconciled_funds_to_withdraw = state
             .reconciled_funds_to_withdraw
-            .checked_sub(funds_record.user_withdrawal_amount)
-            .unwrap_or_else(|_| Uint128::zero());
+            .saturating_sub(funds_record.user_withdrawal_amount);
         msgs.push(BankMsg::Send {
             to_address: user_addr.to_string(),
             amount: vec![Coin::new(
@@ -1095,8 +1080,7 @@ pub fn withdraw_funds_to_wallet(
     if !funds_record.protocol_fee.is_zero() {
         state.reconciled_funds_to_withdraw = state
             .reconciled_funds_to_withdraw
-            .checked_sub(funds_record.protocol_fee)
-            .unwrap_or_else(|_| Uint128::zero());
+            .saturating_sub(funds_record.protocol_fee);
         msgs.push(BankMsg::Send {
             to_address: config.protocol_fee_contract.to_string(),
             amount: vec![Coin::new(

@@ -171,10 +171,7 @@ pub fn decrease_tracked_stake(
 ) -> Result<(), ContractError> {
     VALIDATOR_META.update(deps.storage, val_addr, |x| -> StdResult<_> {
         let mut vmeta = x.unwrap_or_else(VMeta::new);
-        vmeta.staked = vmeta
-            .staked
-            .checked_sub(amount)
-            .unwrap_or_else(|_| Uint128::zero());
+        vmeta.staked = vmeta.staked.saturating_sub(amount);
         Ok(vmeta)
     })?;
     Ok(())
