@@ -9,7 +9,6 @@ use airdrops_registry::msg::{GetAirdropContractsResponse, QueryMsg as AirdropsQu
 use airdrops_registry::state::AirdropRegistryInfo;
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage};
 use cw20::{BalanceResponse, TokenInfoResponse};
-use reward::msg::QueryMsg as reward_query;
 use stader_utils::coin_utils::{decimal_multiplication_in_256, u128_from_decimal};
 use terra_cosmwasm::{
     SwapResponse, TaxCapResponse, TaxRateResponse, TerraQuery, TerraQueryWrapper, TerraRoute,
@@ -152,7 +151,7 @@ impl WasmMockQuerier {
                 if contract_addr.eq("airdrop_registry_contract") {
                     match from_binary(msg).unwrap() {
                         AirdropsQueryMsg::GetAirdropContracts { token } => {
-                            let mut res: GetAirdropContractsResponse;
+                            let res: GetAirdropContractsResponse;
                             if token.eq(&String::from("unreg_token")) {
                                 res = GetAirdropContractsResponse { contracts: None };
                             } else {
@@ -238,12 +237,6 @@ impl SwapQuerier {
     fn default() -> Self {
         SwapQuerier { swap_rates: vec![] }
     }
-
-    fn new(swap_rates: Option<Vec<SwapRates>>) -> Self {
-        SwapQuerier {
-            swap_rates: swap_rates.unwrap_or_default(),
-        }
-    }
 }
 
 #[derive(Clone, Default)]
@@ -286,10 +279,6 @@ impl WasmMockQuerier {
         user_to_tokens: Option<HashMap<Addr, Uint128>>,
     ) {
         self.stader_querier = StaderQuerier::new(total_reward_tokens, user_to_tokens);
-    }
-
-    pub fn update_swap_rates(&mut self, swap_rates: Option<Vec<SwapRates>>) {
-        self.swap_querier = SwapQuerier::new(swap_rates)
     }
 
     // configure the tax mock querier
