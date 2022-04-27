@@ -25,6 +25,7 @@ use cosmwasm_std::{
     Env, MessageInfo, Order, Response, StakingMsg, StdError, StdResult, Storage, SubMsg, Uint128,
     WasmMsg,
 };
+use cw2::set_contract_version;
 use cw20::Cw20ReceiveMsg;
 use cw20_base::msg::ExecuteMsg as Cw20ExecuteMsg;
 use cw_storage_plus::{Bound, U64Key};
@@ -34,6 +35,9 @@ use stader_utils::coin_utils::{
     multiply_u128_with_decimal, uint128_from_decimal,
 };
 use std::ops::{Deref, Mul};
+
+const CONTRACT_NAME: &str = "staking";
+const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -114,26 +118,13 @@ pub fn instantiate(
         address: config.reward_contract.to_string(),
     }];
 
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
     Ok(Response::new().add_messages(msgs))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
-    OPERATION_CONTROLS.save(
-        deps.storage,
-        &OperationControls {
-            deposit_paused: false,
-            queue_undelegate_paused: false,
-            undelegate_paused: false,
-            withdraw_paused: false,
-            reinvest_paused: false,
-            reconcile_paused: false,
-            claim_airdrops_paused: false,
-            redeem_rewards_paused: false,
-            swap_paused: false,
-            reimburse_slashing_paused: false,
-        },
-    )?;
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     Ok(Response::default())
 }
