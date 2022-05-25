@@ -25,7 +25,6 @@ mod tests {
         WasmMsg,
     };
     use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
-    use cw_storage_plus::U64Key;
     use reward::msg::ExecuteMsg as RewardExecuteMsg;
     use reward::state::{TmpManagerStore, TMP_MANAGER_STORE};
 
@@ -86,7 +85,6 @@ mod tests {
         let msg = InstantiateMsg {
             unbonding_period: 3600 * 24 * 21,
             undelegation_cooldown: 10,
-            swap_cooldown: 10,
             min_deposit: Uint128::new(1000),
             max_deposit: Uint128::new(1_000_000_000_000),
             reward_contract: "reward_contract".to_string(),
@@ -114,7 +112,6 @@ mod tests {
         let msg = InstantiateMsg {
             unbonding_period: 3600 * 24 * 21,
             undelegation_cooldown: 10,
-            swap_cooldown: 10,
             min_deposit: Uint128::new(1000),
             max_deposit: Uint128::new(1_000_000_000_000),
             reward_contract: "reward_contract".to_string(),
@@ -137,7 +134,6 @@ mod tests {
         let msg = InstantiateMsg {
             unbonding_period: 3600 * 24 * 21,
             undelegation_cooldown: 10,
-            swap_cooldown: 10,
             min_deposit: Uint128::new(1000),
             max_deposit: Uint128::new(1_000_000_000_000),
             reward_contract: "reward_contract".to_string(),
@@ -160,7 +156,6 @@ mod tests {
         let msg = InstantiateMsg {
             unbonding_period: 3600 * 24 * 21,
             undelegation_cooldown: 10,
-            swap_cooldown: 10,
             min_deposit: Uint128::new(1000),
             max_deposit: Uint128::new(1_000_000_000_000),
             reward_contract: "reward_contract".to_string(),
@@ -187,7 +182,6 @@ mod tests {
         let msg = InstantiateMsg {
             unbonding_period: 3600 * 24 * 21,
             undelegation_cooldown: 10,
-            swap_cooldown: 10,
             min_deposit: Uint128::new(1000),
             max_deposit: Uint128::new(1_000_000_000_000),
             reward_contract: "reward_contract".to_string(),
@@ -204,7 +198,6 @@ mod tests {
             vault_denom: "uluna".to_string(),
             unbonding_period: 3600 * 24 * 21,
             undelegation_cooldown: 10,
-            swap_cooldown: 10,
             min_deposit: Uint128::new(1000),
             max_deposit: Uint128::new(1_000_000_000_000),
             active: true,
@@ -246,7 +239,6 @@ mod tests {
                     .block
                     .time
                     .minus_seconds(config.config.undelegation_cooldown),
-                last_swap_time: env.block.time.minus_seconds(config.config.swap_cooldown),
                 last_reinvest_time: env
                     .block
                     .time
@@ -580,7 +572,6 @@ mod tests {
                     reinvest_paused: None,
                     reconcile_paused: None,
                     claim_airdrops_paused: None,
-                    swap_paused: None,
                     redeem_rewards_paused: None,
                     reimburse_slashing_paused: None,
                 },
@@ -604,7 +595,6 @@ mod tests {
                     reconcile_paused: false,
                     claim_airdrops_paused: true,
                     redeem_rewards_paused: true,
-                    swap_paused: false,
                     reimburse_slashing_paused: false,
                 },
             )
@@ -622,7 +612,6 @@ mod tests {
                     reinvest_paused: None,
                     reconcile_paused: Some(true),
                     claim_airdrops_paused: Some(false),
-                    swap_paused: Some(false),
                     redeem_rewards_paused: None,
                     reimburse_slashing_paused: Some(true),
                 },
@@ -641,7 +630,6 @@ mod tests {
                 reconcile_paused: true,
                 claim_airdrops_paused: false,
                 redeem_rewards_paused: true,
-                swap_paused: false,
                 reimburse_slashing_paused: true
             }
         );
@@ -829,7 +817,6 @@ mod tests {
                     airdrop_registry_contract: None,
                     unbonding_period: None,
                     undelegation_cooldown: None,
-                    swap_cooldown: None,
                     reinvest_cooldown: None,
                 },
             },
@@ -853,7 +840,6 @@ mod tests {
                     airdrop_registry_contract: None,
                     unbonding_period: None,
                     undelegation_cooldown: None,
-                    swap_cooldown: None,
                     reinvest_cooldown: None,
                 },
             },
@@ -880,7 +866,6 @@ mod tests {
                     airdrop_registry_contract: None,
                     unbonding_period: Some(100u64),
                     undelegation_cooldown: Some(10000u64),
-                    swap_cooldown: Some(123u64),
                     reinvest_cooldown: Some(234u64),
                 },
             },
@@ -906,7 +891,6 @@ mod tests {
                     airdrop_registry_contract: Some("airdrop_registry_contract".to_string()),
                     unbonding_period: Some(100u64),
                     undelegation_cooldown: Some(10000u64),
-                    swap_cooldown: Some(123u64),
                     reinvest_cooldown: Some(234u64),
                 },
             },
@@ -932,7 +916,6 @@ mod tests {
                     airdrop_registry_contract: None,
                     unbonding_period: Some(100u64),
                     undelegation_cooldown: Some(10000u64),
-                    swap_cooldown: Some(123u64),
                     reinvest_cooldown: Some(234u64),
                 },
             },
@@ -958,7 +941,6 @@ mod tests {
                     airdrop_registry_contract: Some("airdrop_registry_contract".to_string()),
                     unbonding_period: Some(100u64),
                     undelegation_cooldown: Some(10000u64),
-                    swap_cooldown: Some(123u64),
                     reinvest_cooldown: Some(234u64),
                 },
             },
@@ -998,7 +980,6 @@ mod tests {
         );
         assert_eq!(config.unbonding_period, 100u64);
         assert_eq!(config.undelegation_cooldown, 10000u64);
-        assert_eq!(config.swap_cooldown, 123u64);
         assert_eq!(config.reinvest_cooldown, 234u64);
     }
 
@@ -1457,105 +1438,6 @@ mod tests {
     }
 
     #[test]
-    fn test_swap_rewards() {
-        let mut deps = mock_dependencies(&[]);
-        let info = mock_info("creator", &[]);
-        let env = mock_env();
-
-        let _res = instantiate_contract(&mut deps, &info, &env);
-
-        OPERATION_CONTROLS
-            .save(
-                deps.as_mut().storage,
-                &OperationControls {
-                    deposit_paused: false,
-                    queue_undelegate_paused: false,
-                    undelegate_paused: false,
-                    withdraw_paused: false,
-                    reinvest_paused: false,
-                    reconcile_paused: false,
-                    claim_airdrops_paused: false,
-                    redeem_rewards_paused: false,
-                    swap_paused: true,
-                    reimburse_slashing_paused: false,
-                },
-            )
-            .unwrap();
-        let err = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info("other", &[Coin::new(10_u128, "uluna".to_string())]),
-            ExecuteMsg::Swap {},
-        )
-        .unwrap_err();
-        assert!(matches!(err, ContractError::OperationPaused(String { .. })));
-
-        OPERATION_CONTROLS
-            .save(
-                deps.as_mut().storage,
-                &OperationControls {
-                    deposit_paused: false,
-                    queue_undelegate_paused: false,
-                    undelegate_paused: false,
-                    withdraw_paused: false,
-                    reinvest_paused: false,
-                    reconcile_paused: false,
-                    claim_airdrops_paused: false,
-                    redeem_rewards_paused: false,
-                    swap_paused: false,
-                    reimburse_slashing_paused: false,
-                },
-            )
-            .unwrap();
-
-        /*
-            Test - 2. In cooldown period
-        */
-        STATE
-            .update(
-                deps.as_mut().storage,
-                |mut state| -> Result<_, ContractError> {
-                    state.last_swap_time = env.block.time.minus_seconds(3);
-                    Ok(state)
-                },
-            )
-            .unwrap();
-        let err = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info("not-creator", &[]),
-            ExecuteMsg::Swap {},
-        )
-        .unwrap_err();
-        assert!(matches!(err, ContractError::SwapInCooldown {}));
-        let state = STATE.load(deps.as_mut().storage).unwrap();
-        assert_eq!(state.last_swap_time, env.block.time.minus_seconds(3));
-
-        /*
-           Test - 2. Success
-        */
-        let res = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info("creator", &[]),
-            ExecuteMsg::Swap {},
-        )
-        .unwrap();
-        let config = CONFIG.load(deps.as_mut().storage).unwrap();
-        assert_eq!(res.messages.len(), 1);
-        assert_eq!(
-            res.messages,
-            vec![SubMsg::new(WasmMsg::Execute {
-                contract_addr: config.reward_contract.to_string(),
-                msg: to_binary(&RewardExecuteMsg::Swap {}).unwrap(),
-                funds: vec![]
-            })]
-        );
-        let state = STATE.load(deps.as_mut().storage).unwrap();
-        assert_eq!(state.last_swap_time, env.block.time);
-    }
-
-    #[test]
     fn test_redeem_rewards() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
@@ -1582,7 +1464,6 @@ mod tests {
                     reconcile_paused: false,
                     claim_airdrops_paused: false,
                     redeem_rewards_paused: true,
-                    swap_paused: false,
                     reimburse_slashing_paused: false,
                 },
             )
@@ -1608,7 +1489,6 @@ mod tests {
                     reconcile_paused: false,
                     claim_airdrops_paused: false,
                     redeem_rewards_paused: false,
-                    swap_paused: false,
                     reimburse_slashing_paused: false,
                 },
             )
@@ -2363,7 +2243,6 @@ mod tests {
                     reconcile_paused: false,
                     claim_airdrops_paused: false,
                     redeem_rewards_paused: false,
-                    swap_paused: false,
                     reimburse_slashing_paused: false,
                 },
             )
@@ -2389,7 +2268,6 @@ mod tests {
                     reconcile_paused: false,
                     claim_airdrops_paused: false,
                     redeem_rewards_paused: false,
-                    swap_paused: false,
                     reimburse_slashing_paused: false,
                 },
             )
@@ -2665,7 +2543,7 @@ mod tests {
         BATCH_UNDELEGATION_REGISTRY
             .save(
                 deps.as_mut().storage,
-                U64Key::new(3),
+                3,
                 &BatchUndelegationRecord {
                     undelegated_tokens: Uint128::new(1000_u128),
                     create_time: Default::default(),
@@ -2690,9 +2568,7 @@ mod tests {
         )
         .unwrap();
         assert!(res.messages.is_empty());
-        let user_undelegation_record = USERS
-            .load(deps.as_mut().storage, (&user1, U64Key::new(3)))
-            .unwrap();
+        let user_undelegation_record = USERS.load(deps.as_mut().storage, (&user1, 3)).unwrap();
         assert_eq!(
             user_undelegation_record,
             UndelegationInfo {
@@ -2701,7 +2577,7 @@ mod tests {
             }
         );
         let batch_undel_record = BATCH_UNDELEGATION_REGISTRY
-            .load(deps.as_mut().storage, U64Key::new(3))
+            .load(deps.as_mut().storage, 3)
             .unwrap();
         assert_eq!(
             batch_undel_record.undelegated_tokens,
@@ -2732,7 +2608,6 @@ mod tests {
                     reconcile_paused: false,
                     claim_airdrops_paused: false,
                     redeem_rewards_paused: false,
-                    swap_paused: false,
                     reimburse_slashing_paused: false,
                 },
             )
@@ -2758,7 +2633,6 @@ mod tests {
                     reconcile_paused: false,
                     claim_airdrops_paused: false,
                     redeem_rewards_paused: false,
-                    swap_paused: false,
                     reimburse_slashing_paused: false,
                 },
             )
@@ -3048,7 +2922,7 @@ mod tests {
         BATCH_UNDELEGATION_REGISTRY
             .save(
                 deps.as_mut().storage,
-                U64Key::new(1),
+                1,
                 &BatchUndelegationRecord {
                     undelegated_tokens: Uint128::new(10000_u128),
                     create_time: Default::default(),
@@ -3072,7 +2946,7 @@ mod tests {
         BATCH_UNDELEGATION_REGISTRY
             .save(
                 deps.as_mut().storage,
-                U64Key::new(1),
+                1,
                 &BatchUndelegationRecord {
                     undelegated_tokens: Uint128::new(10000_u128),
                     create_time: Default::default(),
@@ -3104,7 +2978,7 @@ mod tests {
         BATCH_UNDELEGATION_REGISTRY
             .save(
                 deps.as_mut().storage,
-                U64Key::new(1),
+                1,
                 &BatchUndelegationRecord {
                     undelegated_tokens: Uint128::new(10000_u128),
                     create_time: Default::default(),
@@ -3119,7 +2993,7 @@ mod tests {
         USERS
             .save(
                 deps.as_mut().storage,
-                (&user1, U64Key::new(1)),
+                (&user1, 1),
                 &UndelegationInfo {
                     batch_id: 1,
                     token_amount: Uint128::new(1000_u128),
@@ -3162,7 +3036,6 @@ mod tests {
                     reconcile_paused: false,
                     claim_airdrops_paused: false,
                     redeem_rewards_paused: false,
-                    swap_paused: false,
                     reimburse_slashing_paused: false,
                 },
             )
@@ -3188,7 +3061,6 @@ mod tests {
                     reconcile_paused: false,
                     claim_airdrops_paused: false,
                     redeem_rewards_paused: false,
-                    swap_paused: false,
                     reimburse_slashing_paused: false,
                 },
             )
@@ -3203,7 +3075,7 @@ mod tests {
         BATCH_UNDELEGATION_REGISTRY
             .save(
                 deps.as_mut().storage,
-                U64Key::new(1),
+                1,
                 &BatchUndelegationRecord {
                     undelegated_tokens: Uint128::new(10000_u128),
                     create_time: Default::default(),
@@ -3218,7 +3090,7 @@ mod tests {
         USERS
             .save(
                 deps.as_mut().storage,
-                (&user1, U64Key::new(1)),
+                (&user1, 1),
                 &UndelegationInfo {
                     batch_id: 1,
                     token_amount: Uint128::new(1000_u128),
@@ -3249,9 +3121,7 @@ mod tests {
         );
         let state = STATE.load(deps.as_mut().storage).unwrap();
         assert_eq!(state.reconciled_funds_to_withdraw, Uint128::new(450));
-        let user_undel_info = USERS
-            .may_load(deps.as_mut().storage, (&user1, U64Key::new(1)))
-            .unwrap();
+        let user_undel_info = USERS.may_load(deps.as_mut().storage, (&user1, 1)).unwrap();
         assert_eq!(user_undel_info, None);
     }
 
@@ -3328,7 +3198,6 @@ mod tests {
                     reconcile_paused: false,
                     claim_airdrops_paused: false,
                     redeem_rewards_paused: false,
-                    swap_paused: false,
                     reimburse_slashing_paused: false,
                 },
             )
@@ -3354,7 +3223,6 @@ mod tests {
                     reconcile_paused: false,
                     claim_airdrops_paused: false,
                     redeem_rewards_paused: false,
-                    swap_paused: false,
                     reimburse_slashing_paused: false,
                 },
             )
@@ -3464,7 +3332,7 @@ mod tests {
         BATCH_UNDELEGATION_REGISTRY
             .save(
                 deps.as_mut().storage,
-                U64Key::new(1),
+                1,
                 &BatchUndelegationRecord {
                     undelegated_tokens: Uint128::zero(),
                     create_time: Default::default(),
@@ -3556,7 +3424,7 @@ mod tests {
         BATCH_UNDELEGATION_REGISTRY
             .save(
                 deps.as_mut().storage,
-                U64Key::new(1),
+                1,
                 &BatchUndelegationRecord {
                     undelegated_tokens: Uint128::new(4000_u128),
                     create_time: Default::default(),
@@ -3661,7 +3529,7 @@ mod tests {
         BATCH_UNDELEGATION_REGISTRY
             .save(
                 deps.as_mut().storage,
-                U64Key::new(1),
+                1,
                 &BatchUndelegationRecord {
                     undelegated_tokens: Uint128::new(2000_u128),
                     create_time: env.block.time.minus_seconds(10000),
@@ -3723,7 +3591,7 @@ mod tests {
         );
         let config = CONFIG.load(deps.as_mut().storage).unwrap();
         let undel_batch = BATCH_UNDELEGATION_REGISTRY
-            .load(deps.as_mut().storage, U64Key::new(1))
+            .load(deps.as_mut().storage, 1)
             .unwrap();
         assert_eq!(
             undel_batch,
@@ -3741,7 +3609,7 @@ mod tests {
         assert_eq!(state.total_staked, Uint128::new(1000_u128));
         assert_eq!(state.last_undelegation_time, env.block.time);
         let new_undel_batch = BATCH_UNDELEGATION_REGISTRY
-            .may_load(deps.as_mut().storage, U64Key::new(2))
+            .may_load(deps.as_mut().storage, 2)
             .unwrap();
         assert_ne!(new_undel_batch, None);
     }
@@ -3766,7 +3634,6 @@ mod tests {
                     reconcile_paused: true,
                     claim_airdrops_paused: false,
                     redeem_rewards_paused: false,
-                    swap_paused: false,
                     reimburse_slashing_paused: false,
                 },
             )
@@ -3792,7 +3659,6 @@ mod tests {
                     reconcile_paused: false,
                     claim_airdrops_paused: false,
                     redeem_rewards_paused: false,
-                    swap_paused: false,
                     reimburse_slashing_paused: false,
                 },
             )
@@ -3815,7 +3681,7 @@ mod tests {
         BATCH_UNDELEGATION_REGISTRY
             .save(
                 deps.as_mut().storage,
-                U64Key::new(2),
+                2,
                 &BatchUndelegationRecord {
                     undelegated_tokens: Uint128::new(3000_u128),
                     create_time: env.block.time.minus_seconds(20000),
@@ -3830,7 +3696,7 @@ mod tests {
         BATCH_UNDELEGATION_REGISTRY
             .save(
                 deps.as_mut().storage,
-                U64Key::new(3),
+                3,
                 &BatchUndelegationRecord {
                     undelegated_tokens: Uint128::new(2000_u128),
                     create_time: env.block.time.minus_seconds(10000),
@@ -3856,10 +3722,10 @@ mod tests {
         let state = STATE.load(deps.as_mut().storage).unwrap();
         assert_eq!(state.reconciled_funds_to_withdraw, Uint128::new(6800));
         let batch_2 = BATCH_UNDELEGATION_REGISTRY
-            .load(deps.as_mut().storage, U64Key::new(2))
+            .load(deps.as_mut().storage, 2)
             .unwrap();
         let batch_3 = BATCH_UNDELEGATION_REGISTRY
-            .load(deps.as_mut().storage, U64Key::new(3))
+            .load(deps.as_mut().storage, 3)
             .unwrap();
         assert_eq!(
             batch_2,
@@ -3903,7 +3769,7 @@ mod tests {
         BATCH_UNDELEGATION_REGISTRY
             .save(
                 deps.as_mut().storage,
-                U64Key::new(2),
+                2,
                 &BatchUndelegationRecord {
                     undelegated_tokens: Uint128::new(3000_u128),
                     create_time: env.block.time.minus_seconds(20000),
@@ -3918,7 +3784,7 @@ mod tests {
         BATCH_UNDELEGATION_REGISTRY
             .save(
                 deps.as_mut().storage,
-                U64Key::new(3),
+                3,
                 &BatchUndelegationRecord {
                     undelegated_tokens: Uint128::new(2000_u128),
                     create_time: env.block.time.minus_seconds(10000),
@@ -3944,10 +3810,10 @@ mod tests {
         let state = STATE.load(deps.as_mut().storage).unwrap();
         assert_eq!(state.reconciled_funds_to_withdraw, Uint128::new(6000));
         let batch_2 = BATCH_UNDELEGATION_REGISTRY
-            .load(deps.as_mut().storage, U64Key::new(2))
+            .load(deps.as_mut().storage, 2)
             .unwrap();
         let batch_3 = BATCH_UNDELEGATION_REGISTRY
-            .load(deps.as_mut().storage, U64Key::new(3))
+            .load(deps.as_mut().storage, 3)
             .unwrap();
         assert_eq!(
             batch_2,
@@ -3996,7 +3862,6 @@ mod tests {
                     reconcile_paused: false,
                     claim_airdrops_paused: false,
                     redeem_rewards_paused: false,
-                    swap_paused: false,
                     reimburse_slashing_paused: true,
                 },
             )
@@ -4024,7 +3889,6 @@ mod tests {
                     reconcile_paused: false,
                     claim_airdrops_paused: false,
                     redeem_rewards_paused: false,
-                    swap_paused: false,
                     reimburse_slashing_paused: false,
                 },
             )

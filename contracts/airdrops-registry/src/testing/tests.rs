@@ -24,7 +24,7 @@ mod tests {
 
     #[test]
     fn proper_initialization() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
         let info = mock_info("creator", &[]);
         let env = mock_env();
 
@@ -45,7 +45,7 @@ mod tests {
 
     #[test]
     fn test_update_airdrop_registry() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
         let info = mock_info("creator", &[]);
         let env = mock_env();
 
@@ -112,7 +112,7 @@ mod tests {
 
     #[test]
     fn test_set_manager() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
         let env = mock_env();
         let info = mock_info("creator", &[]);
 
@@ -150,7 +150,7 @@ mod tests {
 
     #[test]
     fn test_accept_manager() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
         let env = mock_env();
         let info = mock_info("creator", &[]);
 

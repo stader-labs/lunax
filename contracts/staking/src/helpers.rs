@@ -11,7 +11,6 @@ use cosmwasm_std::{
     Uint128, WasmMsg,
 };
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, TokenInfoResponse};
-use cw_storage_plus::U64Key;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -135,7 +134,7 @@ pub fn create_new_undelegation_batch(
     let next_undelegation_batch_id = state.current_undelegation_batch_id + 1;
     BATCH_UNDELEGATION_REGISTRY.save(
         storage,
-        U64Key::new(next_undelegation_batch_id),
+        next_undelegation_batch_id,
         &BatchUndelegationRecord {
             undelegated_tokens: Uint128::zero(),
             create_time: env.block.time,

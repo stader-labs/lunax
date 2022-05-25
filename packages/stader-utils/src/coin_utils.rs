@@ -1,4 +1,3 @@
-use cosmwasm_bignumber::Decimal256;
 use cosmwasm_std::{Coin, Decimal, Fraction, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -155,46 +154,37 @@ pub fn merge_coin_vector(coins: &[Coin], coin_vec_op: CoinVecOp) -> Vec<Coin> {
 }
 
 /// return a * b
-pub fn decimal_division_in_256(a: Decimal, b: Decimal) -> Decimal {
-    let a_u256: Decimal256 = a.into();
-    let b_u256: Decimal256 = b.into();
+pub fn decimal_division(a: Decimal, b: Decimal) -> Decimal {
     if b.is_zero() {
-        panic!("decimal_division_in_256: Divide by 0!")
+        panic!("decimal_division: Divide by 0!")
     }
-    let c_u256: Decimal = (a_u256.div(b_u256)).into();
-    c_u256
+    a.div(b)
 }
 
 /// return a * b
-pub fn decimal_multiplication_in_256(a: Decimal, b: Decimal) -> Decimal {
-    let a_u256: Decimal256 = a.into();
-    let b_u256: Decimal256 = b.into();
-    let c_u256: Decimal = (b_u256.mul(a_u256)).into();
-    c_u256
+pub fn decimal_multiplication(a: Decimal, b: Decimal) -> Decimal {
+    b.mul(a)
 }
 
 /// return a + b
-pub fn decimal_summation_in_256(a: Decimal, b: Decimal) -> Decimal {
-    let a_u256: Decimal256 = a.into();
-    let b_u256: Decimal256 = b.into();
-    let c_u256: Decimal = (b_u256.add(a_u256)).into();
-    c_u256
+pub fn decimal_summation(a: Decimal, b: Decimal) -> Decimal {
+    b.add(a)
 }
 
 /// return a - b
-pub fn decimal_subtraction_in_256(a: Decimal, b: Decimal) -> Decimal {
-    let a_u256: Decimal256 = a.into();
-    let b_u256: Decimal256 = b.into();
-    if b_u256.gt(&a_u256) {
+pub fn decimal_subtraction(a: Decimal, b: Decimal) -> Decimal {
+    if b.gt(&a) {
         return Decimal::zero();
     }
 
-    let c_u256: Decimal = (a_u256.sub(b_u256)).into();
-    c_u256
+    a.sub(b)
 }
 
 pub fn u128_from_decimal(a: Decimal) -> u128 {
-    a.numerator().checked_div(a.denominator()).unwrap()
+    a.numerator()
+        .u128()
+        .checked_div(a.denominator().u128())
+        .unwrap()
 }
 
 pub fn uint128_from_decimal(a: Decimal) -> Uint128 {
@@ -210,7 +200,7 @@ pub fn merge_decimal(decimal1: Decimal, decimal_op: DecimalOp) -> Decimal {
     let operation = decimal_op.operation;
 
     match operation {
-        Operation::Add => decimal_summation_in_256(decimal1, fund),
+        Operation::Add => decimal_summation(decimal1, fund),
         Operation::Sub => {
             if decimal1 < fund {
                 panic!(
@@ -218,7 +208,7 @@ pub fn merge_decimal(decimal1: Decimal, decimal_op: DecimalOp) -> Decimal {
                     decimal1, fund
                 )
             }
-            decimal_subtraction_in_256(decimal1, fund)
+            decimal_subtraction(decimal1, fund)
         }
         Operation::Replace => fund, // _ => panic!("Unknown operation type {:?}", operation)
     }
@@ -307,7 +297,7 @@ pub fn add_deccoin_vector_to_map(
             let existing_decimal = existing_deccoins.get(&dec_coin.denom).unwrap();
             accumulated_coins.insert(
                 dec_coin.denom.clone(),
-                decimal_summation_in_256(dec_coin.amount, *existing_decimal),
+                decimal_summation(dec_coin.amount, *existing_decimal),
             );
         } else {
             accumulated_coins.insert(dec_coin.denom.clone(), dec_coin.amount);
@@ -343,7 +333,7 @@ pub fn subtract_deccoin_vector_from_map(
 
             dissipated_coins.insert(
                 dec_coin.denom.clone(),
-                decimal_subtraction_in_256(*existing_decimal, dec_coin.amount),
+                decimal_subtraction(*existing_decimal, dec_coin.amount),
             );
         } else {
             panic!(
@@ -398,7 +388,7 @@ fn subtract_deccoin_vectors(deccoin1: &[DecCoin], deccoin2: &[DecCoin]) -> Vec<D
 pub fn multiply_deccoin_vector_with_decimal(coins: &[DecCoin], ratio: Decimal) -> Vec<DecCoin> {
     let mut result: Vec<DecCoin> = vec![];
     for deccoin in coins {
-        let decimal = decimal_multiplication_in_256(deccoin.amount, ratio);
+        let decimal = decimal_multiplication(deccoin.amount, ratio);
         result.push(DecCoin {
             denom: deccoin.denom.clone(),
             amount: decimal,
@@ -416,10 +406,8 @@ pub fn multiply_deccoin_vector_with_uint128(deccoins: &[DecCoin], amount: Uint12
         if deccoin.amount.is_zero() {
             continue;
         }
-        let decimal = decimal_multiplication_in_256(
-            deccoin.amount,
-            Decimal::from_ratio(amount.u128(), 1_u128),
-        );
+        let decimal =
+            decimal_multiplication(deccoin.amount, Decimal::from_ratio(amount.u128(), 1_u128));
         result.push(DecCoin {
             denom: deccoin.denom.clone(),
             amount: decimal,
@@ -430,15 +418,19 @@ pub fn multiply_deccoin_vector_with_uint128(deccoins: &[DecCoin], amount: Uint12
 
 pub fn multiply_coin_with_decimal(coin: &Coin, ratio: Decimal) -> Coin {
     Coin::new(
-        (coin.amount.u128().checked_mul(ratio.numerator()).unwrap())
-            .checked_div(ratio.denominator())
-            .unwrap(),
+        (coin
+            .amount
+            .u128()
+            .checked_mul(ratio.numerator().u128())
+            .unwrap())
+        .checked_div(ratio.denominator().u128())
+        .unwrap(),
         coin.denom.clone(),
     )
 }
 pub fn multiply_u128_with_decimal(num: u128, dec: Decimal) -> u128 {
-    (num.checked_mul(dec.numerator()).unwrap())
-        .checked_div(dec.denominator())
+    (num.checked_mul(dec.numerator().u128()).unwrap())
+        .checked_div(dec.denominator().u128())
         .unwrap()
 }
 
@@ -454,7 +446,8 @@ pub fn deccoin_to_coin(deccoin: DecCoin) -> Coin {
         deccoin
             .amount
             .numerator()
-            .checked_div(deccoin.amount.denominator())
+            .u128()
+            .checked_div(deccoin.amount.denominator().u128())
             .unwrap(),
         deccoin.denom,
     )
@@ -478,11 +471,11 @@ pub fn deccoin_vec_to_coin_vec(deccoins: &[DecCoin]) -> Vec<Coin> {
 mod tests {
     use crate::coin_utils::{
         add_coin_vector_to_map, add_deccoin_vector_to_map, check_equal_coin_vector,
-        check_equal_deccoin_vector, decimal_division_in_256, decimal_multiplication_in_256,
-        decimal_subtraction_in_256, decimal_summation_in_256, map_to_coin_vec, map_to_deccoin_vec,
-        merge_coin, merge_coin_vector, merge_dec_coin_vector, merge_decimal,
-        subtract_coin_vector_from_map, subtract_deccoin_vector_from_map, CoinOp, CoinVecOp,
-        DecCoin, DecCoinVecOp, DecimalOp, Operation,
+        check_equal_deccoin_vector, decimal_division, decimal_multiplication, decimal_subtraction,
+        decimal_summation, map_to_coin_vec, map_to_deccoin_vec, merge_coin, merge_coin_vector,
+        merge_dec_coin_vector, merge_decimal, subtract_coin_vector_from_map,
+        subtract_deccoin_vector_from_map, CoinOp, CoinVecOp, DecCoin, DecCoinVecOp, DecimalOp,
+        Operation,
     };
     use cosmwasm_std::{Coin, Decimal, Fraction, Uint128};
     use std::borrow::Borrow;
@@ -793,7 +786,7 @@ mod tests {
         let a = Decimal::from_ratio(5_u128, 1_u128);
         let b = Decimal::from_ratio(10_u128, 1_u128);
 
-        let res = decimal_summation_in_256(a, b);
+        let res = decimal_summation(a, b);
 
         assert_eq!(res, Decimal::from_ratio(15_u128, 1_u128))
     }
@@ -803,7 +796,7 @@ mod tests {
         let a = Decimal::from_ratio(5_u128, 1_u128);
         let b = Decimal::from_ratio(10_u128, 1_u128);
 
-        let res = decimal_subtraction_in_256(a, b);
+        let res = decimal_subtraction(a, b);
         assert_eq!(res, Decimal::zero());
     }
 
@@ -812,7 +805,7 @@ mod tests {
         let a = Decimal::from_ratio(5_u128, 1_u128);
         let b = Decimal::from_ratio(10_u128, 1_u128);
 
-        let res = decimal_subtraction_in_256(b, a);
+        let res = decimal_subtraction(b, a);
 
         assert_eq!(res, Decimal::from_ratio(5_u128, 1_u128))
     }
@@ -822,7 +815,7 @@ mod tests {
         let a = Decimal::from_ratio(5_u128, 1_u128);
         let b = Decimal::from_ratio(10_u128, 1_u128);
 
-        let res = decimal_multiplication_in_256(b, a);
+        let res = decimal_multiplication(b, a);
 
         assert_eq!(res, Decimal::from_ratio(50_u128, 1_u128))
     }
@@ -833,7 +826,7 @@ mod tests {
         let a = Decimal::from_ratio(5_u128, 1_u128);
         let b = Decimal::zero();
 
-        decimal_division_in_256(a, b);
+        decimal_division(a, b);
     }
 
     #[test]
@@ -841,7 +834,7 @@ mod tests {
         let a = Decimal::from_ratio(50_u128, 1_u128);
         let b = Decimal::from_ratio(10_u128, 1_u128);
 
-        let res = decimal_division_in_256(a, b);
+        let res = decimal_division(a, b);
 
         assert_eq!(res, Decimal::from_ratio(5_u128, 1_u128));
     }
