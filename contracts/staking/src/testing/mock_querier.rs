@@ -2,12 +2,11 @@ use airdrops_registry::msg::{GetAirdropContractsResponse, QueryMsg as AirdropsQu
 use airdrops_registry::state::AirdropRegistryInfo;
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage};
 use cosmwasm_std::{
-    from_binary, from_slice, to_binary, Addr, Binary, Coin, ContractResult, Decimal, Empty,
-    FullDelegation, OwnedDeps, Querier, QuerierResult, QueryRequest, SystemError, SystemResult,
-    Uint128, Validator, WasmQuery,
+    from_binary, from_slice, to_binary, Addr, Binary, Coin, ContractResult, Empty, FullDelegation,
+    OwnedDeps, Querier, QuerierResult, QueryRequest, SystemError, SystemResult, Uint128, Validator,
+    WasmQuery,
 };
 use cw20::{BalanceResponse, TokenInfoResponse};
-use stader_utils::coin_utils::{decimal_multiplication, u128_from_decimal};
 use std::collections::HashMap;
 pub const MOCK_CONTRACT_ADDR: &str = "cosmos2contract";
 

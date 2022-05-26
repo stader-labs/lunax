@@ -20,9 +20,9 @@ mod tests {
     use crate::testing::test_helpers::check_equal_vec;
     use cosmwasm_std::testing::{mock_env, mock_info, MockApi, MockStorage, MOCK_CONTRACT_ADDR};
     use cosmwasm_std::{
-        attr, from_binary, to_binary, Addr, Attribute, BankMsg, Coin, Decimal, Delegation,
+        from_binary, to_binary, Addr, Attribute, BankMsg, Coin, Decimal, Delegation,
         DistributionMsg, Env, FullDelegation, MessageInfo, OwnedDeps, StakingMsg, StdResult,
-        SubMsg, Timestamp, Uint128, Validator, WasmMsg,
+        SubMsg, Uint128, Validator, WasmMsg,
     };
     use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
     use reward::msg::ExecuteMsg as RewardExecuteMsg;

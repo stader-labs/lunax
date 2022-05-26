@@ -472,7 +472,7 @@ pub fn rebalance_pool(
 
 pub fn check_slashing(
     deps: &mut DepsMut,
-    env: &Env,
+    _env: &Env,
     delegations: &[Delegation],
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
@@ -482,8 +482,8 @@ pub fn check_slashing(
     for val_addr in state.validators.iter() {
         let val_delegation = delegations.iter().find(|x| x.validator.eq(val_addr));
         let mut delegation_amount = Uint128::zero();
-        if val_delegation.is_some() {
-            delegation_amount = val_delegation.unwrap().amount.amount;
+        if let Some(vd) = val_delegation {
+            delegation_amount = vd.amount.amount;
         }
 
         total_staked_on_chain = total_staked_on_chain
