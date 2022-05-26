@@ -30,7 +30,6 @@ cw20 = "0.13.2"
 cw2 = "0.13.2"
 serde = { version = "1.0.125", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.24" }
-cosmwasm-bignumber = "2.2.0"
 stader-utils = { path = "./../../packages/stader-utils", version = "0.1.0"}
 
 [dev-dependencies]
