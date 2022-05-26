@@ -7,8 +7,8 @@ use crate::ContractError;
 use airdrops_registry::msg::GetAirdropContractsResponse;
 use airdrops_registry::msg::QueryMsg as AirdropsQueryMsg;
 use cosmwasm_std::{
-    to_binary, Addr, Decimal, DepsMut, Env, MessageInfo, QuerierWrapper, StdResult, Storage,
-    Uint128, WasmMsg,
+    to_binary, Addr, Decimal, Delegation, DepsMut, Env, MessageInfo, QuerierWrapper, StdResult,
+    Storage, Uint128, WasmMsg,
 };
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, TokenInfoResponse};
 use schemars::JsonSchema;
@@ -66,19 +66,23 @@ pub fn get_validator_for_deposit(
     querier: QuerierWrapper,
     validator_contract: Addr,
     validators: Vec<Addr>,
+    all_delegations: &[Delegation],
 ) -> Result<Addr, ContractError> {
     if validators.is_empty() {
         return Err(ContractError::NoValidatorsInPool {});
     }
+    let all_terra_validators = querier.query_all_validators()?;
 
     let mut stake_tuples = vec![];
     for val_addr in validators {
-        if querier.query_validator(val_addr.clone())?.is_none() {
-            // Don't deposit to a jailed validator
+        let validator = all_terra_validators
+            .iter()
+            .find(|x| x.address.eq(&val_addr));
+        if validator.is_none() {
             continue;
         }
-        let delegation_opt =
-            querier.query_delegation(validator_contract.clone(), val_addr.clone())?;
+
+        let delegation_opt = all_delegations.iter().find(|x| x.validator.eq(&val_addr));
 
         if delegation_opt.is_none() {
             // No delegation. So use the validator
@@ -101,18 +105,22 @@ pub fn get_active_validators_sorted_by_stake(
     querier: QuerierWrapper,
     validator_contract: Addr,
     validators: Vec<Addr>,
+    all_delegations: &[Delegation],
 ) -> Result<Vec<(Uint128, String)>, ContractError> {
     if validators.is_empty() {
         return Err(ContractError::NoValidatorsInPool {});
     }
+    let all_validators = querier.query_all_validators()?;
+    let all_delegations = querier.query_all_delegations(validator_contract)?;
+
     let mut stake_tuples = vec![];
     for val_addr in validators {
-        if querier.query_validator(val_addr.clone())?.is_none() {
-            // Don't deposit to a jailed validator
+        let validator = all_validators.iter().find(|x| x.address.eq(&val_addr));
+        if validator.is_none() {
             continue;
         }
-        let delegation_opt =
-            querier.query_delegation(validator_contract.clone(), val_addr.clone())?;
+        let delegation_opt = all_delegations.iter().find(|x| x.validator.eq(&val_addr));
+
         if let Some(full_delegation) = delegation_opt {
             stake_tuples.push((full_delegation.amount.amount, val_addr.to_string()))
         } else {

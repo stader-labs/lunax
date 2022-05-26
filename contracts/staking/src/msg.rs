@@ -57,7 +57,9 @@ pub enum ExecuteMsg {
         redel_addr: Addr,
     },
     Deposit {},
-    RedeemRewards {},
+    RedeemRewards {
+        validators: Option<Vec<Addr>>,
+    },
     ReimburseSlashing {
         val_addr: Addr,
     },
