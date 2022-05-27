@@ -1586,14 +1586,6 @@ mod tests {
             ExecuteMsg::RedeemRewards { validators: None },
         )
         .unwrap();
-        assert_eq!(res.attributes.len(), 1);
-        assert_eq!(
-            res.attributes,
-            vec![Attribute {
-                key: "failed_validators".to_string(),
-                value: "".to_string()
-            }]
-        );
         assert_eq!(res.messages.len(), 3);
         assert!(check_equal_vec(
             res.messages,

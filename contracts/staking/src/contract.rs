@@ -21,9 +21,9 @@ use airdrops_registry::msg::GetAirdropContractsResponse;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    from_binary, to_binary, Addr, BankMsg, Binary, Coin, Decimal, Delegation, Deps, DepsMut,
-    DistributionMsg, Env, MessageInfo, Order, Response, StakingMsg, StdError, StdResult, Storage,
-    SubMsg, Uint128, WasmMsg,
+    from_binary, to_binary, Addr, Attribute, BankMsg, Binary, Coin, Decimal, Delegation, Deps,
+    DepsMut, DistributionMsg, Env, MessageInfo, Order, Response, StakingMsg, StdError, StdResult,
+    Storage, SubMsg, Uint128, WasmMsg,
 };
 use cw2::set_contract_version;
 use cw20::Cw20ReceiveMsg;
@@ -634,6 +634,7 @@ pub fn redeem_rewards(
         return Err(ContractError::OperationPaused("redeem_rewards".to_string()));
     }
 
+    let mut attrs = vec![];
     let mut messages = vec![];
     let mut failed_vals: Vec<String> = vec![];
     for val_addr in validators {
@@ -651,9 +652,14 @@ pub fn redeem_rewards(
         });
     }
 
-    Ok(Response::new()
-        .add_messages(messages)
-        .add_attribute("failed_validators", failed_vals.join(",")))
+    if !failed_vals.is_empty() {
+        attrs = vec![Attribute {
+            key: "failed_validators".to_string(),
+            value: failed_vals.join(","),
+        }];
+    }
+
+    Ok(Response::new().add_messages(messages).add_attributes(attrs))
 }
 
 pub fn reinvest(mut deps: DepsMut, info: MessageInfo, env: Env) -> Result<Response, ContractError> {
