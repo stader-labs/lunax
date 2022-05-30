@@ -621,61 +621,61 @@ mod tests {
         let mut total_rewards: HashMap<String, Decimal> = HashMap::new();
         total_rewards = add_deccoin_vector_to_map(&mut total_rewards, &vec1);
         assert_eq!(
-            total_rewards.get("token1").unwrap().numerator(),
+            total_rewards.get("token1").unwrap().numerator().u128(),
             173913043478260869_u128
         );
         assert_eq!(
-            total_rewards.get("token1").unwrap().denominator(),
+            total_rewards.get("token1").unwrap().denominator().u128(),
             1_000_000_000_000_000_000_u128
         );
         assert_eq!(
-            total_rewards.get("token2").unwrap().numerator(),
+            total_rewards.get("token2").unwrap().numerator().u128(),
             521739130434782608_u128
         );
         assert_eq!(
-            total_rewards.get("token2").unwrap().denominator(),
+            total_rewards.get("token2").unwrap().denominator().u128(),
             1_000_000_000_000_000_000_u128
         );
         assert_eq!(
-            total_rewards.get("token3").unwrap().numerator(),
+            total_rewards.get("token3").unwrap().numerator().u128(),
             608695652173913043_u128
         );
         assert_eq!(
-            total_rewards.get("token3").unwrap().denominator(),
+            total_rewards.get("token3").unwrap().denominator().u128(),
             1_000_000_000_000_000_000_u128
         );
 
         total_rewards = add_deccoin_vector_to_map(&mut total_rewards, &vec2);
         assert_eq!(
-            total_rewards.get("token1").unwrap().numerator(),
+            total_rewards.get("token1").unwrap().numerator().u128(),
             999999999999999999_u128
         );
         assert_eq!(
-            total_rewards.get("token1").unwrap().denominator(),
+            total_rewards.get("token1").unwrap().denominator().u128(),
             1_000_000_000_000_000_000_u128
         );
         assert_eq!(
-            total_rewards.get("token2").unwrap().numerator(),
+            total_rewards.get("token2").unwrap().numerator().u128(),
             521739130434782608_u128
         );
         assert_eq!(
-            total_rewards.get("token2").unwrap().denominator(),
+            total_rewards.get("token2").unwrap().denominator().u128(),
             1_000_000_000_000_000_000_u128
         );
         assert_eq!(
-            total_rewards.get("token3").unwrap().numerator(),
+            total_rewards.get("token3").unwrap().numerator().u128(),
             608695652173913043_u128
         );
         assert_eq!(
-            total_rewards.get("token3").unwrap().denominator(),
+            total_rewards.get("token3").unwrap().denominator().u128(),
             1_000_000_000_000_000_000_u128
         );
         assert_eq!(
-            total_rewards.get("token4").unwrap().numerator(),
+            total_rewards.get("token4").unwrap().numerator().u128(),
             173913043478260869_u128
         );
         assert_eq!(
-            total_rewards.get("token4").unwrap().denominator(),
+            total_rewards.get("token4").unwrap().denominator().u128(),
             1_000_000_000_000_000_000_u128
         );
     }
@@ -717,66 +717,69 @@ mod tests {
         let mut total_rewards: HashMap<String, Decimal> = HashMap::new();
         total_rewards = add_deccoin_vector_to_map(&mut total_rewards, &vec1);
         assert_eq!(
-            total_rewards.get("token1").unwrap().numerator(),
+            total_rewards.get("token1").unwrap().numerator().u128(),
             173913043478260869_u128
         );
         assert_eq!(
-            total_rewards.get("token1").unwrap().denominator(),
+            total_rewards.get("token1").unwrap().denominator().u128(),
             1_000_000_000_000_000_000_u128
         );
         assert_eq!(
-            total_rewards.get("token2").unwrap().numerator(),
+            total_rewards.get("token2").unwrap().numerator().u128(),
             521739130434782608_u128
         );
         assert_eq!(
-            total_rewards.get("token2").unwrap().denominator(),
+            total_rewards.get("token2").unwrap().denominator().u128(),
             1_000_000_000_000_000_000_u128
         );
         assert_eq!(
-            total_rewards.get("token3").unwrap().numerator(),
+            total_rewards.get("token3").unwrap().numerator().u128(),
             608695652173913043_u128
         );
         assert_eq!(
-            total_rewards.get("token3").unwrap().denominator(),
+            total_rewards.get("token3").unwrap().denominator().u128(),
             1_000_000_000_000_000_000_u128
         );
         assert_eq!(
-            total_rewards.get("token4").unwrap().numerator(),
+            total_rewards.get("token4").unwrap().numerator().u128(),
             173913043478260869_u128
         );
         assert_eq!(
-            total_rewards.get("token4").unwrap().denominator(),
+            total_rewards.get("token4").unwrap().denominator().u128(),
             1_000_000_000_000_000_000_u128
         );
 
         total_rewards = subtract_deccoin_vector_from_map(&mut total_rewards, &vec2);
-        assert_eq!(total_rewards.get("token1").unwrap().numerator(), 0_u128);
         assert_eq!(
-            total_rewards.get("token1").unwrap().denominator(),
+            total_rewards.get("token1").unwrap().numerator().u128(),
+            0_u128
+        );
+        assert_eq!(
+            total_rewards.get("token1").unwrap().denominator().u128(),
             1_000_000_000_000_000_000_u128
         );
         assert_eq!(
-            total_rewards.get("token2").unwrap().numerator(),
+            total_rewards.get("token2").unwrap().numerator().u128(),
             86_956_521_739_130_435_u128
         );
         assert_eq!(
-            total_rewards.get("token2").unwrap().denominator(),
+            total_rewards.get("token2").unwrap().denominator().u128(),
             1_000_000_000_000_000_000_u128
         );
         assert_eq!(
-            total_rewards.get("token3").unwrap().numerator(),
+            total_rewards.get("token3").unwrap().numerator().u128(),
             608695652173913043_u128
         );
         assert_eq!(
-            total_rewards.get("token3").unwrap().denominator(),
+            total_rewards.get("token3").unwrap().denominator().u128(),
             1_000_000_000_000_000_000_u128
         );
         assert_eq!(
-            total_rewards.get("token4").unwrap().numerator(),
+            total_rewards.get("token4").unwrap().numerator().u128(),
             173913043478260869_u128
         );
         assert_eq!(
-            total_rewards.get("token4").unwrap().denominator(),
+            total_rewards.get("token4").unwrap().denominator().u128(),
             1_000_000_000_000_000_000_u128
         );
     }
