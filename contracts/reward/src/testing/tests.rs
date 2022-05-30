@@ -10,14 +10,13 @@ mod tests {
     use cosmwasm_std::{
         from_binary, Addr, BankMsg, Coin, Env, MessageInfo, OwnedDeps, Response, SubMsg, Uint128,
     };
-    use terra_cosmwasm::TerraMsgWrapper;
 
     pub fn instantiate_contract(
         deps: &mut OwnedDeps<MockStorage, MockApi, MockQuerier>,
         info: &MessageInfo,
         env: &Env,
         _vault_denom: Option<String>,
-    ) -> Response<TerraMsgWrapper> {
+    ) -> Response {
         let instantiate_msg = InstantiateMsg {
             staking_contract: "pools_addr".to_string(),
         };
