@@ -10,7 +10,6 @@ pub struct Config {
     pub vault_denom: String, // Will be the same as reward denom in reward contract
     pub min_deposit: Uint128,
     pub max_deposit: Uint128,
-    pub active: bool,
 
     pub reward_contract: Addr,             // Non-changeable
     pub cw20_token_contract: Addr,         // Changeable once

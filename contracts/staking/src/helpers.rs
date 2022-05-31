@@ -64,7 +64,6 @@ pub fn validate(
 // Take in validator staked amounts into pool if the pool size is bigger.
 pub fn get_validator_for_deposit(
     querier: QuerierWrapper,
-    _validator_contract: Addr,
     validators: Vec<Addr>,
     all_delegations: &[Delegation],
 ) -> Result<Addr, ContractError> {
@@ -103,7 +102,6 @@ pub fn get_validator_for_deposit(
 // Take in validator staked amounts into pool if the pool size is bigger.
 pub fn get_active_validators_sorted_by_stake(
     querier: QuerierWrapper,
-    _validator_contract: Addr,
     validators: Vec<Addr>,
     all_delegations: &[Delegation],
 ) -> Result<Vec<(Uint128, String)>, ContractError> {

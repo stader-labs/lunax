@@ -200,7 +200,6 @@ mod tests {
             undelegation_cooldown: 10,
             min_deposit: Uint128::new(1000),
             max_deposit: Uint128::new(1_000_000_000_000),
-            active: true,
             reward_contract: Addr::unchecked("reward_contract"),
             cw20_token_contract: Addr::unchecked("0"),
             airdrop_registry_contract: Addr::unchecked("airdrop_registry_contract"),
@@ -266,7 +265,6 @@ mod tests {
         */
         let err = get_active_validators_sorted_by_stake(
             deps.as_mut().querier,
-            env.contract.address.clone(),
             vec![],
             convert_to_delegation(get_delegations()).as_slice(),
         )
@@ -279,7 +277,6 @@ mod tests {
         deps.querier.update_staking("uluna", &[], &[]);
         let err = get_active_validators_sorted_by_stake(
             deps.as_mut().querier,
-            env.contract.address.clone(),
             vec![valid1.clone(), valid2.clone(), valid3.clone()],
             convert_to_delegation(get_delegations()).as_slice(),
         )
@@ -343,7 +340,6 @@ mod tests {
         );
         let res = get_active_validators_sorted_by_stake(
             deps.as_mut().querier,
-            env.contract.address.clone(),
             vec![valid1.clone(), valid2.clone(), valid3.clone()],
             convert_to_delegation(get_delegations_test_3()).as_slice(),
         )
@@ -375,7 +371,6 @@ mod tests {
         */
         let err = get_validator_for_deposit(
             deps.as_mut().querier,
-            env.contract.address.clone(),
             vec![],
             convert_to_delegation(get_delegations()).as_slice(),
         )
@@ -432,7 +427,6 @@ mod tests {
         );
         let res = get_validator_for_deposit(
             deps.as_mut().querier,
-            env.contract.address.clone(),
             vec![valid1.clone(), valid2.clone(), valid3.clone()],
             convert_to_delegation(get_delegations_test_1()).as_slice(),
         )
@@ -496,7 +490,6 @@ mod tests {
         );
         let res = get_validator_for_deposit(
             deps.as_mut().querier,
-            env.contract.address.clone(),
             vec![valid1.clone(), valid2.clone(), valid3.clone()],
             convert_to_delegation(get_delegations_test_2()).as_slice(),
         )
@@ -956,7 +949,6 @@ mod tests {
         )
         .unwrap();
         let config = CONFIG.load(deps.as_mut().storage).unwrap();
-        assert!(config.active);
         assert_eq!(config.min_deposit, Uint128::new(1_u128));
         assert_eq!(config.max_deposit, Uint128::new(10000000_u128));
         assert_eq!(

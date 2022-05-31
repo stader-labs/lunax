@@ -58,7 +58,6 @@ pub fn instantiate(
         vault_denom: "uluna".to_string(),
         min_deposit: msg.min_deposit,
         max_deposit: msg.max_deposit,
-        active: true,
 
         airdrop_registry_contract: deps
             .api
@@ -555,7 +554,6 @@ pub fn deposit(mut deps: DepsMut, info: MessageInfo, env: Env) -> Result<Respons
     if !deposit_breakdown.staked_amount.is_zero() {
         let val_addr = get_validator_for_deposit(
             deps.querier,
-            env.contract.address,
             state.validators.clone(),
             all_delegations.as_slice(),
         )?;
@@ -698,7 +696,6 @@ pub fn reinvest(mut deps: DepsMut, info: MessageInfo, env: Env) -> Result<Respon
 
     let val_addr = get_validator_for_deposit(
         deps.querier,
-        env.contract.address.clone(),
         state.validators.clone(),
         all_delegations.as_slice(),
     )?;
@@ -928,7 +925,6 @@ pub fn undelegate_stake(
     let mut to_undelegate = undel_amount;
     let stake_tuples = get_active_validators_sorted_by_stake(
         deps.querier,
-        env.contract.address.clone(),
         validators,
         all_delegations.as_slice(),
     )?;
