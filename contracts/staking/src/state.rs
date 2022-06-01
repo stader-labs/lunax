@@ -127,7 +127,6 @@ pub struct OperationControlsUpdateRequest {
     pub(crate) reconcile_paused: Option<bool>,
     pub(crate) claim_airdrops_paused: Option<bool>,
     pub(crate) redeem_rewards_paused: Option<bool>,
-    pub(crate) reimburse_slashing_paused: Option<bool>,
 }
 
 pub const CONFIG: Item<Config> = Item::new("config");

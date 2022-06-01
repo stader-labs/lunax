@@ -120,6 +120,17 @@ pub fn instantiate(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+    
+    OPERATION_CONTROLS.save(deps.storage, &OperationControls {
+        deposit_paused: false,
+        queue_undelegate_paused: false,
+        undelegate_paused: false,
+        withdraw_paused: false,
+        reinvest_paused: false,
+        reconcile_paused: false,
+        claim_airdrops_paused: false,
+        redeem_rewards_paused: false
+    })?;
 
     Ok(Response::default())
 }

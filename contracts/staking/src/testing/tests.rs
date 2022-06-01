@@ -575,7 +575,6 @@ mod tests {
                     reconcile_paused: None,
                     claim_airdrops_paused: None,
                     redeem_rewards_paused: None,
-                    reimburse_slashing_paused: None,
                 },
             },
         )
@@ -597,7 +596,6 @@ mod tests {
                     reconcile_paused: false,
                     claim_airdrops_paused: true,
                     redeem_rewards_paused: true,
-                    reimburse_slashing_paused: false,
                 },
             )
             .unwrap();
@@ -615,7 +613,6 @@ mod tests {
                     reconcile_paused: Some(true),
                     claim_airdrops_paused: Some(false),
                     redeem_rewards_paused: None,
-                    reimburse_slashing_paused: Some(true),
                 },
             },
         )
@@ -632,7 +629,6 @@ mod tests {
                 reconcile_paused: true,
                 claim_airdrops_paused: false,
                 redeem_rewards_paused: true,
-                reimburse_slashing_paused: true
             }
         );
     }
@@ -1492,7 +1488,6 @@ mod tests {
                     reconcile_paused: false,
                     claim_airdrops_paused: false,
                     redeem_rewards_paused: true,
-                    reimburse_slashing_paused: false,
                 },
             )
             .unwrap();
@@ -1517,7 +1512,6 @@ mod tests {
                     reconcile_paused: false,
                     claim_airdrops_paused: false,
                     redeem_rewards_paused: false,
-                    reimburse_slashing_paused: false,
                 },
             )
             .unwrap();
@@ -2343,7 +2337,6 @@ mod tests {
                     reconcile_paused: false,
                     claim_airdrops_paused: false,
                     redeem_rewards_paused: false,
-                    reimburse_slashing_paused: false,
                 },
             )
             .unwrap();
@@ -2368,7 +2361,6 @@ mod tests {
                     reconcile_paused: false,
                     claim_airdrops_paused: false,
                     redeem_rewards_paused: false,
-                    reimburse_slashing_paused: false,
                 },
             )
             .unwrap();
@@ -2708,7 +2700,6 @@ mod tests {
                     reconcile_paused: false,
                     claim_airdrops_paused: false,
                     redeem_rewards_paused: false,
-                    reimburse_slashing_paused: false,
                 },
             )
             .unwrap();
@@ -2733,7 +2724,6 @@ mod tests {
                     reconcile_paused: false,
                     claim_airdrops_paused: false,
                     redeem_rewards_paused: false,
-                    reimburse_slashing_paused: false,
                 },
             )
             .unwrap();
@@ -3136,7 +3126,6 @@ mod tests {
                     reconcile_paused: false,
                     claim_airdrops_paused: false,
                     redeem_rewards_paused: false,
-                    reimburse_slashing_paused: false,
                 },
             )
             .unwrap();
@@ -3161,7 +3150,6 @@ mod tests {
                     reconcile_paused: false,
                     claim_airdrops_paused: false,
                     redeem_rewards_paused: false,
-                    reimburse_slashing_paused: false,
                 },
             )
             .unwrap();
@@ -3298,7 +3286,6 @@ mod tests {
                     reconcile_paused: false,
                     claim_airdrops_paused: false,
                     redeem_rewards_paused: false,
-                    reimburse_slashing_paused: false,
                 },
             )
             .unwrap();
@@ -3323,7 +3310,6 @@ mod tests {
                     reconcile_paused: false,
                     claim_airdrops_paused: false,
                     redeem_rewards_paused: false,
-                    reimburse_slashing_paused: false,
                 },
             )
             .unwrap();
@@ -3734,7 +3720,6 @@ mod tests {
                     reconcile_paused: true,
                     claim_airdrops_paused: false,
                     redeem_rewards_paused: false,
-                    reimburse_slashing_paused: false,
                 },
             )
             .unwrap();
@@ -3759,7 +3744,6 @@ mod tests {
                     reconcile_paused: false,
                     claim_airdrops_paused: false,
                     redeem_rewards_paused: false,
-                    reimburse_slashing_paused: false,
                 },
             )
             .unwrap();
