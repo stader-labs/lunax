@@ -48,7 +48,6 @@ pub struct OperationControls {
     pub reconcile_paused: bool,
     pub claim_airdrops_paused: bool,
     pub redeem_rewards_paused: bool,
-    pub reimburse_slashing_paused: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

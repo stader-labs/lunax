@@ -60,9 +60,6 @@ pub enum ExecuteMsg {
     RedeemRewards {
         validators: Option<Vec<Addr>>,
     },
-    ReimburseSlashing {
-        val_addr: Addr,
-    },
     Receive(Cw20ReceiveMsg),
     Reinvest {},
     Undelegate {},

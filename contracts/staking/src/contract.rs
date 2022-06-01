@@ -103,7 +103,6 @@ pub fn instantiate(
         reconcile_paused: false,
         claim_airdrops_paused: false,
         redeem_rewards_paused: false,
-        reimburse_slashing_paused: false,
     };
     OPERATION_CONTROLS.save(deps.storage, &operation_controls)?;
 
@@ -146,7 +145,6 @@ pub fn execute(
         ExecuteMsg::Deposit {} => deposit(deps, info, env),
         ExecuteMsg::RedeemRewards { validators } => redeem_rewards(deps, info, env, validators),
         ExecuteMsg::Reinvest {} => reinvest(deps, info, env),
-        ExecuteMsg::ReimburseSlashing { val_addr } => reimburse_slashing(deps, info, env, val_addr),
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
         ExecuteMsg::Undelegate {} => undelegate_stake(deps, info, env),
         ExecuteMsg::ReconcileFunds {} => reconcile_funds(deps, info, env),
@@ -245,10 +243,6 @@ pub fn update_operation_flags(
     operation_controls.claim_airdrops_paused = operation_controls_update_request
         .claim_airdrops_paused
         .unwrap_or(operation_controls.claim_airdrops_paused);
-    operation_controls.reimburse_slashing_paused = operation_controls_update_request
-        .reimburse_slashing_paused
-        .unwrap_or(operation_controls.reimburse_slashing_paused);
-
     OPERATION_CONTROLS.save(deps.storage, &operation_controls)?;
 
     Ok(Response::default())
@@ -729,51 +723,6 @@ pub fn reinvest(mut deps: DepsMut, info: MessageInfo, env: Env) -> Result<Respon
 
     // Reward contract throws an error if transfer_amount is not available to be sent over.
     Ok(Response::new().add_submessages(msgs))
-}
-
-// Useful for staking to a validator as a mechanism for filling lost slashing funds.
-// Anyone call this function.
-pub fn reimburse_slashing(
-    deps: DepsMut,
-    info: MessageInfo,
-    env: Env,
-    val_addr: Addr,
-) -> Result<Response, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
-    validate(&config, &info, &env, vec![Verify::NonZeroSingleInfoFund])?;
-    let operation_controls = OPERATION_CONTROLS.load(deps.storage)?;
-    if operation_controls.reimburse_slashing_paused {
-        return Err(ContractError::OperationPaused(
-            "reimburse_slashing".to_string(),
-        ));
-    }
-
-    let val_addr = Addr::unchecked(val_addr.to_string().to_lowercase());
-
-    let reimburse_amount = info.funds[0].amount;
-    let state = STATE.load(deps.storage)?;
-    if !state.validators.contains(&val_addr) {
-        return Err(ContractError::ValidatorNotAdded {});
-    }
-
-    VALIDATOR_META.update(deps.storage, &val_addr, |x| -> StdResult<_> {
-        let mut vmeta = x.unwrap_or_else(VMeta::new);
-        vmeta.filled = vmeta.filled.checked_add(reimburse_amount).unwrap();
-        Ok(vmeta)
-    })?;
-    Ok(Response::new()
-        .add_message(StakingMsg::Delegate {
-            validator: val_addr.to_string(),
-            amount: Coin::new(reimburse_amount.u128(), config.vault_denom),
-        })
-        .add_message(WasmMsg::Execute {
-            contract_addr: env.contract.address.to_string(),
-            msg: to_binary(&ExecuteMsg::RedeemRewards {
-                // just add the first validator. We need this to update the exchange rate with check slashing
-                validators: Some(vec![state.validators[0].clone()]),
-            })?,
-            funds: vec![],
-        }))
 }
 
 pub fn receive_cw20(
