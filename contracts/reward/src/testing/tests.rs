@@ -10,14 +10,13 @@ mod tests {
     use cosmwasm_std::{
         from_binary, Addr, BankMsg, Coin, Env, MessageInfo, OwnedDeps, Response, SubMsg, Uint128,
     };
-    use terra_cosmwasm::TerraMsgWrapper;
 
     pub fn instantiate_contract(
         deps: &mut OwnedDeps<MockStorage, MockApi, MockQuerier>,
         info: &MessageInfo,
         env: &Env,
         _vault_denom: Option<String>,
-    ) -> Response<TerraMsgWrapper> {
+    ) -> Response {
         let instantiate_msg = InstantiateMsg {
             staking_contract: "pools_addr".to_string(),
         };
@@ -27,7 +26,7 @@ mod tests {
 
     #[test]
     fn proper_initialization() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
 
         let msg = InstantiateMsg {
             staking_contract: "pools_addr".to_string(),
@@ -51,7 +50,7 @@ mod tests {
 
     #[test]
     fn test_transfer() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
         let info = mock_info("creator", &[]);
         let env = mock_env();
         instantiate_contract(&mut deps, &info, &env, None);
@@ -134,7 +133,7 @@ mod tests {
 
     #[test]
     fn test_set_manager() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
         let env = mock_env();
         let info = mock_info("creator", &[]);
 
@@ -172,7 +171,7 @@ mod tests {
 
     #[test]
     fn test_accept_manager() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
         let env = mock_env();
         let info = mock_info("creator", &[]);
 
@@ -231,7 +230,7 @@ mod tests {
 
     #[test]
     fn test_update_config() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies();
         let info = mock_info("creator", &[]);
         let env = mock_env();
 

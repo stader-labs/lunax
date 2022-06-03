@@ -336,12 +336,6 @@
     "ConfigUpdateRequest": {
       "type": "object",
       "properties": {
-        "active": {
-          "type": [
-            "boolean",
-            "null"
-          ]
-        },
         "airdrop_registry_contract": {
           "type": [
             "string",

@@ -2,7 +2,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{Addr, Decimal, Timestamp, Uint128};
-use cw_storage_plus::{Item, Map, U64Key};
+use cw_storage_plus::{Item, Map};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
@@ -10,7 +10,6 @@ pub struct Config {
     pub vault_denom: String, // Will be the same as reward denom in reward contract
     pub min_deposit: Uint128,
     pub max_deposit: Uint128,
-    pub active: bool,
 
     pub reward_contract: Addr,             // Non-changeable
     pub cw20_token_contract: Addr,         // Changeable once
@@ -24,7 +23,6 @@ pub struct Config {
 
     pub unbonding_period: u64,
     pub undelegation_cooldown: u64,
-    pub swap_cooldown: u64, // cooldown to avoid external users from spamming the swap message
     pub reinvest_cooldown: u64, // cooldown to avoid external users from spamming the reinvest message
 }
 
@@ -35,7 +33,6 @@ pub struct State {
     pub last_reconciled_batch_id: u64,
     pub current_undelegation_batch_id: u64,
     pub last_undelegation_time: Timestamp,
-    pub last_swap_time: Timestamp,
     pub last_reinvest_time: Timestamp,
     pub validators: Vec<Addr>,
     pub reconciled_funds_to_withdraw: Uint128,
@@ -51,8 +48,6 @@ pub struct OperationControls {
     pub reconcile_paused: bool,
     pub claim_airdrops_paused: bool,
     pub redeem_rewards_paused: bool,
-    pub swap_paused: bool,
-    pub reimburse_slashing_paused: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -103,7 +98,7 @@ pub struct BatchUndelegationRecord {
 }
 
 // (undelegation_batch_id) -> BatchUndelegationRecord
-pub const BATCH_UNDELEGATION_REGISTRY: Map<U64Key, BatchUndelegationRecord> =
+pub const BATCH_UNDELEGATION_REGISTRY: Map<u64, BatchUndelegationRecord> =
     Map::new("batch_undelegation_registry");
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -119,7 +114,6 @@ pub struct ConfigUpdateRequest {
 
     pub(crate) unbonding_period: Option<u64>,
     pub(crate) undelegation_cooldown: Option<u64>,
-    pub(crate) swap_cooldown: Option<u64>,
     pub(crate) reinvest_cooldown: Option<u64>,
 }
 
@@ -132,9 +126,7 @@ pub struct OperationControlsUpdateRequest {
     pub(crate) reinvest_paused: Option<bool>,
     pub(crate) reconcile_paused: Option<bool>,
     pub(crate) claim_airdrops_paused: Option<bool>,
-    pub(crate) swap_paused: Option<bool>,
     pub(crate) redeem_rewards_paused: Option<bool>,
-    pub(crate) reimburse_slashing_paused: Option<bool>,
 }
 
 pub const CONFIG: Item<Config> = Item::new("config");
@@ -142,7 +134,7 @@ pub const STATE: Item<State> = Item::new("state");
 pub const OPERATION_CONTROLS: Item<OperationControls> = Item::new("operation_controls");
 
 // (User_Address, Undelegation Batch)
-pub const USERS: Map<(&Addr, U64Key), UndelegationInfo> = Map::new("users");
+pub const USERS: Map<(&Addr, u64), UndelegationInfo> = Map::new("users");
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct AirdropRate {

@@ -14,7 +14,6 @@ pub struct MigrateMsg {}
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
-    Swap {}, // Swap rewards into reward denom - luna
     Transfer {
         reward_amount: Uint128,
         reward_withdraw_contract: Addr,

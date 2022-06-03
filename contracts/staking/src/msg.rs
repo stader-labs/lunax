@@ -23,7 +23,6 @@ pub struct InstantiateMsg {
 
     pub unbonding_period: u64,
     pub undelegation_cooldown: u64,
-    pub swap_cooldown: u64,
     pub reinvest_cooldown: u64,
 }
 
@@ -58,10 +57,8 @@ pub enum ExecuteMsg {
         redel_addr: Addr,
     },
     Deposit {},
-    RedeemRewards {},
-    Swap {},
-    ReimburseSlashing {
-        val_addr: Addr,
+    RedeemRewards {
+        validators: Option<Vec<Addr>>,
     },
     Receive(Cw20ReceiveMsg),
     Reinvest {},

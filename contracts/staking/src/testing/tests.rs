@@ -20,12 +20,11 @@ mod tests {
     use crate::testing::test_helpers::check_equal_vec;
     use cosmwasm_std::testing::{mock_env, mock_info, MockApi, MockStorage, MOCK_CONTRACT_ADDR};
     use cosmwasm_std::{
-        from_binary, to_binary, Addr, Attribute, BankMsg, Coin, Decimal, DistributionMsg, Env,
-        FullDelegation, MessageInfo, OwnedDeps, StakingMsg, StdResult, SubMsg, Uint128, Validator,
-        WasmMsg,
+        from_binary, to_binary, Addr, Attribute, BankMsg, Coin, Decimal, Delegation,
+        DistributionMsg, Env, FullDelegation, MessageInfo, OwnedDeps, StakingMsg, StdResult,
+        SubMsg, Uint128, Validator, WasmMsg,
     };
     use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
-    use cw_storage_plus::U64Key;
     use reward::msg::ExecuteMsg as RewardExecuteMsg;
     use reward::state::{TmpManagerStore, TMP_MANAGER_STORE};
 
@@ -86,7 +85,6 @@ mod tests {
         let msg = InstantiateMsg {
             unbonding_period: 3600 * 24 * 21,
             undelegation_cooldown: 10,
-            swap_cooldown: 10,
             min_deposit: Uint128::new(1000),
             max_deposit: Uint128::new(1_000_000_000_000),
             reward_contract: "reward_contract".to_string(),
@@ -114,7 +112,6 @@ mod tests {
         let msg = InstantiateMsg {
             unbonding_period: 3600 * 24 * 21,
             undelegation_cooldown: 10,
-            swap_cooldown: 10,
             min_deposit: Uint128::new(1000),
             max_deposit: Uint128::new(1_000_000_000_000),
             reward_contract: "reward_contract".to_string(),
@@ -137,7 +134,6 @@ mod tests {
         let msg = InstantiateMsg {
             unbonding_period: 3600 * 24 * 21,
             undelegation_cooldown: 10,
-            swap_cooldown: 10,
             min_deposit: Uint128::new(1000),
             max_deposit: Uint128::new(1_000_000_000_000),
             reward_contract: "reward_contract".to_string(),
@@ -160,7 +156,6 @@ mod tests {
         let msg = InstantiateMsg {
             unbonding_period: 3600 * 24 * 21,
             undelegation_cooldown: 10,
-            swap_cooldown: 10,
             min_deposit: Uint128::new(1000),
             max_deposit: Uint128::new(1_000_000_000_000),
             reward_contract: "reward_contract".to_string(),
@@ -187,7 +182,6 @@ mod tests {
         let msg = InstantiateMsg {
             unbonding_period: 3600 * 24 * 21,
             undelegation_cooldown: 10,
-            swap_cooldown: 10,
             min_deposit: Uint128::new(1000),
             max_deposit: Uint128::new(1_000_000_000_000),
             reward_contract: "reward_contract".to_string(),
@@ -204,10 +198,8 @@ mod tests {
             vault_denom: "uluna".to_string(),
             unbonding_period: 3600 * 24 * 21,
             undelegation_cooldown: 10,
-            swap_cooldown: 10,
             min_deposit: Uint128::new(1000),
             max_deposit: Uint128::new(1_000_000_000_000),
-            active: true,
             reward_contract: Addr::unchecked("reward_contract"),
             cw20_token_contract: Addr::unchecked("0"),
             airdrop_registry_contract: Addr::unchecked("airdrop_registry_contract"),
@@ -246,7 +238,6 @@ mod tests {
                     .block
                     .time
                     .minus_seconds(config.config.undelegation_cooldown),
-                last_swap_time: env.block.time.minus_seconds(config.config.swap_cooldown),
                 last_reinvest_time: env
                     .block
                     .time
@@ -274,8 +265,8 @@ mod tests {
         */
         let err = get_active_validators_sorted_by_stake(
             deps.as_mut().querier,
-            env.contract.address.clone(),
             vec![],
+            convert_to_delegation(get_delegations()).as_slice(),
         )
         .unwrap_err();
         assert!(matches!(err, ContractError::NoValidatorsInPool {}));
@@ -286,8 +277,8 @@ mod tests {
         deps.querier.update_staking("uluna", &[], &[]);
         let err = get_active_validators_sorted_by_stake(
             deps.as_mut().querier,
-            env.contract.address.clone(),
             vec![valid1.clone(), valid2.clone(), valid3.clone()],
+            convert_to_delegation(get_delegations()).as_slice(),
         )
         .unwrap_err();
         assert!(matches!(err, ContractError::AllValidatorsJailed {}));
@@ -349,8 +340,8 @@ mod tests {
         );
         let res = get_active_validators_sorted_by_stake(
             deps.as_mut().querier,
-            env.contract.address.clone(),
             vec![valid1.clone(), valid2.clone(), valid3.clone()],
+            convert_to_delegation(get_delegations_test_3()).as_slice(),
         )
         .unwrap();
         assert!(check_equal_vec(
@@ -378,9 +369,12 @@ mod tests {
         /*
            Test - 1. Empty validator pool
         */
-        let err =
-            get_validator_for_deposit(deps.as_mut().querier, env.contract.address.clone(), vec![])
-                .unwrap_err();
+        let err = get_validator_for_deposit(
+            deps.as_mut().querier,
+            vec![],
+            convert_to_delegation(get_delegations()).as_slice(),
+        )
+        .unwrap_err();
         assert!(matches!(err, ContractError::NoValidatorsInPool {}));
 
         /*
@@ -433,8 +427,8 @@ mod tests {
         );
         let res = get_validator_for_deposit(
             deps.as_mut().querier,
-            env.contract.address.clone(),
             vec![valid1.clone(), valid2.clone(), valid3.clone()],
+            convert_to_delegation(get_delegations_test_1()).as_slice(),
         )
         .unwrap();
         assert_eq!(res, valid3);
@@ -496,8 +490,8 @@ mod tests {
         );
         let res = get_validator_for_deposit(
             deps.as_mut().querier,
-            env.contract.address.clone(),
             vec![valid1.clone(), valid2.clone(), valid3.clone()],
+            convert_to_delegation(get_delegations_test_2()).as_slice(),
         )
         .unwrap();
         assert_eq!(res, valid1);
@@ -580,9 +574,7 @@ mod tests {
                     reinvest_paused: None,
                     reconcile_paused: None,
                     claim_airdrops_paused: None,
-                    swap_paused: None,
                     redeem_rewards_paused: None,
-                    reimburse_slashing_paused: None,
                 },
             },
         )
@@ -604,8 +596,6 @@ mod tests {
                     reconcile_paused: false,
                     claim_airdrops_paused: true,
                     redeem_rewards_paused: true,
-                    swap_paused: false,
-                    reimburse_slashing_paused: false,
                 },
             )
             .unwrap();
@@ -622,9 +612,7 @@ mod tests {
                     reinvest_paused: None,
                     reconcile_paused: Some(true),
                     claim_airdrops_paused: Some(false),
-                    swap_paused: Some(false),
                     redeem_rewards_paused: None,
-                    reimburse_slashing_paused: Some(true),
                 },
             },
         )
@@ -641,8 +629,6 @@ mod tests {
                 reconcile_paused: true,
                 claim_airdrops_paused: false,
                 redeem_rewards_paused: true,
-                swap_paused: false,
-                reimburse_slashing_paused: true
             }
         );
     }
@@ -829,7 +815,6 @@ mod tests {
                     airdrop_registry_contract: None,
                     unbonding_period: None,
                     undelegation_cooldown: None,
-                    swap_cooldown: None,
                     reinvest_cooldown: None,
                 },
             },
@@ -853,7 +838,6 @@ mod tests {
                     airdrop_registry_contract: None,
                     unbonding_period: None,
                     undelegation_cooldown: None,
-                    swap_cooldown: None,
                     reinvest_cooldown: None,
                 },
             },
@@ -880,7 +864,6 @@ mod tests {
                     airdrop_registry_contract: None,
                     unbonding_period: Some(100u64),
                     undelegation_cooldown: Some(10000u64),
-                    swap_cooldown: Some(123u64),
                     reinvest_cooldown: Some(234u64),
                 },
             },
@@ -906,7 +889,6 @@ mod tests {
                     airdrop_registry_contract: Some("airdrop_registry_contract".to_string()),
                     unbonding_period: Some(100u64),
                     undelegation_cooldown: Some(10000u64),
-                    swap_cooldown: Some(123u64),
                     reinvest_cooldown: Some(234u64),
                 },
             },
@@ -932,7 +914,6 @@ mod tests {
                     airdrop_registry_contract: None,
                     unbonding_period: Some(100u64),
                     undelegation_cooldown: Some(10000u64),
-                    swap_cooldown: Some(123u64),
                     reinvest_cooldown: Some(234u64),
                 },
             },
@@ -958,14 +939,12 @@ mod tests {
                     airdrop_registry_contract: Some("airdrop_registry_contract".to_string()),
                     unbonding_period: Some(100u64),
                     undelegation_cooldown: Some(10000u64),
-                    swap_cooldown: Some(123u64),
                     reinvest_cooldown: Some(234u64),
                 },
             },
         )
         .unwrap();
         let config = CONFIG.load(deps.as_mut().storage).unwrap();
-        assert!(config.active);
         assert_eq!(config.min_deposit, Uint128::new(1_u128));
         assert_eq!(config.max_deposit, Uint128::new(10000000_u128));
         assert_eq!(
@@ -998,8 +977,18 @@ mod tests {
         );
         assert_eq!(config.unbonding_period, 100u64);
         assert_eq!(config.undelegation_cooldown, 10000u64);
-        assert_eq!(config.swap_cooldown, 123u64);
         assert_eq!(config.reinvest_cooldown, 234u64);
+    }
+
+    fn convert_to_delegation(full_delegations: Vec<FullDelegation>) -> Vec<Delegation> {
+        full_delegations
+            .iter()
+            .map(|fd| Delegation {
+                delegator: fd.delegator.clone(),
+                validator: fd.validator.clone(),
+                amount: fd.amount.clone(),
+            })
+            .collect::<Vec<Delegation>>()
     }
 
     #[test]
@@ -1064,7 +1053,13 @@ mod tests {
             )
             .unwrap();
 
-        check_slashing(&mut deps.as_mut(), &env).unwrap();
+        // let delegations = get_delegations();
+        check_slashing(
+            &mut deps.as_mut(),
+            &env,
+            convert_to_delegation(get_delegations()).as_slice(),
+        )
+        .unwrap();
         let val1_meta = VALIDATOR_META.load(deps.as_mut().storage, &valid1).unwrap();
         let val2_meta = VALIDATOR_META.load(deps.as_mut().storage, &valid2).unwrap();
         let val3_meta = VALIDATOR_META.load(deps.as_mut().storage, &valid3).unwrap();
@@ -1189,7 +1184,12 @@ mod tests {
             )
             .unwrap();
 
-        check_slashing(&mut deps.as_mut(), &env).unwrap();
+        check_slashing(
+            &mut deps.as_mut(),
+            &env,
+            convert_to_delegation(get_delegations_test_2()).as_slice(),
+        )
+        .unwrap();
         let val1_meta = VALIDATOR_META.load(deps.as_mut().storage, &valid1).unwrap();
         let val2_meta = VALIDATOR_META.load(deps.as_mut().storage, &valid2).unwrap();
         let val3_meta = VALIDATOR_META.load(deps.as_mut().storage, &valid3).unwrap();
@@ -1317,7 +1317,12 @@ mod tests {
             )
             .unwrap();
 
-        check_slashing(&mut deps.as_mut(), &env).unwrap();
+        check_slashing(
+            &mut deps.as_mut(),
+            &env,
+            convert_to_delegation(get_delegations_test_3()).as_slice(),
+        )
+        .unwrap();
         let val1_meta = VALIDATOR_META.load(deps.as_mut().storage, &valid1).unwrap();
         let val2_meta = VALIDATOR_META.load(deps.as_mut().storage, &valid2).unwrap();
         let val3_meta = VALIDATOR_META.load(deps.as_mut().storage, &valid3).unwrap();
@@ -1457,105 +1462,6 @@ mod tests {
     }
 
     #[test]
-    fn test_swap_rewards() {
-        let mut deps = mock_dependencies(&[]);
-        let info = mock_info("creator", &[]);
-        let env = mock_env();
-
-        let _res = instantiate_contract(&mut deps, &info, &env);
-
-        OPERATION_CONTROLS
-            .save(
-                deps.as_mut().storage,
-                &OperationControls {
-                    deposit_paused: false,
-                    queue_undelegate_paused: false,
-                    undelegate_paused: false,
-                    withdraw_paused: false,
-                    reinvest_paused: false,
-                    reconcile_paused: false,
-                    claim_airdrops_paused: false,
-                    redeem_rewards_paused: false,
-                    swap_paused: true,
-                    reimburse_slashing_paused: false,
-                },
-            )
-            .unwrap();
-        let err = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info("other", &[Coin::new(10_u128, "uluna".to_string())]),
-            ExecuteMsg::Swap {},
-        )
-        .unwrap_err();
-        assert!(matches!(err, ContractError::OperationPaused(String { .. })));
-
-        OPERATION_CONTROLS
-            .save(
-                deps.as_mut().storage,
-                &OperationControls {
-                    deposit_paused: false,
-                    queue_undelegate_paused: false,
-                    undelegate_paused: false,
-                    withdraw_paused: false,
-                    reinvest_paused: false,
-                    reconcile_paused: false,
-                    claim_airdrops_paused: false,
-                    redeem_rewards_paused: false,
-                    swap_paused: false,
-                    reimburse_slashing_paused: false,
-                },
-            )
-            .unwrap();
-
-        /*
-            Test - 2. In cooldown period
-        */
-        STATE
-            .update(
-                deps.as_mut().storage,
-                |mut state| -> Result<_, ContractError> {
-                    state.last_swap_time = env.block.time.minus_seconds(3);
-                    Ok(state)
-                },
-            )
-            .unwrap();
-        let err = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info("not-creator", &[]),
-            ExecuteMsg::Swap {},
-        )
-        .unwrap_err();
-        assert!(matches!(err, ContractError::SwapInCooldown {}));
-        let state = STATE.load(deps.as_mut().storage).unwrap();
-        assert_eq!(state.last_swap_time, env.block.time.minus_seconds(3));
-
-        /*
-           Test - 2. Success
-        */
-        let res = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info("creator", &[]),
-            ExecuteMsg::Swap {},
-        )
-        .unwrap();
-        let config = CONFIG.load(deps.as_mut().storage).unwrap();
-        assert_eq!(res.messages.len(), 1);
-        assert_eq!(
-            res.messages,
-            vec![SubMsg::new(WasmMsg::Execute {
-                contract_addr: config.reward_contract.to_string(),
-                msg: to_binary(&RewardExecuteMsg::Swap {}).unwrap(),
-                funds: vec![]
-            })]
-        );
-        let state = STATE.load(deps.as_mut().storage).unwrap();
-        assert_eq!(state.last_swap_time, env.block.time);
-    }
-
-    #[test]
     fn test_redeem_rewards() {
         let mut deps = mock_dependencies(&[]);
         let info = mock_info("creator", &[]);
@@ -1582,8 +1488,6 @@ mod tests {
                     reconcile_paused: false,
                     claim_airdrops_paused: false,
                     redeem_rewards_paused: true,
-                    swap_paused: false,
-                    reimburse_slashing_paused: false,
                 },
             )
             .unwrap();
@@ -1591,7 +1495,7 @@ mod tests {
             deps.as_mut(),
             env.clone(),
             mock_info("other", &[Coin::new(10_u128, "uluna".to_string())]),
-            ExecuteMsg::RedeemRewards {},
+            ExecuteMsg::RedeemRewards { validators: None },
         )
         .unwrap_err();
         assert!(matches!(err, ContractError::OperationPaused(String { .. })));
@@ -1608,8 +1512,6 @@ mod tests {
                     reconcile_paused: false,
                     claim_airdrops_paused: false,
                     redeem_rewards_paused: false,
-                    swap_paused: false,
-                    reimburse_slashing_paused: false,
                 },
             )
             .unwrap();
@@ -1667,17 +1569,9 @@ mod tests {
             deps.as_mut(),
             env.clone(),
             mock_info("creator", &[]),
-            ExecuteMsg::RedeemRewards {},
+            ExecuteMsg::RedeemRewards { validators: None },
         )
         .unwrap();
-        assert_eq!(res.attributes.len(), 1);
-        assert_eq!(
-            res.attributes,
-            vec![Attribute {
-                key: "failed_validators".to_string(),
-                value: "".to_string()
-            }]
-        );
         assert_eq!(res.messages.len(), 3);
         assert!(check_equal_vec(
             res.messages,
@@ -1756,7 +1650,7 @@ mod tests {
             deps.as_mut(),
             env.clone(),
             mock_info("creator", &[]),
-            ExecuteMsg::RedeemRewards {},
+            ExecuteMsg::RedeemRewards { validators: None },
         )
         .unwrap();
         assert_eq!(res.attributes.len(), 1);
@@ -1780,6 +1674,86 @@ mod tests {
                 SubMsg::new(DistributionMsg::WithdrawDelegatorReward {
                     validator: "valid0003".to_string()
                 })
+            ]
+        ));
+
+        /*
+            Test - 3 - Only selected validators
+        */
+        let valid4 = Addr::unchecked("valid0004");
+        STATE
+            .update(
+                deps.as_mut().storage,
+                |mut state| -> Result<_, ContractError> {
+                    state.validators = vec![
+                        valid1.clone(),
+                        valid2.clone(),
+                        valid3.clone(),
+                        valid4.clone(),
+                    ];
+                    Ok(state)
+                },
+            )
+            .unwrap();
+        deps.querier
+            .update_staking("uluna", &*get_validators(), &*get_delegations());
+        deps.querier
+            .update_stader_balances(Some(Uint128::new(3000_u128)), None);
+        VALIDATOR_META
+            .save(
+                deps.as_mut().storage,
+                &valid1,
+                &VMeta {
+                    staked: Uint128::new(1000_u128),
+                    slashed: Uint128::zero(),
+                    filled: Uint128::new(1000_u128),
+                },
+            )
+            .unwrap();
+        VALIDATOR_META
+            .save(
+                deps.as_mut().storage,
+                &valid2,
+                &VMeta {
+                    staked: Uint128::new(1000_u128),
+                    slashed: Uint128::zero(),
+                    filled: Uint128::new(1000_u128),
+                },
+            )
+            .unwrap();
+        VALIDATOR_META
+            .save(
+                deps.as_mut().storage,
+                &valid3,
+                &VMeta {
+                    staked: Uint128::new(1000_u128),
+                    slashed: Uint128::zero(),
+                    filled: Uint128::new(1000_u128),
+                },
+            )
+            .unwrap();
+        VALIDATOR_META
+            .save(deps.as_mut().storage, &valid4, &VMeta::new())
+            .unwrap();
+        let res = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::RedeemRewards {
+                validators: Some(vec![valid1, valid2]),
+            },
+        )
+        .unwrap();
+        assert_eq!(res.messages.len(), 2);
+        assert!(check_equal_vec(
+            res.messages,
+            vec![
+                SubMsg::new(DistributionMsg::WithdrawDelegatorReward {
+                    validator: "valid0001".to_string()
+                }),
+                SubMsg::new(DistributionMsg::WithdrawDelegatorReward {
+                    validator: "valid0002".to_string()
+                }),
             ]
         ));
     }
@@ -2363,8 +2337,6 @@ mod tests {
                     reconcile_paused: false,
                     claim_airdrops_paused: false,
                     redeem_rewards_paused: false,
-                    swap_paused: false,
-                    reimburse_slashing_paused: false,
                 },
             )
             .unwrap();
@@ -2389,8 +2361,6 @@ mod tests {
                     reconcile_paused: false,
                     claim_airdrops_paused: false,
                     redeem_rewards_paused: false,
-                    swap_paused: false,
-                    reimburse_slashing_paused: false,
                 },
             )
             .unwrap();
@@ -2665,7 +2635,7 @@ mod tests {
         BATCH_UNDELEGATION_REGISTRY
             .save(
                 deps.as_mut().storage,
-                U64Key::new(3),
+                3,
                 &BatchUndelegationRecord {
                     undelegated_tokens: Uint128::new(1000_u128),
                     create_time: Default::default(),
@@ -2690,9 +2660,7 @@ mod tests {
         )
         .unwrap();
         assert!(res.messages.is_empty());
-        let user_undelegation_record = USERS
-            .load(deps.as_mut().storage, (&user1, U64Key::new(3)))
-            .unwrap();
+        let user_undelegation_record = USERS.load(deps.as_mut().storage, (&user1, 3)).unwrap();
         assert_eq!(
             user_undelegation_record,
             UndelegationInfo {
@@ -2701,7 +2669,7 @@ mod tests {
             }
         );
         let batch_undel_record = BATCH_UNDELEGATION_REGISTRY
-            .load(deps.as_mut().storage, U64Key::new(3))
+            .load(deps.as_mut().storage, 3)
             .unwrap();
         assert_eq!(
             batch_undel_record.undelegated_tokens,
@@ -2732,8 +2700,6 @@ mod tests {
                     reconcile_paused: false,
                     claim_airdrops_paused: false,
                     redeem_rewards_paused: false,
-                    swap_paused: false,
-                    reimburse_slashing_paused: false,
                 },
             )
             .unwrap();
@@ -2758,8 +2724,6 @@ mod tests {
                     reconcile_paused: false,
                     claim_airdrops_paused: false,
                     redeem_rewards_paused: false,
-                    swap_paused: false,
-                    reimburse_slashing_paused: false,
                 },
             )
             .unwrap();
@@ -3048,7 +3012,7 @@ mod tests {
         BATCH_UNDELEGATION_REGISTRY
             .save(
                 deps.as_mut().storage,
-                U64Key::new(1),
+                1,
                 &BatchUndelegationRecord {
                     undelegated_tokens: Uint128::new(10000_u128),
                     create_time: Default::default(),
@@ -3072,7 +3036,7 @@ mod tests {
         BATCH_UNDELEGATION_REGISTRY
             .save(
                 deps.as_mut().storage,
-                U64Key::new(1),
+                1,
                 &BatchUndelegationRecord {
                     undelegated_tokens: Uint128::new(10000_u128),
                     create_time: Default::default(),
@@ -3104,7 +3068,7 @@ mod tests {
         BATCH_UNDELEGATION_REGISTRY
             .save(
                 deps.as_mut().storage,
-                U64Key::new(1),
+                1,
                 &BatchUndelegationRecord {
                     undelegated_tokens: Uint128::new(10000_u128),
                     create_time: Default::default(),
@@ -3119,7 +3083,7 @@ mod tests {
         USERS
             .save(
                 deps.as_mut().storage,
-                (&user1, U64Key::new(1)),
+                (&user1, 1),
                 &UndelegationInfo {
                     batch_id: 1,
                     token_amount: Uint128::new(1000_u128),
@@ -3162,8 +3126,6 @@ mod tests {
                     reconcile_paused: false,
                     claim_airdrops_paused: false,
                     redeem_rewards_paused: false,
-                    swap_paused: false,
-                    reimburse_slashing_paused: false,
                 },
             )
             .unwrap();
@@ -3188,8 +3150,6 @@ mod tests {
                     reconcile_paused: false,
                     claim_airdrops_paused: false,
                     redeem_rewards_paused: false,
-                    swap_paused: false,
-                    reimburse_slashing_paused: false,
                 },
             )
             .unwrap();
@@ -3203,7 +3163,7 @@ mod tests {
         BATCH_UNDELEGATION_REGISTRY
             .save(
                 deps.as_mut().storage,
-                U64Key::new(1),
+                1,
                 &BatchUndelegationRecord {
                     undelegated_tokens: Uint128::new(10000_u128),
                     create_time: Default::default(),
@@ -3218,7 +3178,7 @@ mod tests {
         USERS
             .save(
                 deps.as_mut().storage,
-                (&user1, U64Key::new(1)),
+                (&user1, 1),
                 &UndelegationInfo {
                     batch_id: 1,
                     token_amount: Uint128::new(1000_u128),
@@ -3249,9 +3209,7 @@ mod tests {
         );
         let state = STATE.load(deps.as_mut().storage).unwrap();
         assert_eq!(state.reconciled_funds_to_withdraw, Uint128::new(450));
-        let user_undel_info = USERS
-            .may_load(deps.as_mut().storage, (&user1, U64Key::new(1)))
-            .unwrap();
+        let user_undel_info = USERS.may_load(deps.as_mut().storage, (&user1, 1)).unwrap();
         assert_eq!(user_undel_info, None);
     }
 
@@ -3328,8 +3286,6 @@ mod tests {
                     reconcile_paused: false,
                     claim_airdrops_paused: false,
                     redeem_rewards_paused: false,
-                    swap_paused: false,
-                    reimburse_slashing_paused: false,
                 },
             )
             .unwrap();
@@ -3354,8 +3310,6 @@ mod tests {
                     reconcile_paused: false,
                     claim_airdrops_paused: false,
                     redeem_rewards_paused: false,
-                    swap_paused: false,
-                    reimburse_slashing_paused: false,
                 },
             )
             .unwrap();
@@ -3464,7 +3418,7 @@ mod tests {
         BATCH_UNDELEGATION_REGISTRY
             .save(
                 deps.as_mut().storage,
-                U64Key::new(1),
+                1,
                 &BatchUndelegationRecord {
                     undelegated_tokens: Uint128::zero(),
                     create_time: Default::default(),
@@ -3556,7 +3510,7 @@ mod tests {
         BATCH_UNDELEGATION_REGISTRY
             .save(
                 deps.as_mut().storage,
-                U64Key::new(1),
+                1,
                 &BatchUndelegationRecord {
                     undelegated_tokens: Uint128::new(4000_u128),
                     create_time: Default::default(),
@@ -3661,7 +3615,7 @@ mod tests {
         BATCH_UNDELEGATION_REGISTRY
             .save(
                 deps.as_mut().storage,
-                U64Key::new(1),
+                1,
                 &BatchUndelegationRecord {
                     undelegated_tokens: Uint128::new(2000_u128),
                     create_time: env.block.time.minus_seconds(10000),
@@ -3723,7 +3677,7 @@ mod tests {
         );
         let config = CONFIG.load(deps.as_mut().storage).unwrap();
         let undel_batch = BATCH_UNDELEGATION_REGISTRY
-            .load(deps.as_mut().storage, U64Key::new(1))
+            .load(deps.as_mut().storage, 1)
             .unwrap();
         assert_eq!(
             undel_batch,
@@ -3741,7 +3695,7 @@ mod tests {
         assert_eq!(state.total_staked, Uint128::new(1000_u128));
         assert_eq!(state.last_undelegation_time, env.block.time);
         let new_undel_batch = BATCH_UNDELEGATION_REGISTRY
-            .may_load(deps.as_mut().storage, U64Key::new(2))
+            .may_load(deps.as_mut().storage, 2)
             .unwrap();
         assert_ne!(new_undel_batch, None);
     }
@@ -3766,8 +3720,6 @@ mod tests {
                     reconcile_paused: true,
                     claim_airdrops_paused: false,
                     redeem_rewards_paused: false,
-                    swap_paused: false,
-                    reimburse_slashing_paused: false,
                 },
             )
             .unwrap();
@@ -3792,8 +3744,6 @@ mod tests {
                     reconcile_paused: false,
                     claim_airdrops_paused: false,
                     redeem_rewards_paused: false,
-                    swap_paused: false,
-                    reimburse_slashing_paused: false,
                 },
             )
             .unwrap();
@@ -3815,7 +3765,7 @@ mod tests {
         BATCH_UNDELEGATION_REGISTRY
             .save(
                 deps.as_mut().storage,
-                U64Key::new(2),
+                2,
                 &BatchUndelegationRecord {
                     undelegated_tokens: Uint128::new(3000_u128),
                     create_time: env.block.time.minus_seconds(20000),
@@ -3830,7 +3780,7 @@ mod tests {
         BATCH_UNDELEGATION_REGISTRY
             .save(
                 deps.as_mut().storage,
-                U64Key::new(3),
+                3,
                 &BatchUndelegationRecord {
                     undelegated_tokens: Uint128::new(2000_u128),
                     create_time: env.block.time.minus_seconds(10000),
@@ -3856,10 +3806,10 @@ mod tests {
         let state = STATE.load(deps.as_mut().storage).unwrap();
         assert_eq!(state.reconciled_funds_to_withdraw, Uint128::new(6800));
         let batch_2 = BATCH_UNDELEGATION_REGISTRY
-            .load(deps.as_mut().storage, U64Key::new(2))
+            .load(deps.as_mut().storage, 2)
             .unwrap();
         let batch_3 = BATCH_UNDELEGATION_REGISTRY
-            .load(deps.as_mut().storage, U64Key::new(3))
+            .load(deps.as_mut().storage, 3)
             .unwrap();
         assert_eq!(
             batch_2,
@@ -3903,7 +3853,7 @@ mod tests {
         BATCH_UNDELEGATION_REGISTRY
             .save(
                 deps.as_mut().storage,
-                U64Key::new(2),
+                2,
                 &BatchUndelegationRecord {
                     undelegated_tokens: Uint128::new(3000_u128),
                     create_time: env.block.time.minus_seconds(20000),
@@ -3918,7 +3868,7 @@ mod tests {
         BATCH_UNDELEGATION_REGISTRY
             .save(
                 deps.as_mut().storage,
-                U64Key::new(3),
+                3,
                 &BatchUndelegationRecord {
                     undelegated_tokens: Uint128::new(2000_u128),
                     create_time: env.block.time.minus_seconds(10000),
@@ -3944,10 +3894,10 @@ mod tests {
         let state = STATE.load(deps.as_mut().storage).unwrap();
         assert_eq!(state.reconciled_funds_to_withdraw, Uint128::new(6000));
         let batch_2 = BATCH_UNDELEGATION_REGISTRY
-            .load(deps.as_mut().storage, U64Key::new(2))
+            .load(deps.as_mut().storage, 2)
             .unwrap();
         let batch_3 = BATCH_UNDELEGATION_REGISTRY
-            .load(deps.as_mut().storage, U64Key::new(3))
+            .load(deps.as_mut().storage, 3)
             .unwrap();
         assert_eq!(
             batch_2,
@@ -3973,129 +3923,5 @@ mod tests {
                 unbonding_slashing_ratio: Decimal::from_ratio(42_u128, 50_u128)
             }
         );
-    }
-
-    #[test]
-    fn test_reimburse_slashing() {
-        let mut deps = mock_dependencies(&[]);
-        let info = mock_info("creator", &[]);
-        let env = mock_env();
-        let valid1 = Addr::unchecked("valid0001");
-
-        let _res = instantiate_contract(&mut deps, &info, &env);
-
-        OPERATION_CONTROLS
-            .save(
-                deps.as_mut().storage,
-                &OperationControls {
-                    deposit_paused: false,
-                    queue_undelegate_paused: false,
-                    undelegate_paused: false,
-                    withdraw_paused: false,
-                    reinvest_paused: false,
-                    reconcile_paused: false,
-                    claim_airdrops_paused: false,
-                    redeem_rewards_paused: false,
-                    swap_paused: false,
-                    reimburse_slashing_paused: true,
-                },
-            )
-            .unwrap();
-        let err = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info("other", &[Coin::new(10_u128, "uluna".to_string())]),
-            ExecuteMsg::ReimburseSlashing {
-                val_addr: Addr::unchecked("val1".to_string()),
-            },
-        )
-        .unwrap_err();
-        assert!(matches!(err, ContractError::OperationPaused(String { .. })));
-
-        OPERATION_CONTROLS
-            .save(
-                deps.as_mut().storage,
-                &OperationControls {
-                    deposit_paused: false,
-                    queue_undelegate_paused: false,
-                    undelegate_paused: false,
-                    withdraw_paused: false,
-                    reinvest_paused: false,
-                    reconcile_paused: false,
-                    claim_airdrops_paused: false,
-                    redeem_rewards_paused: false,
-                    swap_paused: false,
-                    reimburse_slashing_paused: false,
-                },
-            )
-            .unwrap();
-
-        STATE
-            .update(deps.as_mut().storage, |mut state| -> StdResult<_> {
-                state.validators = vec![Addr::unchecked("valid0001")];
-                Ok(state)
-            })
-            .unwrap();
-        let res = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info("other", &[Coin::new(25_u128, "uluna")]),
-            ExecuteMsg::ReimburseSlashing {
-                val_addr: valid1.clone(),
-            },
-        )
-        .unwrap();
-
-        assert_eq!(res.messages.len(), 2);
-        assert!(check_equal_vec(
-            res.messages,
-            vec![
-                SubMsg::new(StakingMsg::Delegate {
-                    validator: valid1.to_string(),
-                    amount: Coin::new(25_u128, "uluna")
-                }),
-                SubMsg::new(WasmMsg::Execute {
-                    contract_addr: env.contract.address.to_string(),
-                    msg: to_binary(&ExecuteMsg::RedeemRewards {}).unwrap(),
-                    funds: vec![]
-                })
-            ]
-        ));
-
-        let vmeta = VALIDATOR_META.load(deps.as_mut().storage, &valid1).unwrap();
-        assert_eq!(
-            vmeta,
-            VMeta {
-                staked: Default::default(),
-                slashed: Default::default(),
-                filled: Uint128::new(25),
-            }
-        );
-
-        let res = execute(
-            deps.as_mut(),
-            env.clone(),
-            mock_info("other", &[Coin::new(125_u128, "uluna")]),
-            ExecuteMsg::ReimburseSlashing {
-                val_addr: valid1.clone(),
-            },
-        )
-        .unwrap();
-
-        assert_eq!(res.messages.len(), 2);
-        assert!(check_equal_vec(
-            res.messages,
-            vec![
-                SubMsg::new(StakingMsg::Delegate {
-                    validator: valid1.to_string(),
-                    amount: Coin::new(125_u128, "uluna")
-                }),
-                SubMsg::new(WasmMsg::Execute {
-                    contract_addr: env.contract.address.to_string(),
-                    msg: to_binary(&ExecuteMsg::RedeemRewards {}).unwrap(),
-                    funds: vec![]
-                })
-            ]
-        ))
     }
 }

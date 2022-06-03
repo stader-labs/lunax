@@ -48,9 +48,6 @@ pub enum ContractError {
     #[error("Staking-Contract: No validators in selected pool")]
     NoValidatorsInPool {},
 
-    #[error("Staking-Contract: Swap failed with validator contract")]
-    SwapFailed {},
-
     #[error("Staking-Contract: Unexpectedly, no operation was required")]
     NoOp {},
 
@@ -92,9 +89,6 @@ pub enum ContractError {
 
     #[error("Staking-Contract: Undelegation cannot be performed because of cooldown constraint")]
     UndelegationInCooldown {},
-
-    #[error("Staking-Contract: Swap is in cooldown")]
-    SwapInCooldown {},
 
     #[error("Staking-Contract: Reinvest is in cooldown")]
     ReinvestInCooldown {},
