@@ -84,7 +84,7 @@ mod tests {
     ) {
         let msg = InstantiateMsg {
             unbonding_period: 3600 * 24 * 21,
-            undelegation_cooldown: 10,
+            undelegation_cooldown: 258900,
             min_deposit: Uint128::new(1000),
             max_deposit: Uint128::new(1_000_000_000_000),
             reward_contract: "reward_contract".to_string(),
@@ -111,7 +111,7 @@ mod tests {
         */
         let msg = InstantiateMsg {
             unbonding_period: 3600 * 24 * 21,
-            undelegation_cooldown: 10,
+            undelegation_cooldown: 258900,
             min_deposit: Uint128::new(1000),
             max_deposit: Uint128::new(1_000_000_000_000),
             reward_contract: "reward_contract".to_string(),
@@ -133,7 +133,7 @@ mod tests {
         */
         let msg = InstantiateMsg {
             unbonding_period: 3600 * 24 * 21,
-            undelegation_cooldown: 10,
+            undelegation_cooldown: 258900,
             min_deposit: Uint128::new(1000),
             max_deposit: Uint128::new(1_000_000_000_000),
             reward_contract: "reward_contract".to_string(),
@@ -155,7 +155,7 @@ mod tests {
         */
         let msg = InstantiateMsg {
             unbonding_period: 3600 * 24 * 21,
-            undelegation_cooldown: 10,
+            undelegation_cooldown: 258900,
             min_deposit: Uint128::new(1000),
             max_deposit: Uint128::new(1_000_000_000_000),
             reward_contract: "reward_contract".to_string(),
@@ -181,7 +181,7 @@ mod tests {
 
         let msg = InstantiateMsg {
             unbonding_period: 3600 * 24 * 21,
-            undelegation_cooldown: 10,
+            undelegation_cooldown: 258900,
             min_deposit: Uint128::new(1000),
             max_deposit: Uint128::new(1_000_000_000_000),
             reward_contract: "reward_contract".to_string(),
@@ -197,7 +197,7 @@ mod tests {
             manager: Addr::unchecked("creator"),
             vault_denom: "uluna".to_string(),
             unbonding_period: 3600 * 24 * 21,
-            undelegation_cooldown: 10,
+            undelegation_cooldown: 258900,
             min_deposit: Uint128::new(1000),
             max_deposit: Uint128::new(1_000_000_000_000),
             reward_contract: Addr::unchecked("reward_contract"),
@@ -862,8 +862,8 @@ mod tests {
                     protocol_withdraw_fee: Some(Decimal::from_ratio(2_u128, 100_u128)),
                     protocol_deposit_fee: Some(Decimal::from_ratio(2_u128, 100_u128)),
                     airdrop_registry_contract: None,
-                    unbonding_period: Some(100u64),
-                    undelegation_cooldown: Some(10000u64),
+                    unbonding_period: Some(1814400),
+                    undelegation_cooldown: Some(258900u64),
                     reinvest_cooldown: Some(234u64),
                 },
             },
@@ -887,8 +887,8 @@ mod tests {
                     protocol_withdraw_fee: Some(Decimal::from_ratio(6_u128, 100_u128)),
                     protocol_deposit_fee: Some(Decimal::from_ratio(2_u128, 100_u128)),
                     airdrop_registry_contract: Some("airdrop_registry_contract".to_string()),
-                    unbonding_period: Some(100u64),
-                    undelegation_cooldown: Some(10000u64),
+                    unbonding_period: Some(1814400),
+                    undelegation_cooldown: Some(258900u64),
                     reinvest_cooldown: Some(234u64),
                 },
             },
@@ -912,8 +912,8 @@ mod tests {
                     protocol_withdraw_fee: Some(Decimal::from_ratio(2_u128, 100_u128)),
                     protocol_deposit_fee: Some(Decimal::from_ratio(8_u128, 100_u128)),
                     airdrop_registry_contract: None,
-                    unbonding_period: Some(100u64),
-                    undelegation_cooldown: Some(10000u64),
+                    unbonding_period: Some(1814400),
+                    undelegation_cooldown: Some(258900u64),
                     reinvest_cooldown: Some(234u64),
                 },
             },
@@ -937,8 +937,8 @@ mod tests {
                     protocol_withdraw_fee: Some(Decimal::from_ratio(2_u128, 100_u128)),
                     protocol_deposit_fee: Some(Decimal::from_ratio(2_u128, 100_u128)),
                     airdrop_registry_contract: Some("airdrop_registry_contract".to_string()),
-                    unbonding_period: Some(100u64),
-                    undelegation_cooldown: Some(10000u64),
+                    unbonding_period: Some(1814400),
+                    undelegation_cooldown: Some(258900u64),
                     reinvest_cooldown: Some(234u64),
                 },
             },
@@ -975,9 +975,59 @@ mod tests {
             config.protocol_deposit_fee,
             Decimal::from_ratio(2_u128, 100_u128)
         );
-        assert_eq!(config.unbonding_period, 100u64);
-        assert_eq!(config.undelegation_cooldown, 10000u64);
+        assert_eq!(config.unbonding_period, 1814400);
+        assert_eq!(config.undelegation_cooldown, 258900u64);
         assert_eq!(config.reinvest_cooldown, 234u64);
+
+        /*
+            Test - 3 - Invalid unbonding period
+        */
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::UpdateConfig {
+                config_request: ConfigUpdateRequest {
+                    min_deposit: Some(Uint128::from(1_u128)),
+                    max_deposit: Some(Uint128::from(10000000_u128)),
+                    cw20_token_contract: Some("cw20_token_contract".parse().unwrap()),
+                    protocol_reward_fee: Some(Decimal::from_ratio(2_u128, 100_u128)),
+                    protocol_withdraw_fee: Some(Decimal::from_ratio(2_u128, 100_u128)),
+                    protocol_deposit_fee: Some(Decimal::from_ratio(2_u128, 100_u128)),
+                    airdrop_registry_contract: Some("airdrop_registry_contract".to_string()),
+                    unbonding_period: Some(100),
+                    undelegation_cooldown: Some(258900u64),
+                    reinvest_cooldown: Some(234u64),
+                },
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::InvalidUnbondingPeriod {}));
+
+        /*
+            Test - 3 - Invalid Undelegation cooldown
+        */
+        let err = execute(
+            deps.as_mut(),
+            env.clone(),
+            mock_info("creator", &[]),
+            ExecuteMsg::UpdateConfig {
+                config_request: ConfigUpdateRequest {
+                    min_deposit: Some(Uint128::from(1_u128)),
+                    max_deposit: Some(Uint128::from(10000000_u128)),
+                    cw20_token_contract: Some("cw20_token_contract".parse().unwrap()),
+                    protocol_reward_fee: Some(Decimal::from_ratio(2_u128, 100_u128)),
+                    protocol_withdraw_fee: Some(Decimal::from_ratio(2_u128, 100_u128)),
+                    protocol_deposit_fee: Some(Decimal::from_ratio(2_u128, 100_u128)),
+                    airdrop_registry_contract: Some("airdrop_registry_contract".to_string()),
+                    unbonding_period: Some(1814400),
+                    undelegation_cooldown: Some(100),
+                    reinvest_cooldown: Some(234u64),
+                },
+            },
+        )
+        .unwrap_err();
+        assert!(matches!(err, ContractError::InvalidUndelegationCooldown {}));
     }
 
     fn convert_to_delegation(full_delegations: Vec<FullDelegation>) -> Vec<Delegation> {

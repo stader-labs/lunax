@@ -95,4 +95,10 @@ pub enum ContractError {
 
     #[error("Staking-Contract: Tmp manager store is empty")]
     TmpManagerStoreEmpty {},
+
+    #[error("Staking-Contract: Invalid unbonding period")]
+    InvalidUnbondingPeriod {},
+
+    #[error("Staking-Contract: Invalid undelegation cooldown period")]
+    InvalidUndelegationCooldown {},
 }

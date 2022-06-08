@@ -27,9 +27,7 @@ pub fn instantiate(
     let config = Config {
         manager: info.sender,
         reward_denom: "uluna".to_string(),
-        staking_contract: deps
-            .api
-            .addr_validate(msg.staking_contract.to_lowercase().as_str())?,
+        staking_contract: deps.api.addr_validate(msg.staking_contract.as_str())?,
     };
     CONFIG.save(deps.storage, &config)?;
 
@@ -83,12 +81,7 @@ pub fn set_manager(
         return Err(ContractError::Unauthorized {});
     }
 
-    TMP_MANAGER_STORE.save(
-        deps.storage,
-        &TmpManagerStore {
-            manager: manager.to_lowercase(),
-        },
-    )?;
+    TMP_MANAGER_STORE.save(deps.storage, &TmpManagerStore { manager: manager })?;
 
     Ok(Response::default())
 }
