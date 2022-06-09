@@ -3,8 +3,8 @@ use crate::helpers::{
     burn_minted_tokens, calculate_exchange_rate, create_mint_message,
     create_new_undelegation_batch, decrease_tracked_stake, get_active_validators_sorted_by_stake,
     get_airdrop_contracts, get_total_token_supply, get_user_balance, get_validator_for_deposit,
-    increase_tracked_stake, validate, validate_unbonding_period, validate_undelegation_cooldown,
-    Verify,
+    increase_tracked_stake, validate, validate_max_deposit, validate_min_deposit,
+    validate_unbonding_period, validate_undelegation_cooldown, Verify,
 };
 use crate::msg::{
     Cw20HookMsg, ExecuteMsg, GetFundsClaimRecord, GetFundsDepositRecord, GetValMetaResponse,
@@ -60,6 +60,14 @@ pub fn instantiate(
 
     if !validate_undelegation_cooldown(msg.undelegation_cooldown) {
         return Err(ContractError::InvalidUndelegationCooldown {});
+    }
+
+    if !validate_min_deposit(msg.min_deposit) {
+        return Err(ContractError::InvalidMinDeposit {});
+    }
+
+    if !validate_max_deposit(msg.max_deposit) {
+        return Err(ContractError::InvalidMaxDeposit {});
     }
 
     let config = Config {
@@ -285,9 +293,6 @@ pub fn update_config(
         config.airdrop_registry_contract = deps.api.addr_validate(arc.as_str())?;
     }
 
-    config.min_deposit = update_config.min_deposit.unwrap_or(config.min_deposit);
-    config.max_deposit = update_config.max_deposit.unwrap_or(config.max_deposit);
-
     if let Some(pdf) = update_config.protocol_deposit_fee {
         if pdf.gt(&get_deposit_fee_cap()) {
             return Err(ContractError::ProtocolFeeAboveLimit {});
@@ -323,6 +328,22 @@ pub fn update_config(
         }
 
         config.unbonding_period = unbonding_period;
+    }
+
+    if let Some(min_deposit) = update_config.min_deposit {
+        if !validate_min_deposit(min_deposit) {
+            return Err(ContractError::InvalidMinDeposit {});
+        }
+
+        config.min_deposit = min_deposit;
+    }
+
+    if let Some(max_deposit) = update_config.max_deposit {
+        if !validate_max_deposit(max_deposit) {
+            return Err(ContractError::InvalidMaxDeposit {});
+        }
+
+        config.max_deposit = max_deposit;
     }
 
     config.reinvest_cooldown = update_config
