@@ -1132,7 +1132,7 @@ pub fn claim_airdrops(
         let contract_response: GetAirdropContractsResponse = get_airdrop_contracts(
             deps.querier,
             airdrops_registry_contract.clone(),
-            rate.denom.clone(),
+            rate.denom.clone().to_lowercase(),
         )?;
 
         let contracts = if let Some(contracts) = contract_response.contracts {

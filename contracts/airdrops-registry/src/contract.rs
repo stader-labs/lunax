@@ -120,7 +120,7 @@ pub fn update_airdrop_registry(
         return Err(ContractError::TokenEmpty {});
     }
 
-    let airdrop_token = airdrop_token_str;
+    let airdrop_token = airdrop_token_str.to_lowercase();
     let airdrop_contract = deps.api.addr_validate(airdrop_contract_str.as_str())?;
     let cw20_contract = deps.api.addr_validate(cw20_contract_str.as_str())?;
     AIRDROP_REGISTRY.save(
