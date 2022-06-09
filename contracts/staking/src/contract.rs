@@ -345,7 +345,7 @@ pub fn add_validator(
     validate(&config, &info, &env, vec![Verify::SenderManager])?;
 
     // lower case the addresses to avoid inconsistencies
-    let val_addr = deps.api.addr_validate(val_addr.as_str())?;
+    let val_addr = Addr::unchecked(val_addr.to_string().to_lowercase());
 
     if state.validators.contains(&val_addr) {
         return Err(ContractError::ValidatorAlreadyAdded {});
@@ -376,8 +376,8 @@ pub fn remove_validator_from_pool(
     let config = CONFIG.load(deps.storage)?;
     validate(&config, &info, &env, vec![Verify::SenderManager])?;
 
-    let val_addr = Addr::unchecked(val_addr.to_string());
-    let redel_addr = Addr::unchecked(redel_addr.to_string());
+    let val_addr = Addr::unchecked(val_addr.to_string().to_lowercase());
+    let redel_addr = Addr::unchecked(redel_addr.to_string().to_lowercase());
 
     let all_delegations = deps
         .querier
@@ -442,8 +442,8 @@ pub fn rebalance_pool(
     }
 
     // lower case the addresses to avoid inconsistencies
-    let val_addr = Addr::unchecked(val_addr.to_string());
-    let redel_addr = Addr::unchecked(redel_addr.to_string());
+    let val_addr = Addr::unchecked(val_addr.to_string().to_lowercase());
+    let redel_addr = Addr::unchecked(redel_addr.to_string().to_lowercase());
 
     let all_delegations = deps
         .querier
