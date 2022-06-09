@@ -345,7 +345,7 @@ pub fn add_validator(
     validate(&config, &info, &env, vec![Verify::SenderManager])?;
 
     // lower case the addresses to avoid inconsistencies
-    let val_addr = Addr::unchecked(val_addr.to_string());
+    let val_addr = deps.api.addr_validate(val_addr.as_str())?;
 
     if state.validators.contains(&val_addr) {
         return Err(ContractError::ValidatorAlreadyAdded {});

@@ -31,9 +31,8 @@ pub fn validate_unbonding_period(unbonding_period: u64) -> bool {
 }
 
 pub fn validate_undelegation_cooldown(undelegation_cooldown: u64) -> bool {
-    // undelegation cooldown should be in [3 days - 10mins, 3 days)
-    println!("undelegation cooldown is {:?}", undelegation_cooldown);
-    undelegation_cooldown <= 259200 && undelegation_cooldown >= 258600
+    // undelegation cooldown should be in [3 days - 10mins, 3 days + 10mins]
+    undelegation_cooldown <= 259800 && undelegation_cooldown >= 258600
 }
 
 // Let's not add assertions for these checks in other tests
