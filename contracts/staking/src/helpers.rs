@@ -25,6 +25,26 @@ pub enum Verify {
     NoFunds,
 }
 
+pub fn validate_unbonding_period(unbonding_period: u64) -> bool {
+    // unbonding period should be in [21 days, 21 days + 30mins]
+    unbonding_period < 1816200 && unbonding_period >= 1814400
+}
+
+pub fn validate_undelegation_cooldown(undelegation_cooldown: u64) -> bool {
+    // undelegation cooldown should be in [3 days - 10mins, 3 days + 10mins]
+    undelegation_cooldown <= 259800 && undelegation_cooldown >= 258600
+}
+
+pub fn validate_min_deposit(min_deposit: Uint128) -> bool {
+    // Min deposit should be b/w 10uluna and 1luna
+    min_deposit.ge(&Uint128::new(10)) && min_deposit.le(&Uint128::new(1_000_000))
+}
+
+pub fn validate_max_deposit(max_deposit: Uint128) -> bool {
+    // Min deposit should be b/w 100 luna to 1 million luna
+    max_deposit.ge(&Uint128::new(100_000_000)) && max_deposit.le(&Uint128::new(1_000_000_000_000))
+}
+
 // Let's not add assertions for these checks in other tests
 pub fn validate(
     config: &Config,

@@ -3,7 +3,8 @@ use crate::helpers::{
     burn_minted_tokens, calculate_exchange_rate, create_mint_message,
     create_new_undelegation_batch, decrease_tracked_stake, get_active_validators_sorted_by_stake,
     get_airdrop_contracts, get_total_token_supply, get_user_balance, get_validator_for_deposit,
-    increase_tracked_stake, validate, Verify,
+    increase_tracked_stake, validate, validate_max_deposit, validate_min_deposit,
+    validate_unbonding_period, validate_undelegation_cooldown, Verify,
 };
 use crate::msg::{
     Cw20HookMsg, ExecuteMsg, GetFundsClaimRecord, GetFundsDepositRecord, GetValMetaResponse,
@@ -51,6 +52,22 @@ pub fn instantiate(
         || msg.protocol_withdraw_fee.gt(&get_withdraw_fee_cap())
     {
         return Err(ContractError::ProtocolFeeAboveLimit {});
+    }
+
+    if !validate_unbonding_period(msg.unbonding_period) {
+        return Err(ContractError::InvalidUnbondingPeriod {});
+    }
+
+    if !validate_undelegation_cooldown(msg.undelegation_cooldown) {
+        return Err(ContractError::InvalidUndelegationCooldown {});
+    }
+
+    if !validate_min_deposit(msg.min_deposit) {
+        return Err(ContractError::InvalidMinDeposit {});
+    }
+
+    if !validate_max_deposit(msg.max_deposit) {
+        return Err(ContractError::InvalidMaxDeposit {});
     }
 
     let config = Config {
@@ -120,17 +137,20 @@ pub fn instantiate(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-    
-    OPERATION_CONTROLS.save(deps.storage, &OperationControls {
-        deposit_paused: false,
-        queue_undelegate_paused: false,
-        undelegate_paused: false,
-        withdraw_paused: false,
-        reinvest_paused: false,
-        reconcile_paused: false,
-        claim_airdrops_paused: false,
-        redeem_rewards_paused: false
-    })?;
+
+    OPERATION_CONTROLS.save(
+        deps.storage,
+        &OperationControls {
+            deposit_paused: false,
+            queue_undelegate_paused: false,
+            undelegate_paused: false,
+            withdraw_paused: false,
+            reinvest_paused: false,
+            reconcile_paused: false,
+            claim_airdrops_paused: false,
+            redeem_rewards_paused: false,
+        },
+    )?;
 
     Ok(Response::default())
 }
@@ -183,12 +203,7 @@ pub fn set_manager(
     let config = CONFIG.load(deps.storage)?;
     validate(&config, &info, &env, vec![Verify::SenderManager])?;
 
-    TMP_MANAGER_STORE.save(
-        deps.storage,
-        &TmpManagerStore {
-            manager: manager.to_lowercase(),
-        },
-    )?;
+    TMP_MANAGER_STORE.save(deps.storage, &TmpManagerStore { manager: manager })?;
 
     Ok(Response::default())
 }
@@ -270,18 +285,13 @@ pub fn update_config(
 
     if let Some(cw20_contract) = update_config.cw20_token_contract {
         if config.cw20_token_contract == Addr::unchecked("0") {
-            config.cw20_token_contract = deps
-                .api
-                .addr_validate(cw20_contract.to_lowercase().as_str())?;
+            config.cw20_token_contract = deps.api.addr_validate(cw20_contract.as_str())?;
         }
     }
 
     if let Some(arc) = update_config.airdrop_registry_contract {
         config.airdrop_registry_contract = deps.api.addr_validate(arc.as_str())?;
     }
-
-    config.min_deposit = update_config.min_deposit.unwrap_or(config.min_deposit);
-    config.max_deposit = update_config.max_deposit.unwrap_or(config.max_deposit);
 
     if let Some(pdf) = update_config.protocol_deposit_fee {
         if pdf.gt(&get_deposit_fee_cap()) {
@@ -304,12 +314,38 @@ pub fn update_config(
         config.protocol_reward_fee = prf;
     }
 
-    config.undelegation_cooldown = update_config
-        .undelegation_cooldown
-        .unwrap_or(config.undelegation_cooldown);
-    config.unbonding_period = update_config
-        .unbonding_period
-        .unwrap_or(config.unbonding_period);
+    if let Some(undelegation_cooldown) = update_config.undelegation_cooldown {
+        if !validate_undelegation_cooldown(undelegation_cooldown) {
+            return Err(ContractError::InvalidUndelegationCooldown {});
+        }
+
+        config.undelegation_cooldown = undelegation_cooldown;
+    }
+
+    if let Some(unbonding_period) = update_config.unbonding_period {
+        if !validate_unbonding_period(unbonding_period) {
+            return Err(ContractError::InvalidUnbondingPeriod {});
+        }
+
+        config.unbonding_period = unbonding_period;
+    }
+
+    if let Some(min_deposit) = update_config.min_deposit {
+        if !validate_min_deposit(min_deposit) {
+            return Err(ContractError::InvalidMinDeposit {});
+        }
+
+        config.min_deposit = min_deposit;
+    }
+
+    if let Some(max_deposit) = update_config.max_deposit {
+        if !validate_max_deposit(max_deposit) {
+            return Err(ContractError::InvalidMaxDeposit {});
+        }
+
+        config.max_deposit = max_deposit;
+    }
+
     config.reinvest_cooldown = update_config
         .reinvest_cooldown
         .unwrap_or(config.reinvest_cooldown);
@@ -817,7 +853,6 @@ pub fn queue_undelegation(
             Ok(batch_undelegation)
         },
     )?;
-    STATE.save(deps.storage, &state)?;
 
     Ok(Response::default())
 }
@@ -1118,7 +1153,7 @@ pub fn claim_airdrops(
         let contract_response: GetAirdropContractsResponse = get_airdrop_contracts(
             deps.querier,
             airdrops_registry_contract.clone(),
-            rate.denom.to_lowercase().clone(),
+            rate.denom.clone().to_lowercase(),
         )?;
 
         let contracts = if let Some(contracts) = contract_response.contracts {
@@ -1193,7 +1228,7 @@ pub fn query_operation_controls(deps: Deps) -> StdResult<OperationControls> {
 }
 
 pub fn query_user_info(deps: Deps, user_addr: String) -> StdResult<UserInfoResponse> {
-    let user_addr = deps.api.addr_validate(user_addr.to_lowercase().as_str())?;
+    let user_addr = deps.api.addr_validate(user_addr.as_str())?;
     let config = CONFIG.load(deps.storage)?;
     let state = STATE.load(deps.storage)?;
 
@@ -1203,7 +1238,7 @@ pub fn query_user_info(deps: Deps, user_addr: String) -> StdResult<UserInfoRespo
     Ok(UserInfoResponse {
         user_info: UserQueryInfo {
             total_tokens: user_token_balance,
-            total_amount: Coin::new(user_amount.u128(), "uluna".to_string()),
+            total_amount: Coin::new(user_amount.u128(), config.vault_denom),
         },
     })
 }
@@ -1232,9 +1267,7 @@ pub fn query_user_undelegation_records(
     start_after: Option<u64>,
     limit: Option<u64>,
 ) -> StdResult<Vec<UndelegationInfo>> {
-    let user_addr = deps
-        .api
-        .addr_validate(user_addr_str.to_lowercase().as_str())?;
+    let user_addr = deps.api.addr_validate(user_addr_str.as_str())?;
     let limit = limit.unwrap_or(10).min(20) as usize;
     let start = start_after.map(Bound::exclusive);
 
@@ -1260,7 +1293,7 @@ pub fn query_user_undelegation_info(
     user_addr: String,
     batch_id: u64,
 ) -> StdResult<GetFundsClaimRecord> {
-    let user_addr = deps.api.addr_validate(user_addr.to_lowercase().as_str())?;
+    let user_addr = deps.api.addr_validate(user_addr.as_str())?;
     let res = compute_withdrawable_funds(deps.storage, batch_id, &user_addr);
     if res.is_err() {
         return Err(StdError::GenericErr {
