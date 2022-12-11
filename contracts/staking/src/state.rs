@@ -83,9 +83,6 @@ pub struct UndelegationInfo {
     pub token_amount: Uint128, // Shares undelegated
 }
 
-// Validator address and pool Id as key.
-pub const VALIDATOR_META: Map<&Addr, VMeta> = Map::new("validator_meta");
-
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct BatchUndelegationRecord {
     pub(crate) undelegated_tokens: Uint128,

@@ -30,10 +30,15 @@
       <sourceFolder url="file://$MODULE_DIR$/contracts/stader-hub/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/packages/sic-base/examples" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/packages/sic-base/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/contracts/airdrops-registry/examples" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/contracts/airdrops-registry/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/contracts/staking/examples" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/contracts/staking/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
       <excludeFolder url="file://$MODULE_DIR$/contracts/delegator/target" />
       <excludeFolder url="file://$MODULE_DIR$/contracts/pools/target" />
       <excludeFolder url="file://$MODULE_DIR$/contracts/validator/target" />
+      <excludeFolder url="file://$MODULE_DIR$/contracts/staking/target" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />

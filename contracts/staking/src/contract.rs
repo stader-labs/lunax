@@ -1,10 +1,10 @@
 use crate::constants::{get_deposit_fee_cap, get_reward_fee_cap, get_withdraw_fee_cap};
 use crate::helpers::{
     burn_minted_tokens, calculate_exchange_rate, create_mint_message,
-    create_new_undelegation_batch, decrease_tracked_stake, get_active_validators_sorted_by_stake,
-    get_airdrop_contracts, get_total_token_supply, get_user_balance, get_validator_for_deposit,
-    increase_tracked_stake, validate, validate_max_deposit, validate_min_deposit,
-    validate_unbonding_period, validate_undelegation_cooldown, Verify,
+    create_new_undelegation_batch, get_active_validators_sorted_by_stake, get_airdrop_contracts,
+    get_total_token_supply, get_user_balance, get_validator_for_deposit, validate,
+    validate_max_deposit, validate_min_deposit, validate_unbonding_period,
+    validate_undelegation_cooldown, Verify,
 };
 use crate::msg::{
     Cw20HookMsg, ExecuteMsg, GetFundsClaimRecord, GetFundsDepositRecord, GetValMetaResponse,
@@ -15,7 +15,7 @@ use crate::msg::{
 use crate::state::{
     AirdropRate, Config, ConfigUpdateRequest, OperationControls, OperationControlsUpdateRequest,
     State, TmpManagerStore, UndelegationInfo, VMeta, BATCH_UNDELEGATION_REGISTRY, CONFIG,
-    OPERATION_CONTROLS, STATE, TMP_MANAGER_STORE, USERS, VALIDATOR_META,
+    OPERATION_CONTROLS, STATE, TMP_MANAGER_STORE, USERS,
 };
 use crate::ContractError;
 use airdrops_registry::msg::GetAirdropContractsResponse;
@@ -382,8 +382,6 @@ pub fn add_validator(
         Ok(state)
     })?;
 
-    VALIDATOR_META.save(deps.storage, &val_addr, &VMeta::new())?;
-
     Ok(Response::new().add_attribute("new_validator", val_addr.to_string()))
 }
 
@@ -431,8 +429,6 @@ pub fn remove_validator_from_pool(
             return Err(ContractError::RedelegationInProgress {});
         }
 
-        increase_tracked_stake(&mut deps, &redel_addr, full_delegation.amount.amount)?;
-
         if !full_delegation.amount.amount.is_zero() {
             msgs.push(StakingMsg::Redelegate {
                 src_validator: val_addr.to_string(),
@@ -442,7 +438,6 @@ pub fn remove_validator_from_pool(
         }
     }
     STATE.save(deps.storage, &state)?;
-    VALIDATOR_META.remove(deps.storage, &val_addr);
 
     Ok(Response::new().add_messages(msgs))
 }
@@ -499,10 +494,6 @@ pub fn rebalance_pool(
         return Err(ContractError::InSufficientFunds {});
     };
 
-    // Update validator tracking amounts
-    decrease_tracked_stake(&mut deps, &val_addr, amount)?;
-    increase_tracked_stake(&mut deps, &redel_addr, amount)?;
-
     Ok(Response::new().add_message(StakingMsg::Redelegate {
         src_validator: val_addr.to_string(),
         dst_validator: redel_addr.to_string(),
@@ -529,18 +520,6 @@ pub fn check_slashing(
         total_staked_on_chain = total_staked_on_chain
             .checked_add(delegation_amount)
             .unwrap();
-
-        VALIDATOR_META.update(deps.storage, val_addr, |x| -> Result<_, ContractError> {
-            let mut val_meta = x.unwrap_or_else(VMeta::new);
-
-            if val_meta.staked.gt(&delegation_amount) {
-                let slashed_amount = val_meta.staked.saturating_sub(delegation_amount);
-                val_meta.slashed = val_meta.slashed.checked_add(slashed_amount).unwrap();
-            }
-            val_meta.staked = delegation_amount;
-
-            Ok(val_meta)
-        })?;
     }
 
     let total_tokens = get_total_token_supply(deps.querier, config.cw20_token_contract)?;
@@ -603,7 +582,6 @@ pub fn deposit(mut deps: DepsMut, info: MessageInfo, env: Env) -> Result<Respons
             .total_staked
             .checked_add(deposit_breakdown.staked_amount)
             .unwrap();
-        increase_tracked_stake(&mut deps, &val_addr, deposit_breakdown.staked_amount)?;
 
         msgs.push(SubMsg::new(StakingMsg::Delegate {
             validator: val_addr.to_string(),
@@ -741,7 +719,6 @@ pub fn reinvest(mut deps: DepsMut, info: MessageInfo, env: Env) -> Result<Respon
         all_delegations.as_slice(),
     )?;
     state.total_staked = state.total_staked.checked_add(transfer_amount).unwrap();
-    increase_tracked_stake(&mut deps, &val_addr, transfer_amount)?;
     state.exchange_rate = calculate_exchange_rate(
         state.total_staked,
         get_total_token_supply(deps.querier, config.cw20_token_contract)?,
@@ -936,7 +913,6 @@ pub fn undelegate_stake(
             amount: Coin::new(amount.u128(), config.vault_denom.clone()),
         });
 
-        decrease_tracked_stake(&mut deps, &val_addr, amount)?;
         to_undelegate = to_undelegate.saturating_sub(amount);
     }
 
@@ -1204,7 +1180,6 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             start_after,
             limit,
         )?),
-        QueryMsg::GetValMeta { val_addr } => to_binary(&query_val_meta(deps, val_addr)?),
         QueryMsg::GetUserInfo { user_addr } => to_binary(&query_user_info(deps, user_addr)?),
         QueryMsg::ComputeDepositBreakdown { amount } => {
             to_binary(&query_compute_deposit_breakdown(deps, amount)?)
@@ -1279,13 +1254,6 @@ pub fn query_user_undelegation_records(
         .collect::<Vec<UndelegationInfo>>();
 
     Ok(user_undelegations)
-}
-
-pub fn query_val_meta(deps: Deps, val_addr: Addr) -> StdResult<GetValMetaResponse> {
-    let val_meta_opt = VALIDATOR_META.may_load(deps.storage, &val_addr)?;
-    Ok(GetValMetaResponse {
-        val_meta: val_meta_opt,
-    })
 }
 
 pub fn query_user_undelegation_info(
