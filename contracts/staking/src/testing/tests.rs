@@ -14,7 +14,7 @@ mod tests {
     use crate::state::{
         AirdropRate, BatchUndelegationRecord, Config, ConfigUpdateRequest, OperationControls,
         OperationControlsUpdateRequest, State, UndelegationInfo, VMeta,
-        BATCH_UNDELEGATION_REGISTRY, CONFIG, OPERATION_CONTROLS, STATE, USERS, VALIDATOR_META,
+        BATCH_UNDELEGATION_REGISTRY, CONFIG, OPERATION_CONTROLS, STATE, USERS,
     };
     use crate::testing::mock_querier::{mock_dependencies, WasmMockQuerier};
     use crate::testing::test_helpers::check_equal_vec;
@@ -1104,39 +1104,6 @@ mod tests {
             .update_staking("uluna", &*get_validators(), &*get_delegations());
         deps.querier
             .update_stader_balances(Some(Uint128::new(3000_u128)), None);
-        VALIDATOR_META
-            .save(
-                deps.as_mut().storage,
-                &valid1,
-                &VMeta {
-                    staked: Uint128::new(1000_u128),
-                    slashed: Uint128::zero(),
-                    filled: Default::default(),
-                },
-            )
-            .unwrap();
-        VALIDATOR_META
-            .save(
-                deps.as_mut().storage,
-                &valid2,
-                &VMeta {
-                    staked: Uint128::new(1000_u128),
-                    slashed: Uint128::zero(),
-                    filled: Default::default(),
-                },
-            )
-            .unwrap();
-        VALIDATOR_META
-            .save(
-                deps.as_mut().storage,
-                &valid3,
-                &VMeta {
-                    staked: Uint128::new(1000_u128),
-                    slashed: Uint128::zero(),
-                    filled: Default::default(),
-                },
-            )
-            .unwrap();
         STATE
             .update(
                 deps.as_mut().storage,
@@ -1154,33 +1121,6 @@ mod tests {
             convert_to_delegation(get_delegations()).as_slice(),
         )
         .unwrap();
-        let val1_meta = VALIDATOR_META.load(deps.as_mut().storage, &valid1).unwrap();
-        let val2_meta = VALIDATOR_META.load(deps.as_mut().storage, &valid2).unwrap();
-        let val3_meta = VALIDATOR_META.load(deps.as_mut().storage, &valid3).unwrap();
-        assert_eq!(
-            val1_meta,
-            VMeta {
-                staked: Uint128::new(1000_u128),
-                slashed: Uint128::zero(),
-                filled: Default::default()
-            }
-        );
-        assert_eq!(
-            val2_meta,
-            VMeta {
-                staked: Uint128::new(1000_u128),
-                slashed: Uint128::zero(),
-                filled: Default::default()
-            }
-        );
-        assert_eq!(
-            val3_meta,
-            VMeta {
-                staked: Uint128::new(1000_u128),
-                slashed: Uint128::zero(),
-                filled: Default::default()
-            }
-        );
 
         let state = STATE.load(deps.as_mut().storage).unwrap();
         assert_eq!(state.total_staked, Uint128::new(3000_u128));
@@ -1244,39 +1184,6 @@ mod tests {
         );
         deps.querier
             .update_stader_balances(Some(Uint128::new(3000_u128)), None);
-        VALIDATOR_META
-            .save(
-                deps.as_mut().storage,
-                &valid1,
-                &VMeta {
-                    staked: Uint128::new(1000_u128),
-                    slashed: Uint128::zero(),
-                    filled: Default::default(),
-                },
-            )
-            .unwrap();
-        VALIDATOR_META
-            .save(
-                deps.as_mut().storage,
-                &valid2,
-                &VMeta {
-                    staked: Uint128::new(1000_u128),
-                    slashed: Uint128::zero(),
-                    filled: Default::default(),
-                },
-            )
-            .unwrap();
-        VALIDATOR_META
-            .save(
-                deps.as_mut().storage,
-                &valid3,
-                &VMeta {
-                    staked: Uint128::new(1000_u128),
-                    slashed: Uint128::zero(),
-                    filled: Default::default(),
-                },
-            )
-            .unwrap();
 
         check_slashing(
             &mut deps.as_mut(),
@@ -1284,33 +1191,6 @@ mod tests {
             convert_to_delegation(get_delegations_test_2()).as_slice(),
         )
         .unwrap();
-        let val1_meta = VALIDATOR_META.load(deps.as_mut().storage, &valid1).unwrap();
-        let val2_meta = VALIDATOR_META.load(deps.as_mut().storage, &valid2).unwrap();
-        let val3_meta = VALIDATOR_META.load(deps.as_mut().storage, &valid3).unwrap();
-        assert_eq!(
-            val1_meta,
-            VMeta {
-                staked: Uint128::new(500_u128),
-                slashed: Uint128::new(500_u128),
-                filled: Default::default()
-            }
-        );
-        assert_eq!(
-            val2_meta,
-            VMeta {
-                staked: Uint128::new(1000_u128),
-                slashed: Uint128::zero(),
-                filled: Default::default()
-            }
-        );
-        assert_eq!(
-            val3_meta,
-            VMeta {
-                staked: Uint128::new(1000_u128),
-                slashed: Uint128::zero(),
-                filled: Default::default()
-            }
-        );
 
         let state = STATE.load(deps.as_mut().storage).unwrap();
         assert_eq!(state.total_staked, Uint128::new(2500_u128));
@@ -1377,39 +1257,6 @@ mod tests {
         );
         deps.querier
             .update_stader_balances(Some(Uint128::new(3000_u128)), None);
-        VALIDATOR_META
-            .save(
-                deps.as_mut().storage,
-                &valid1,
-                &VMeta {
-                    staked: Uint128::new(1000_u128),
-                    slashed: Uint128::zero(),
-                    filled: Default::default(),
-                },
-            )
-            .unwrap();
-        VALIDATOR_META
-            .save(
-                deps.as_mut().storage,
-                &valid2,
-                &VMeta {
-                    staked: Uint128::new(1000_u128),
-                    slashed: Uint128::zero(),
-                    filled: Default::default(),
-                },
-            )
-            .unwrap();
-        VALIDATOR_META
-            .save(
-                deps.as_mut().storage,
-                &valid3,
-                &VMeta {
-                    staked: Uint128::new(1000_u128),
-                    slashed: Uint128::zero(),
-                    filled: Default::default(),
-                },
-            )
-            .unwrap();
 
         check_slashing(
             &mut deps.as_mut(),
@@ -1417,33 +1264,6 @@ mod tests {
             convert_to_delegation(get_delegations_test_3()).as_slice(),
         )
         .unwrap();
-        let val1_meta = VALIDATOR_META.load(deps.as_mut().storage, &valid1).unwrap();
-        let val2_meta = VALIDATOR_META.load(deps.as_mut().storage, &valid2).unwrap();
-        let val3_meta = VALIDATOR_META.load(deps.as_mut().storage, &valid3).unwrap();
-        assert_eq!(
-            val1_meta,
-            VMeta {
-                staked: Uint128::new(1500_u128),
-                slashed: Uint128::zero(),
-                filled: Default::default()
-            }
-        );
-        assert_eq!(
-            val2_meta,
-            VMeta {
-                staked: Uint128::new(1000_u128),
-                slashed: Uint128::zero(),
-                filled: Default::default()
-            }
-        );
-        assert_eq!(
-            val3_meta,
-            VMeta {
-                staked: Uint128::new(1000_u128),
-                slashed: Uint128::zero(),
-                filled: Default::default()
-            }
-        );
 
         let state = STATE.load(deps.as_mut().storage).unwrap();
         assert_eq!(state.total_staked, Uint128::new(3500_u128));
@@ -1549,10 +1369,6 @@ mod tests {
         );
         let state = STATE.load(deps.as_mut().storage).unwrap();
         assert_eq!(state.validators, vec![val_addr.clone()]);
-        let val_meta = VALIDATOR_META
-            .load(deps.as_mut().storage, &val_addr)
-            .unwrap();
-        assert_eq!(val_meta, VMeta::new());
     }
 
     #[test]
@@ -1626,39 +1442,6 @@ mod tests {
             .update_staking("uluna", &*get_validators(), &*get_delegations());
         deps.querier
             .update_stader_balances(Some(Uint128::new(3000_u128)), None);
-        VALIDATOR_META
-            .save(
-                deps.as_mut().storage,
-                &valid1,
-                &VMeta {
-                    staked: Uint128::new(1000_u128),
-                    slashed: Uint128::zero(),
-                    filled: Uint128::new(1000_u128),
-                },
-            )
-            .unwrap();
-        VALIDATOR_META
-            .save(
-                deps.as_mut().storage,
-                &valid2,
-                &VMeta {
-                    staked: Uint128::new(1000_u128),
-                    slashed: Uint128::zero(),
-                    filled: Uint128::new(1000_u128),
-                },
-            )
-            .unwrap();
-        VALIDATOR_META
-            .save(
-                deps.as_mut().storage,
-                &valid3,
-                &VMeta {
-                    staked: Uint128::new(1000_u128),
-                    slashed: Uint128::zero(),
-                    filled: Uint128::new(1000_u128),
-                },
-            )
-            .unwrap();
         let res = execute(
             deps.as_mut(),
             env.clone(),
@@ -1704,42 +1487,6 @@ mod tests {
             .update_staking("uluna", &*get_validators(), &*get_delegations());
         deps.querier
             .update_stader_balances(Some(Uint128::new(3000_u128)), None);
-        VALIDATOR_META
-            .save(
-                deps.as_mut().storage,
-                &valid1,
-                &VMeta {
-                    staked: Uint128::new(1000_u128),
-                    slashed: Uint128::zero(),
-                    filled: Uint128::new(1000_u128),
-                },
-            )
-            .unwrap();
-        VALIDATOR_META
-            .save(
-                deps.as_mut().storage,
-                &valid2,
-                &VMeta {
-                    staked: Uint128::new(1000_u128),
-                    slashed: Uint128::zero(),
-                    filled: Uint128::new(1000_u128),
-                },
-            )
-            .unwrap();
-        VALIDATOR_META
-            .save(
-                deps.as_mut().storage,
-                &valid3,
-                &VMeta {
-                    staked: Uint128::new(1000_u128),
-                    slashed: Uint128::zero(),
-                    filled: Uint128::new(1000_u128),
-                },
-            )
-            .unwrap();
-        VALIDATOR_META
-            .save(deps.as_mut().storage, &valid4, &VMeta::new())
-            .unwrap();
         let res = execute(
             deps.as_mut(),
             env.clone(),
@@ -1793,42 +1540,6 @@ mod tests {
             .update_staking("uluna", &*get_validators(), &*get_delegations());
         deps.querier
             .update_stader_balances(Some(Uint128::new(3000_u128)), None);
-        VALIDATOR_META
-            .save(
-                deps.as_mut().storage,
-                &valid1,
-                &VMeta {
-                    staked: Uint128::new(1000_u128),
-                    slashed: Uint128::zero(),
-                    filled: Uint128::new(1000_u128),
-                },
-            )
-            .unwrap();
-        VALIDATOR_META
-            .save(
-                deps.as_mut().storage,
-                &valid2,
-                &VMeta {
-                    staked: Uint128::new(1000_u128),
-                    slashed: Uint128::zero(),
-                    filled: Uint128::new(1000_u128),
-                },
-            )
-            .unwrap();
-        VALIDATOR_META
-            .save(
-                deps.as_mut().storage,
-                &valid3,
-                &VMeta {
-                    staked: Uint128::new(1000_u128),
-                    slashed: Uint128::zero(),
-                    filled: Uint128::new(1000_u128),
-                },
-            )
-            .unwrap();
-        VALIDATOR_META
-            .save(deps.as_mut().storage, &valid4, &VMeta::new())
-            .unwrap();
         let res = execute(
             deps.as_mut(),
             env.clone(),
@@ -1901,39 +1612,6 @@ mod tests {
                 |mut state| -> Result<_, ContractError> {
                     state.validators = vec![valid1.clone(), valid2.clone(), valid3.clone()];
                     Ok(state)
-                },
-            )
-            .unwrap();
-        VALIDATOR_META
-            .save(
-                deps.as_mut().storage,
-                &valid1,
-                &VMeta {
-                    staked: Uint128::new(1000_u128),
-                    slashed: Default::default(),
-                    filled: Default::default(),
-                },
-            )
-            .unwrap();
-        VALIDATOR_META
-            .save(
-                deps.as_mut().storage,
-                &valid2,
-                &VMeta {
-                    staked: Uint128::new(1000_u128),
-                    slashed: Default::default(),
-                    filled: Default::default(),
-                },
-            )
-            .unwrap();
-        VALIDATOR_META
-            .save(
-                deps.as_mut().storage,
-                &valid3,
-                &VMeta {
-                    staked: Uint128::new(1000_u128),
-                    slashed: Default::default(),
-                    filled: Default::default(),
                 },
             )
             .unwrap();
@@ -2110,39 +1788,7 @@ mod tests {
                 },
             )
             .unwrap();
-        VALIDATOR_META
-            .save(
-                deps.as_mut().storage,
-                &valid1,
-                &VMeta {
-                    staked: Uint128::new(1000_u128),
-                    slashed: Default::default(),
-                    filled: Default::default(),
-                },
-            )
-            .unwrap();
-        VALIDATOR_META
-            .save(
-                deps.as_mut().storage,
-                &valid2,
-                &VMeta {
-                    staked: Uint128::new(1000_u128),
-                    slashed: Default::default(),
-                    filled: Default::default(),
-                },
-            )
-            .unwrap();
-        VALIDATOR_META
-            .save(
-                deps.as_mut().storage,
-                &valid3,
-                &VMeta {
-                    staked: Uint128::new(1000_u128),
-                    slashed: Default::default(),
-                    filled: Default::default(),
-                },
-            )
-            .unwrap();
+
         deps.querier
             .update_staking("uluna", &*get_validators(), &*get_delegations());
         deps.querier
@@ -2167,24 +1813,6 @@ mod tests {
                 amount: Coin::new(100_u128, "uluna".to_string())
             })]
         ));
-        let val1_meta = VALIDATOR_META.load(deps.as_mut().storage, &valid1).unwrap();
-        let val2_meta = VALIDATOR_META.load(deps.as_mut().storage, &valid2).unwrap();
-        assert_eq!(
-            val1_meta,
-            VMeta {
-                staked: Uint128::new(900_u128),
-                slashed: Default::default(),
-                filled: Default::default()
-            }
-        );
-        assert_eq!(
-            val2_meta,
-            VMeta {
-                staked: Uint128::new(1100_u128),
-                slashed: Default::default(),
-                filled: Default::default()
-            }
-        );
     }
 
     #[test]
@@ -2211,39 +1839,6 @@ mod tests {
             .update_staking("uluna", &*get_validators(), &*get_delegations());
         deps.querier
             .update_stader_balances(Some(Uint128::new(3000_u128)), None);
-        VALIDATOR_META
-            .save(
-                deps.as_mut().storage,
-                &valid2,
-                &VMeta {
-                    staked: Uint128::new(1000_u128),
-                    slashed: Default::default(),
-                    filled: Default::default(),
-                },
-            )
-            .unwrap();
-        VALIDATOR_META
-            .save(
-                deps.as_mut().storage,
-                &valid3,
-                &VMeta {
-                    staked: Uint128::new(1000_u128),
-                    slashed: Default::default(),
-                    filled: Default::default(),
-                },
-            )
-            .unwrap();
-        VALIDATOR_META
-            .save(
-                deps.as_mut().storage,
-                &valid1,
-                &VMeta {
-                    staked: Uint128::new(1000_u128),
-                    slashed: Default::default(),
-                    filled: Default::default(),
-                },
-            )
-            .unwrap();
         /*
            Test - 1. Unauthorized
         */
@@ -2332,39 +1927,6 @@ mod tests {
             .update_staking("uluna", &*get_validators(), &*get_delegations());
         deps.querier
             .update_stader_balances(Some(Uint128::new(3000_u128)), None);
-        VALIDATOR_META
-            .save(
-                deps.as_mut().storage,
-                &valid2,
-                &VMeta {
-                    staked: Uint128::new(1000_u128),
-                    slashed: Default::default(),
-                    filled: Default::default(),
-                },
-            )
-            .unwrap();
-        VALIDATOR_META
-            .save(
-                deps.as_mut().storage,
-                &valid3,
-                &VMeta {
-                    staked: Uint128::new(1000_u128),
-                    slashed: Default::default(),
-                    filled: Default::default(),
-                },
-            )
-            .unwrap();
-        VALIDATOR_META
-            .save(
-                deps.as_mut().storage,
-                &valid1,
-                &VMeta {
-                    staked: Uint128::new(1000_u128),
-                    slashed: Default::default(),
-                    filled: Default::default(),
-                },
-            )
-            .unwrap();
         let res = execute(
             deps.as_mut(),
             env.clone(),
@@ -2384,19 +1946,6 @@ mod tests {
                 amount: Coin::new(1000_u128, "uluna".to_string())
             })]
         ));
-        let val1_meta = VALIDATOR_META
-            .may_load(deps.as_mut().storage, &valid1)
-            .unwrap();
-        assert_eq!(val1_meta, None);
-        let val2_meta = VALIDATOR_META.load(deps.as_mut().storage, &valid2).unwrap();
-        assert_eq!(
-            val2_meta,
-            VMeta {
-                staked: Uint128::new(2000_u128),
-                slashed: Default::default(),
-                filled: Default::default()
-            }
-        );
         let state = STATE.load(deps.as_mut().storage).unwrap();
         assert!(check_equal_vec(
             state.validators,
@@ -2465,39 +2014,6 @@ mod tests {
                 |mut state| -> Result<_, ContractError> {
                     state.validators = vec![valid1.clone(), valid2.clone(), valid3.clone()];
                     Ok(state)
-                },
-            )
-            .unwrap();
-        VALIDATOR_META
-            .save(
-                deps.as_mut().storage,
-                &valid1,
-                &VMeta {
-                    staked: Uint128::new(1000_u128),
-                    slashed: Default::default(),
-                    filled: Default::default(),
-                },
-            )
-            .unwrap();
-        VALIDATOR_META
-            .save(
-                deps.as_mut().storage,
-                &valid2,
-                &VMeta {
-                    staked: Uint128::new(1000_u128),
-                    slashed: Default::default(),
-                    filled: Default::default(),
-                },
-            )
-            .unwrap();
-        VALIDATOR_META
-            .save(
-                deps.as_mut().storage,
-                &valid3,
-                &VMeta {
-                    staked: Uint128::new(1000_u128),
-                    slashed: Default::default(),
-                    filled: Default::default(),
                 },
             )
             .unwrap();
@@ -2577,39 +2093,6 @@ mod tests {
             .update_staking("uluna", &*get_validators(), &*get_delegations());
         deps.querier
             .update_stader_balances(Some(Uint128::new(3000_u128)), None);
-        VALIDATOR_META
-            .save(
-                deps.as_mut().storage,
-                &valid2,
-                &VMeta {
-                    staked: Uint128::new(1000_u128),
-                    slashed: Default::default(),
-                    filled: Default::default(),
-                },
-            )
-            .unwrap();
-        VALIDATOR_META
-            .save(
-                deps.as_mut().storage,
-                &valid3,
-                &VMeta {
-                    staked: Uint128::new(1000_u128),
-                    slashed: Default::default(),
-                    filled: Default::default(),
-                },
-            )
-            .unwrap();
-        VALIDATOR_META
-            .save(
-                deps.as_mut().storage,
-                &valid1,
-                &VMeta {
-                    staked: Uint128::new(1000_u128),
-                    slashed: Default::default(),
-                    filled: Default::default(),
-                },
-            )
-            .unwrap();
         let res = execute(
             deps.as_mut(),
             env.clone(),
@@ -2643,15 +2126,6 @@ mod tests {
         );
         let state = STATE.load(deps.as_mut().storage).unwrap();
         assert_eq!(state.total_staked, Uint128::new(3990_u128));
-        let val1_meta = VALIDATOR_META.load(deps.as_mut().storage, &valid1).unwrap();
-        assert_eq!(
-            val1_meta,
-            VMeta {
-                staked: Uint128::new(1990_u128),
-                slashed: Uint128::zero(),
-                filled: Default::default()
-            }
-        );
     }
 
     #[test]
@@ -2693,39 +2167,6 @@ mod tests {
             .update_staking("uluna", &*get_validators(), &*get_delegations());
         deps.querier
             .update_stader_balances(Some(Uint128::new(3000_u128)), None);
-        VALIDATOR_META
-            .save(
-                deps.as_mut().storage,
-                &valid2,
-                &VMeta {
-                    staked: Uint128::new(1000_u128),
-                    slashed: Default::default(),
-                    filled: Default::default(),
-                },
-            )
-            .unwrap();
-        VALIDATOR_META
-            .save(
-                deps.as_mut().storage,
-                &valid3,
-                &VMeta {
-                    staked: Uint128::new(1000_u128),
-                    slashed: Default::default(),
-                    filled: Default::default(),
-                },
-            )
-            .unwrap();
-        VALIDATOR_META
-            .save(
-                deps.as_mut().storage,
-                &valid1,
-                &VMeta {
-                    staked: Uint128::new(1000_u128),
-                    slashed: Default::default(),
-                    filled: Default::default(),
-                },
-            )
-            .unwrap();
         BATCH_UNDELEGATION_REGISTRY
             .save(
                 deps.as_mut().storage,
@@ -2867,39 +2308,6 @@ mod tests {
                 },
             )
             .unwrap();
-        VALIDATOR_META
-            .save(
-                deps.as_mut().storage,
-                &valid2,
-                &VMeta {
-                    staked: Uint128::new(1000_u128),
-                    slashed: Default::default(),
-                    filled: Default::default(),
-                },
-            )
-            .unwrap();
-        VALIDATOR_META
-            .save(
-                deps.as_mut().storage,
-                &valid3,
-                &VMeta {
-                    staked: Uint128::new(1000_u128),
-                    slashed: Default::default(),
-                    filled: Default::default(),
-                },
-            )
-            .unwrap();
-        VALIDATOR_META
-            .save(
-                deps.as_mut().storage,
-                &valid1,
-                &VMeta {
-                    staked: Uint128::new(1000_u128),
-                    slashed: Default::default(),
-                    filled: Default::default(),
-                },
-            )
-            .unwrap();
         let res = execute(
             deps.as_mut(),
             env.clone(),
@@ -2936,8 +2344,6 @@ mod tests {
             Decimal::from_ratio(3990_u128, 3000_u128)
         );
         assert_eq!(state.last_reinvest_time, env.block.time);
-        let val1_meta = VALIDATOR_META.load(deps.as_mut().storage, &valid1).unwrap();
-        assert_eq!(val1_meta.staked, Uint128::new(1990_u128));
     }
 
     #[test]
@@ -3327,39 +2733,6 @@ mod tests {
                 },
             )
             .unwrap();
-        VALIDATOR_META
-            .save(
-                deps.as_mut().storage,
-                &valid1,
-                &VMeta {
-                    staked: Uint128::new(1000_u128),
-                    slashed: Default::default(),
-                    filled: Default::default(),
-                },
-            )
-            .unwrap();
-        VALIDATOR_META
-            .save(
-                deps.as_mut().storage,
-                &valid2,
-                &VMeta {
-                    staked: Uint128::new(1000_u128),
-                    slashed: Default::default(),
-                    filled: Default::default(),
-                },
-            )
-            .unwrap();
-        VALIDATOR_META
-            .save(
-                deps.as_mut().storage,
-                &valid3,
-                &VMeta {
-                    staked: Uint128::new(1000_u128),
-                    slashed: Default::default(),
-                    filled: Default::default(),
-                },
-            )
-            .unwrap();
         deps.querier
             .update_staking("uluna", &*get_validators(), &*get_delegations());
         deps.querier
@@ -3476,39 +2849,6 @@ mod tests {
             .update_staking("uluna", &*get_validators(), &*get_delegations());
         deps.querier
             .update_stader_balances(Some(Uint128::new(3000_u128)), None);
-        VALIDATOR_META
-            .save(
-                deps.as_mut().storage,
-                &valid2,
-                &VMeta {
-                    staked: Uint128::new(1000_u128),
-                    slashed: Default::default(),
-                    filled: Default::default(),
-                },
-            )
-            .unwrap();
-        VALIDATOR_META
-            .save(
-                deps.as_mut().storage,
-                &valid3,
-                &VMeta {
-                    staked: Uint128::new(1000_u128),
-                    slashed: Default::default(),
-                    filled: Default::default(),
-                },
-            )
-            .unwrap();
-        VALIDATOR_META
-            .save(
-                deps.as_mut().storage,
-                &valid1,
-                &VMeta {
-                    staked: Uint128::new(1000_u128),
-                    slashed: Default::default(),
-                    filled: Default::default(),
-                },
-            )
-            .unwrap();
         BATCH_UNDELEGATION_REGISTRY
             .save(
                 deps.as_mut().storage,
@@ -3568,39 +2908,6 @@ mod tests {
             .update_staking("uluna", &*get_validators(), &*get_delegations());
         deps.querier
             .update_stader_balances(Some(Uint128::new(3000_u128)), None);
-        VALIDATOR_META
-            .save(
-                deps.as_mut().storage,
-                &valid2,
-                &VMeta {
-                    staked: Uint128::new(1000_u128),
-                    slashed: Default::default(),
-                    filled: Default::default(),
-                },
-            )
-            .unwrap();
-        VALIDATOR_META
-            .save(
-                deps.as_mut().storage,
-                &valid3,
-                &VMeta {
-                    staked: Uint128::new(1000_u128),
-                    slashed: Default::default(),
-                    filled: Default::default(),
-                },
-            )
-            .unwrap();
-        VALIDATOR_META
-            .save(
-                deps.as_mut().storage,
-                &valid1,
-                &VMeta {
-                    staked: Uint128::new(1000_u128),
-                    slashed: Default::default(),
-                    filled: Default::default(),
-                },
-            )
-            .unwrap();
         BATCH_UNDELEGATION_REGISTRY
             .save(
                 deps.as_mut().storage,
@@ -3673,39 +2980,6 @@ mod tests {
             .update_staking("uluna", &*get_validators(), &*get_delegations());
         deps.querier
             .update_stader_balances(Some(Uint128::new(3000_u128)), None);
-        VALIDATOR_META
-            .save(
-                deps.as_mut().storage,
-                &valid2,
-                &VMeta {
-                    staked: Uint128::new(1000_u128),
-                    slashed: Default::default(),
-                    filled: Default::default(),
-                },
-            )
-            .unwrap();
-        VALIDATOR_META
-            .save(
-                deps.as_mut().storage,
-                &valid3,
-                &VMeta {
-                    staked: Uint128::new(1000_u128),
-                    slashed: Default::default(),
-                    filled: Default::default(),
-                },
-            )
-            .unwrap();
-        VALIDATOR_META
-            .save(
-                deps.as_mut().storage,
-                &valid1,
-                &VMeta {
-                    staked: Uint128::new(1000_u128),
-                    slashed: Default::default(),
-                    filled: Default::default(),
-                },
-            )
-            .unwrap();
         BATCH_UNDELEGATION_REGISTRY
             .save(
                 deps.as_mut().storage,
@@ -3751,24 +3025,6 @@ mod tests {
                 })
             ]
         ));
-        let val3_meta = VALIDATOR_META.load(deps.as_mut().storage, &valid3).unwrap();
-        let val2_meta = VALIDATOR_META.load(deps.as_mut().storage, &valid2).unwrap();
-        assert_eq!(
-            val3_meta,
-            VMeta {
-                staked: Uint128::zero(),
-                slashed: Default::default(),
-                filled: Default::default()
-            }
-        );
-        assert_eq!(
-            val2_meta,
-            VMeta {
-                staked: Uint128::zero(),
-                slashed: Default::default(),
-                filled: Default::default()
-            }
-        );
         let config = CONFIG.load(deps.as_mut().storage).unwrap();
         let undel_batch = BATCH_UNDELEGATION_REGISTRY
             .load(deps.as_mut().storage, 1)

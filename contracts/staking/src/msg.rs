@@ -111,9 +111,6 @@ pub enum QueryMsg {
         user_addr: String,
         batch_id: u64,
     },
-    GetValMeta {
-        val_addr: Addr,
-    },
     GetUserInfo {
         user_addr: String,
     },

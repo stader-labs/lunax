@@ -1,8 +1,6 @@
 #![allow(dead_code)]
 
-use crate::state::{
-    BatchUndelegationRecord, Config, VMeta, BATCH_UNDELEGATION_REGISTRY, STATE, VALIDATOR_META,
-};
+use crate::state::{BatchUndelegationRecord, Config, VMeta, BATCH_UNDELEGATION_REGISTRY, STATE};
 use crate::ContractError;
 use airdrops_registry::msg::GetAirdropContractsResponse;
 use airdrops_registry::msg::QueryMsg as AirdropsQueryMsg;
@@ -90,16 +88,18 @@ pub fn get_validator_for_deposit(
     if validators.is_empty() {
         return Err(ContractError::NoValidatorsInPool {});
     }
-    let all_terra_validators = querier.query_all_validators()?;
+    // let all_terra_validators = querier.query_all_validators()?;
 
-    let mut stake_tuples = vec![];
+    // let mut stake_tuples = vec![];
+    let mut chosen_validator: Option<Addr> = None;
+    let mut max_amount = Uint128::MAX;
     for val_addr in validators {
-        let validator = all_terra_validators
-            .iter()
-            .find(|x| x.address.eq(&val_addr));
-        if validator.is_none() {
-            continue;
-        }
+        // let validator = all_terra_validators
+        //     .iter()
+        //     .find(|x| x.address.eq(&val_addr));
+        // if validator.is_none() {
+        //     continue;
+        // }
 
         let delegation_opt = all_delegations.iter().find(|x| x.validator.eq(&val_addr));
 
@@ -107,16 +107,22 @@ pub fn get_validator_for_deposit(
             // No delegation. So use the validator
             return Ok(val_addr);
         }
-        stake_tuples.push((
-            delegation_opt.unwrap().amount.amount.u128(),
-            val_addr.to_string(),
-        ))
+
+        let staked_amount = delegation_opt.unwrap().amount.amount;
+        if staked_amount.lt(&max_amount) {
+            max_amount = staked_amount;
+            chosen_validator = Some(val_addr);
+        }
+        // stake_tuples.push((
+        //     delegation_opt.unwrap().amount.amount.u128(),
+        //     val_addr.to_string(),
+        // ))
     }
-    if stake_tuples.is_empty() {
+    if chosen_validator.is_none() {
         return Err(ContractError::AllValidatorsJailed {});
     }
-    stake_tuples.sort();
-    Ok(Addr::unchecked(stake_tuples.first().unwrap().clone().1))
+
+    Ok(chosen_validator.unwrap())
 }
 
 // Take in validator staked amounts into pool if the pool size is bigger.
@@ -172,45 +178,6 @@ pub fn create_new_undelegation_batch(
     )?;
     state.current_undelegation_batch_id += 1;
     STATE.save(storage, &state)?;
-    Ok(())
-}
-
-pub fn increase_tracked_stake(
-    deps: &mut DepsMut,
-    val_addr: &Addr,
-    amount: Uint128,
-) -> Result<(), ContractError> {
-    VALIDATOR_META.update(deps.storage, val_addr, |x| -> StdResult<_> {
-        let mut vmeta = x.unwrap_or_else(VMeta::new);
-        vmeta.staked = vmeta.staked.checked_add(amount).unwrap();
-        Ok(vmeta)
-    })?;
-    Ok(())
-}
-
-pub fn decrease_tracked_stake(
-    deps: &mut DepsMut,
-    val_addr: &Addr,
-    amount: Uint128,
-) -> Result<(), ContractError> {
-    VALIDATOR_META.update(deps.storage, val_addr, |x| -> StdResult<_> {
-        let mut vmeta = x.unwrap_or_else(VMeta::new);
-        vmeta.staked = vmeta.staked.saturating_sub(amount);
-        Ok(vmeta)
-    })?;
-    Ok(())
-}
-
-pub fn decrease_tracked_slashing(
-    deps: &mut DepsMut,
-    val_addr: &Addr,
-    amount: Uint128,
-) -> Result<(), ContractError> {
-    VALIDATOR_META.update(deps.storage, val_addr, |x| -> StdResult<_> {
-        let mut vmeta = x.unwrap_or_else(VMeta::new);
-        vmeta.slashed = vmeta.slashed.saturating_sub(amount);
-        Ok(vmeta)
-    })?;
     Ok(())
 }
 
